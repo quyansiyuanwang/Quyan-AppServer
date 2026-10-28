@@ -1,3 +1,4 @@
+import { relayConnectionHeaderNames } from "./utils/relay-upstream-headers.util";
 import { PassThrough, type Transform } from "stream";
 import type { RelayConvertibleRequestFormat } from "@quyan/shared";
 import {
@@ -46,8 +47,11 @@ export function compositeIngressRequest(request: any, body: unknown): any {
   const query = Object.fromEntries(
     Object.entries(request.query ?? {}).filter(([key]) => !COMPOSITE_CREDENTIAL_QUERY_NAMES.has(key.toLowerCase())),
   );
+  const connectionHeaders = relayConnectionHeaderNames(request.headers ?? {});
   const headers = Object.fromEntries(
-    Object.entries(request.headers ?? {}).filter(([key]) => !COMPOSITE_PRIVATE_HEADERS.has(key.toLowerCase())),
+    Object.entries(request.headers ?? {}).filter(
+      ([key]) => !COMPOSITE_PRIVATE_HEADERS.has(key.toLowerCase()) && !connectionHeaders.has(key.toLowerCase()),
+    ),
   );
   return cloneCompositeRequest(request, { body, query, headers });
 }

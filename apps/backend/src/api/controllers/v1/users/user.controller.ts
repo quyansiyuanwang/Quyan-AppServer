@@ -1,3 +1,13 @@
+import { platformUserCreateResourceResolver } from "@/iam/request/platform-user-create-resource-resolver";
+import { platformUserUpdateResourceResolver } from "@/iam/request/platform-user-update-resource-resolver";
+import { platformUserDeleteResourceResolver } from "@/iam/request/platform-user-delete-resource-resolver";
+import { PlatformUserReadIamService } from "@/services/users/platform-user-read-iam.service";
+import { platformUserResourceResolver } from "@/iam/request/platform-user-resource-resolver";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Get,
   Path,
@@ -17,6 +27,7 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import Express from "express";
+import type { RequestHandler } from "express";
 import { UserService } from "@/services/users/user.service";
 import { HttpStatusCode } from "axios";
 import type {
@@ -53,7 +64,7 @@ import { Permission } from "@/constant/permission";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { permissionService } from "@/services/users/permission.service";
 import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 import { hashPassword } from "@/util/crypto";
@@ -126,7 +137,14 @@ export class UserController extends Controller {
   @Delete("me/2fa/trusted-window")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:ClearTrustedWindow",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async clearTwoFactorTrustedWindow(@Request() request: TypedRequest): Promise<TwoFactorTrustClearResponse> {
     if (!env.runtime.isDevelopment)
       throw new NotFoundError("接口不存在", undefined, { messageKey: "errors.endpointNotFound" });
@@ -154,7 +172,15 @@ export class UserController extends Controller {
   @Get("me/2fa/trusted-devices")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(validateQuery(twoFactorTrustedDevicesQuerySchema), trustedDeviceRateLimitMiddleware)
+  @Middlewares(
+    validateQuery(twoFactorTrustedDevicesQuerySchema),
+    trustedDeviceRateLimitMiddleware,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:ListTrustedDevices",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getTwoFactorTrustedDevices(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -185,9 +211,14 @@ export class UserController extends Controller {
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(twoFactorTrustedDeviceParamsSchema),
     trustedDeviceRateLimitMiddleware,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:DeleteTrustedDevice",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
   )
   public async deleteTwoFactorTrustedDevice(
     @Path() deviceId: string,
@@ -240,7 +271,13 @@ export class UserController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:user:ListUsers",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(userListQuerySchema))
   public async getAllUsers(
     @Request() request: TypedRequest,
@@ -253,17 +290,19 @@ export class UserController extends Controller {
     @Query() userType?: string,
     @Query() hasRamPermission?: boolean,
   ): Promise<GetAllUsersResponse> {
-    return this.userService.getVisibleUsersPage({
-      actorUserId: request.user!.userId,
-      page,
-      pageSize,
-      keyword,
-      userId,
-      groupId,
-      excludeCurrentUser,
-      userType,
-      hasRamPermission,
-    });
+    return PlatformUserReadIamService.getInstance().list(
+      {
+        page,
+        pageSize,
+        keyword,
+        userId,
+        groupId,
+        excludeCurrentUser,
+        userType,
+        hasRamPermission,
+      },
+      request,
+    );
   }
 
   /**
@@ -275,17 +314,15 @@ export class UserController extends Controller {
   @Security("jwt", ["profile"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetCurrentUser",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getCurrentUser(@Request() request: TypedRequest): Promise<GetUserByIdResponse> {
-    // 从 token 中获取当前用户 ID
-    const userId = request.user?.userId;
-
-    if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
-
-    const user = await this.userService.getUserById(userId);
-
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    return user;
+    return this.userService.getCurrentUser(request.user!.userId, request);
   }
 
   /**
@@ -298,7 +335,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_PROFILE)
+  @CheckPermission(Permission.USER_UPDATE_SELF_PROFILE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:UpdateProfile",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(updateProfileBodySchema))
   public async updateProfile(
     @Body() body: UpdateProfileDto,
@@ -319,9 +360,15 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_EMAIL)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "change_email", trustOnly: true })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:SendEmailChangeCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -350,8 +397,14 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_EMAIL)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:ChangeEmail",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -375,6 +428,13 @@ export class UserController extends Controller {
   @Get("me/2fa/status")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetTwoFactorStatus",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getTwoFactorStatus(@Request() request: TypedRequest): Promise<TwoFactorStatusResponse> {
     const userId = request.user?.userId;
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
@@ -389,7 +449,14 @@ export class UserController extends Controller {
   @Post("me/2fa/setup")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:BeginTwoFactorSetup",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async beginTwoFactorSetup(@Request() request: TypedRequest): Promise<TwoFactorSetupResponse> {
     const userId = request.user?.userId;
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
@@ -418,7 +485,15 @@ export class UserController extends Controller {
   @Post("me/2fa/confirm")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(confirmTwoFactorSetupBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(confirmTwoFactorSetupBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:ConfirmTwoFactorSetup",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async confirmTwoFactorSetup(
     @Body() body: ConfirmTwoFactorSetupDto,
     @Request() request: TypedRequest,
@@ -453,7 +528,15 @@ export class UserController extends Controller {
   @Post("me/2fa/disable")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(disableTwoFactorBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(disableTwoFactorBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:DisableTwoFactor",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async disableTwoFactor(
     @Body() body: DisableTwoFactorDto,
     @Request() request: TypedRequest,
@@ -488,7 +571,15 @@ export class UserController extends Controller {
   @Post("me/2fa/recovery-codes/regenerate")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(regenerateTwoFactorRecoveryCodesBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(regenerateTwoFactorRecoveryCodesBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:RegenerateTwoFactorRecoveryCodes",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async regenerateTwoFactorRecoveryCodes(
     @Body() body: RegenerateTwoFactorRecoveryCodesDto,
     @Request() request: TypedRequest,
@@ -526,7 +617,15 @@ export class UserController extends Controller {
   @Patch("me/2fa/passkey-policy")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(updateTwoFactorPasskeyPolicyBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(updateTwoFactorPasskeyPolicyBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:UpdateTwoFactorPasskeyPolicy",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async updateTwoFactorPasskeyPolicy(
     @Body() body: UpdateTwoFactorPasskeyPolicyDto,
     @Request() request: TypedRequest,
@@ -567,10 +666,16 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetUser",
+      resourceKind: "single-resource",
+      resource: platformUserResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(userIdParamsSchema))
   public async getUserById(@Request() request: Express.Request, @Path() userId: string): Promise<GetUserByIdResponse> {
-    const user = await this.userService.getUserById(userId);
+    const user = await PlatformUserReadIamService.getInstance().detail(userId, request as TypedRequest);
 
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
@@ -587,7 +692,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_CREATE)
+  @CheckPermission(Permission.USER_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:CreateUser",
+    resourceKind: "collection",
+    resource: platformUserCreateResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createUserBodySchema))
   public async createUser(@Body() body: CreateUserDto, @Request() request: TypedRequest): Promise<CreateUserResponse> {
     const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential, {
@@ -615,7 +724,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE)
+  @CheckPermission(Permission.USER_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:UpdateUser",
+    resourceKind: "single-resource",
+    resource: platformUserUpdateResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(userIdParamsSchema), validateBody(updateUserBodySchema))
   public async updateUser(
     @Body() body: UpdateUserDto,
@@ -624,7 +737,7 @@ export class UserController extends Controller {
   ): Promise<UpdateUserResponse> {
     const currentUserId = request.user!.userId;
     // Level check: cannot modify users at same or higher level (except self)
-    if (userId !== currentUserId) {
+    if (env.security.iamAuthorizationMode !== "enforce" && userId !== currentUserId) {
       const [actorLevel, targetLevel] = await Promise.all([
         this.userService.getUserGroupLevel(currentUserId),
         this.userService.getUserGroupLevel(userId),
@@ -649,7 +762,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_DELETE)
+  @CheckPermission(Permission.USER_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:DeleteUser",
+    resourceKind: "single-resource",
+    resource: platformUserDeleteResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(userIdParamsSchema))
   public async deleteUser(@Request() request: TypedRequest, @Path() userId: string): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
@@ -676,6 +793,23 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @CheckPermission(
+    [Permission.USER_CHANGE_SELF_PASSWORD, Permission.USER_CHANGE_OTHERS_PASSWORD],
+    PermissionCheckMode.ANY,
+    "jwt",
+    [
+      {
+        action: "quyan:user:ChangeSelfPassword",
+        resourceKind: "single-resource",
+        resource: ramUserResourceResolver,
+      },
+      {
+        action: "quyan:user:ChangeOthersPassword",
+        resourceKind: "single-resource",
+        resource: ramUserResourceResolver,
+      },
+    ],
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,

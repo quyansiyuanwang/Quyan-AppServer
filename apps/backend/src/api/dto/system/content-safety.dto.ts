@@ -193,3 +193,12 @@ export interface ContentSafetyIncidentQuery {
   sortBy?: ContentSafetyIncidentSortBy;
   sortOrder?: ContentSafetyIncidentSortOrder;
 }
+
+/** JSON wire representation: Prisma decimal costs have always serialized as strings. */
+export interface ContentSafetySystemIncidentDto extends Omit<ContentSafetyIncidentDto, "auditCost"> {
+  auditCost: string;
+}
+export interface ContentSafetySystemIncidentResponse {
+  incidents: ContentSafetySystemIncidentDto[];
+  total: number;
+}

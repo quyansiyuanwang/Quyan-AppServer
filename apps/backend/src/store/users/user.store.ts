@@ -1,6 +1,8 @@
 import type { BalanceAccount, Prisma, User } from "@prisma/client";
 
 export interface UserListFilters {
+  /** Trusted account boundary; never copied from an HTTP query. */
+  accountOwnerId?: string;
   keyword?: string;
   userId?: string;
   groupId?: string;
@@ -23,6 +25,8 @@ export interface UserQueryStore {
   findById(id: string): Promise<User | null>;
   findActiveById(id: string): Promise<User | null>;
   findByIdWithGroup(id: string): Promise<UserWithGroup | null>;
+  /** Authorization-only account status lookup. Never selects credentials or profile data. */
+  findAccountIdentity(id: string): Promise<Pick<User, "id" | "status" | "accountOwnerId"> | null>;
   findByUsername(username: string): Promise<User | null>;
   countActiveByEmail(email: string): Promise<number>;
   findByEmailInNonDeleted(email: string): Promise<User | null>;
@@ -33,6 +37,10 @@ export interface UserQueryStore {
   countNonDeletedFiltered(filters: UserListFilters): Promise<number>;
   listNonDeletedByGroupLevelGte(level: number): Promise<User[]>;
   listNonDeletedByGroupLevelGtePaginated(level: number, params: PaginatedUserListFilters): Promise<User[]>;
+  listNonDeletedIdsByGroupLevelGtePaginated(
+    level: number,
+    params: PaginatedUserListFilters,
+  ): Promise<Array<{ id: string }>>;
   countNonDeletedByGroupLevelGte(level: number, filters: UserListFilters): Promise<number>;
   countAll(): Promise<number>;
   findBalanceAccountByUserId(userId: string): Promise<BalanceAccount | null>;
@@ -41,9 +49,28 @@ export interface UserQueryStore {
   findActiveUsernameById(id: string): Promise<string | null>;
 }
 
+/** Snapshot used by permission checks; writes must compare this exact state. */
+export type UserPermissionSnapshot = Pick<
+  UserWithGroup,
+  | "id"
+  | "updateTime"
+  | "accountOwnerId"
+  | "parentUserId"
+  | "groupId"
+  | "userType"
+  | "status"
+  | "permissionAdds"
+  | "permissionRemoves"
+  | "group"
+>;
+
 export interface UserMutationStore {
   create(data: Prisma.UserUncheckedCreateInput): Promise<User>;
   updateById(id: string, data: Prisma.UserUncheckedUpdateInput): Promise<User>;
+  compareAndSetPermissions(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<boolean>;
   softDelete(id: string): Promise<User>;
 }
 

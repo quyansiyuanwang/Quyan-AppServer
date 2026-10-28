@@ -1,3 +1,13 @@
+import { PlatformUserCreateIamService } from "./platform-user-create-iam.service";
+import { PlatformUserUpdateIamService } from "./platform-user-update-iam.service";
+import { PlatformUserDeleteIamService } from "./platform-user-delete-iam.service";
+import { PermissionService } from "./permission.service";
+import { Permission } from "@quyan/shared";
+import { getLogger, LogCategory } from "@/util/logger";
+import { userViewDto } from "./user-view";
+import { UserProfileIamService } from "./user-profile-iam.service";
+import { userProfileAuthorizationDenied } from "@/store/users/user-profile-management.repository";
+import type { TypedRequest } from "@/types/express";
 import {
   UserDto,
   CreateUserDto,
@@ -9,7 +19,7 @@ import {
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { BadRequestError, NotFoundError, InternalServerError } from "@/util/errors";
-import { EmailService } from "@/services/auth/email.service";
+import { UserEmailIamService } from "./user-email-iam.service";
 import { UserRepository } from "@/store/users/user.repository";
 import { GroupRepository } from "@/store/users/group.repository";
 import { BusinessLogRepository } from "@/store/system/businesslog";
@@ -27,6 +37,11 @@ import { extractClientIp } from "@/util/ip-extractor";
 type UserEntity = NonNullable<Awaited<ReturnType<UserStore["findById"]>>>;
 
 export class UserService {
+  private static instance: UserService;
+  static getInstance() {
+    return (this.instance ??= new UserService());
+  }
+
   constructor(
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
@@ -69,18 +84,7 @@ export class UserService {
       this.userRepository.findBalanceAccountByUserId(user.id),
       user.groupId ? this.groupRepository.findById(user.groupId) : Promise.resolve(null),
     ]);
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      status: user.status,
-      groupId: user.groupId ?? undefined,
-      groupName: group?.name || group?.username || null,
-      balance: balanceAccount ? Number(balanceAccount.balance) : 0,
-      createdAt: user.createTime.toISOString(),
-      updatedAt: user.updateTime.toISOString(),
-    };
+    return userViewDto(user, balanceAccount, group);
   }
 
   private async mapUsersToDtos(users: UserEntity[]): Promise<UserDto[]> {
@@ -103,18 +107,7 @@ export class UserService {
       const balanceAccount = balanceMap.get(user.id);
       const group = user.groupId ? groupMap.get(user.groupId) : null;
 
-      return {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        name: user.name,
-        status: user.status,
-        groupId: user.groupId ?? undefined,
-        groupName: group?.name || group?.username || null,
-        balance: balanceAccount ? Number(balanceAccount.balance) : 0,
-        createdAt: user.createTime.toISOString(),
-        updatedAt: user.updateTime.toISOString(),
-      };
+      return userViewDto(user, balanceAccount, group);
     });
   }
 
@@ -194,6 +187,10 @@ export class UserService {
     };
   }
 
+  async getCurrentUser(userId: string, request?: TypedRequest): Promise<UserDto> {
+    return UserProfileIamService.getInstance().get(userId, request);
+  }
+
   async getUserById(id: string): Promise<UserDto | null> {
     const user = await this.userRepository.findById(id);
     return user ? await this.mapUserToDto(user) : null;
@@ -204,28 +201,54 @@ export class UserService {
     actorUserId: string,
     request?: Request,
   ): Promise<UserDto> {
-    // Check username uniqueness
-    const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
-
-    // If no groupId, use default group (username: "user")
-    let groupId = data.groupId;
-    if (!groupId) {
-      const defaultGroup = await this.groupRepository.findDefaultUserGroup();
-      if (!defaultGroup)
-        throw new InternalServerError("默认用户组不存在", undefined, { messageKey: "auth.defaultGroupNotFound" });
-      groupId = defaultGroup.id;
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    const req = request as TypedRequest | undefined;
+    let native: UserDto | undefined, legacy: UserEntity | undefined;
+    if (mode === "enforce") {
+      native = await PlatformUserCreateIamService.getInstance().execute(data, actorUserId, req);
+    } else {
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_CREATE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      const existing = await this.userRepository.findByUsername(data.username);
+      if (existing)
+        throw new BadRequestError("Username already exists", undefined, { messageKey: "user.usernameExists" });
+      let groupId = data.groupId;
+      if (!groupId) {
+        const defaultGroup = await this.groupRepository.findDefaultUserGroup();
+        if (!defaultGroup)
+          throw new InternalServerError("Default group missing", undefined, {
+            messageKey: "auth.defaultGroupNotFound",
+          });
+        groupId = defaultGroup.id;
+      }
+      legacy = await this.userRepository.create({
+        username: data.username,
+        password: data.password,
+        email: data.email || null,
+        name: data.name || null,
+        groupId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      });
+      if (mode === "shadow") {
+        try {
+          await PlatformUserCreateIamService.getInstance().inspectCreated(legacy.id, data, actorUserId, req);
+        } catch {
+          getLogger("UserIamBridge", LogCategory.SECURITY).warn("IAM user creation shadow denied", {
+            action: "quyan:user:CreateUser",
+            reason: "iam-create-unavailable",
+          });
+        }
+      }
     }
-
-    const user = await this.userRepository.create({
-      username: data.username,
-      password: data.password,
-      email: data.email || null,
-      name: data.name || null,
-      groupId,
-      permissionAdds: [],
-      permissionRemoves: [],
-    });
+    const user = native ?? legacy!;
 
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -241,21 +264,56 @@ export class UserService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return await this.mapUserToDto(user);
+    return native ?? (await this.mapUserToDto(legacy!));
   }
 
   async updateUser(userId: string, data: UpdateUserDto, actorUserId: string, request?: Request): Promise<UserDto> {
-    const existingUser = await this.userRepository.findById(userId);
-    if (!existingUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    const req = request as TypedRequest | undefined;
+    let native: Awaited<ReturnType<PlatformUserUpdateIamService["execute"]>> = undefined;
+    let legacy: UserEntity | undefined;
+    let previousStatus: number;
     const updateData: Record<string, any> = {};
     if (data.email !== undefined) updateData.email = data.email;
     if (data.name !== undefined) updateData.name = data.name;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.groupId !== undefined) updateData.groupId = data.groupId;
-
-    const user = await this.userRepository.updateById(userId, updateData);
-
+    if (mode === "enforce") {
+      native = await PlatformUserUpdateIamService.getInstance().execute(userId, data, actorUserId, req);
+      if (!native) throw userProfileAuthorizationDenied();
+      previousStatus = native.previousStatus;
+    } else {
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_UPDATE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      const existingUser = await this.userRepository.findById(userId);
+      if (!existingUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
+      if (userId !== actorUserId) {
+        const actorLevel = await this.getUserGroupLevel(actorUserId),
+          targetLevel = await this.getUserGroupLevel(userId);
+        if (actorLevel == null || targetLevel == null || targetLevel <= actorLevel)
+          throw userProfileAuthorizationDenied();
+      }
+      previousStatus = existingUser.status;
+      if (mode === "shadow") {
+        try {
+          await PlatformUserUpdateIamService.getInstance().execute(userId, data, actorUserId, req, false);
+        } catch {
+          getLogger("UserIamBridge", LogCategory.SECURITY).warn("IAM user update shadow denied", {
+            action: "quyan:user:UpdateUser",
+            reason: "iam-update-unavailable",
+          });
+        }
+      }
+      legacy = await this.userRepository.updateById(userId, updateData);
+    }
+    const user = native?.user ?? legacy!;
     const hasStatusChange = data.status !== undefined;
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -276,7 +334,7 @@ export class UserService {
 
     // Fire-and-forget: notify the target user about account status change
     if (hasStatusChange && data.status !== undefined) {
-      const oldStatus = existingUser.status;
+      const oldStatus = previousStatus;
       const newStatus = data.status;
       this.dispatchSecurityNotification(userId, NotificationEvent.ACCOUNT_STATUS_CHANGED, {
         subject: "账户状态变更",
@@ -286,15 +344,41 @@ export class UserService {
       }).catch(() => {});
     }
 
-    return await this.mapUserToDto(user);
+    return native ? native.user : await this.mapUserToDto(legacy!);
   }
 
   async deleteUser(userId: string, actorUserId: string, request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // Soft delete: mark the account as deleted via AccountStatus.DELETED.
-    await this.userRepository.softDelete(userId);
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    let user: { id: string; username: string } | null | undefined;
+    if (mode === "enforce")
+      user = await PlatformUserDeleteIamService.getInstance().execute(userId, actorUserId, request as TypedRequest);
+    else {
+      const req = request as TypedRequest | undefined;
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_DELETE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      user = await this.userRepository.findById(userId);
+      if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
+      if (mode === "shadow") {
+        try {
+          await PlatformUserDeleteIamService.getInstance().execute(userId, actorUserId, req, false);
+        } catch {
+          getLogger("PlatformUserDeleteIamBridge", LogCategory.SECURITY).warn("IAM user deletion shadow denied", {
+            action: "quyan:user:DeleteUser",
+            reason: "iam-deletion-unavailable",
+          });
+        }
+      }
+      // Retain the existing soft-delete and username-release semantics in rollback modes.
+      await this.userRepository.softDelete(userId);
+    }
+    if (!user) throw userProfileAuthorizationDenied();
 
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -372,6 +456,23 @@ export class UserService {
    * 用户修改自己的姓名
    */
   async updateProfile(userId: string, data: UpdateProfileDto, request?: Request): Promise<UserDto> {
+    if (request) {
+      const result = await UserProfileIamService.getInstance().update(userId, data, request as TypedRequest);
+      await this.businessLogService.logOperation({
+        operationType: OperationType.USER_PROFILE_UPDATE,
+        operationCategory: OperationCategory.USER_MANAGEMENT,
+        actorUserId: userId,
+        targetUserId: userId,
+        targetResourceType: "USER",
+        description: "Updated personal profile",
+        success: true,
+        ipAddress: this.getClientIP(request),
+        userAgent: request.headers["user-agent"],
+        requestId: request.headers["x-request-id"] as string | undefined,
+      });
+      return result;
+    }
+    if (env.security.iamAuthorizationMode === "enforce") throw userProfileAuthorizationDenied();
     const user = await this.userRepository.findById(userId);
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
@@ -390,8 +491,6 @@ export class UserService {
       changes: updateData,
       success: true,
       ipAddress: this.getClientIP(request),
-      userAgent: request?.headers["user-agent"],
-      requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
     return await this.mapUserToDto(updatedUser);
@@ -400,85 +499,10 @@ export class UserService {
   /**
    * 发送邮箱变更验证码
    */
-  async sendEmailChangeCode(userId: string, newEmail: string, _request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // 不允许设为当前邮箱
-    if (user.email && user.email.toLowerCase() === newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
-
-    // 检查邮箱唯一性
-    const emailExists = await this.userRepository.findByEmailInNonDeleted(newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
-
-    // 检查一天内是否已经更换过邮箱（通过业务日志检查）
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentEmailChange = await this.businessLogRepository.findRecentSuccessfulOperation(
-      userId,
-      OperationType.USER_EMAIL_CHANGE,
-      oneDayAgo,
-    );
-    if (recentEmailChange)
-      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
-        messageKey: "user.emailChangeTooFrequent",
-      });
-
-    // 发送验证码到新邮箱
-    const emailService = EmailService.getInstance();
-    await emailService.sendVerificationCode(newEmail);
+  async sendEmailChangeCode(userId: string, newEmail: string, request?: Request): Promise<void> {
+    return UserEmailIamService.getInstance().send(userId, newEmail, request as TypedRequest | undefined);
   }
-
-  /**
-   * 通过验证码更换邮箱
-   */
   async changeEmail(userId: string, data: ChangeEmailDto, request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // 不允许设为当前邮箱
-    if (user.email && user.email.toLowerCase() === data.newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
-
-    // 检查邮箱唯一性
-    const emailExists = await this.userRepository.findByEmailInNonDeleted(data.newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
-
-    // 检查一天内是否已经更换过邮箱
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentEmailChange = await this.businessLogRepository.findRecentSuccessfulOperation(
-      userId,
-      OperationType.USER_EMAIL_CHANGE,
-      oneDayAgo,
-    );
-    if (recentEmailChange)
-      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
-        messageKey: "user.emailChangeTooFrequent",
-      });
-
-    // 验证验证码
-    const emailService = EmailService.getInstance();
-    const isValid = await emailService.verifyCode(data.newEmail, data.verificationCode);
-    if (!isValid)
-      throw new BadRequestError("验证码无效或已过期", undefined, { messageKey: "errors.verificationCodeInvalid" });
-
-    const oldEmail = user.email;
-
-    // 更新邮箱
-    await this.userRepository.updateById(userId, { email: data.newEmail });
-
-    await this.businessLogService.logOperation({
-      operationType: OperationType.USER_EMAIL_CHANGE,
-      operationCategory: OperationCategory.USER_MANAGEMENT,
-      actorUserId: userId,
-      targetUserId: userId,
-      targetResourceType: "USER",
-      description: `用户 '${user.username}' 将邮箱从 '${oldEmail || "无"}' 更改为 '${data.newEmail}'`,
-      changes: { oldEmail, newEmail: data.newEmail },
-      success: true,
-      ipAddress: this.getClientIP(request),
-      userAgent: request?.headers["user-agent"],
-      requestId: request?.headers["x-request-id"] as string | undefined,
-    });
+    return UserEmailIamService.getInstance().change(userId, data, request as TypedRequest | undefined);
   }
 }

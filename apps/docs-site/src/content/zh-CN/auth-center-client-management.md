@@ -213,3 +213,19 @@
 - [`auth-center-client-review-management`](/zh-CN/auth-center-client-review-management)
 - [`oauth-app-management`](/zh-CN/oauth-app-management)
 - [`api-documentation`](/zh-CN/api-documentation)
+
+## IAM 资源范围
+
+在启用 IAM 强制授权的环境中，应用列表只展示你有 `quyan:auth_center:ListClients` 权限的自有应用；打开应用详情还需要 `quyan:auth_center:GetClient`。列表权限不自动授予详情权限。
+
+应用资源 ARN 为 `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`。其中 `clientId` 是应用记录 ID，而不是登录接入用的公开客户端标识。账号和用户标识由登录身份确定，策略不能让你读取其他用户或其他账号的应用。可将自有应用加入资源组，以资源组范围授权。
+
+没有匹配的 Allow 或存在匹配的 Deny 时，应用不会出现在列表中；详情请求会被拒绝。列表和详情只返回密钥预览及是否配置密钥，不返回原始密钥或其 hash。创建、轮换密钥、审核等操作仍需各自的权限，并保留原有的二次验证要求。
+
+在 IAM 强制授权模式下，提交审核、轮换密钥和删除分别需要 `quyan:auth_center:SubmitClientReview`、`quyan:auth_center:RotateClientSecret` 和 `quyan:auth_center:DeleteClient`，目标均为上述应用 ARN。读取权限不会自动授予这些操作。轮换成功只在该次响应中返回新密钥，请立即安全保存；后续列表和详情仍只显示预览。操作期间若授权被撤销或应用版本改变，写入会被拒绝或回滚。
+
+编辑应用需要 `quyan:auth_center:UpdateClient` 对应应用资源权限。修改 scopes 时还会检查当前身份能否授予该 scope；使用角色会话时，以角色权限为准。编辑不能直接批准审核或写入客户端密钥。修改已批准或已拒绝应用的配置会将审核状态重置为草稿；切换为公开客户端时会清除原有密钥，并继续执行 PKCE 与授权类型校验。
+
+使用 OAuth bearer token 调用应用管理接口时，需要可授予的 `auth_center_client` scope（或等价的认证中心应用读取权限 scope）。该 scope 用于进入管理接口，不能代替 IAM 策略授权；应用的读取、编辑、删除、审核提交和密钥轮换仍分别检查操作权限与资源范围。角色会话不能借用登录用户在角色之外的权限来授予 scope。
+
+创建应用需要 `quyan:auth_center:CreateClient` 对登录用户父资源 `acs:quyan:*:<accountId>:user/<userId>` 的权限；已有应用的读取或编辑权限不能代替创建权限。新应用由服务端生成记录 ID 和公开客户端标识，初始审核状态为草稿；保密客户端的新密钥只在创建成功的响应中返回。创建权限不会自动授予后续读取、编辑或删除权限，仍需按应用 ARN 配置。

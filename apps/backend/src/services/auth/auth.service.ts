@@ -51,6 +51,7 @@ import { clearRefreshTokenCookie, extractRefreshTokenCookie, setRefreshTokenCook
 import { clearImpersonationHandoffCookie } from "@/util/impersonation-cookie";
 import { ImpersonationService } from "@/services/users/impersonation.service";
 import {
+  buildForceOfflineUserKey,
   buildForceOfflineAuthSessionKey,
   clearAuthSessionIdCookie,
   extractAuthSessionId,
@@ -67,8 +68,6 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationEvent } from "@/constant/notification-event";
 import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
-
-const getForceOfflineUserKey = (userId: string) => `user:force_offline:${userId}`;
 
 interface PolicyConsentChallengePayload {
   userId: string;
@@ -336,7 +335,7 @@ export class AuthService {
       refresh_token?: string;
     };
 
-    await this.redisService.delete(getForceOfflineUserKey(user.id));
+    await this.redisService.delete(buildForceOfflineUserKey(user.id));
 
     const refreshToken = JWTRefreshIns.generateToken({
       userId: user.id,
@@ -776,7 +775,7 @@ export class AuthService {
     // 检查账号状态（refresh token 时必须检查数据库中的最新状态）
     validateAccountStatus(user.status, payload.userId, "refresh");
 
-    const forcedOffline = await this.redisService.get(getForceOfflineUserKey(payload.userId));
+    const forcedOffline = await this.redisService.get(buildForceOfflineUserKey(payload.userId));
     if (forcedOffline)
       throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
         messageKey: "auth.forcedOffline",
@@ -822,7 +821,7 @@ export class AuthService {
       });
 
     const currentUpdatedAt = user.updateTime.toISOString();
-    const forcedOffline = await this.redisService.get(getForceOfflineUserKey(payload.userId));
+    const forcedOffline = await this.redisService.get(buildForceOfflineUserKey(payload.userId));
     if (forcedOffline)
       throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
         messageKey: "auth.forcedOffline",

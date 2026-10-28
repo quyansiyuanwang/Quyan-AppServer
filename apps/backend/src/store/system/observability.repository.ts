@@ -1,25 +1,18 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 
-export const DATA_LIFECYCLE_DATASETS = [
-  "api_logs",
-  "business_logs",
-  "notification_logs",
-  "track_events",
-  "heatmap_points",
-  "ai_request_logs",
-  "relay_usages",
-  "monthly_pass_usages",
-  "server_logs",
-] as const;
-
-export type DataLifecycleDataset = (typeof DATA_LIFECYCLE_DATASETS)[number];
-
-export const DATA_MAINTENANCE_DATASETS = DATA_LIFECYCLE_DATASETS.filter(
-  (dataset): dataset is Exclude<DataLifecycleDataset, "server_logs" | "ai_request_logs"> =>
-    dataset !== "server_logs" && dataset !== "ai_request_logs",
-) as readonly Exclude<DataLifecycleDataset, "server_logs" | "ai_request_logs">[];
-export type DataMaintenanceDataset = (typeof DATA_MAINTENANCE_DATASETS)[number];
+import {
+  DATA_LIFECYCLE_DATASETS,
+  DATA_MAINTENANCE_TABLES,
+  type DataLifecycleDataset,
+  type DataMaintenanceDataset,
+} from "@/constant/data-maintenance-datasets";
+export {
+  DATA_LIFECYCLE_DATASETS,
+  DATA_MAINTENANCE_DATASETS,
+  DATA_MAINTENANCE_TABLES,
+} from "@/constant/data-maintenance-datasets";
+export type { DataLifecycleDataset, DataMaintenanceDataset } from "@/constant/data-maintenance-datasets";
 
 export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
   api_logs: 90,
@@ -58,16 +51,6 @@ const dataSetDelegates: Record<DatabaseLifecycleDataset, string> = {
   monthly_pass_usages: "monthlyPassUsage",
 };
 
-export const DATA_MAINTENANCE_TABLES: Record<DataMaintenanceDataset, string> = {
-  api_logs: "api_logs",
-  business_logs: "business_logs",
-  notification_logs: "notification_logs",
-  track_events: "track_events",
-  heatmap_points: "heatmap_points",
-  relay_usages: "relay_usages",
-  monthly_pass_usages: "monthly_pass_usages",
-};
-
 export interface ErrorGroupQuery {
   page: number;
   pageSize: number;
@@ -94,6 +77,26 @@ export interface CreateErrorOccurrenceInput {
   ipAddress?: string;
   stack?: string;
   context?: Prisma.InputJsonValue;
+}
+
+export function buildErrorGroupWhere(query: ErrorGroupQuery, activeOnly = false): Prisma.ErrorGroupWhereInput {
+  const where: Prisma.ErrorGroupWhereInput = {};
+  if (query.resolutionStatus) where.resolutionStatus = query.resolutionStatus;
+  if (query.source) where.source = query.source;
+  if (query.search)
+    where.OR = [
+      { message: { contains: query.search } },
+      { errorType: { contains: query.search } },
+      { route: { contains: query.search } },
+      { fingerprint: { contains: query.search } },
+    ];
+  if (query.startDate || query.endDate)
+    where.lastSeenAt = {
+      ...(query.startDate ? { gte: query.startDate } : {}),
+      ...(query.endDate ? { lte: query.endDate } : {}),
+    };
+  if (activeOnly) where.status = 1;
+  return where;
 }
 
 export class ObservabilityRepository {
@@ -153,21 +156,7 @@ export class ObservabilityRepository {
   }
 
   public async queryErrorGroups(query: ErrorGroupQuery) {
-    const where: Prisma.ErrorGroupWhereInput = {};
-    if (query.resolutionStatus) where.resolutionStatus = query.resolutionStatus;
-    if (query.source) where.source = query.source;
-    if (query.search)
-      where.OR = [
-        { message: { contains: query.search } },
-        { errorType: { contains: query.search } },
-        { route: { contains: query.search } },
-        { fingerprint: { contains: query.search } },
-      ];
-    if (query.startDate || query.endDate)
-      where.lastSeenAt = {
-        ...(query.startDate ? { gte: query.startDate } : {}),
-        ...(query.endDate ? { lte: query.endDate } : {}),
-      };
+    const where = buildErrorGroupWhere(query);
 
     const [items, total] = await Promise.all([
       prisma.errorGroup.findMany({
@@ -189,8 +178,8 @@ export class ObservabilityRepository {
     return prisma.errorGroup.update({ where: { id }, data: { resolutionStatus } });
   }
 
-  public async listErrorOccurrences(errorGroupId: string, page: number, pageSize: number) {
-    const where = { errorGroupId };
+  public async listErrorOccurrences(errorGroupId: string, page: number, pageSize: number, activeOnly = false) {
+    const where = { errorGroupId, ...(activeOnly ? { status: 1 } : {}) };
     const [items, total] = await Promise.all([
       prisma.errorOccurrence.findMany({
         where,
@@ -396,8 +385,8 @@ export class ObservabilityRepository {
     });
   }
 
-  public getDatasetDelegate(dataset: DatabaseLifecycleDataset) {
-    return (prisma as any)[dataSetDelegates[dataset]];
+  public getDatasetDelegate(dataset: DatabaseLifecycleDataset, client: Prisma.TransactionClient = prisma) {
+    return (client as any)[dataSetDelegates[dataset]];
   }
 
   public getDelegateByName(name: string) {

@@ -1,97 +1,17 @@
+import { buildNonDeletedUserWhere } from "./user-query";
 import { prisma } from "@/config/database";
-import type { Prisma, User, BalanceAccount } from "@prisma/client";
-import type { UserStore, UserWithGroup, UserListFilters, PaginatedUserListFilters } from "./user.store";
+import { Prisma, type User, type BalanceAccount } from "@prisma/client";
+import type {
+  UserStore,
+  UserWithGroup,
+  UserListFilters,
+  PaginatedUserListFilters,
+  UserPermissionSnapshot,
+} from "./user.store";
 import { AccountStatus } from "@/util/auth/account-status";
-import { Permission } from "@/constant/permission";
-
-const RAM_PERMISSION_VALUES = Object.values(Permission).filter((p) => p.startsWith("ram:"));
 
 export class UserRepository implements UserStore {
   private static instance: UserRepository;
-
-  private buildNonDeletedWhere(filters: UserListFilters = {}, minGroupLevel?: number): Prisma.UserWhereInput {
-    const keyword = filters.keyword?.trim();
-    const userId = filters.userId?.trim();
-    const groupId = filters.groupId?.trim();
-    const excludeUserType = filters.excludeUserType?.trim();
-    const userType = filters.userType?.trim();
-
-    const andConditions: Prisma.UserWhereInput[] = [];
-
-    if (keyword)
-      andConditions.push({
-        OR: [
-          { id: { contains: keyword } },
-          { username: { contains: keyword } },
-          { email: { contains: keyword } },
-          { name: { contains: keyword } },
-        ],
-      });
-
-    // hasRamPermission: user's permissionAdds or group's permissions contains any ram:* permission
-    if (filters.hasRamPermission) {
-      const permConditions: Prisma.UserWhereInput[] = [
-        ...RAM_PERMISSION_VALUES.map((p) => ({
-          permissionAdds: { array_contains: p },
-        })),
-        ...RAM_PERMISSION_VALUES.map((p) => ({
-          group: { permissions: { array_contains: p } },
-        })),
-      ];
-      andConditions.push({ OR: permConditions });
-    }
-
-    return {
-      status: {
-        gte: AccountStatus.DISABLED,
-      },
-      ...(minGroupLevel !== undefined
-        ? {
-            group: {
-              level: {
-                gte: minGroupLevel,
-              },
-            },
-          }
-        : {}),
-      ...(excludeUserType && !userType
-        ? {
-            userType: {
-              not: excludeUserType,
-            },
-          }
-        : {}),
-      ...(userType
-        ? {
-            userType,
-          }
-        : {}),
-      ...(filters.excludeUserId
-        ? {
-            id: {
-              not: filters.excludeUserId,
-            },
-          }
-        : {}),
-      ...(userId
-        ? {
-            id: {
-              contains: userId,
-            },
-          }
-        : {}),
-      ...(groupId
-        ? {
-            groupId,
-          }
-        : {}),
-      ...(andConditions.length > 0
-        ? {
-            AND: andConditions,
-          }
-        : {}),
-    };
-  }
 
   private getUserListOrderBy(): Prisma.UserOrderByWithRelationInput[] {
     return [{ createTime: "desc" }, { id: "desc" }];
@@ -114,6 +34,10 @@ export class UserRepository implements UserStore {
         status: AccountStatus.ACTIVE,
       },
     });
+  }
+
+  async findAccountIdentity(id: string) {
+    return prisma.user.findUnique({ where: { id }, select: { id: true, status: true, accountOwnerId: true } });
   }
 
   async findByIdWithGroup(id: string): Promise<UserWithGroup | null> {
@@ -166,7 +90,7 @@ export class UserRepository implements UserStore {
 
   async listNonDeleted(): Promise<User[]> {
     return prisma.user.findMany({
-      where: this.buildNonDeletedWhere(),
+      where: buildNonDeletedUserWhere(),
       orderBy: this.getUserListOrderBy(),
     });
   }
@@ -175,7 +99,7 @@ export class UserRepository implements UserStore {
     const { skip, take, ...filters } = params;
 
     return prisma.user.findMany({
-      where: this.buildNonDeletedWhere(filters),
+      where: buildNonDeletedUserWhere(filters),
       orderBy: this.getUserListOrderBy(),
       skip,
       take,
@@ -184,13 +108,13 @@ export class UserRepository implements UserStore {
 
   async countNonDeletedFiltered(filters: UserListFilters): Promise<number> {
     return prisma.user.count({
-      where: this.buildNonDeletedWhere(filters),
+      where: buildNonDeletedUserWhere(filters),
     });
   }
 
   async listNonDeletedByGroupLevelGte(level: number): Promise<User[]> {
     return prisma.user.findMany({
-      where: this.buildNonDeletedWhere({}, level),
+      where: buildNonDeletedUserWhere({}, level),
       orderBy: this.getUserListOrderBy(),
     });
   }
@@ -199,16 +123,26 @@ export class UserRepository implements UserStore {
     const { skip, take, ...filters } = params;
 
     return prisma.user.findMany({
-      where: this.buildNonDeletedWhere(filters, level),
+      where: buildNonDeletedUserWhere(filters, level),
       orderBy: this.getUserListOrderBy(),
       skip,
       take,
     });
   }
 
+  async listNonDeletedIdsByGroupLevelGtePaginated(level: number, params: PaginatedUserListFilters) {
+    const { skip, take, ...filters } = params;
+    return prisma.user.findMany({
+      where: buildNonDeletedUserWhere(filters, level),
+      select: { id: true },
+      orderBy: this.getUserListOrderBy(),
+      skip,
+      take,
+    });
+  }
   async countNonDeletedByGroupLevelGte(level: number, filters: UserListFilters): Promise<number> {
     return prisma.user.count({
-      where: this.buildNonDeletedWhere(filters, level),
+      where: buildNonDeletedUserWhere(filters, level),
     });
   }
 
@@ -218,6 +152,42 @@ export class UserRepository implements UserStore {
 
   async countAll(): Promise<number> {
     return prisma.user.count();
+  }
+
+  async compareAndSetPermissions(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<boolean> {
+    const result = await prisma.user.updateMany({
+      where: {
+        id: expected.id,
+        updateTime: expected.updateTime,
+        accountOwnerId: expected.accountOwnerId,
+        parentUserId: expected.parentUserId,
+        groupId: expected.groupId,
+        userType: expected.userType,
+        status: expected.status,
+        permissionAdds: { equals: expected.permissionAdds ?? Prisma.JsonNull },
+        permissionRemoves: { equals: expected.permissionRemoves ?? Prisma.JsonNull },
+        group: expected.group
+          ? {
+              is: {
+                id: expected.group.id,
+                updateTime: expected.group.updateTime,
+                level: expected.group.level,
+                status: expected.group.status,
+                accountOwnerId: expected.group.accountOwnerId,
+              },
+            }
+          : null,
+      },
+      data: {
+        ...data,
+        // Guarantee that even same-millisecond competing writes cannot reuse a snapshot.
+        updateTime: new Date(Math.max(Date.now(), expected.updateTime.getTime() + 1)),
+      },
+    });
+    return result.count === 1;
   }
 
   async updateById(id: string, data: Prisma.UserUncheckedUpdateInput): Promise<User> {

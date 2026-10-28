@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError, BadRequestError } from "@/util/errors";
+import type { Prisma } from "@prisma/client";
 import { randomUUID, createCipheriv, createHash, randomBytes } from "node:crypto";
 import { env } from "@/config/env";
 import type { AgentTaskStatus, AgentWorkspaceStatus, AgentStreamEvent, AgentToolCall } from "@quyan/shared";
@@ -20,6 +21,19 @@ import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
 import { parseRelayTokenAllowedModelIds } from "@/util/relay";
 import { isModelIdAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
+
+import type { TypedRequest } from "@/types/express";
+import { AgentMachineIamService } from "./agent-machine-iam.service";
+import { AgentTaskCreationIamService } from "./agent-task-creation-iam.service";
+import { AgentApprovalIamService } from "./agent-approval-iam.service";
+import { AgentTaskIamService } from "./agent-task-iam.service";
+import { AgentWorkspaceLifecycleService } from "./agent-workspace-lifecycle.service";
+import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
+import type { PublicAgentMachine, PublicAgentWorkspace, AgentWorkspaceTarget } from "@/store/agent/agent.repository";
+import { McpServerIamService } from "./mcp-server-iam.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const workspaceRuntime = new RootlessDockerWorkspaceProvider();
 const remoteRuntime = AgentRuntimeGateway.getInstance();
@@ -61,7 +75,7 @@ export class AgentService {
     };
   }
 
-  private toWorkspaceDto(row: any): AgentWorkspaceResponse {
+  private toWorkspaceDto(row: PublicAgentWorkspace): AgentWorkspaceResponse {
     return {
       id: row.id,
       name: row.name,
@@ -76,7 +90,7 @@ export class AgentService {
     };
   }
 
-  private toMachineDto(row: any, registrationToken?: string): AgentMachineResponse {
+  private toMachineDto(row: PublicAgentMachine, registrationToken?: string): AgentMachineResponse {
     return {
       id: row.id,
       name: row.name,
@@ -94,91 +108,221 @@ export class AgentService {
     return { token, hash: createHash("sha256").update(token).digest("hex") };
   }
 
-  async listMachines(userId: string): Promise<AgentMachineResponse[]> {
-    return (await this.repository.listMachines(userId)).map((row) => this.toMachineDto(row));
+  async listMachines(userId: string, request?: TypedRequest): Promise<AgentMachineResponse[]> {
+    let rows;
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await AgentMachineIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.AGENT_WORKSPACE_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy machine listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.listMachines(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await AgentMachineIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("AgentMachineIam", LogCategory.SECURITY).warn("Machine list shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
+    return rows.map((row) => this.toMachineDto(row));
   }
 
-  async createMachine(userId: string, body: CreateAgentMachineRequest): Promise<AgentMachineResponse> {
+  async createMachine(
+    userId: string,
+    body: CreateAgentMachineRequest,
+    request?: TypedRequest,
+  ): Promise<AgentMachineResponse> {
+    const principal =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentMachineIamService.getInstance().authorizeCreate(userId, request)
+        : undefined;
     const registration = this.createRegistrationToken();
-    const row = await this.repository.createMachine({
-      userId,
-      name: body.name.trim(),
-      registrationHash: registration.hash,
-    });
+    const row = await this.repository.createMachine(
+      {
+        userId,
+        name: body.name.trim(),
+        registrationHash: registration.hash,
+      },
+      principal?.accountOwnerId,
+    );
     return this.toMachineDto(row, registration.token);
   }
 
-  async deleteMachine(userId: string, id: string) {
+  async deleteMachine(userId: string, id: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const { target, principal } = await AgentMachineIamService.getInstance().authorizeTarget(id, userId, request);
+      await this.repository.deleteMachineTarget(target, principal.accountOwnerId);
+      remoteRuntime.revokeMachine(target.id);
+      return;
+    }
     const row = await this.repository.findMachineForUser(id, userId);
     if (!row) throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
     await this.repository.updateMachine(id, { status: -1, runtimeStatus: "revoked" });
+    remoteRuntime.revokeMachine(id);
   }
 
-  async listWorkspaces(userId: string) {
-    const rows = await this.repository.findWorkspaces(userId);
+  async listWorkspaces(userId: string, request?: TypedRequest) {
+    let rows: PublicAgentWorkspace[];
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await AgentWorkspaceIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.AGENT_WORKSPACE_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy workspace listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.findWorkspaces(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await AgentWorkspaceIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("AgentWorkspaceIam", LogCategory.SECURITY).warn("Workspace list shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
     return rows.map((row) => this.toWorkspaceDto(row));
   }
 
-  async createWorkspace(userId: string, body: CreateAgentWorkspaceRequest) {
+  async createWorkspace(userId: string, body: CreateAgentWorkspaceRequest, request?: TypedRequest) {
+    const enforce = env.security.iamAuthorizationMode === "enforce";
+    let authorization = enforce
+      ? await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request)
+      : undefined;
     const policy = { ...defaults.policy, ...(body.policy || {}) };
     const limits = { ...defaults.limits, ...(body.limits || {}) };
-    const machine = body.machineId ? await this.repository.findMachineForUser(body.machineId, userId) : null;
+    let machine = body.machineId
+      ? authorization?.machineTarget
+        ? await this.repository.readMachineRuntimeTarget(
+            authorization.machineTarget,
+            authorization.principal.accountOwnerId,
+          )
+        : await this.repository.findMachineForUser(body.machineId, userId)
+      : null;
     if (body.machineId && !machine)
       throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
-    const row = await this.repository.createWorkspace({
-      userId,
-      name: body.name.trim(),
-      policy,
-      limits,
-      machineId: machine?.id,
-    });
+    const row = await this.repository.createWorkspace(
+      { userId, name: body.name.trim(), policy, limits, machineId: machine?.id },
+      authorization?.principal.accountOwnerId,
+      authorization?.machineTarget,
+    );
+    let target: AgentWorkspaceTarget = row;
+    let result: PublicAgentWorkspace = row;
+    let provisioned:
+      | { kind: "local"; handle: string }
+      | { kind: "remote"; agentId: string; machineId: string }
+      | undefined;
+    const update = async (data: Prisma.AgentWorkspaceUpdateManyMutationInput) => {
+      if (authorization) {
+        await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request);
+        result = await this.repository.updateWorkspaceTarget(target, authorization.principal.accountOwnerId, data);
+        target = result;
+      } else await this.repository.updateWorkspace(row.id, data);
+    };
     try {
+      // Policy bindings and machine state can change while the workspace row is being created.
+      if (enforce) {
+        authorization = await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request);
+        if (authorization.machineTarget) {
+          machine = await this.repository.readMachineRuntimeTarget(
+            authorization.machineTarget,
+            authorization.principal.accountOwnerId,
+          );
+          if (!machine)
+            throw new ForbiddenError("Workspace machine changed before provisioning", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+        }
+      }
       if (!machine && env.runtime.agentRuntimeLocal) {
         const runtime = await workspaceRuntime.create(row.id, limits);
-        await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeHandle: runtime.handle });
+        provisioned = { kind: "local", handle: runtime.handle };
+        await update({ runtimeStatus: "ready", runtimeHandle: runtime.handle });
       } else if (machine) {
         if (!machine.agentId || machine.runtimeStatus !== "online")
-          await this.repository.updateWorkspace(row.id, {
+          await update({
             runtimeStatus: "provisioning",
             runtimeAgentId: machine.agentId,
             lastError: "Waiting for the selected remote machine to connect",
           });
         else {
-          const response = await remoteRuntime.request(machine.agentId, {
-            type: "workspace.create",
-            requestId: randomUUID(),
-            workspaceId: row.id,
-            limits: {
-              cpu: Number(limits.cpu),
-              memoryMb: Number(limits.memoryMb),
-              diskMb: Number(limits.diskMb),
-              timeoutSeconds: Number(limits.timeoutSeconds),
+          const response = await remoteRuntime.request(
+            machine.agentId,
+            {
+              type: "workspace.create",
+              requestId: randomUUID(),
+              workspaceId: row.id,
+              limits: {
+                cpu: Number(limits.cpu),
+                memoryMb: Number(limits.memoryMb),
+                diskMb: Number(limits.diskMb),
+                timeoutSeconds: Number(limits.timeoutSeconds),
+              },
             },
-          });
-          const handle = typeof response.data?.handle === "string" ? response.data.handle : undefined;
+            undefined,
+            { machineId: machine.id, userId },
+          );
+          provisioned = { kind: "remote", agentId: machine.agentId, machineId: machine.id };
+          const data = response.data as Record<string, unknown> | undefined;
+          const handle = data && typeof data.handle === "string" ? data.handle : undefined;
           if (!handle) throw new Error("Remote Agent returned no workspace handle");
-          await this.repository.updateWorkspace(row.id, {
+          await update({
             runtimeStatus: "ready",
             runtimeAgentId: machine.agentId,
             runtimeHandle: handle,
             lastError: null,
           });
         }
-      } else
-        await this.repository.updateWorkspace(row.id, {
-          runtimeStatus: "failed",
-          lastError: "No remote workspace agent is connected",
-        });
+      } else await update({ runtimeStatus: "failed", lastError: "No remote workspace agent is connected" });
     } catch (error) {
-      await this.repository.updateWorkspace(row.id, {
-        runtimeStatus: "failed",
-        lastError: error instanceof Error ? error.message : "Workspace provisioning failed",
-      });
+      if (provisioned) {
+        try {
+          if (provisioned.kind === "local") await workspaceRuntime.destroy(provisioned.handle);
+          else
+            await remoteRuntime.request(
+              provisioned.agentId,
+              { type: "workspace.destroy", requestId: randomUUID(), workspaceId: row.id },
+              undefined,
+              { machineId: provisioned.machineId, userId },
+            );
+        } catch {
+          getLogger("AgentWorkspaceRuntime", LogCategory.SECURITY).warn("Workspace provisioning cleanup failed", {
+            reason: "runtime-cleanup-unavailable",
+            workspaceId: row.id,
+          });
+        }
+      }
+      if (error instanceof ForbiddenError) throw error;
+      await update({ runtimeStatus: "failed", lastError: "Workspace provisioning failed" });
     }
+    // Creation returns its own configuration, without inheriting machine-list visibility.
+    if (enforce) return this.toWorkspaceDto(result);
     return this.toWorkspaceDto(await this.repository.findWorkspaceById(row.id));
   }
 
-  async stopWorkspace(userId: string, id: string, destroy = false) {
+  async stopWorkspace(userId: string, id: string, destroy = false, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!destroy)
+        throw new ForbiddenError("Workspace stop authorization is unavailable", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      await AgentWorkspaceLifecycleService.getInstance().delete(userId, id, request);
+      return;
+    }
     const row = await this.repository.findWorkspaceForUser(id, userId);
     if (!row)
       throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
@@ -191,19 +335,43 @@ export class AgentService {
     else await this.repository.updateWorkspace(id, { runtimeStatus: "stopped" });
   }
 
-  async createRun(userId: string, conversationId: string, body: CreateAgentRunRequest): Promise<AgentRunResponse> {
+  async createRun(
+    userId: string,
+    conversationId: string,
+    body: CreateAgentRunRequest,
+    request?: TypedRequest,
+  ): Promise<AgentRunResponse> {
+    const authorization =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentTaskCreationIamService.getInstance().authorize(
+            userId,
+            conversationId,
+            body.workspaceId,
+            body.relayTokenId,
+            request,
+          )
+        : undefined;
+    const configuration = authorization
+      ? await AgentTaskCreationIamService.getInstance().configuration(authorization)
+      : undefined;
     const [workspace, conversation] = await Promise.all([
-      this.repository.findWorkspaceForUser(body.workspaceId, userId),
-      this.repository.findConversationForUser(conversationId, userId),
+      configuration
+        ? Promise.resolve(configuration.workspace)
+        : this.repository.findWorkspaceForUser(body.workspaceId, userId),
+      authorization
+        ? Promise.resolve(authorization.targets.conversation)
+        : this.repository.findConversationForUser(conversationId, userId),
     ]);
     if (!workspace)
       throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
     if (!conversation)
       throw new NotFoundError("Conversation not found", undefined, { messageKey: "agent.conversationNotFound" });
-    const token = await this.repository.findRelayTokenForUser(
-      body.relayTokenId || conversation.relayTokenId || undefined,
-      userId,
-    );
+    const token =
+      configuration?.token ??
+      (await this.repository.findRelayTokenForUser(
+        body.relayTokenId || conversation.relayTokenId || undefined,
+        userId,
+      ));
     if (!token) throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     const requestedModel = body.model.trim();
     if (!requestedModel)
@@ -225,17 +393,48 @@ export class AgentService {
         messageKey: "agent.modelNotAllowed",
       });
     const limits = workspace.limits as Record<string, number>;
-    const row = await this.repository.createTask({
-      userId,
-      workspaceId: workspace.id,
-      conversationId,
-      relayTokenId: token.id,
-      model: resolveModelId(modelConfig),
-      prompt: body.content,
-      maxSteps: body.maxSteps || limits.maxSteps || 30,
-      budget: body.budget ?? limits.budget,
+    if (authorization) {
+      const latest = await AgentTaskCreationIamService.getInstance().authorize(
+        userId,
+        conversationId,
+        body.workspaceId,
+        body.relayTokenId,
+        request,
+      );
+      if (
+        latest.principal.accountOwnerId !== authorization.principal.accountOwnerId ||
+        ["workspace", "conversation", "token"].some((key) => {
+          const resource = key as keyof typeof latest.targets;
+          return (
+            latest.targets[resource].id !== authorization.targets[resource].id ||
+            latest.targets[resource].updateTime.getTime() !== authorization.targets[resource].updateTime.getTime()
+          );
+        })
+      )
+        throw new ForbiddenError("Task creation authorization snapshot changed", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    }
+    const row = await this.repository.createTask(
+      {
+        userId,
+        workspaceId: workspace.id,
+        conversationId,
+        relayTokenId: token.id,
+        model: resolveModelId(modelConfig),
+        prompt: body.content,
+        maxSteps: body.maxSteps || limits.maxSteps || 30,
+        budget: body.budget ?? limits.budget,
+      },
+      authorization?.principal.accountOwnerId,
+      authorization?.targets,
+    );
+    void this.run(row.id).catch(() => {
+      getLogger("AgentTask", LogCategory.SECURITY).warn("Agent task worker failed", {
+        reason: "task-worker-unavailable",
+        taskId: row.id,
+      });
     });
-    void this.run(row.id);
     return {
       id: row.id,
       workspaceId: row.workspaceId,
@@ -254,20 +453,57 @@ export class AgentService {
     );
   }
 
-  async listEvents(userId: string, taskId: string, after = 0) {
+  async assertTaskEventsAuthorized(userId: string, taskId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (request?.iamDecisions)
+        request.iamDecisions = request.iamDecisions.filter(
+          (decision) => decision.action !== "quyan:agent:GetTaskEvents",
+        );
+      await AgentTaskIamService.getInstance().authorize(taskId, userId, "quyan:agent:GetTaskEvents", request);
+      return;
+    }
+    const permission = await PermissionService.getInstance().checkUserPermissions(userId, [Permission.AGENT_TASK_RUN], {
+      assumedRoleSessionId: request?.user?.roleSessionId,
+    });
+    if (!permission.hasPermission)
+      throw new ForbiddenError("Legacy task events denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await AgentTaskIamService.getInstance().authorize(taskId, userId, "quyan:agent:GetTaskEvents", request);
+      } catch {
+        getLogger("AgentTaskIam", LogCategory.SECURITY).warn("Task events shadow evaluation failed", {
+          reason: "iam-events-unavailable",
+        });
+      }
+    }
+  }
+
+  async listEvents(userId: string, taskId: string, after = 0, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return AgentTaskIamService.getInstance().listEvents(userId, taskId, after, request);
+    await this.assertTaskEventsAuthorized(userId, taskId, request);
     const task = await this.repository.findTaskForUser(taskId, userId);
     if (!task) throw new NotFoundError("Agent task not found", undefined, { messageKey: "agent.taskNotFound" });
     return this.repository.listEvents(taskId, after);
   }
 
-  async cancelRun(userId: string, taskId: string) {
+  async cancelRun(userId: string, taskId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      await AgentTaskIamService.getInstance().cancel(userId, taskId, request);
+      return;
+    }
     const task = await this.repository.findTaskForUser(taskId, userId);
     if (!task) throw new NotFoundError("Agent task not found", undefined, { messageKey: "agent.taskNotFound" });
     await this.repository.updateTask(taskId, { taskStatus: "cancelled", lastError: "Cancelled by user" });
   }
 
-  async getApprovals(userId: string, taskId: string): Promise<AgentApprovalResponse[]> {
-    const rows = await this.repository.listPendingApprovals(taskId, userId);
+  async getApprovals(userId: string, taskId: string, request?: TypedRequest): Promise<AgentApprovalResponse[]> {
+    const rows =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentApprovalIamService.getInstance().list(userId, taskId, request)
+        : await this.repository.listPendingApprovals(taskId, userId);
     return rows.map((row) => ({
       id: row.id,
       taskId: row.taskId,
@@ -277,7 +513,17 @@ export class AgentService {
     }));
   }
 
-  async decideApproval(userId: string, taskId: string, approvalId: string, decision: "approved" | "rejected") {
+  async decideApproval(
+    userId: string,
+    taskId: string,
+    approvalId: string,
+    decision: "approved" | "rejected",
+    request?: TypedRequest,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      await AgentApprovalIamService.getInstance().decide(userId, taskId, approvalId, decision, request);
+      return;
+    }
     const approval = await this.repository.findPendingApproval(approvalId, taskId, userId);
     if (!approval || approval.expiresAt < new Date())
       throw new BadRequestError("Approval is no longer available", undefined, {
@@ -290,8 +536,31 @@ export class AgentService {
     });
   }
 
-  async listMcpServers(userId: string): Promise<McpServerResponse[]> {
-    const rows = await this.repository.findMcpServers(userId);
+  async listMcpServers(userId: string, request?: TypedRequest): Promise<McpServerResponse[]> {
+    let rows;
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await McpServerIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.MCP_SERVER_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy MCP listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.findMcpServers(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await McpServerIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("McpServerIam", LogCategory.SECURITY).warn("MCP server shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -303,16 +572,23 @@ export class AgentService {
     }));
   }
 
-  async createMcpServer(userId: string, body: CreateMcpServerRequest) {
+  async createMcpServer(userId: string, body: CreateMcpServerRequest, request?: TypedRequest) {
+    const principal =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await McpServerIamService.getInstance().authorizeCreate(userId, request)
+        : undefined;
     const encrypted = body.credential ? this.encrypt(body.credential) : undefined;
-    const row = await this.repository.createMcpServer({
-      userId,
-      name: body.name.trim(),
-      endpoint: body.endpoint,
-      transport: body.transport || "streamable-http",
-      toolAllowlist: body.toolAllowlist || [],
-      ...(encrypted ? { credential: { create: encrypted } } : {}),
-    });
+    const row = await this.repository.createMcpServer(
+      {
+        userId,
+        name: body.name.trim(),
+        endpoint: body.endpoint,
+        transport: body.transport || "streamable-http",
+        toolAllowlist: body.toolAllowlist || [],
+        ...(encrypted ? { credential: { create: encrypted } } : {}),
+      },
+      principal?.accountOwnerId,
+    );
     return {
       id: row.id,
       name: row.name,
@@ -325,19 +601,11 @@ export class AgentService {
   }
 
   private async run(taskId: string) {
-    await this.repository
-      .updateTask(taskId, {
-        taskStatus: "running",
-        leaseOwner: randomUUID(),
-        leaseExpiresAt: new Date(Date.now() + 3600_000),
-      })
-      .catch(() => undefined);
+    const leaseOwner = randomUUID();
+    if (!(await this.repository.startQueuedTask(taskId, leaseOwner, new Date(Date.now() + 3600_000)))) return;
     await this.appendEvent(taskId, { type: "task", taskId, status: "running", done: false });
-    // Model/tool execution is delegated to a remote runtime in production. A task stays
-    // resumable and explicit instead of ever executing arbitrary commands on the API host.
-    await this.repository
-      .updateTask(taskId, { taskStatus: "failed", lastError: "Remote Agent runtime is not connected" })
-      .catch(() => undefined);
+    // Production execution remains delegated to the remote runtime; cancellation wins over late workers.
+    if (!(await this.repository.failRunningTask(taskId, leaseOwner))) return;
     await this.appendEvent(taskId, {
       type: "error",
       taskId,

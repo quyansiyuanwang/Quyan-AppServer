@@ -63,13 +63,23 @@ describe("composite request pipeline", () => {
         "x-api-key": "fixture relay key",
         "x-goog-api-key": "fixture gemini key",
         cookie: "fixture session",
+        "x-opencode-session": "session-fixture",
+        "x-sdk-custom": "custom-fixture",
         "anthropic-version": "fixture version",
+        "openai-beta": "fixture beta",
+        "openai-project": "proj-fixture",
+        Connection: "keep-alive, openai-beta",
       },
       query: { key: "fixture credential", token: "fixture token", alt: "sse" },
       body: {},
     };
     const cleaned = compositeIngressRequest(source, {});
-    expect(cleaned.headers).toEqual({ "anthropic-version": "fixture version" });
+    expect(cleaned.headers).toEqual({
+      "x-opencode-session": "session-fixture",
+      "x-sdk-custom": "custom-fixture",
+      "anthropic-version": "fixture version",
+      "openai-project": "proj-fixture",
+    });
     expect(cleaned.query).toEqual({ alt: "sse" });
     expect(source.headers).toHaveProperty("authorization");
     expect(source.query).toHaveProperty("key");

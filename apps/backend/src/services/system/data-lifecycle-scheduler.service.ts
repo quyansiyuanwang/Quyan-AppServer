@@ -1,3 +1,5 @@
+import type { TypedRequest } from "@/types/express";
+import { env } from "@/config/env";
 import cron from "node-cron";
 import { DataLifecycleService } from "./data-lifecycle.service";
 import { DataMaintenanceService } from "./data-maintenance.service";
@@ -73,7 +75,14 @@ export class DataLifecycleSchedulerService {
     return this.withLock(() => DataLifecycleService.getInstance().runPolicies(datasets, "manual", startedByUserId));
   }
 
-  private async withLock<T>(task: () => Promise<T>): Promise<T | null> {
+  public async runManualBatchRequest(datasets: string[], request: TypedRequest) {
+    return this.withLock(
+      () => DataLifecycleService.getInstance().runPoliciesRequest(datasets, request),
+      env.security.iamAuthorizationMode === "enforce",
+    );
+  }
+
+  private async withLock<T>(task: () => Promise<T>, propagateErrors = false): Promise<T | null> {
     const lockService = DistributedLockService.getInstance();
     let lock: DistributedLockHandle;
     try {
@@ -98,6 +107,7 @@ export class DataLifecycleSchedulerService {
     try {
       return await task();
     } catch (error) {
+      if (propagateErrors) throw error;
       logger.error("Data lifecycle scheduler failed", { error: String(error) });
       return null;
     } finally {

@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'relay-channel-probes',
-  updatedAt: '2026-09-30',
+  updatedAt: '2026-10-16',
   category: { en: 'Relay', 'zh-CN': '转发' },
   title: { en: 'Channel balance probes', 'zh-CN': '渠道余额探针' },
   summary: {

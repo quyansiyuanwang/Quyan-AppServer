@@ -16,5 +16,5 @@ export interface AccessKeyStore {
   findById(id: string): Promise<AccessKey | null>;
   findByUserId(userId: string): Promise<AccessKey[]>;
   update(id: string, data: AccessKeyUpdateInput): Promise<AccessKey>;
-  delete(id: string): Promise<AccessKey>;
+  delete(id: string, userId: string): Promise<AccessKey>;
 }

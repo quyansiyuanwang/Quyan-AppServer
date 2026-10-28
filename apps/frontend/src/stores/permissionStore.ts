@@ -14,9 +14,13 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { getScopedStorageKey } from '@/utils/storageScope'
 
 type CachedPermissionState = Pick<AllPermissionsDto, 'permissions'> & {
+  version: number
   currentUserPermissions: UserFullPermissionsDto
   userUpdatedAt: string
 }
+
+// Invalidate pre-IAM UI projections even when the user's profile version has not changed.
+const PERMISSION_CACHE_VERSION = 2
 
 /**
  * 权限管理 Store
@@ -56,6 +60,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     if (!currentUserPermissions.value) return
     if (!userUpdatedAt) return
     TypedLocalStorage.set<CachedPermissionState>(getCacheKey(userId), {
+      version: PERMISSION_CACHE_VERSION,
       permissions: allPermissions.value,
       currentUserPermissions: currentUserPermissions.value,
       userUpdatedAt,
@@ -66,6 +71,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     const cached = TypedLocalStorage.get<CachedPermissionState>(getCacheKey(userId))
     if (
       !cached?.currentUserPermissions ||
+      cached.version !== PERMISSION_CACHE_VERSION ||
       cached.currentUserPermissions.userId !== userId ||
       !Array.isArray(cached.permissions) ||
       !userUpdatedAt ||
@@ -83,6 +89,11 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   /** 当前用户的有效权限列表 */
   const effectivePermissions = computed<Permission[]>(() => {
     return currentUserPermissions.value?.effectivePermissions || []
+  })
+
+  /** Presentation hints only; never use these for grantable permissions or execution authority. */
+  const uiPermissions = computed<Permission[]>(() => {
+    return currentUserPermissions.value?.uiPermissions ?? effectivePermissions.value
   })
 
   /** 当前用户的组权限列表 */
@@ -301,21 +312,21 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   }
 
   /**
-   * 检查当前用户是否拥有指定权限（本地检查）
+   * 检查当前用户是否应展示操作入口；不代表具体资源上的授权，实际请求由服务端决定
    */
   const hasPermission = (permission: string): boolean => {
-    return effectivePermissions.value.includes(permission as Permission)
+    return uiPermissions.value.includes(permission as Permission)
   }
 
   /**
-   * 检查当前用户是否拥有任意一个权限（本地检查）
+   * 检查是否应展示任意一个权限对应的入口（仅展示提示）
    */
   const hasAnyPermission = (...permissions: string[]): boolean => {
     return permissions.some((perm) => hasPermission(perm as Permission))
   }
 
   /**
-   * 检查当前用户是否拥有所有权限（本地检查）
+   * 检查是否应展示所有权限对应的入口（仅展示提示）
    */
   const hasAllPermissions = (...permissions: string[]): boolean => {
     return permissions.every((perm) => hasPermission(perm as Permission))
@@ -396,6 +407,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
     // Computed
     effectivePermissions,
+    uiPermissions,
     groupPermissions,
     additionalPermissions,
     removedPermissions,

@@ -7,6 +7,7 @@ import { BadRequestError, ForbiddenError } from "../../../src/util/errors";
 describe("RemoteTerminalProductService", () => {
   const productRepository = {
     findTemplateById: vi.fn(),
+    listEntitlements: vi.fn(),
     countUserEntitlementsInWindow: vi.fn(),
     purchaseEntitlement: vi.fn(),
     purchaseAndUpdateEntitlement: vi.fn(),
@@ -114,6 +115,40 @@ describe("RemoteTerminalProductService", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  const entitlementWithToken = () => ({
+    ...createdEntitlement,
+    registrationToken: {
+      id: "token-1",
+      entitlementId: "ent-1",
+      token: "fixture-only-registration-secret",
+      label: "fixture",
+      expiresAt: null,
+      lastUsedAt: null,
+      status: 1,
+      createTime: now,
+      updateTime: now,
+    },
+  });
+  it("does not return a registration bearer token in management list DTOs", async () => {
+    productRepository.listEntitlements.mockResolvedValue({ total: 1, records: [entitlementWithToken()] });
+    const result = await service.listEntitlements(1, 20);
+    expect(result.records[0]?.registrationToken).toMatchObject({ id: "token-1", label: "fixture" });
+    expect(result.records[0]?.registrationToken).not.toHaveProperty("token");
+    expect(result.records[0]?.registrationToken?.maskedToken).toBeTruthy();
+    expect(JSON.stringify(result)).not.toContain("fixture-only-registration-secret");
+  });
+  it("cannot reveal a token by filtering a management list to its owner", async () => {
+    productRepository.listEntitlements.mockResolvedValue({ total: 1, records: [entitlementWithToken()] });
+    const result = await service.listEntitlements(1, 20, "user-1");
+    expect(result.records[0]?.registrationToken).not.toHaveProperty("token");
+  });
+  it("preserves personal installation tokens under the trusted current-user filter", async () => {
+    productRepository.listEntitlements.mockResolvedValue({ total: 1, records: [entitlementWithToken()] });
+    const result = await service.listCurrentUserEntitlements("user-1", 2, 10);
+    expect(result.records[0]?.registrationToken?.token).toBe("fixture-only-registration-secret");
+    expect(productRepository.listEntitlements).toHaveBeenCalledWith({ status: { gte: 0 }, userId: "user-1" }, 2, 10);
   });
 
   it("rejects claim when template does not support requested device quota", async () => {
@@ -284,6 +319,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 3.75,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,
@@ -399,6 +435,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 14.25,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,
@@ -582,6 +619,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 42.5714,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,

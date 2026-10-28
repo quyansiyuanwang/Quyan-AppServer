@@ -143,6 +143,10 @@ export interface RemoteTerminalFilterOptionsDto {
   deviceStatusOptions: RemoteTerminalNumberFilterOptionDto[];
   publishStatusOptions: RemoteTerminalStringFilterOptionDto[];
   templates: RemoteTerminalProductTemplateFilterOptionDto[];
+  /** Number of template options admitted for the current principal and search. */
+  templateTotal?: number;
+  templatePage?: number;
+  templatePageSize?: number;
 }
 
 export type RemoteTerminalBillingUnit = "day" | "week" | "month";
@@ -267,7 +271,8 @@ export interface RemoteTerminalUserEntitlementDto {
   updateTime: Date;
   isActive: boolean;
   isExpired: boolean;
-  registeredDeviceCount: number;
+  /** Omitted when any contributing device binding is not readable. */
+  registeredDeviceCount?: number;
   registrationToken?: RemoteTerminalRegistrationTokenDto;
   maxDeviceCount?: number;
   maxTerminalCount?: number;

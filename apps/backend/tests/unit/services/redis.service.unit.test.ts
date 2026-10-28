@@ -23,6 +23,118 @@ describe("RedisService circuit breaker", () => {
     vi.useRealTimers();
   });
 
+  it("distinguishes a confirmed missing queue key from a read failure without retry", async () => {
+    const client = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce("reservation")
+        .mockRejectedValueOnce(new Error("fixture outage")),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.getWithResult("fixture:key")).toEqual({ value: null });
+    expect(await service.getWithResult("fixture:key")).toEqual({ value: "reservation" });
+    expect(await service.getWithResult("fixture:key")).toBeNull();
+    expect(client.get).toHaveBeenCalledTimes(3);
+  });
+  it("confirms exactly one SCAN page and retains its cursor, including empty intermediate pages", async () => {
+    const client = {
+      scan: vi
+        .fn()
+        .mockResolvedValueOnce(["27", []])
+        .mockResolvedValueOnce(["0", ["fixture-key"]]),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.scanKeyPageWithResult("fixture:*", "0")).toEqual({ cursor: "27", keys: [] });
+    expect(await service.scanKeyPageWithResult("fixture:*", "27")).toEqual({ cursor: "0", keys: ["fixture-key"] });
+    expect(client.scan).toHaveBeenNthCalledWith(2, "27", "MATCH", "fixture:*", "COUNT", "200");
+  });
+  it.each([null, ["bad", []], ["0\n", []], ["0", [null]]].map((reply) => ({ reply })))(
+    "does not confirm malformed SCAN replies: $reply",
+    async ({ reply }) => {
+      const client = { scan: vi.fn().mockResolvedValue(reply), quit: vi.fn() };
+      createRedisClientMock.mockReturnValue(client as any);
+      expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*")).toBeNull();
+      expect(client.scan).toHaveBeenCalledOnce();
+    },
+  );
+  it("reports a SCAN failure as unknown without retry or a fake empty result", async () => {
+    const client = { scan: vi.fn().mockRejectedValue(new Error("fixture outage")), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*")).toBeNull();
+    expect(client.scan).toHaveBeenCalledOnce();
+  });
+  it.each(["bad", "-1", "1\n"])("does not issue SCAN for an invalid cursor %j", async (cursor) => {
+    const client = { scan: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*", cursor)).toBeNull();
+    expect(client.scan).not.toHaveBeenCalled();
+  });
+  it("performs exactly one atomic IP write with the original address keys", async () => {
+    const client = { eval: vi.fn().mockResolvedValue(1), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance(),
+      ip = "2001:0DB8::1";
+    expect(await service.writeIpErrorWeightWithResult(ip, { kind: "set", weight: 0 })).toBe(true);
+    expect(client.eval).toHaveBeenCalledTimes(1);
+    expect(client.eval.mock.calls[0]!.slice(1)).toEqual([
+      4,
+      RedisService.getIpErrorWeightKey(ip),
+      RedisService.getIpErrorWeightTsKey(ip),
+      RedisService.getIpErrorKey(ip),
+      RedisService.getIpErrorBreakdownKey(ip),
+      "set",
+      "0",
+      String(Date.now()),
+    ]);
+  });
+  it.each([null, 0, "1"])("refuses unexpected IP mutation reply %s", async (reply) => {
+    const client = { eval: vi.fn().mockResolvedValue(reply), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "reset" })).toBe(false);
+    expect(client.eval).toHaveBeenCalledTimes(1);
+  });
+  it("returns unknown on an IP write outage without retry", async () => {
+    const client = { eval: vi.fn().mockRejectedValue(new Error("fixture outage")), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "reset" })).toBeNull();
+    expect(client.eval).toHaveBeenCalledTimes(1);
+  });
+  it.each([-1, 1.5, 1_000_001, NaN, Infinity])("never evaluates Redis for invalid weight %s", async (weight) => {
+    const client = { eval: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "set", weight })).toBe(
+      false,
+    );
+    expect(client.eval).not.toHaveBeenCalled();
+  });
+  it("never evaluates Redis for an unsafe address", async () => {
+    const client = { eval: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.*", { kind: "reset" })).toBe(false);
+    expect(client.eval).not.toHaveBeenCalled();
+  });
+  it("confirms expiring revocation writes and treats outages as unknown instead of success", async () => {
+    const client = {
+      setex: vi.fn().mockResolvedValueOnce("OK").mockRejectedValueOnce(new Error("fixture outage")),
+      set: vi.fn().mockResolvedValue("OK"),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.setWithResult("fixture-marker", "fixture-value", 30)).toBe(true);
+    expect(client.setex).toHaveBeenCalledWith("fixture-marker", 30, "fixture-value");
+    expect(await service.setWithResult("fixture-marker", "fixture-value", 30)).toBeNull();
+    expect(await service.setWithResult("fixture-marker", "fixture-value")).toBe(true);
+  });
+  it("does not confirm unexpected Redis replies", async () => {
+    createRedisClientMock.mockReturnValue({ setex: vi.fn().mockResolvedValue(null), quit: vi.fn() } as any);
+    expect(await RedisService.getInstance().setWithResult("fixture-marker", "fixture-value", 30)).toBe(false);
+  });
   it("opens circuit after repeated failures and short-circuits subsequent requests", async () => {
     const redisClientMock = {
       get: vi.fn().mockRejectedValue(new Error("boom")),

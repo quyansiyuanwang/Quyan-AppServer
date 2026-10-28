@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { DEFAULT_USER_GROUP_USERNAME, DEFAULT_USER_GROUP_PERMISSIONS } from "@quyan/shared";
 import { Permission } from "../src/constant/permission";
 import { hashPassword, isLegacyPasswordHash } from "../src/util/crypto";
 
@@ -168,16 +169,12 @@ async function main() {
 
   // 6. 普通用户组 - 无特殊权限
   const userGroup = await prisma.group.upsert({
-    where: { username: "user" },
+    where: { username: DEFAULT_USER_GROUP_USERNAME },
     update: {},
     create: {
-      username: "user",
+      username: DEFAULT_USER_GROUP_USERNAME,
       name: "普通用户",
-      permissions: JSON.stringify([
-        Permission.RELAY_CHANNEL_SUBMIT,
-        Permission.RELAY_CHANNEL_PROVIDER_READ,
-        Permission.RELAY_CHANNEL_PROVIDER_SETTLE,
-      ]),
+      permissions: JSON.stringify(DEFAULT_USER_GROUP_PERMISSIONS),
       level: 10,
       description: "普通用户组，无特殊权限",
     },

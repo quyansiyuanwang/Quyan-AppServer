@@ -1,3 +1,4 @@
+import { CONTENT_SAFETY_INCIDENT_FIELDS } from "./content-safety-incident-view";
 import { prisma } from "@/config/database";
 import type { ContentSafetyIncident, Prisma } from "@prisma/client";
 import type { ContentSafetyIncidentQuery } from "@/api/dto/system/content-safety.dto";
@@ -135,15 +136,18 @@ export class ContentSafetyRepository {
     }>,
   ) {
     return prisma.$transaction(async (tx) => {
+      const createdIds: string[] = [];
       for (const operation of operations) {
-        if (operation.operation === "create") await tx.contentSafetyRule.create({ data: operation.data });
-        else {
+        if (operation.operation === "create") {
+          const created = await tx.contentSafetyRule.create({ data: operation.data });
+          createdIds.push(created.id);
+        } else {
           if (!operation.id) throw new Error("Missing rule id");
           const { ownerUserId: _ownerUserId, ...updateData } = operation.data;
           await tx.contentSafetyRule.update({ where: { id: operation.id }, data: updateData });
         }
       }
-      return { count: operations.length };
+      return { count: operations.length, createdIds };
     });
   }
 
@@ -266,27 +270,7 @@ export class ContentSafetyRepository {
         skip,
         take,
         select: {
-          id: true,
-          createTime: true,
-          userId: true,
-          relayTokenId: true,
-          requestId: true,
-          direction: true,
-          action: true,
-          source: true,
-          ruleId: true,
-          channelId: true,
-          statusCode: true,
-          auditModel: true,
-          auditInputTokens: true,
-          auditOutputTokens: true,
-          auditTotalTokens: true,
-          auditCost: true,
-          auditDurationMs: true,
-          replaced: true,
-          blocked: true,
-          matchContext: true,
-          matchText: true,
+          ...CONTENT_SAFETY_INCIDENT_FIELDS,
           rule: { select: { name: true, type: true, pattern: true } },
         },
       }),

@@ -93,6 +93,7 @@ const en = {
   },
   agent: {
     credentialEncryptionNotConfigured: "Agent credential encryption is not configured",
+    workspaceCleanupFailed: "Workspace cleanup failed; the workspace was retained for retry",
     workspaceNotFound: "Agent workspace not found",
     workspaceProvisioningFailed: "Workspace provisioning failed",
     remoteRuntimeUnavailable: "No remote workspace agent is connected",
@@ -100,6 +101,8 @@ const en = {
     modelRequired: "Agent model is required",
     modelNotConfigured: "Agent model is not configured",
     modelNotAllowed: "Relay token does not allow this model",
+    taskStateChanged: "Agent task state changed; reload before retrying",
+    invalidEventCursor: "Invalid Agent event cursor",
     taskNotFound: "Agent task not found",
     approvalUnavailable: "Approval is no longer available",
     cancelledByUser: "Cancelled by user",
@@ -140,6 +143,21 @@ const en = {
     identifierExists: "Group identifier already exists",
     notDeletable: "This user group cannot be deleted",
     hasUsers: "This group still has users and cannot be deleted",
+  },
+  iam: {
+    unknownService: "Unknown IAM service",
+    resourceResolutionFailed: "The requested resource cannot be resolved safely",
+    invalidPolicy: "Invalid or unsupported IAM policy document",
+    versionConflict: "The policy changed; reload it before updating",
+    delegationDenied: "This policy cannot be delegated by the current principal",
+    authorizationNotFound: "Authorization relation does not exist",
+    authorizationInvalid: "Invalid authorization principal or scope",
+    authorizationScopeInvalid: "Invalid authorization scope",
+    resourceGroupNameConflict: "Resource group name is already in use",
+    resourceGroupNotFound: "Resource group does not exist",
+    resourceGroupNameExists: "Resource group name already exists",
+    resourceGroupMemberInvalid: "Resource group members must be registered same-account resources",
+    rolloutRequired: "IAM documents require enforce authorization mode",
   },
   permission: {
     operatorNotFound: "Operator user does not exist",
@@ -319,6 +337,8 @@ const en = {
     socialAuthWechatWebScopeRequired: "Provide scope when WeChat Web is enabled",
   },
   ipBlacklist: {
+    weightMutationUnavailable: "The IP weight change was not confirmed. Query the current status before retrying.",
+    recordNotFound: "Blacklist record not found",
     useCheckEndpoint: "Please use the /check/:ip endpoint to inspect a specific IP",
     userMissing: "Unable to retrieve user information",
     notFoundByIp: "IP {{ip}} is not blacklisted",
@@ -589,6 +609,8 @@ const en = {
     targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
+    forwardedRequestHeadersInvalid:
+      "Extra forwarded headers must be exact safe header names (up to 64 names, 128 characters each); credentials, cookies, internal and connection headers are prohibited.",
     timeRuleSameStartEnd: "Start and end times must differ for a non-all-day rule",
     channelTypeConflict: "channelType and channelTypes cannot be used together",
     optionsNotFound: "Relay channel options not found",
@@ -638,6 +660,7 @@ const en = {
     changeRequestNotFound: "Relay channel change request not found",
     hideBlockedByAssignments:
       "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+    modelMigrationTargetInvalid: "The pricing migration target is missing or has a different request model identity",
     requestModelNotAllowed: "Channel does not allow the requested model",
     importSourceIdsConsistent: "Imported relay channels must either all include source IDs or all omit them",
     importSourceIdsUnique: "Imported relay channel source IDs must be unique",
@@ -971,11 +994,13 @@ const en = {
     modelRequired: "Model is required",
     modelNotConfigured: "Model is not configured",
     replaceTargetInvalid: "The message to replace must be a user message in this conversation",
+    generationOutputTooLarge: "Generated content exceeds the allowed size",
     upstreamNoVisibleResponse: "Upstream completed without a visible response",
   },
   ojSubmitter: {
     apiKeyNotFound: "API key not found",
     pricingNotFound: "Pricing not found for model: {{model}}",
+    pricingEntryAlreadyExists: "Model pricing already exists",
     pricingAlreadyExists: "Pricing already exists for model: {{model}}",
     invalidApiKey: "Invalid API key",
     apiKeyExpired: "API key has expired",
@@ -1005,6 +1030,8 @@ const en = {
     deleteDenied: "You are not allowed to delete this script",
   },
   notification: {
+    testDeliveryFailed: "Test delivery failed. Check the destination and delivery configuration.",
+    emailNotConfigured: "Notification email is not configured",
     webhookNotFound: "Webhook not found",
   },
   reurl: {

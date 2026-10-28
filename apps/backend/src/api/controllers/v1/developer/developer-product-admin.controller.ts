@@ -1,6 +1,15 @@
+import { platformDeveloperAccountUpsertResources } from "@/iam/request/platform-developer-account-write-resource-resolvers";
+import {
+  platformDeveloperUsageAccountResource,
+  platformDeveloperUsageUserResource,
+} from "@/iam/request/platform-developer-usage-resource-resolvers";
+import { DeveloperProductAccountAdminService } from "@/services/developer/developer-product-account-admin.service";
+import { DeveloperProductConfigAdminService } from "@/services/developer/developer-product-config-admin.service";
+import { platformDeveloperConfigUpsertResources } from "@/iam/request/platform-developer-config-resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { Body, Controller, Get, Middlewares, Path, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
-import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {
   DeveloperProductCallLogDto,
   DeveloperProductConfigDto,
@@ -22,7 +31,7 @@ import {
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { DeveloperProductCode } from "@quyan/shared";
 
@@ -30,16 +39,27 @@ import type { DeveloperProductCode } from "@quyan/shared";
 @Tags("Developer Product Administration")
 @Security("jwt")
 export class DeveloperProductAdminController extends Controller {
-  private readonly service = DeveloperProductPlatformService.getInstance();
+  private readonly accounts = DeveloperProductAccountAdminService.getInstance();
+  private readonly configurations = DeveloperProductConfigAdminService.getInstance();
 
   @Get("configs")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE)
-  public async listConfigs(): Promise<DeveloperProductConfigDto[]> {
-    return this.service.listConfigs();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductConfigurations",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listConfigs(@Request() request: TypedRequest): Promise<DeveloperProductConfigDto[]> {
+    return this.configurations.list(request);
   }
 
   @Put("{product}/config")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:UpsertProductConfiguration",
+    resourceKind: "batch",
+    resource: platformDeveloperConfigUpsertResources,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(productCodeParamsSchema),
@@ -48,37 +68,65 @@ export class DeveloperProductAdminController extends Controller {
   public async updateConfig(
     @Path() product: DeveloperProductCode,
     @Body() body: UpdateDeveloperProductConfigDto,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductConfigDto> {
-    return this.service.updateConfig(product, body);
+    return this.configurations.update(product, body, request.user!.userId, request);
   }
 
   @Get("accounts")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  public async listAccounts(): Promise<DeveloperProductAccountDto[]> {
-    return this.service.listAccounts();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listAccounts(@Request() request: TypedRequest): Promise<DeveloperProductAccountDto[]> {
+    return this.accounts.list(request);
   }
 
   @Get("{product}/accounts")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productCodeParamsSchema))
-  public async listProductAccounts(@Path() product: DeveloperProductCode): Promise<DeveloperProductAccountDto[]> {
-    return this.service.listAccounts(product);
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productCodeParamsSchema),
+  )
+  public async listProductAccounts(
+    @Path() product: DeveloperProductCode,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductAccountDto[]> {
+    return this.accounts.list(request, product);
   }
 
   @Get("{product}/users")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productCodeParamsSchema), validateQuery(managedProductAccountsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountOwners",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productCodeParamsSchema),
+    validateQuery(managedProductAccountsQuerySchema),
+  )
   public async listManagedAccounts(
+    @Request() request: TypedRequest,
     @Path() product: DeveloperProductCode,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
   ): Promise<DeveloperProductManagedAccountsDto> {
-    return this.service.listManagedAccounts(product, page ?? 1, pageSize ?? 20, keyword);
+    return this.accounts.managedList(request, product, { page, pageSize, keyword });
   }
 
   @Put("{product}/users/{userId}/account")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:UpsertProductAccount",
+    resourceKind: "batch",
+    resource: platformDeveloperAccountUpsertResources,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(productUserParamsSchema),
@@ -90,56 +138,87 @@ export class DeveloperProductAdminController extends Controller {
     @Body() body: UpdateDeveloperProductAccountDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperProductManagedAccountDto> {
-    return this.service.updateManagedAccount(request.user!.userId, product, userId, body);
+    return this.accounts.update(request, request.user!.userId, product, userId, body);
   }
 
   @Get("{product}/users/{userId}/instances")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productUserParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountInstances",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productUserParamsSchema),
+  )
   public async listManagedInstances(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductInstanceDto[]> {
-    return this.service.listManagedInstances(product, userId);
+    return this.accounts.instances(request, product, userId);
   }
 
   @Get("{product}/users/{userId}/usage")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:GetProductAccountUsage",
+    resourceKind: "single-resource",
+    resource: platformDeveloperUsageUserResource,
+  })
   @Middlewares(validateParams(productUserParamsSchema))
   public async getManagedUsage(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductUsageDto> {
-    return this.service.getManagedUsage(product, userId);
+    return this.accounts.usage(request, product, { userId });
   }
 
   @Get("{product}/users/{userId}/calls")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productUserParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountCalls",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productUserParamsSchema),
+  )
   public async listManagedCallLogs(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductCallLogDto[]> {
-    return this.service.listManagedCallLogs(product, userId);
+    return this.accounts.calls(request, product, { userId });
   }
 
   @Get("{product}/accounts/{accountId}/usage")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:GetProductAccountUsage",
+    resourceKind: "single-resource",
+    resource: platformDeveloperUsageAccountResource,
+  })
   @Middlewares(validateParams(productAccountParamsSchema))
   public async getUsage(
     @Path() product: DeveloperProductCode,
     @Path() accountId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductUsageDto> {
-    return this.service.getUsageForProduct(product, accountId);
+    return this.accounts.usage(request, product, { accountId });
   }
 
   @Get("{product}/accounts/{accountId}/calls")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productAccountParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountCalls",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productAccountParamsSchema),
+  )
   public async listCallLogs(
     @Path() product: DeveloperProductCode,
     @Path() accountId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductCallLogDto[]> {
-    return this.service.listCallLogs(product, accountId);
+    return this.accounts.calls(request, product, { accountId });
   }
 }

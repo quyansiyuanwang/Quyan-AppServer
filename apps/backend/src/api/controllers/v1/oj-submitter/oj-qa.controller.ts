@@ -5,6 +5,8 @@ import type { TypedRequest } from "@/types/express";
 import { BadRequestError, UnauthorizedError } from "@/util/errors";
 import { askQuestionBodySchema, ojUsageQuerySchema } from "@/api/schema/oj-submitter/oj-submitter.schema";
 import { validateBody, validateQuery } from "@/middleware/validation";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/products/oj-submitter")
 @Tags("OJSubmitter")
@@ -47,7 +49,14 @@ export class OJQAController extends Controller {
    */
   @Get("usage")
   @Security("jwt")
-  @Middlewares(validateQuery(ojUsageQuerySchema))
+  @Middlewares(
+    validateQuery(ojUsageQuerySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ojqa:GetUsage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getUsageStats(
     @Request() request: TypedRequest,
     @Query() page?: number,

@@ -33,6 +33,9 @@ export const useGroupManagement = () => {
   const keyword = ref('')
   const showRamGroups = ref(false)
   const pagination = ref({ page: 1, pageSize: 10, total: 0 })
+  const hasMore = ref(false)
+  const totalKnown = ref(true)
+  let loadSequence = 0
   const displayTotal = computed(() => pagination.value.total)
 
   const permDialogVisible = ref(false)
@@ -99,6 +102,7 @@ export const useGroupManagement = () => {
   })
 
   const loadGroups = async () => {
+    const sequence = ++loadSequence
     loading.value = true
     try {
       const response = await groupService.getAllGroups({
@@ -107,13 +111,19 @@ export const useGroupManagement = () => {
         pageSize: pagination.value.pageSize,
         hasRamPermission: showRamGroups.value || undefined,
       })
+      if (sequence !== loadSequence) return
       groupList.value = response.groups
-      pagination.value.total = response.total
+      totalKnown.value = response.total !== undefined
+      pagination.value.total = response.total ?? 0
+      hasMore.value = response.hasMore
     } catch (error) {
+      if (sequence !== loadSequence) return
+      groupList.value = []
+      hasMore.value = false
       ElMessage.error(getErrorMessage(error, i18ns.t('GroupManagement.loadFailed')))
       console.error('Failed to load groups:', error)
     } finally {
-      loading.value = false
+      if (sequence === loadSequence) loading.value = false
     }
   }
 
@@ -275,6 +285,8 @@ export const useGroupManagement = () => {
     showRamGroups,
     pagination,
     displayTotal,
+    hasMore,
+    totalKnown,
     permDialogVisible,
     permSaving,
     editingPermGroupId,

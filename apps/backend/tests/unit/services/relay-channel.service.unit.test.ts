@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
+import { assertSafeOutboundUrl } from "../../../src/util/developer-outbound-url";
 vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../src/util/developer-outbound-url")>()),
   assertSafeOutboundUrl: vi.fn(async (rawUrl: string) => ({
@@ -14,7 +15,8 @@ import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repos
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { OperationType } from "../../../src/constant/operation-type";
 import { Permission } from "../../../src/constant/permission";
-import { NotFoundError } from "../../../src/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "../../../src/util/errors";
+import { renderDescriptorSafely, DEFAULT_BACKEND_LOCALE } from "../../../src/locales";
 
 describe("RelayChannelService", () => {
   const transactionClient = {} as any;
@@ -28,6 +30,7 @@ describe("RelayChannelService", () => {
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
     findVisibleById: vi.fn(),
+    findVisibleSelectionMetadataById: vi.fn(),
     withTransaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(transactionClient)),
     create: vi.fn(),
     updateById: vi.fn(),
@@ -49,6 +52,7 @@ describe("RelayChannelService", () => {
     listRoleBindingsForUser: vi.fn(),
   };
   const permissionService = {
+    checkUserPermissions: vi.fn(),
     hasAnyPermission: vi.fn(),
     hasPermission: vi.fn(),
   };
@@ -140,17 +144,18 @@ describe("RelayChannelService", () => {
     relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "anonymous-range" });
     configService.getRelayProxyConfig.mockResolvedValue({ enabled: false, url: "" });
     changeRequestRepository.findPendingByChannelId.mockResolvedValue(null);
-    changeRequestRepository.create.mockResolvedValue({
+    changeRequestRepository.create.mockImplementation(async (data: Record<string, unknown>) => ({
+      ...data,
       id: "change-1",
       status: 1,
-      relayChannelId: "channel-1",
-      submittedByUserId: "actor-user",
       reviewStatus: "pending",
-      configSnapshot: {},
+      reviewedAt: null,
+      reviewReason: null,
       createTime: now,
       updateTime: now,
-      channelName: "Main",
-    });
+      relayChannel: { id: "channel-1", name: "Main" },
+      submittedBy: { username: "supplier" },
+    }));
     relayChannelRepository.updateById.mockImplementation(async (id: string, data: Record<string, unknown>) => ({
       ...sampleChannel,
       id,
@@ -390,7 +395,10 @@ describe("RelayChannelService", () => {
 
     expect(result.updated).toEqual([]);
     expect(result.rejected).toEqual([
-      expect.objectContaining({ id: channel.id, reason: "pricing catalog unavailable" }),
+      expect.objectContaining({
+        id: channel.id,
+        reason: renderDescriptorSafely({ key: "errors.internalServerError" }, DEFAULT_BACKEND_LOCALE).message,
+      }),
     ]);
   });
 
@@ -413,9 +421,109 @@ describe("RelayChannelService", () => {
 
     expect(result.updated).toEqual([]);
     expect(result.rejected).toEqual([
-      expect.objectContaining({ id: sampleChannel.id, reason: expect.stringContaining("expected 'gpt-5.6-luna'") }),
+      expect.objectContaining({
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.modelMigrationTargetInvalid" }, DEFAULT_BACKEND_LOCALE)
+          .message,
+      }),
     ]);
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it.each(["configuration", "restrictions"] as const)(
+    "does not expose raw exceptions in %s batch rejections",
+    async (operation) => {
+      relayChannelRepository.updateById.mockRejectedValueOnce(
+        new Error("fixture-secret: SQL UPDATE channel SET key=credential"),
+      );
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { model: "model", modelId: "model", supportedFormats: "openai-chat-completions" },
+      ]);
+      const result =
+        operation === "configuration"
+          ? await service.batchUpdateChannels({ ids: [sampleChannel.id], patch: { multiplier: 1 } }, "actor-user")
+          : await service.applyModelRestrictions(
+              { targets: [{ channelId: sampleChannel.id, addModels: ["model"] }] },
+              "actor-user",
+            );
+      expect(result.updated).toEqual([]);
+      expect(result.rejected).toEqual([{ id: sampleChannel.id, reason: "Internal server error" }]);
+      expect(JSON.stringify(result)).not.toContain("fixture-secret");
+      expect(JSON.stringify(businessLogService.logOperation.mock.calls)).not.toContain("fixture-secret");
+    },
+  );
+  it.each([
+    ["configuration", 401],
+    ["configuration", 403],
+    ["restrictions", 401],
+    ["restrictions", 403],
+  ] as const)(
+    "never downgrades %s authentication/authorization failure (%s) into partial success",
+    async (operation, status) => {
+      const denied =
+        status === 401 ? new UnauthorizedError("fixture-secret-auth") : new ForbiddenError("fixture-secret-auth");
+      relayChannelRepository.updateById.mockRejectedValueOnce(denied);
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { model: "model", modelId: "model", supportedFormats: "openai-chat-completions" },
+      ]);
+      const result =
+        operation === "configuration"
+          ? service.batchUpdateChannels({ ids: [sampleChannel.id], patch: { multiplier: 1 } }, "actor-user")
+          : service.applyModelRestrictions(
+              { targets: [{ channelId: sampleChannel.id, addModels: ["model"] }] },
+              "actor-user",
+            );
+      await expect(result).rejects.toBe(denied);
+      expect(businessLogService.logOperation).not.toHaveBeenCalled();
+    },
+  );
+  it("renders known batch business errors from descriptors instead of exception messages", async () => {
+    relayChannelRepository.updateById.mockRejectedValueOnce(
+      new BadRequestError("fixture-secret internal diagnosis", undefined, { messageKey: "relayChannel.nameExists" }),
+    );
+    const result = await service.batchUpdateChannels(
+      { ids: [sampleChannel.id], patch: { multiplier: 1 } },
+      "actor-user",
+    );
+    expect(result.rejected).toEqual([
+      {
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.nameExists" }, DEFAULT_BACKEND_LOCALE).message,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("fixture-secret");
+  });
+  it("does not echo arbitrary migration model names in early batch rejection", async () => {
+    relayConfigService.getRelayConfig.mockResolvedValue({ modelRates: [] });
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [sampleChannel.id],
+        patch: {},
+        modelPricingMigration: { sourceModelId: "fixture-secret-source", targetPricingModel: "fixture-secret-target" },
+      },
+      "actor-user",
+    );
+    expect(result.rejected).toEqual([
+      {
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.modelMigrationTargetInvalid" }, DEFAULT_BACKEND_LOCALE)
+          .message,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("fixture-secret");
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it("releases DNS-pinned agents when upstream preparation fails before HTTP", async () => {
+    configService.getRelayProxyConfig.mockRejectedValueOnce(new Error("fixture-only-proxy-configuration"));
+    const get = vi.spyOn(axios, "get");
+    await expect(
+      service.listUpstreamModels({ format: "openai", upstreamUrl: "https://1.1.1.1", apiKey: "fixture-only" }, "actor"),
+    ).rejects.toThrow("fixture-only-proxy-configuration");
+    const safe = await vi.mocked(assertSafeOutboundUrl).mock.results.at(-1)!.value;
+    expect(safe.httpAgent.destroy).toHaveBeenCalledTimes(1);
+    expect(safe.httpsAgent.destroy).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("batch probes upstream models while preserving per-channel failures and skipping missing credentials", async () => {
@@ -800,13 +908,15 @@ describe("RelayChannelService", () => {
     expect(result.hasGeminiUpstreamApiKey).toBe(false);
   });
 
-  it("includes upstream API keys only in channel exports", async () => {
+  it("never includes upstream credentials or transport settings in channel exports", async () => {
     relayChannelRepository.listVisibleByIds.mockResolvedValue([sampleChannel]);
 
     const result = await service.exportChannels({ ids: ["channel-1"], includeDisabled: true }, "actor-user");
 
-    expect(result.channels[0].openaiUpstreamApiKey).toBe("openai-key");
-    expect(result.channels[0].anthropicUpstreamApiKey).toBeUndefined();
+    expect(result.channels[0]).not.toHaveProperty("openaiUpstreamApiKey");
+    expect(result.channels[0]).not.toHaveProperty("anthropicUpstreamApiKey");
+    expect(result.channels[0]).not.toHaveProperty("openaiUpstreamUrl");
+    expect(JSON.stringify(result)).not.toContain("openai-key");
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -1285,6 +1395,21 @@ describe("RelayChannelService", () => {
     expect(result.map((item) => item.id)).toEqual(["role-whitelist-channel"]);
   });
 
+  it("checks channel business selection with metadata without loading full channel configuration", async () => {
+    relayChannelRepository.findVisibleSelectionMetadataById.mockResolvedValue({
+      id: "meta-channel",
+      name: "fixture",
+      status: 1,
+      updateTime: now,
+      visibilityMode: "public",
+      visibilityConfig: null,
+      channelType: "standalone",
+    });
+    const result = await service.assertChannelBusinessSelectableMetadataById("meta-channel", "actor-user");
+    expect(result.id).toBe("meta-channel");
+    expect(relayChannelRepository.findVisibleById).not.toHaveBeenCalled();
+    expect(relayChannelRepository.findVisibleSelectionMetadataById).toHaveBeenCalledWith("meta-channel");
+  });
   it("throws NotFoundError when getting a missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 
@@ -2301,5 +2426,56 @@ describe("RelayChannelService", () => {
     const result = await service.getChannel("channel-1", "actor-user");
 
     expect(result.inputTokensIncludeCacheRead).toBe(true);
+  });
+  it("does not borrow the actor management bypass during a restricted role session", async () => {
+    permissionService.hasAnyPermission.mockResolvedValue(true);
+    permissionService.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "private", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(false);
+    expect(permissionService.hasAnyPermission).not.toHaveBeenCalled();
+    expect(
+      permissionService.checkUserPermissions.mock.calls.every(
+        ([, , options]) => options.assumedRoleSessionId === "role-session",
+      ),
+    ).toBe(true);
+  });
+  it("keeps hidden channels hidden and preserves authorized public and whitelist options", async () => {
+    permissionService.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "hidden", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(false);
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "public", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(true);
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "whitelist", visibilityConfig: { userIds: ["actor-user"] } },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(true);
+  });
+  it("validates configured headers for service callers and ignores pool-level overrides", () => {
+    const normalize = (headers: unknown, type = "standalone") =>
+      (service as any).normalizeRoutingConfig({ forwardedRequestHeaders: headers }, type);
+    expect(normalize([" X-Sdk-Custom ", "x-sdk-custom"]).forwardedRequestHeaders).toEqual(["x-sdk-custom"]);
+    expect(normalize([]).forwardedRequestHeaders).toEqual([]);
+    expect(normalize(["x-sdk-custom"], "pooled-member").forwardedRequestHeaders).toEqual(["x-sdk-custom"]);
+    expect(normalize(["x-sdk-custom"], "pooled")).not.toHaveProperty("forwardedRequestHeaders");
+    expect(normalize(["x-sdk-custom"], "automatic-proxy-pool")).not.toHaveProperty("forwardedRequestHeaders");
+    expect(() => normalize(["Authorization"])).toThrow(BadRequestError);
   });
 });

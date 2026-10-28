@@ -41,6 +41,16 @@
 - 所有写入操作需通过 **二次验证步骤确认（step-up）**。
 - 需要 `SYSTEM_CONFIG` 权限。
 
+## 资源级配置权限
+
+部署管理员组的 `SYSTEM_CONFIG` 权限是管理全局配置的前提。在启用 IAM 强制授权的部署中，还需要 `quyan:system:ListConfigurations`（读取）或 `quyan:system:UpdateConfigurations`（保存），资源格式为 `acs:platform:*:platform:config-item/<配置键>`。普通账户所有者及账户内策略不能自行取得部署级管理资格。
+
+注册、SMTP、站点、计费、通知、心跳、远程终端解绑、中继、上游代理、自动代理池、IP 封禁、验证码和社交登录区块读取会检查区块的全部配置键；任一键被拒绝时，整个读取失败。通用配置列表只展示已获授权的键。一次保存中的任一配置键未获授权、配置已被其他管理员修改或权限在提交前失效，整次保存失败，不会留下部分修改。公开注册、验证码和社交登录配置端点仍只返回各入口需要的公开设置。登录与验证码验证所需的凭据由服务端使用，不通过公开配置返回。
+
+IAM 强制授权下，SMTP 密码、中继 API Key、社交登录 Client Secret / App Secret，以及含用户名或密码的上游或代理 URL 显示为 `[configured]`。保留该占位符会保留对应原值；输入新值会替换配置，提交空字符串会清除对应值。占位符不会作为配置值写入。自动代理池保存同样需要二次验证和重放保护，样本数范围为 1–1000，统计窗口范围为 1–8760 小时。
+
+强制模式下，通用配置接口读取或更新 `notification.ticketAssignmentRules` 时，还需要有效全局组的 `TICKET_REVIEW_UPDATE` 资格，以及对应的 `quyan:ticket:GetAssignmentRules` 或 `quyan:ticket:UpdateAssignmentRules` 授权。专用操作的 Deny 同样限制通用配置入口。缺少这些权限时，通用列表隐藏该键，包含该键的通知区块读取或批量保存会被拒绝。
+
 ## 常见操作
 
 1. 展开需要调整的区块。

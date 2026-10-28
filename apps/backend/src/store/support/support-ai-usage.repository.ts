@@ -1,3 +1,7 @@
+import { SUPPORT_ANALYTICS_POLICY } from "@/constant/support-analytics-policy";
+import type { IamPrincipal } from "@quyan/shared";
+import type { Prisma } from "@prisma/client";
+import { activeIamAccountUsers, assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
 import { prisma } from "@/config/database";
 import type { SupportAiAnalyticsDto, SupportAiAnalyticsQueryDto } from "@/api/dto/support/support.dto";
 
@@ -20,15 +24,50 @@ export class SupportAiUsageRepository {
     return prisma.supportAiUsageRecord.create({ data: { ...data, totalTokens: data.inputTokens + data.outputTokens } });
   }
 
+  async getAccountAnalytics(principal: IamPrincipal, query: SupportAiAnalyticsQueryDto, userIds: readonly string[]) {
+    await assertIamAccountPrincipal(principal);
+    const unique = [...new Set(userIds)],
+      users = await prisma.user.findMany({
+        where: { ...activeIamAccountUsers(principal.accountOwnerId), id: { in: unique } },
+        select: { id: true },
+      });
+    if (users.length !== unique.length || (query.userId !== undefined && !unique.includes(query.userId)))
+      throw iamAccountDenied();
+    return this.analytics(query, { accountOwnerId: principal.accountOwnerId, userIds: unique });
+  }
   async getAnalytics(query: SupportAiAnalyticsQueryDto): Promise<SupportAiAnalyticsDto> {
+    return this.analytics(query);
+  }
+  private async analytics(
+    query: SupportAiAnalyticsQueryDto,
+    scope?: { accountOwnerId: string; userIds: string[] },
+  ): Promise<SupportAiAnalyticsDto> {
     const endAt = query.endAt ? new Date(query.endAt) : new Date();
-    const requestedStartAt = query.startAt ? new Date(query.startAt) : new Date(endAt.getTime() - 30 * 86400000);
+    const requestedStartAt = query.startAt
+      ? new Date(query.startAt)
+      : new Date(endAt.getTime() - SUPPORT_ANALYTICS_POLICY.defaultWindowMs);
     if (Number.isNaN(endAt.getTime()) || Number.isNaN(requestedStartAt.getTime()) || requestedStartAt > endAt)
       throw new Error("Support analytics date range is invalid");
-    const startAt = new Date(Math.max(requestedStartAt.getTime(), endAt.getTime() - 90 * 86400000));
+    const startAt = new Date(
+      Math.max(requestedStartAt.getTime(), endAt.getTime() - SUPPORT_ANALYTICS_POLICY.maximumWindowMs),
+    );
     const page = Math.max(1, Math.floor(query.page || 1));
-    const pageSize = Math.min(100, Math.max(1, Math.floor(query.pageSize || 20)));
-    const where = { createTime: { gte: startAt, lte: endAt }, ...(query.userId ? { userId: query.userId } : {}) };
+    const pageSize = Math.min(
+      SUPPORT_ANALYTICS_POLICY.maximumPageSize,
+      Math.max(1, Math.floor(query.pageSize || SUPPORT_ANALYTICS_POLICY.defaultPageSize)),
+    );
+    const where: Prisma.SupportAiUsageRecordWhereInput = {
+      createTime: { gte: startAt, lte: endAt },
+      ...(scope
+        ? {
+            status: 1,
+            userId: { in: query.userId ? scope.userIds.filter((id) => id === query.userId) : scope.userIds },
+            user: activeIamAccountUsers(scope.accountOwnerId),
+          }
+        : query.userId
+          ? { userId: query.userId }
+          : {}),
+    };
     const [records, groupedUsers, allUserGroups] = await Promise.all([
       prisma.supportAiUsageRecord.findMany({
         where,
@@ -54,7 +93,10 @@ export class SupportAiUsageRepository {
       prisma.supportAiUsageRecord.groupBy({ by: ["userId"], where }),
     ]);
     const users = await prisma.user.findMany({
-      where: { id: { in: groupedUsers.map((item) => item.userId) } },
+      where: {
+        id: { in: groupedUsers.map((item) => item.userId) },
+        ...(scope ? activeIamAccountUsers(scope.accountOwnerId) : {}),
+      },
       select: { id: true, username: true },
     });
     const usernames = new Map(users.map((user) => [user.id, user.username]));

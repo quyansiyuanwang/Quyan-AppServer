@@ -25,6 +25,7 @@ export const OAUTH_LEGACY_SCOPE_ALIASES: Readonly<Record<string, readonly string
   email: [Permission.USER_UPDATE_SELF_EMAIL],
   notification: [Permission.NOTIFICATION_MANAGE],
   oauth_client: [Permission.OAUTH_CLIENT_READ],
+  auth_center_client: [Permission.AUTH_CENTER_CLIENT_READ],
   accesskey: [Permission.ACCESSKEY_READ],
   passkey: [Permission.PASSKEY_MANAGE],
   'relay:usage:read': [Permission.RELAY_TOKEN_READ],
@@ -44,6 +45,7 @@ const IDENTITY_SCOPES: readonly OAuthScopeDefinition[] = [
   ['email', 'identity', 'identity', 'high', [Permission.USER_UPDATE_SELF_EMAIL]],
   ['notification', 'identity', 'notification', 'normal', [Permission.NOTIFICATION_MANAGE]],
   ['oauth_client', 'identity', 'oauth', 'high', [Permission.OAUTH_CLIENT_READ]],
+  ['auth_center_client', 'identity', 'auth_center', 'high', [Permission.AUTH_CENTER_CLIENT_READ]],
   ['accesskey', 'identity', 'accesskey', 'high', [Permission.ACCESSKEY_READ]],
   ['passkey', 'identity', 'security', 'high', [Permission.PASSKEY_MANAGE]],
   ['two_factor', 'identity', 'security', 'high', []],
@@ -74,9 +76,11 @@ const LEGACY_SCOPES: readonly OAuthScopeDefinition[] = [
 ]
 
 const isHighRiskPermission = (scope: string): boolean => {
-  return /(?:create|update|delete|manage|write|execute|export|recharge|settle|impersonate|assume_role|custom_key|publish|attach|detach|force_offline|act)/i.test(
-    scope,
-  ) || /(?:secret|passkey|two_factor|password)/i.test(scope)
+  return (
+    /(?:create|update|delete|manage|write|execute|export|recharge|settle|impersonate|assume_role|custom_key|publish|attach|detach|force_offline|act)/i.test(
+      scope,
+    ) || /(?:secret|passkey|two_factor|password)/i.test(scope)
+  )
 }
 
 const permissionDefinitions: readonly OAuthScopeDefinition[] = ALL_PERMISSIONS.map((scope) => {

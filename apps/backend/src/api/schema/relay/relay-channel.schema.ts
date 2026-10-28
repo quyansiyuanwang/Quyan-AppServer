@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_UPSTREAM_FORMATS } from "@quyan/shared";
+import { normalizeRelayForwardedHeaderNames, RELAY_UPSTREAM_FORMATS } from "@quyan/shared";
 
 const RELAY_CHANNEL_MULTIPLIER_SCALE = 6;
 // Floating-point tolerance for decimal precision checks.
@@ -53,7 +53,7 @@ const contextLengthRuleSchema = z.object({
 });
 
 const relayChannelTypeSchema = z.enum(["standalone", "pooled-member", "pooled", "automatic-proxy-pool"]);
-const routingStrategySchema = z.enum([
+export const routingStrategySchema = z.enum([
   "priority",
   "random",
   "weighted-random",
@@ -105,6 +105,21 @@ const relayChannelMemberSchema = z.object({
 
 const routingConfigSchema = z
   .object({
+    forwardedRequestHeaders: z
+      .array(z.string())
+      .transform((value, ctx) => {
+        const normalized = normalizeRelayForwardedHeaderNames(value);
+        if (!normalized) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Invalid forwarded request-header names",
+            params: { messageKey: "relayChannel.forwardedRequestHeadersInvalid" },
+          });
+          return z.NEVER;
+        }
+        return normalized;
+      })
+      .optional(),
     maxRetries: z.coerce.number().int().min(0).max(100).optional(),
     failoverThreshold: z.coerce.number().int().min(0).max(100).optional(),
     retryStatusCodes: z
@@ -221,9 +236,20 @@ export const relayChannelManagementQuerySchema = z
     path: ["channelTypes"],
   });
 
-export const createRelayChannelBodySchema = relayChannelBaseSchema;
+/** Same registered field validators, with secret-bearing transport settings excluded from portable output. */
+export const relayChannelExportConfigurationSchema = relayChannelBaseSchema.omit({
+  openaiUpstreamUrl: true,
+  openaiUpstreamApiKey: true,
+  anthropicUpstreamUrl: true,
+  anthropicUpstreamApiKey: true,
+  geminiUpstreamUrl: true,
+  geminiUpstreamApiKey: true,
+  providers: true,
+});
 
-export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial();
+export const createRelayChannelBodySchema = relayChannelBaseSchema.strict();
+
+export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial().strict();
 
 export const updateRelayChannelHealthConfigBodySchema = z
   .object({
@@ -278,24 +304,28 @@ export const batchUpdateRelayChannelHealthConfigBodySchema = z
     }
   });
 
-export const duplicateRelayChannelBodySchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-});
+export const duplicateRelayChannelBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
 
 export const batchSetRelayChannelStatusBodySchema = z.object({
   ids: relayChannelIdsSchema,
-  enabled: z.coerce.boolean(),
+  enabled: z.boolean(),
 });
 
 export const batchDeleteRelayChannelsBodySchema = z.object({
   ids: relayChannelIdsSchema,
 });
 
-export const batchDuplicateRelayChannelsBodySchema = z.object({
-  ids: relayChannelIdsSchema,
-});
+export const batchDuplicateRelayChannelsBodySchema = z
+  .object({
+    ids: relayChannelIdsSchema,
+  })
+  .strict();
 
-const batchUpdateRelayChannelPatchSchema = z
+export const batchUpdateRelayChannelPatchSchema = z
   .object({
     multiplier: channelMultiplierSchema,
     allowedFormats: z.string().max(500).optional(),
@@ -331,6 +361,7 @@ export const batchUpdateRelayChannelsBodySchema = z
       })
       .optional(),
   })
+  .strict()
   .superRefine((value, context) => {
     if (Object.keys(value.patch).length > 0 || value.modelPricingMigration) return;
     context.addIssue({
@@ -346,17 +377,38 @@ export const exportRelayChannelsBodySchema = z.object({
   includeDisabled: z.coerce.boolean().optional(),
 });
 
-export const importRelayChannelsBodySchema = z.object({
-  channels: z
-    .array(
-      relayChannelBaseSchema.extend({
-        id: z.string().trim().min(1).optional(),
-        enabled: z.coerce.boolean().optional(),
-      }),
-    )
-    .min(1)
-    .max(200),
-});
+export const importRelayChannelsBodySchema = z
+  .object({
+    channels: z
+      .array(
+        relayChannelBaseSchema
+          .extend({
+            poolMembers: z
+              .array(
+                relayChannelMemberSchema
+                  .extend({
+                    memberChannelName: z.string().trim().min(1).max(100).optional(),
+                    memberChannelType: relayChannelTypeSchema.optional(),
+                    memberChannelEnabled: z.boolean().optional(),
+                  })
+                  .strict(),
+              )
+              .max(200)
+              .nullable()
+              .optional(),
+            id: z.string().trim().min(1).optional(),
+            enabled: z.coerce.boolean().optional(),
+            // Recognized export metadata is validated but never controls destination timestamps.
+            createTime: z.coerce.date().optional(),
+            updateTime: z.coerce.date().optional(),
+          })
+          .strict()
+          .transform(({ createTime: _created, updateTime: _updated, ...input }) => input),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
 
 export const submitRelayChannelBodySchema = relayChannelBaseSchema
   .pick({

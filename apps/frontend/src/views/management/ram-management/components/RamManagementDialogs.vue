@@ -1,4 +1,6 @@
 <template>
+  <RamIamPolicySimulator />
+  <RamIamPolicyVersions />
   <el-drawer
     v-model="userDialogVisible"
     :title="editingUser ? i18ns.t('RamManagement.editUser') : i18ns.t('RamManagement.createUser')"
@@ -75,7 +77,13 @@
         </template>
 
         <el-form-item :label="i18ns.t('RamManagement.userGroup')" prop="groupId">
-          <el-select v-model="userForm.groupId" filterable clearable style="width: 100%">
+          <el-select
+            v-model="userForm.groupId"
+            :disabled="loading.groups || submitting"
+            filterable
+            clearable
+            style="width: 100%"
+          >
             <el-option
               v-for="group in groups"
               :key="group.id"
@@ -83,6 +91,22 @@
               :value="group.id"
             />
           </el-select>
+          <el-alert
+            v-if="groupPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            :page="groupPage.page.value"
+            :page-size="groupPage.pageSize.value"
+            :has-next="groupPage.hasNext.value"
+            :loading="groupPage.loading.value || submitting"
+            @previous="loadGroups(groupPage.page.value - 1)"
+            @next="loadGroups(groupPage.page.value + 1)"
+            @size="resizeGroupsPage"
+          />
+
           <div class="text-secondary field-hint">{{ i18ns.t('RamManagement.userGroupHint') }}</div>
         </el-form-item>
       </template>
@@ -210,7 +234,12 @@
           bindMode === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group')
         "
       >
-        <el-select v-model="bindTargetId" filterable style="width: 100%">
+        <el-select
+          v-model="bindTargetId"
+          :disabled="submitting || (bindMode === 'group' && loading.groups)"
+          filterable
+          style="width: 100%"
+        >
           <el-option
             v-for="option in bindOptions"
             :key="option.id"
@@ -218,6 +247,39 @@
             :value="option.id"
           />
         </el-select>
+        <el-alert
+          v-if="bindMode === 'user' && userPage.failed.value"
+          :title="i18ns.t('RamManagement.scopedLoadFailed')"
+          type="error"
+          :closable="false"
+        />
+        <RamIamPageControls
+          v-if="bindMode === 'user'"
+          :page="userPage.page.value"
+          :page-size="userPage.pageSize.value"
+          :has-next="userPage.hasNext.value"
+          :loading="userPage.loading.value"
+          @previous="loadUsers(userPage.page.value - 1)"
+          @next="loadUsers(userPage.page.value + 1)"
+          @size="resizeUsersPage"
+        />
+
+        <el-alert
+          v-if="bindMode === 'group' && groupPage.failed.value"
+          :title="i18ns.t('RamManagement.scopedLoadFailed')"
+          type="error"
+          :closable="false"
+        />
+        <RamIamPageControls
+          v-if="bindMode === 'group'"
+          :page="groupPage.page.value"
+          :page-size="groupPage.pageSize.value"
+          :has-next="groupPage.hasNext.value"
+          :loading="groupPage.loading.value || submitting"
+          @previous="loadGroups(groupPage.page.value - 1)"
+          @next="loadGroups(groupPage.page.value + 1)"
+          @size="resizeGroupsPage"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -246,7 +308,19 @@
       <el-form-item :label="i18ns.t('RamManagement.policyDescription')" prop="description">
         <el-input v-model="policyForm.description" type="textarea" :rows="2" />
       </el-form-item>
-      <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
+      <el-form-item :label="i18ns.t('RamManagement.policyFormat')">
+        <el-radio-group
+          v-model="policyFormat"
+          :disabled="submitting || Boolean(editingPolicy?.document)"
+        >
+          <el-radio value="legacy">{{ i18ns.t('RamManagement.legacyPolicy') }}</el-radio>
+          <el-radio value="iam">{{ i18ns.t('RamManagement.iamDocument') }}</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="policyFormat === 'iam'" :label="i18ns.t('RamManagement.iamDocument')">
+        <RamIamPolicyEditor v-if="policyDialogVisible" />
+      </el-form-item>
+      <el-form-item v-else :label="i18ns.t('RamManagement.permissions')" prop="permissions">
         <div class="permission-tree-container">
           <PermissionEditorPanel
             v-if="permissionTree.length > 0"
@@ -277,6 +351,7 @@
     :title="i18ns.t('RamManagement.policyAttachments')"
     direction="rtl"
     size="650px"
+    @closed="closePolicyAttachments"
   >
     <div class="section-toolbar">
       <el-button
@@ -293,14 +368,23 @@
     <div v-if="showAttachForm" class="attach-form">
       <el-form label-width="100px" size="small">
         <el-form-item :label="i18ns.t('RamManagement.targetType')">
-          <el-radio-group v-model="attachForm.targetType">
+          <el-radio-group v-model="attachForm.targetType" @change="attachForm.targetId = ''">
             <el-radio value="user">{{ i18ns.t('RamManagement.user') }}</el-radio>
             <el-radio value="role">{{ i18ns.t('RamManagement.roles') }}</el-radio>
             <el-radio value="group">{{ i18ns.t('RamManagement.group') }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="i18ns.t('RamManagement.targetName')">
-          <el-select v-model="attachForm.targetId" filterable style="width: 100%">
+          <el-select
+            v-model="attachForm.targetId"
+            :disabled="
+              submitting ||
+              (attachForm.targetType === 'group' && loading.groups) ||
+              (attachForm.targetType === 'role' && loading.roles)
+            "
+            filterable
+            style="width: 100%"
+          >
             <el-option
               v-for="option in attachTargetOptions"
               :key="option.id"
@@ -308,6 +392,56 @@
               :value="option.id"
             />
           </el-select>
+          <el-alert
+            v-if="attachForm.targetType === 'user' && userPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'user'"
+            :page="userPage.page.value"
+            :page-size="userPage.pageSize.value"
+            :has-next="userPage.hasNext.value"
+            :loading="userPage.loading.value"
+            @previous="loadUsers(userPage.page.value - 1)"
+            @next="loadUsers(userPage.page.value + 1)"
+            @size="resizeUsersPage"
+          />
+
+          <el-alert
+            v-if="attachForm.targetType === 'group' && groupPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'group'"
+            :page="groupPage.page.value"
+            :page-size="groupPage.pageSize.value"
+            :has-next="groupPage.hasNext.value"
+            :loading="groupPage.loading.value || submitting"
+            @previous="loadGroups(groupPage.page.value - 1)"
+            @next="loadGroups(groupPage.page.value + 1)"
+            @size="resizeGroupsPage"
+          />
+
+          <el-alert
+            v-if="attachForm.targetType === 'role' && rolePage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'role'"
+            :page="rolePage.page.value"
+            :page-size="rolePage.pageSize.value"
+            :has-next="rolePage.hasNext.value"
+            :loading="rolePage.loading.value || submitting"
+            @previous="loadRoles(rolePage.page.value - 1)"
+            @next="loadRoles(rolePage.page.value + 1)"
+            @size="resizeRolesPage"
+          />
         </el-form-item>
         <div class="form-footer">
           <el-button size="small" @click="showAttachForm = false">{{
@@ -342,13 +476,41 @@
       </el-table-column>
     </el-table>
 
+    <el-alert
+      v-if="attachmentPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      :page="attachmentPage.page.value"
+      :page-size="attachmentPage.pageSize.value"
+      :has-next="attachmentPage.hasNext.value"
+      :loading="attachmentPage.loading.value || submitting"
+      @previous="
+        selectedPolicy && loadPolicyAttachments(selectedPolicy.id, attachmentPage.page.value - 1)
+      "
+      @next="
+        selectedPolicy && loadPolicyAttachments(selectedPolicy.id, attachmentPage.page.value + 1)
+      "
+      @size="resizeAttachmentsPage"
+    />
+    <el-button
+      v-if="attachmentPage.failed.value"
+      @click="selectedPolicy && loadPolicyAttachments(selectedPolicy.id)"
+      >{{ i18ns.t('refresh') }}</el-button
+    >
     <el-empty v-if="policyAttachments.length === 0 && !loading.attachments" />
   </el-drawer>
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { Plus } from '@element-plus/icons-vue'
 import PermissionEditorPanel from '@/components/permission/PermissionEditorPanel.vue'
+import RamIamPolicyEditor from './RamIamPolicyEditor.vue'
+import RamIamPolicySimulator from './RamIamPolicySimulator.vue'
+import RamIamPolicyVersions from './RamIamPolicyVersions.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -357,6 +519,11 @@ const {
   attachDrawerVisible,
   attachForm,
   attachTargetOptions,
+  attachmentPage,
+  loadPolicyAttachments,
+  resizeAttachmentsPage,
+  closePolicyAttachments,
+  selectedPolicy,
   bindDialogVisible,
   bindMode,
   bindOptions,
@@ -375,11 +542,21 @@ const {
   editingUser,
   groups,
   loading,
+  rolePage,
+  loadRoles,
+  groupPage,
+  loadGroups,
+  userPage,
+  loadUsers,
+  resizeUsersPage,
+  resizeGroupsPage,
+  resizeRolesPage,
   passwordDialogVisible,
   permissionTree,
   policyAttachments,
   policyDialogVisible,
   policyForm,
+  policyFormat,
   policyFormRef,
   policyRules,
   resetPolicyForm,

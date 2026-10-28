@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import RemoteTerminalUserSelect from './RemoteTerminalUserSelect.vue'
+import RemoteTerminalTemplateSelect from './RemoteTerminalTemplateSelect.vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
 const t = i18ns.t
-const userOptions = computed(() => state.userOptions.value)
 const templateDialogVisible = state.templateDialogVisible
 const templateDialogTitle = state.templateDialogTitle
 const templateFormRef = state.templateFormRef
@@ -14,9 +14,6 @@ const submitTemplateDialog = state.submitTemplateDialog
 const entitlementDialogVisible = state.entitlementDialogVisible
 const entitlementDialogTitle = state.entitlementDialogTitle
 const entitlementFormRef = state.entitlementFormRef
-const handleUserSearch = state.handleUserSearch
-const userOptionsLoading = state.userOptionsLoading
-const templateOptions = computed(() => state.filterOptions.templates)
 const submitEntitlementDialog = state.submitEntitlementDialog
 const tokenDialogVisible = state.tokenDialogVisible
 const submitRotateToken = state.submitRotateToken
@@ -162,32 +159,13 @@ const closeLimitAdjustDialog = () => {
       label-width="160px"
     >
       <el-form-item prop="userId" :label="t('common.user')">
-        <el-select
-          v-model="state.entitlementForm.userId"
-          class="full-width"
-          filterable
-          remote
-          reserve-keyword
-          :remote-method="handleUserSearch"
-          :loading="userOptionsLoading"
-        >
-          <el-option
-            v-for="user in userOptions"
-            :key="user.id"
-            :label="user.username"
-            :value="user.id"
-          />
-        </el-select>
+        <RemoteTerminalUserSelect v-model="state.entitlementForm.userId" class="full-width" />
       </el-form-item>
       <el-form-item :label="t('remoteTerminalProduct.templateName')">
-        <el-select v-model="state.entitlementForm.templateId" class="full-width" clearable>
-          <el-option
-            v-for="template in templateOptions"
-            :key="template.id"
-            :label="template.name"
-            :value="template.id"
-          />
-        </el-select>
+        <RemoteTerminalTemplateSelect
+          v-model="state.entitlementForm.templateId"
+          class="full-width"
+        />
       </el-form-item>
       <el-form-item :label="t('remoteTerminalProduct.entitlementName')">
         <el-input v-model="state.entitlementForm.name" />

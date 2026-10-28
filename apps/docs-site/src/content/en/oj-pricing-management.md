@@ -42,6 +42,18 @@ Each pricing record has three multipliers applied on top of the base input/outpu
 
 A request's final cost is calculated as `input tokens x input price x multiplier + output tokens x output price x multiplier + cache-creation tokens x input price x cache-creation multiplier + cache-read tokens x input price x cache-read multiplier`.
 
+## IAM pricing read access
+
+With IAM enforcement, management reads require `OJ_PRICING_READ` eligibility in a real deployment-wide group. Listing uses `quyan:oj:ListPricing` and details use `quyan:oj:GetPricing`. The resource is `acs:platform:*:platform:oj-pricing/<record-id>`, where the ID comes from the actual pricing record. Model names, including provider prefixes, locate records and never become ARN identifiers.
+
+The list loads display prices only after each record is authorized. A matching Deny overrides Allow. Missing, deleted or unauthorized detail records return 403 in enforce mode. Price, qualification, policy or role-session changes during a read prevent returning the result. AssumeRole uses its role's grants. Internal billing calculations retain their existing pricing lookup flow.
+
+## IAM pricing write permissions
+
+Creating, updating, and deleting require eligibility from a real global group with `OJ_PRICING_UPDATE`, using `quyan:oj:CreatePricing`, `quyan:oj:UpdatePricing`, and `quyan:oj:DeletePricing` respectively. Creation checks both `acs:platform:*:platform:oj-pricing-control/default` and the actual new record ARN. Updates and deletions check the actual record ARN. Model names are lookup inputs and cannot change the authorization scope.
+
+A matching Deny blocks the entire operation. If identity, eligibility, policies, role sessions, or the target price change before saving, the operation fails without partially saving price changes. Deleted models cannot be directly recreated. Missing or unauthorized mutation targets return 403 in IAM enforcement mode. Replay protection applies to all three write endpoints.
+
 ## Notes
 
 - Pricing changes can affect cost reporting and any user-visible estimates.

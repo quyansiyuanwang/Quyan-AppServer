@@ -1,3 +1,5 @@
+import { businessLogStatisticsFields } from "./businesslog.store";
+import { resolveBusinessLogWhere } from "./businesslog-query";
 import { BusinessLog, Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -19,87 +21,6 @@ export type { CreateBusinessLogParams, QueryBusinessLogParams, QueryBusinessLogR
  * 负责业务日志的数据库操作
  */
 export class BusinessLogRepository implements BusinessLogStore {
-  private async buildWhere(
-    params: Omit<QueryBusinessLogParams, "page" | "pageSize">,
-  ): Promise<Prisma.BusinessLogWhereInput | null> {
-    const {
-      operationType,
-      operationCategory,
-      actorUserId,
-      actor,
-      targetUserId,
-      target,
-      startDate,
-      endDate,
-      success,
-      ip,
-    } = params;
-
-    const where: Prisma.BusinessLogWhereInput = {
-      status: RECORD_STATUS.ACTIVE,
-      ...(operationType && { operationType }),
-      ...(operationCategory && { operationCategory }),
-      ...(actorUserId && { actorUserId }),
-      ...(targetUserId && { targetUserId }),
-      ...(success !== undefined && { success }),
-      ...(ip && {
-        ipAddress: {
-          contains: (() => {
-            if (ip === "::1") return "127.0.0.1";
-            if (ip.startsWith("::ffff:")) return ip.substring(7);
-            return ip;
-          })(),
-        },
-      }),
-      ...(startDate || endDate
-        ? {
-            createTime: {
-              ...(startDate && { gte: startDate }),
-              ...(endDate && { lte: endDate }),
-            },
-          }
-        : {}),
-    };
-
-    if (actor) {
-      const actors = await prisma.user.findMany({
-        where: {
-          OR: [{ username: { contains: actor } }, { id: actor }],
-          status: RECORD_STATUS.ACTIVE,
-        },
-        select: { id: true },
-        take: 100,
-      });
-      const actorUserIds = actors.map((u) => u.id);
-
-      if (actorUserIds.length === 0) return null;
-
-      if (where.actorUserId) {
-        if (!actorUserIds.includes(where.actorUserId as string)) return null;
-      } else where.actorUserId = { in: actorUserIds };
-    }
-
-    if (target) {
-      const targets = await prisma.user.findMany({
-        where: {
-          OR: [{ username: { contains: target } }, { id: target }],
-          status: RECORD_STATUS.ACTIVE,
-        },
-        select: { id: true },
-        take: 100,
-      });
-      const targetUserIds = targets.map((u) => u.id);
-
-      if (targetUserIds.length === 0) return null;
-
-      if (where.targetUserId) {
-        if (!targetUserIds.includes(where.targetUserId as string)) return null;
-      } else where.targetUserId = { in: targetUserIds };
-    }
-
-    return where;
-  }
-
   private static instance: BusinessLogRepository;
 
   /**
@@ -116,9 +37,9 @@ export class BusinessLogRepository implements BusinessLogStore {
    * @param params 日志参数
    * @returns 创建的日志记录
    */
-  public async create(params: CreateBusinessLogParams): Promise<BusinessLog> {
+  public async create(params: CreateBusinessLogParams, tx?: Prisma.TransactionClient): Promise<BusinessLog> {
     try {
-      const log = await prisma.businessLog.create({
+      const log = await (tx ?? prisma).businessLog.create({
         data: {
           operationType: params.operationType,
           operationCategory: params.operationCategory,
@@ -138,6 +59,8 @@ export class BusinessLogRepository implements BusinessLogStore {
       });
       return log;
     } catch (error) {
+      // Transactional authorization mutations must roll back and must not log raw database arguments.
+      if (tx) throw error;
       logger.error("Failed to create business log", { error, params });
       throw error;
     }
@@ -152,7 +75,7 @@ export class BusinessLogRepository implements BusinessLogStore {
     try {
       const { page, pageSize } = params;
       const skip = (page - 1) * pageSize;
-      const where = await this.buildWhere(params);
+      const where = await resolveBusinessLogWhere(prisma, params);
       if (!where) return { logs: [], total: 0 };
 
       const [logs, total] = await Promise.all([
@@ -176,21 +99,13 @@ export class BusinessLogRepository implements BusinessLogStore {
     params: Omit<QueryBusinessLogParams, "page" | "pageSize">,
   ): Promise<import("./businesslog.store").BusinessLogStatsRow[]> {
     try {
-      const where = await this.buildWhere(params);
+      const where = await resolveBusinessLogWhere(prisma, params);
       if (!where) return [];
 
       return prisma.businessLog.findMany({
         where,
         orderBy: { createTime: "asc" },
-        select: {
-          createTime: true,
-          operationType: true,
-          operationCategory: true,
-          actorUserId: true,
-          targetUserId: true,
-          success: true,
-          ipAddress: true,
-        },
+        select: businessLogStatisticsFields,
       });
     } catch (error) {
       logger.error("Failed to list business logs for stats", { error, params });

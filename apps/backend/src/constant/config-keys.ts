@@ -172,3 +172,9 @@ export const CONFIG_KEYS = {
     AI_MAX_TEXT_LENGTH: "security.contentSafety.ai.maxTextLength",
   },
 } as const;
+
+/** Enumerate a trusted configuration definition, never a request-supplied object. */
+export function configurationKeys(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  return value && typeof value === "object" ? Object.values(value).flatMap(configurationKeys) : [];
+}

@@ -221,4 +221,22 @@ describe("probe account and per-member configuration schemas", () => {
       }).success,
     ).toBe(true);
   });
+  it("rejects duplicate account-binding targets even when the accounts differ", () => {
+    expect(
+      bindRelayChannelProbeAccountsBodySchema.safeParse({
+        targets: [
+          { channelId: "channel", accountId: "first" },
+          { channelId: "channel", accountId: null },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      bindRelayChannelProbeAccountsBodySchema.safeParse({
+        targets: [
+          { channelId: "pool", memberChannelId: "first", accountId: "shared" },
+          { channelId: "pool", memberChannelId: "second", accountId: "shared" },
+        ],
+      }).success,
+    ).toBe(true);
+  });
 });

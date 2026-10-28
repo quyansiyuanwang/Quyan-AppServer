@@ -1,3 +1,4 @@
+import { writableServerConfigs } from '@quyan/shared'
 import { useRequestStore } from '@/stores/request'
 import { CustomCode } from '@/constant/custom-code'
 import { toServiceError } from '@/utils/error-utils'
@@ -94,7 +95,9 @@ export class ConfigService {
   }
 
   async setConfigs(configs: RecordStringString) {
-    const result = await configApi.setConfigs({ body: { configs } })
+    const writable = writableServerConfigs(configs)
+    if (!Object.keys(writable).length) return true
+    const result = await configApi.setConfigs({ body: { configs: writable } })
     if (result && result.code === CustomCode.OK) {
       return true
     }

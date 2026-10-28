@@ -3,8 +3,18 @@ import type { TypedRequest } from "@/types/express";
 
 const requestContext = new AsyncLocalStorage<TypedRequest>();
 
+/** Bound the entire HTTP chain so enterWith cannot escape into another request or its caller. */
+export function runWithRequestContext<T>(request: TypedRequest, operation: () => T): T {
+  return requestContext.run(request, operation);
+}
+
 export function setRequestContext(request: TypedRequest): void {
   requestContext.enterWith(request);
+}
+
+/** Reset leaked request state between isolated tests and background task boundaries. */
+export function clearRequestContext(): void {
+  requestContext.disable();
 }
 
 export function getRequestContext(): TypedRequest | undefined {

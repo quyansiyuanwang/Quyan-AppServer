@@ -115,6 +115,8 @@ export interface RelayChannelTopologyAuditDto {
 }
 
 export interface RelayChannelRoutingConfigDto {
+  /** Extra exact request-header names forwarded by this physical channel; reserved names are rejected. */
+  forwardedRequestHeaders?: string[];
   maxRetries?: number;
   failoverThreshold?: number;
   retryStatusCodes?: Array<number | string>;
@@ -380,9 +382,30 @@ export interface RelayAutomaticProxyPoolMemberOptionDto {
   modelCapabilities: RelayChannelModelCapabilityDto[];
 }
 
-export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {
+/** Portable configuration only. Credentials and upstream URLs are never exported. */
+export interface RelayChannelExportItemDto {
   id: string;
+  name: string;
   enabled: boolean;
+  channelType?: RelayChannelType;
+  routingStrategy?: RelayChannelRoutingStrategy;
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  visibilityMode?: RelayChannelVisibilityMode;
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  poolMembers?: RelayChannelMemberDto[] | null;
+  pooledParentId?: string | null;
+  pooledPriority?: number;
+  pooledWeight?: number;
+  pooledMemberEnabled?: boolean;
+  useProxy?: boolean;
+  multiplier?: number;
+  allowedFormats?: string | null;
+  allowedModels?: string | null;
+  addUserIdentifier?: boolean;
+  inputTokensIncludeCacheRead?: boolean;
+  modelMapping?: Record<string, string> | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
   createTime: Date;
   updateTime: Date;
 }
@@ -402,6 +425,10 @@ export interface DuplicateRelayChannelRequest {
 }
 
 export interface RelayChannelImportItemDto extends CreateRelayChannelRequest {
+  /** Optional export metadata; validated but ignored when creating destination timestamps. */
+  createTime?: Date;
+  /** Optional export metadata; validated but ignored when creating destination timestamps. */
+  updateTime?: Date;
   /** Export source channel ID, used only to remap pooled members during import. */
   id?: string;
   /** 导入后是否启用，默认启用 */

@@ -1,3 +1,7 @@
+import { HttpStatusCode } from "axios";
+import type { ErrorResponse } from "@/api/response";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
 import { relayCompositionPreviewBodySchema } from "@/api/schema/relay/relay.schema";
 import type { RelayCompositionCandidatesDto } from "@/api/dto/relay/relay.dto";
@@ -17,6 +21,7 @@ import {
   Body,
   Query,
   Middlewares,
+  Response,
 } from "@tsoa/runtime";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import type {
@@ -46,7 +51,6 @@ import type {
   RelayRequestDiagnosticsPageDto,
   RelayRequestRouteTraceDto,
 } from "@/api/dto/relay/relay.dto";
-import { RequireAllPermissions, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -80,8 +84,17 @@ export class RelayController extends Controller {
   private relayTokenService = new RelayTokenService();
 
   @Post("tokens")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:create"])
-  @RequirePermission(Permission.RELAY_TOKEN_CREATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_CREATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -93,8 +106,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/export")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ExportTokens",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateBody(exportRelayTokensBodySchema))
   async exportTokens(
     @Body() body: ExportRelayTokensRequest,
@@ -104,8 +126,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/import")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:create"])
-  @RequirePermission(Permission.RELAY_TOKEN_CREATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ImportTokens",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_CREATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -120,8 +151,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListTokens",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayTokenListQuerySchema))
   async listTokens(
     @Request() request: TypedRequest,
@@ -129,23 +169,41 @@ export class RelayController extends Controller {
     @Query() pageSize?: number,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
-    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId);
+    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId, request);
   }
 
   @Post("tokens/composition-preview")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:PreviewTokenComposition",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateBody(relayCompositionPreviewBodySchema))
   async previewComposition(
     @Body() body: RelayCompositionPreviewRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayCompositionPreviewDto> {
-    return this.relayTokenService.previewComposition(request.user!.userId, body);
+    return this.relayTokenService.previewComposition(request.user!.userId, body, request);
   }
 
   @Get("tokens/composition-candidates")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListTokenCompositionCandidates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayCompositionCandidatesQuerySchema))
   async compositionCandidates(
     @Request() request: TypedRequest,
@@ -164,12 +222,22 @@ export class RelayController extends Controller {
       editingTokenId,
       selectedIds,
       targetUserId,
+      request,
     );
   }
 
   @Get("tokens/usage-summaries")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayTokenUsageSummaryQuerySchema))
   async getUsageSummaries(
     @Request() request: TypedRequest,
@@ -185,7 +253,14 @@ export class RelayController extends Controller {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    return this.relayTokenService.getUsageSummaries(request.user!.userId, parsedTokenIds, start, end, targetUserId);
+    return this.relayTokenService.getUsageSummaries(
+      request.user!.userId,
+      parsedTokenIds,
+      start,
+      end,
+      targetUserId,
+      request,
+    );
   }
 
   @Get("tokens/current/quota-summary")
@@ -216,20 +291,38 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getToken(
     @Path() id: string,
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    return this.relayTokenService.getToken(id, request.user!.userId, targetUserId);
+    return this.relayTokenService.getToken(id, request.user!.userId, targetUserId, request);
   }
 
   @Delete("tokens/{id}")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:delete"])
-  @RequirePermission(Permission.RELAY_TOKEN_DELETE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_DELETE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -244,7 +337,14 @@ export class RelayController extends Controller {
 
   @Put("tokens/{id}/channel")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:UpdateTokenChannel",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -261,8 +361,17 @@ export class RelayController extends Controller {
   }
 
   @Put("tokens/{id}")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:UpdateToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -279,8 +388,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/duplicate")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:create"])
-  @RequirePermission(Permission.RELAY_TOKEN_CREATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DuplicateToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_CREATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -295,8 +413,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/{id}/duplicate")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:create"])
-  @RequirePermission(Permission.RELAY_TOKEN_CREATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DuplicateToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_CREATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -313,8 +440,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/{id}/refresh")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:RefreshToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -326,8 +462,17 @@ export class RelayController extends Controller {
   }
 
   @Patch("tokens/{id}/toggle")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetTokenStatus",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -343,8 +488,17 @@ export class RelayController extends Controller {
   }
 
   @Patch("tokens/batch/status")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetTokenStatus",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -359,8 +513,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/content-safety")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetTokenContentSafety",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -375,8 +538,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/delete")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:delete"])
-  @RequirePermission(Permission.RELAY_TOKEN_DELETE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_DELETE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -391,8 +563,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/usage")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageQuerySchema))
   async getUsage(
     @Path() id: string,
@@ -403,12 +584,21 @@ export class RelayController extends Controller {
   ): Promise<RelayUsageStatsDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end, targetUserId);
+    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end, targetUserId, request);
   }
 
   @Get("tokens/{id}/usage-summary")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageDetailQuerySchema))
   async getUsageSummary(
     @Path() id: string,
@@ -421,12 +611,30 @@ export class RelayController extends Controller {
   ): Promise<RelayTokenUsageDetailDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageSummary(id, request.user!.userId, start, end, limit, offset, targetUserId);
+    return this.relayTokenService.getUsageSummary(
+      id,
+      request.user!.userId,
+      start,
+      end,
+      limit,
+      offset,
+      targetUserId,
+      request,
+    );
   }
 
   @Get("request-diagnostics")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_REQUEST_DIAGNOSTICS_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListRequestDiagnostics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_REQUEST_DIAGNOSTICS_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
   async getRequestDiagnostics(
     @Request() request: TypedRequest,
@@ -438,41 +646,72 @@ export class RelayController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<RelayRequestDiagnosticsPageDto> {
-    return this.relayTokenService.getRequestDiagnostics(request.user!.userId, {
-      page,
-      pageSize,
-      requestId,
-      keyword,
-      outcome,
-      startDate,
-      endDate,
-    });
+    return this.relayTokenService.getRequestDiagnostics(
+      request.user!.userId,
+      {
+        page,
+        pageSize,
+        requestId,
+        keyword,
+        outcome,
+        startDate,
+        endDate,
+      },
+      request,
+    );
   }
 
   @Get("request-diagnostics/{requestId}/route-trace")
   @Security("jwt", ["relay:usage:read"])
-  @RequireAllPermissions([
-    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
-    Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
-    Permission.RELAY_CHANNEL_POOL_METADATA_READ,
-  ])
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetRequestRouteTrace",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [
+        Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+        Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
+        Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+      ],
+    }),
+  )
   async getRequestRouteTrace(
     @Path() requestId: string,
     @Request() request: TypedRequest,
   ): Promise<RelayRequestRouteTraceDto> {
-    return this.relayTokenService.getRequestRouteTrace(request.user!.userId, requestId);
+    return this.relayTokenService.getRequestRouteTrace(request.user!.userId, requestId, request);
   }
 
   @Get("available-models")
   @Security("jwt", ["relay:channel:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
-  async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
-    return this.relayTokenService.getAvailableModels();
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListAvailableModels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
+  async getAvailableModels(@Request() request: TypedRequest): Promise<RelayAvailableModelsMapDto> {
+    return this.relayTokenService.getAvailableModels(request.user!.userId, request);
   }
 
   @Get("tokens/{id}/switch-logs")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenSwitchLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenSwitchLogsQuerySchema))
   async getTokenSwitchLogs(
     @Path() id: string,
@@ -480,18 +719,27 @@ export class RelayController extends Controller {
     @Query() limit?: number,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
-    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit, targetUserId);
+    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit, targetUserId, request);
   }
 
   @Get("tokens/{id}/available-models")
   @Security("jwt", ["relay:channel:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenAvailableModels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getTokenAvailableModels(
     @Path() id: string,
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenAvailableModelsDto> {
-    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId, targetUserId);
+    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId, targetUserId, request);
   }
 }

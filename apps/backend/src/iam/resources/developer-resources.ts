@@ -1,0 +1,162 @@
+import { buildAcsResource } from "@quyan/shared";
+import {
+  developerProjectIdSchema,
+  developerKvKeySchema,
+  developerSecretAliasSchema,
+} from "@/api/schema/developer/developer.schema";
+/** Validation and normalization have one source; callers must pass its canonical value. */
+export function isCanonicalDeveloperIdentifier(
+  schema: typeof developerProjectIdSchema,
+  input: unknown,
+): input is string {
+  const parsed = schema.safeParse(input);
+  return parsed.success && parsed.data === input;
+}
+
+export function developerProjectArn(accountOwnerId: string, projectId: string): string {
+  if (!isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId))
+    throw new Error("Invalid project identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "project/" + projectId,
+  });
+}
+/** Keys are reversible UTF-8 base64url segments, without padding; no key can become a wildcard or delimiter. */
+export function developerKvArn(accountOwnerId: string, projectId: string, key: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerKvKeySchema, key)
+  )
+    throw new Error("Invalid KV identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "kv-item/" + projectId + "/" + Buffer.from(key, "utf8").toString("base64url"),
+  });
+}
+export function developerSecretArn(accountOwnerId: string, projectId: string, alias: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerSecretAliasSchema, alias)
+  )
+    throw new Error("Invalid secret identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "secret/" + projectId + "/" + alias,
+  });
+}
+
+/** Rejects alternate encodings so resource-group membership has one exact key identity. */
+export function developerKvKeyFromArnSegment(segment: string): string | undefined {
+  const key = Buffer.from(segment, "base64url").toString("utf8");
+  return isCanonicalDeveloperIdentifier(developerKvKeySchema, key) &&
+    Buffer.from(key, "utf8").toString("base64url") === segment
+    ? key
+    : undefined;
+}
+
+export function developerShortLinkArn(accountOwnerId: string, projectId: string, linkId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, linkId)
+  )
+    throw new Error("Invalid short-link identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "short-link/" + projectId + "/" + linkId,
+  });
+}
+export type DeveloperItemResourceType =
+  | "kv-item"
+  | "secret"
+  | "short-link"
+  | "project-api-key"
+  | "status-monitor"
+  | "push-channel"
+  | "push-delivery";
+export function developerItemArn(
+  type: DeveloperItemResourceType,
+  accountOwnerId: string,
+  projectId: string,
+  itemId: string,
+): string {
+  switch (type) {
+    case "kv-item":
+      return developerKvArn(accountOwnerId, projectId, itemId);
+    case "secret":
+      return developerSecretArn(accountOwnerId, projectId, itemId);
+    case "short-link":
+      return developerShortLinkArn(accountOwnerId, projectId, itemId);
+    case "project-api-key":
+      return developerProjectApiKeyArn(accountOwnerId, projectId, itemId);
+    case "status-monitor":
+      return developerStatusMonitorArn(accountOwnerId, projectId, itemId);
+    case "push-channel":
+      return developerPushChannelArn(accountOwnerId, projectId, itemId);
+    case "push-delivery":
+      return developerPushDeliveryArn(accountOwnerId, projectId, itemId);
+  }
+}
+
+export function developerProjectApiKeyArn(accountOwnerId: string, projectId: string, keyId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, keyId)
+  )
+    throw new Error("Invalid project API key identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "project-api-key/" + projectId + "/" + keyId,
+  });
+}
+
+export function developerStatusMonitorArn(accountOwnerId: string, projectId: string, monitorId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, monitorId)
+  )
+    throw new Error("Invalid status monitor identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "status-monitor/" + projectId + "/" + monitorId,
+  });
+}
+
+export function developerPushChannelArn(accountOwnerId: string, projectId: string, channelId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, channelId)
+  )
+    throw new Error("Invalid push channel identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "push-channel/" + projectId + "/" + channelId,
+  });
+}
+
+export function developerPushDeliveryArn(accountOwnerId: string, projectId: string, deliveryId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, deliveryId)
+  )
+    throw new Error("Invalid push delivery identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "push-delivery/" + projectId + "/" + deliveryId,
+  });
+}

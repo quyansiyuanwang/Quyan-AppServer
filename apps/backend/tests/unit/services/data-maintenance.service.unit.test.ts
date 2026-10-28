@@ -62,6 +62,31 @@ vi.mock("@/store/system/observability.repository", () => ({
   ObservabilityRepository: { getInstance: vi.fn() },
 }));
 
+vi.mock("@/services/system/platform-maintenance-run-iam.service", () => ({
+  PlatformMaintenanceRunIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
+
+vi.mock("@/store/users/iam-account-principal", async () => {
+  const { ForbiddenError } = await import("@/util/errors");
+  return {
+    iamAccountDenied: () =>
+      new ForbiddenError("fixture unavailable", undefined, { messageKey: "permission.insufficientPermission" }),
+  };
+});
+
+vi.mock("@/services/system/platform-maintenance-preview-iam.service", () => ({
+  PlatformMaintenancePreviewIamService: { getInstance: vi.fn() },
+}));
+
+vi.mock("@/services/system/platform-maintenance-optimize-iam.service", () => ({
+  PlatformMaintenanceOptimizeIamService: { getInstance: vi.fn() },
+}));
+
+vi.mock("@/services/system/platform-maintenance-import-iam.service", () => ({
+  PlatformMaintenanceImportIamService: { getInstance: vi.fn() },
+}));
+
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
 
 function archive(rows: unknown[]): Buffer {

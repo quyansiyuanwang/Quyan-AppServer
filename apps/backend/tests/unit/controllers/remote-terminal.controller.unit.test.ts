@@ -58,6 +58,7 @@ describe("RemoteTerminalController websocket URL generation", () => {
       "user-1",
       expect.objectContaining({ deviceId: "device-1" }),
       "wss://api.qysyw.cn/remote-terminal/ws",
+      expect.objectContaining({ user: { userId: "user-1" } }),
     );
   });
 
@@ -80,6 +81,7 @@ describe("RemoteTerminalController websocket URL generation", () => {
       "user-1",
       expect.objectContaining({ deviceId: "device-1" }),
       "wss://api.qysyw.cn/remote-terminal/ws",
+      expect.objectContaining({ user: { userId: "user-1" } }),
     );
   });
 
@@ -101,6 +103,7 @@ describe("RemoteTerminalController websocket URL generation", () => {
       "user-1",
       expect.objectContaining({ deviceId: "device-1" }),
       "ws://localhost:10001/remote-terminal/ws",
+      expect.objectContaining({ user: { userId: "user-1" } }),
     );
   });
 });

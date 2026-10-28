@@ -1,3 +1,17 @@
+import { PlatformIpMonitoringDashboardIamService } from "@/services/system/platform-ip-monitoring-dashboard-iam.service";
+import { PlatformIpBlacklistMutationIamService } from "@/services/system/platform-ip-blacklist-mutation-iam.service";
+import { PlatformIpErrorWeightMutationIamService } from "@/services/system/platform-ip-error-weight-mutation-iam.service";
+import { PlatformIPBlacklistRecordReadIamService } from "@/services/system/platform-ip-blacklist-record-read-iam.service";
+import { PlatformIPBlacklistListIamService } from "@/services/system/platform-ip-blacklist-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { PlatformIpAddressReadIamService } from "@/services/system/platform-ip-address-read-iam.service";
+import {
+  platformIpAddressResourceResolver,
+  platformIpBlacklistMutationResourceResolver,
+  platformIpBlacklistCreateResourceResolver,
+  platformIpBlacklistRecordResourceResolver,
+} from "@/iam/request/platform-ip-address-resource-resolvers";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import {
   Get,
   Path,
@@ -30,13 +44,10 @@ import type {
   IPErrorStatusResponse,
   SetIpErrorWeightRequest,
 } from "@/api/dto/system/ipblacklist.dto";
-import { Permission } from "@/constant/permission";
-import { NotFoundError, BadRequestError } from "@/util/errors";
+import { BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { IPBlackListService } from "@/services/system/ipblacklist.service";
 import { IPBlackList } from "@/store/security/ipblacklist";
 import type { ErrorResponse } from "@/api/response";
 import {
@@ -62,8 +73,6 @@ const logger = getLogger("IPBlacklistController", LogCategory.BUSINESS);
 @Tags("IP Blacklist")
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class IPBlacklistController extends Controller {
-  private ipBlacklistService = IPBlackListService.getInstance();
-
   /**
    * 将 Prisma 模型转换为 DTO
    */
@@ -93,17 +102,20 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateQuery(ipBlacklistListQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:ListBlacklists",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(ipBlacklistListQuerySchema),
+  )
   public async getAllIPBlacklists(
     @Request() request: TypedRequest,
     @Query() limit?: number,
     @Query() offset?: number,
   ): Promise<GetAllIPBlacklistsResponse> {
-    const result = await this.ipBlacklistService.getBlacklist({
-      limit: limit || 100,
-      offset: offset || 0,
-    });
+    const result = await PlatformIPBlacklistListIamService.getInstance().list(limit ?? 100, offset ?? 0, request);
 
     return {
       blacklists: result.blacklists.map((b) => this.toDto(b)),
@@ -123,17 +135,19 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "IP 黑名单不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipBlacklistIdParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistRecordResourceResolver,
+    }),
+    validateParams(ipBlacklistIdParamsSchema),
+  )
   public async getIPBlacklistById(
-    @Path("id") _id: string,
-    @Request() _request: TypedRequest,
+    @Path("id") id: string,
+    @Request() request: TypedRequest,
   ): Promise<GetIPBlacklistByIdResponse> {
-    // Note: This would require adding a findById method to the repository
-    // For now, we'll throw an error indicating this needs to be implemented
-    throw new BadRequestError("请使用 /check/:ip 端点检查特定 IP", undefined, {
-      messageKey: "ipBlacklist.useCheckEndpoint",
-    });
+    return this.toDto(await PlatformIPBlacklistRecordReadIamService.getInstance().read(id, request));
   }
 
   /**
@@ -148,7 +162,13 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_CREATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:CreateBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistCreateResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -162,13 +182,7 @@ export class IPBlacklistController extends Controller {
     const userId = request.user?.userId;
     if (!userId) throw new BadRequestError("无法获取用户信息", undefined, { messageKey: "ipBlacklist.userMissing" });
 
-    const blacklist = await this.ipBlacklistService.manualBan(
-      body.ipAddress,
-      body.duration,
-      body.reason || "手动封禁",
-      userId,
-      request,
-    );
+    const blacklist = await PlatformIpBlacklistMutationIamService.getInstance().create(body, request);
 
     logger.info(`IP ${body.ipAddress} manually banned by user ${userId}`);
 
@@ -189,7 +203,13 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "IP 黑名单不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:UpdateBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistMutationResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -202,23 +222,7 @@ export class IPBlacklistController extends Controller {
     @Body() body: UpdateIPBlacklistDto,
     @Request() request: TypedRequest,
   ): Promise<UpdateIPBlacklistResponse> {
-    // Get the repository directly for update operation
-    const { IPBlackListRepository } = await import("@/store/security/ipblacklist");
-    const repository = IPBlackListRepository.getInstance();
-
-    // 先通过IP地址查找记录
-    const record = await repository.findByIpAnyStatus(ipAddress);
-    if (!record)
-      throw new NotFoundError(`IP ${ipAddress} 不在黑名单中`, undefined, {
-        messageKey: "ipBlacklist.notFoundByIp",
-        messageParams: { ip: ipAddress },
-      });
-
-    const updateData: any = {};
-    if (body.banReason !== undefined) updateData.reason = body.banReason;
-    if (body.expireTime !== undefined) updateData.ExpireTime = new Date(body.expireTime);
-
-    const updated = await repository.update(record.id, updateData);
+    const updated = await PlatformIpBlacklistMutationIamService.getInstance().update(ipAddress, body, request);
 
     logger.info(`IP blacklist ${ipAddress} updated by user ${request.user?.userId}`);
 
@@ -237,7 +241,13 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "IP 黑名单不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_DELETE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:DeleteBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistMutationResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -251,13 +261,7 @@ export class IPBlacklistController extends Controller {
     const userId = request.user?.userId;
     if (!userId) throw new BadRequestError("无法获取用户信息", undefined, { messageKey: "ipBlacklist.userMissing" });
 
-    const result = await this.ipBlacklistService.unban(ipAddress, userId, request);
-
-    if (!result)
-      throw new NotFoundError(`IP ${ipAddress} 不在黑名单中`, undefined, {
-        messageKey: "ipBlacklist.notFoundByIp",
-        messageParams: { ip: ipAddress },
-      });
+    await PlatformIpBlacklistMutationIamService.getInstance().remove(ipAddress, request);
 
     logger.info(`IP ${ipAddress} unbanned by user ${userId}`);
 
@@ -276,14 +280,19 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:CheckIPAddress",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+    validateParams(ipParamsSchema),
+  )
   public async checkIPBlacklist(
     @Path() ip: string,
-    @Request() _request: TypedRequest,
+    @Request() request: TypedRequest,
   ): Promise<CheckIPBlacklistResponse> {
-    const isBlacklisted = await this.ipBlacklistService.isIpBlacklisted(ip);
-    const blacklistInfo = isBlacklisted ? await this.ipBlacklistService.getBlacklistInfo(ip) : null;
+    const { isBlacklisted, blacklistInfo } = await PlatformIpAddressReadIamService.getInstance().check(ip, request);
 
     return {
       isBlacklisted,
@@ -302,10 +311,16 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipParamsSchema))
-  public async getIpErrorStatus(@Path() ip: string, @Request() _request: TypedRequest): Promise<IPErrorStatusResponse> {
-    return await this.ipBlacklistService.getIpErrorStatus(ip);
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetIPAddressErrorStatus",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+    validateParams(ipParamsSchema),
+  )
+  public async getIpErrorStatus(@Path() ip: string, @Request() request: TypedRequest): Promise<IPErrorStatusResponse> {
+    return PlatformIpAddressReadIamService.getInstance().errorStatus(ip, request);
   }
 
   /**
@@ -318,7 +333,13 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:ResetIPAddressErrorWeight",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -329,7 +350,7 @@ export class IPBlacklistController extends Controller {
     @Path() ip: string,
     @Request() request: TypedRequest,
   ): Promise<DeleteIPBlacklistResponse> {
-    await this.ipBlacklistService.resetIpErrorWeight(ip);
+    await PlatformIpErrorWeightMutationIamService.getInstance().reset(ip, request);
     setResponseMessageKey(request, "common.success");
     return { success: true };
   }
@@ -345,7 +366,13 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:SetIPAddressErrorWeight",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -358,7 +385,7 @@ export class IPBlacklistController extends Controller {
     @Body() body: SetIpErrorWeightRequest,
     @Request() request: TypedRequest,
   ): Promise<DeleteIPBlacklistResponse> {
-    await this.ipBlacklistService.setIpErrorWeight(ip, body.weight);
+    await PlatformIpErrorWeightMutationIamService.getInstance().set(ip, body.weight, request);
     setResponseMessageKey(request, "common.success");
     return { success: true };
   }
@@ -373,8 +400,14 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  public async getMonitoringDashboard(@Request() _request: TypedRequest): Promise<MonitoringDashboardResponse> {
-    return await this.ipBlacklistService.getMonitoringDashboard();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetMonitoringDashboard",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async getMonitoringDashboard(@Request() request: TypedRequest): Promise<MonitoringDashboardResponse> {
+    return PlatformIpMonitoringDashboardIamService.getInstance().read(request);
   }
 }

@@ -14,11 +14,22 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import {
+  contentSafetySystemConfigResourceResolver,
+  contentSafetySystemRuleControlResourceResolver,
+  contentSafetySystemRuleResourceResolver,
+  contentSafetySystemRuleBatchResourceResolver,
+} from "@/iam/request/content-safety-system-resource-resolvers";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { contentSafetyUserResourceResolver } from "@/iam/request/content-safety-resource-resolvers";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type {
   ContentSafetyConfigDto,
+  ContentSafetySystemIncidentResponse,
   ContentSafetyConfigRequest,
   ContentSafetyRuleRequest,
   ContentSafetyCsvImportRequest,
@@ -60,25 +71,50 @@ export class ContentSafetyController extends Controller {
     return targetUserId;
   }
   @Get("config")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  async getConfig(): Promise<ContentSafetyConfigDto> {
-    return this.service.getPublicConfig();
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:GetSystemConfig",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemConfigResourceResolver,
+  })
+  async getConfig(@Request() request: TypedRequest): Promise<ContentSafetyConfigDto> {
+    return this.service.readSystemConfig(request);
   }
 
   @Get("user-config")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:GetUserConfig",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async getUserConfig(@Request() request: TypedRequest, @Query() targetUserId?: string) {
     return this.service.getUserConfig(await this.resolveUserScope(request, targetUserId));
   }
 
   @Put("user-config")
-  @Middlewares(validateBody(contentSafetyUserConfigSchema))
+  @Middlewares(
+    validateBody(contentSafetyUserConfigSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:UpdateUserConfig",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async updateUserConfig(@Body() body: ContentSafetyUserConfigRequest, @Request() request: TypedRequest) {
     const userId = await this.resolveUserScope(request, body.targetUserId);
     return this.service.updateUserConfig(body, userId);
   }
 
   @Put("rule-overrides")
-  @Middlewares(validateBody(contentSafetyRuleOverrideSchema))
+  @Middlewares(
+    validateBody(contentSafetyRuleOverrideSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:UpdateRuleOverride",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async updateRuleOverride(@Body() body: ContentSafetyRuleOverrideRequest, @Request() request: TypedRequest) {
     return this.service.setRuleOverride(
       await this.resolveUserScope(request, body.targetUserId),
@@ -88,11 +124,25 @@ export class ContentSafetyController extends Controller {
   }
 
   @Delete("rule-overrides/{id}")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:DeleteRuleOverride",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async deleteRuleOverride(@Path() id: string, @Request() request: TypedRequest, @Query() targetUserId?: string) {
     return this.service.clearRuleOverride(await this.resolveUserScope(request, targetUserId), id);
   }
 
   @Get("user-rules")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:ListUserRules",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async listUserRules(
     @Request() request: TypedRequest,
     @Query() page = 1,
@@ -103,25 +153,53 @@ export class ContentSafetyController extends Controller {
   }
 
   @Post("user-rules")
-  @Middlewares(validateBody(contentSafetyRuleSchema))
+  @Middlewares(
+    validateBody(contentSafetyRuleSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:CreateUserRule",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async createUserRule(@Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
     return this.service.createUserRule(await this.resolveUserScope(request, body.targetUserId), body);
   }
 
   @Put("user-rules/{id}")
-  @Middlewares(validateBody(contentSafetyRuleSchema))
+  @Middlewares(
+    validateBody(contentSafetyRuleSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:UpdateUserRule",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async updateUserRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
     return this.service.updateUserRule(await this.resolveUserScope(request, body.targetUserId), id, body);
   }
 
   @Delete("user-rules/{id}")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:DeleteUserRule",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async deleteUserRule(@Path() id: string, @Request() request: TypedRequest, @Query() targetUserId?: string) {
     await this.service.deleteUserRule(await this.resolveUserScope(request, targetUserId), id);
     return { success: true };
   }
 
   @Post("user-rules/import-csv")
-  @Middlewares(validateBody(contentSafetyCsvImportSchema))
+  @Middlewares(
+    validateBody(contentSafetyCsvImportSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:ImportUserRules",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async importUserCsv(@Body() body: ContentSafetyCsvImportRequest, @Request() request: TypedRequest) {
     return this.service.importUserCsv(
       await this.resolveUserScope(request, body.targetUserId),
@@ -131,7 +209,14 @@ export class ContentSafetyController extends Controller {
     );
   }
   @Post("user-rules/batch-update")
-  @Middlewares(validateBody(contentSafetyBatchUpdateSchema))
+  @Middlewares(
+    validateBody(contentSafetyBatchUpdateSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:BatchUpdateUserRules",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async batchUpdateUserRules(
     @Body() body: ContentSafetyBatchUpdateRequest,
     @Request() request: TypedRequest,
@@ -143,7 +228,14 @@ export class ContentSafetyController extends Controller {
     );
   }
   @Post("user-rules/export")
-  @Middlewares(validateBody(contentSafetyExportSchema))
+  @Middlewares(
+    validateBody(contentSafetyExportSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:ExportUserRules",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async exportUserRules(
     @Body() body: ContentSafetyExportRequest,
     @Request() request: TypedRequest,
@@ -155,7 +247,11 @@ export class ContentSafetyController extends Controller {
     );
   }
   @Put("config")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:UpdateSystemConfig",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemConfigResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -168,72 +264,124 @@ export class ContentSafetyController extends Controller {
     return this.service.updateConfig(body, request.user!.userId, request);
   }
   @Get("rules")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  async listRules(@Query() page = 1, @Query() pageSize = 50) {
-    return this.service.listRules(page, pageSize);
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ListSystemRules",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  async listRules(@Request() request: TypedRequest, @Query() page = 1, @Query() pageSize = 50) {
+    return this.service.listRules(page, pageSize, request);
   }
   @Post("rules/import-defaults")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:ImportDefaultSystemRules",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
-  async importDefaults() {
-    return this.service.importDefaults();
+  async importDefaults(@Request() request: TypedRequest) {
+    return this.service.importDefaults(request);
   }
   @Post("rules/import-csv")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:ImportSystemRules",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyCsvImportSchema),
   )
-  async importCsv(@Body() body: ContentSafetyCsvImportRequest): Promise<ContentSafetyCsvImportResponse> {
-    return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true);
+  async importCsv(
+    @Body() body: ContentSafetyCsvImportRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyCsvImportResponse> {
+    return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true, request);
   }
   @Post("rules/batch-update")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:BatchUpdateSystemRules",
+    resourceKind: "batch",
+    resource: contentSafetySystemRuleBatchResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyBatchUpdateSchema),
   )
-  async batchUpdateRules(@Body() body: ContentSafetyBatchUpdateRequest): Promise<ContentSafetyBatchUpdateResponse> {
-    return this.service.batchUpdateRules(body.ids, body.changes);
+  async batchUpdateRules(
+    @Body() body: ContentSafetyBatchUpdateRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyBatchUpdateResponse> {
+    return this.service.batchUpdateRules(body.ids, body.changes, request);
   }
   @Post("rules/export")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  @Middlewares(validateBody(contentSafetyExportSchema))
-  async exportRules(@Body() body: ContentSafetyExportRequest): Promise<ContentSafetyExportDto> {
-    return this.service.exportPolicy(undefined, body.format ?? "json", "system");
+  @Middlewares(
+    validateBody(contentSafetyExportSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ExportSystemRules",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  async exportRules(
+    @Body() body: ContentSafetyExportRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyExportDto> {
+    return this.service.exportPolicy(undefined, body.format ?? "json", "system", request);
   }
   @Post("rules")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:CreateSystemRule",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyRuleSchema),
   )
-  async createRule(@Body() body: ContentSafetyRuleRequest) {
-    return this.service.createRule(body);
+  async createRule(@Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.createRule(body, request);
   }
   @Put("rules/{id}")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:UpdateSystemRule",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemRuleResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyRuleSchema),
   )
-  async updateRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest) {
-    return this.service.updateRule(id, body);
+  async updateRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.updateRule(id, body, request);
   }
   @Delete("rules/{id}")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:DeleteSystemRule",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemRuleResourceResolver,
+  })
   @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
-  async deleteRule(@Path() id: string) {
-    await this.service.deleteRule(id);
+  async deleteRule(@Path() id: string, @Request() request: TypedRequest) {
+    await this.service.deleteRule(id, request);
     return { success: true };
   }
   @Get("incidents")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ListSystemIncidents",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   async listIncidents(
+    @Request() request: TypedRequest,
     @Query() page = 1,
     @Query() pageSize = 50,
     @Query() userId?: string,
@@ -247,25 +395,35 @@ export class ContentSafetyController extends Controller {
     @Query() channelName?: string,
     @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode",
     @Query() sortOrder?: "asc" | "desc",
-  ) {
-    return this.service.listIncidents({
-      page,
-      pageSize,
-      userId,
-      startTime,
-      endTime,
-      direction,
-      source,
-      processingStatus,
-      requestId,
-      relayTokenName,
-      channelName,
-      sortBy,
-      sortOrder,
-    });
+  ): Promise<ContentSafetySystemIncidentResponse> {
+    return this.service.listSystemIncidents(
+      {
+        page,
+        pageSize,
+        userId,
+        startTime,
+        endTime,
+        direction,
+        source,
+        processingStatus,
+        requestId,
+        relayTokenName,
+        channelName,
+        sortBy,
+        sortOrder,
+      },
+      request,
+    );
   }
 
   @Get("user-incidents")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:content_safety:ListUserIncidents",
+      resourceKind: "single-resource",
+      resource: contentSafetyUserResourceResolver,
+    }),
+  )
   async listUserIncidents(
     @Request() request: TypedRequest,
     @Query() page = 1,

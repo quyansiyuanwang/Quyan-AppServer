@@ -1,4 +1,9 @@
+import { SystemLogStatisticsAccumulator, formatDateKey, startOfDay, endOfDay } from "./system-log-statistics";
 import os from "os";
+import { IAM_SERVER_LOG_FILE_NAME_PATTERN } from "@quyan/shared";
+import { PlatformManagementReadIamService } from "./platform-management-read-iam.service";
+import { platformSystemArn } from "@/iam/resources/platform-system-resources";
+import type { TypedRequest } from "@/types/express";
 import path from "path";
 import fs from "fs-extra";
 import { createInterface } from "readline";
@@ -32,7 +37,7 @@ import type {
   ConsumptionUsageRow,
 } from "@/store/system/consumption-stats.store";
 import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
-import type { APILogStore } from "@/store/system/apilog.store";
+import type { APILogStore, ApiLogFilters, APILogWithoutResponse } from "@/store/system/apilog.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import { BUILD_INFO } from "@/generated/buildInfo";
@@ -61,97 +66,6 @@ function round4(value: number): number {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function formatDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function startOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function endOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
-}
-
-function roundCountShare(count: number, total: number): number {
-  return total > 0 ? round2((count / total) * 100) : 0;
-}
-
-interface SystemLogStatsSummaryAccumulator {
-  totalRequests: number;
-  successRequests: number;
-  redirectRequests: number;
-  clientErrorRequests: number;
-  serverErrorRequests: number;
-  uniqueUsers: Set<string>;
-  uniqueIPs: Set<string>;
-  anonymousRequests: number;
-}
-
-interface SystemLogStatsDailyAccumulator {
-  date: string;
-  totalRequests: number;
-  successRequests: number;
-  clientErrorRequests: number;
-  serverErrorRequests: number;
-}
-
-function createSystemLogStatsSummaryAccumulator(): SystemLogStatsSummaryAccumulator {
-  return {
-    totalRequests: 0,
-    successRequests: 0,
-    redirectRequests: 0,
-    clientErrorRequests: 0,
-    serverErrorRequests: 0,
-    uniqueUsers: new Set<string>(),
-    uniqueIPs: new Set<string>(),
-    anonymousRequests: 0,
-  };
-}
-
-function applySystemLogStats(
-  acc: SystemLogStatsSummaryAccumulator | SystemLogStatsDailyAccumulator,
-  statusCode: number,
-): void {
-  acc.totalRequests += 1;
-  if (statusCode >= 200 && statusCode < 300) acc.successRequests += 1;
-  else if (statusCode >= 300 && statusCode < 400 && "redirectRequests" in acc) acc.redirectRequests += 1;
-  else if (statusCode >= 400 && statusCode < 500) acc.clientErrorRequests += 1;
-  else if (statusCode >= 500) acc.serverErrorRequests += 1;
-}
-
-function finalizeSystemLogStatsSummary(acc: SystemLogStatsSummaryAccumulator) {
-  return {
-    totalRequests: acc.totalRequests,
-    successRequests: acc.successRequests,
-    redirectRequests: acc.redirectRequests,
-    clientErrorRequests: acc.clientErrorRequests,
-    serverErrorRequests: acc.serverErrorRequests,
-    uniqueUsers: acc.uniqueUsers.size,
-    anonymousRequests: acc.anonymousRequests,
-    uniqueIPs: acc.uniqueIPs.size,
-  };
-}
-
-function normalizeTopPaths(pathname: string): string {
-  const trimmed = pathname.trim();
-  if (!trimmed) return "unknown";
-
-  const segments = trimmed.split("/").filter(Boolean);
-  const normalizedSegments = segments.map((segment) =>
-    /^[0-9]+$/.test(segment) || /^[a-z0-9]{16,}$/i.test(segment) ? ":id" : segment,
-  );
-
-  return `/${normalizedSegments.join("/")}`;
 }
 
 interface SummaryAccumulator {
@@ -245,7 +159,7 @@ function sortFilterOptions(items: ConsumptionStatsFilterOptionDTO[]): Consumptio
   return items.sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
 }
 
-const SERVER_LOG_FILE_PATTERN = /^(combined|error)-(\d{4}-\d{2}-\d{2})\.log(?:\.gz)?$/;
+const SERVER_LOG_FILE_PATTERN = IAM_SERVER_LOG_FILE_NAME_PATTERN;
 
 function parseHeaderContentLength(headers: unknown): number | null {
   if (!headers || typeof headers !== "object" || Array.isArray(headers)) return null;
@@ -453,6 +367,7 @@ export class SystemService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
     private readonly consumptionStatsRepository: ConsumptionStatsStore = ConsumptionStatsRepository.getInstance(),
+    private readonly managementReads = PlatformManagementReadIamService.getInstance(),
   ) {
     this.startedAt = Date.now();
   }
@@ -463,6 +378,30 @@ export class SystemService {
     return this.instance;
   }
 
+  async getManagedBuildInfo(request: TypedRequest) {
+    return this.managementReads.read(
+      "quyan:system:GetBuildInfo",
+      platformSystemArn("build-info"),
+      request,
+      async () => BUILD_INFO,
+    );
+  }
+  async getManagedSystemStats(request: TypedRequest) {
+    return this.managementReads.read("quyan:system:GetStatistics", platformSystemArn("stats"), request, () =>
+      this.getSystemStats(),
+    );
+  }
+  async getManagedConsumptionStats(
+    filters: Parameters<SystemService["getConsumptionStats"]>[0],
+    request: TypedRequest,
+  ) {
+    return this.managementReads.read(
+      "quyan:system:GetConsumptionStatistics",
+      platformSystemArn("consumption-stats"),
+      request,
+      () => this.getConsumptionStats(filters),
+    );
+  }
   async getSystemStats(): Promise<SystemStatsDTO> {
     const userCount = await this.userRepository.countAll();
     const groupCount = await this.groupRepository.countAll();
@@ -553,28 +492,19 @@ export class SystemService {
     };
   }
 
-  async getLogs(
-    page: number,
-    pageSize: number,
-    filters?: {
-      user?: string;
-      requestID?: string;
-      path?: string;
-      ip?: string;
-      method?: string | string[];
-      statusCode?: number | number[];
-      startDate?: Date;
-      endDate?: Date;
-    },
-  ): Promise<SystemLogDTO> {
+  async getLogs(page: number, pageSize: number, filters?: ApiLogFilters): Promise<SystemLogDTO> {
     const result = await this.apiLogRepository.query({
       limit: pageSize,
       offset: (page - 1) * pageSize,
       ...filters,
     });
 
+    return { logs: await this.mapLogListRows(result.logs), total: result.total };
+  }
+
+  async mapLogListRows(logs: readonly APILogWithoutResponse[]): Promise<SystemLogDTO["logs"]> {
     // Fetch usernames for logs with userID
-    const userIDs = [...new Set(result.logs.filter((log) => log.userID).map((log) => log.userID!))];
+    const userIDs = [...new Set(logs.filter((log) => log.userID).map((log) => log.userID!))];
 
     const usernameMap = new Map<string, string>();
     if (userIDs.length > 0) {
@@ -583,7 +513,7 @@ export class SystemService {
     }
 
     // Attach username to each log
-    const logsWithUsername = result.logs.map((log) => {
+    const logsWithUsername = logs.map((log) => {
       const { requestHeaders: _requestHeaders, ...rest } = log;
 
       return {
@@ -594,10 +524,7 @@ export class SystemService {
       };
     });
 
-    return {
-      logs: logsWithUsername,
-      total: result.total,
-    };
+    return logsWithUsername;
   }
 
   async getLogDetail(id: string): Promise<SystemLogDetailDTO | null> {
@@ -617,132 +544,10 @@ export class SystemService {
     };
   }
 
-  async getLogStats(filters?: {
-    user?: string;
-    requestID?: string;
-    path?: string;
-    ip?: string;
-    method?: string | string[];
-    statusCode?: number | number[];
-    startDate?: Date;
-    endDate?: Date;
-    search?: string;
-  }): Promise<SystemLogStatsDTO> {
-    const rows = await this.apiLogRepository.listForStats({
-      ...filters,
-    });
-
-    const summaryAcc = createSystemLogStatsSummaryAccumulator();
-    const dailyMap = new Map<string, SystemLogStatsDailyAccumulator>();
-    const methodMap = new Map<string, number>();
-    const statusMap = new Map<string, number>();
-    const pathMap = new Map<string, number>();
-    const methodDailyMap = new Map<string, { date: string; key: string; label: string; count: number }>();
-    const statusDailyMap = new Map<string, { date: string; key: string; label: string; count: number }>();
-
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
-
-    for (const row of rows) {
-      const createTime = new Date(row.createTime);
-      const dateKey = formatDateKey(createTime);
-      const methodKey = row.method || "UNKNOWN";
-      const statusKey = String(row.statusCode);
-      const pathKey = normalizeTopPaths(row.path);
-
-      applySystemLogStats(summaryAcc, row.statusCode);
-      if (row.userID) summaryAcc.uniqueUsers.add(row.userID);
-      else summaryAcc.anonymousRequests += 1;
-      if (row.ipAddress) summaryAcc.uniqueIPs.add(row.ipAddress);
-
-      const daily = dailyMap.get(dateKey) || {
-        date: dateKey,
-        totalRequests: 0,
-        successRequests: 0,
-        clientErrorRequests: 0,
-        serverErrorRequests: 0,
-      };
-      applySystemLogStats(daily, row.statusCode);
-      dailyMap.set(dateKey, daily);
-
-      methodMap.set(methodKey, (methodMap.get(methodKey) || 0) + 1);
-      statusMap.set(statusKey, (statusMap.get(statusKey) || 0) + 1);
-      pathMap.set(pathKey, (pathMap.get(pathKey) || 0) + 1);
-
-      const methodDailyComposite = `${dateKey}::${methodKey}`;
-      const methodDaily = methodDailyMap.get(methodDailyComposite) || {
-        date: dateKey,
-        key: methodKey,
-        label: methodKey,
-        count: 0,
-      };
-      methodDaily.count += 1;
-      methodDailyMap.set(methodDailyComposite, methodDaily);
-
-      const statusDailyComposite = `${dateKey}::${statusKey}`;
-      const statusDaily = statusDailyMap.get(statusDailyComposite) || {
-        date: dateKey,
-        key: statusKey,
-        label: statusKey,
-        count: 0,
-      };
-      statusDaily.count += 1;
-      statusDailyMap.set(statusDailyComposite, statusDaily);
-
-      if (!minDate || createTime < minDate) minDate = createTime;
-      if (!maxDate || createTime > maxDate) maxDate = createTime;
-    }
-
-    const summary = finalizeSystemLogStatsSummary(summaryAcc);
-    const totalRequests = summary.totalRequests;
-
-    const finalizeBreakdown = (map: Map<string, number>) =>
-      [...map.entries()]
-        .map(([key, count]) => ({
-          key,
-          label: key,
-          count,
-          share: roundCountShare(count, totalRequests),
-        }))
-        .sort((a, b) => {
-          if (b.count !== a.count) return b.count - a.count;
-          return a.label.localeCompare(b.label);
-        });
-
-    const resolvedStart = filters?.startDate
-      ? startOfDay(filters.startDate)
-      : minDate
-        ? startOfDay(minDate)
-        : startOfDay(new Date());
-    const resolvedEnd = filters?.endDate
-      ? endOfDay(filters.endDate)
-      : maxDate
-        ? endOfDay(maxDate)
-        : endOfDay(new Date());
-
-    return {
-      range: {
-        startDate: resolvedStart.toISOString(),
-        endDate: resolvedEnd.toISOString(),
-        days: Math.max(1, Math.floor((resolvedEnd.getTime() - resolvedStart.getTime()) / (24 * 60 * 60 * 1000)) + 1),
-      },
-      summary,
-      daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
-      byMethod: finalizeBreakdown(methodMap),
-      byStatusCode: finalizeBreakdown(statusMap),
-      byPath: finalizeBreakdown(pathMap).slice(0, 12),
-      methodDailyDistribution: [...methodDailyMap.values()].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (b.count !== a.count) return b.count - a.count;
-        return a.label.localeCompare(b.label);
-      }),
-      statusDailyDistribution: [...statusDailyMap.values()].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (b.count !== a.count) return b.count - a.count;
-        return a.label.localeCompare(b.label);
-      }),
-      generatedAt: new Date().toISOString(),
-    };
+  async getLogStats(filters?: ApiLogFilters): Promise<SystemLogStatsDTO> {
+    const accumulator = new SystemLogStatisticsAccumulator(filters);
+    for (const row of await this.apiLogRepository.listForStats({ ...filters })) accumulator.add(row);
+    return accumulator.result();
   }
 
   async getServerLogFiles(type?: ServerLogType): Promise<ServerLogFilesDTO> {

@@ -1,3 +1,16 @@
+import {
+  TERMINAL_SESSION_STORAGE,
+  TERMINAL_SESSION_PROJECTION_SCRIPT,
+  TERMINAL_PENDING_SESSION_DELETE_SCRIPT,
+  terminalSessionRedisKey,
+  terminalSessionProjectionShells,
+  isTerminalSessionIdentifier,
+  parseTerminalSessionProjections,
+  type TerminalSessionProjection,
+} from "./remote-terminal-session-projection";
+import { canonicalIpAddressIdentifier } from "@/util/ip-address-identity";
+import { IP_ERROR_WEIGHT_LIMITS } from "@/constant/ip-error-weight";
+import { IP_ERROR_WEIGHT_WRITE_SCRIPT, type IpErrorWeightWrite } from "./ip-error-weight-script";
 import Redis from "ioredis";
 import { createRedisClient } from "@/config/redis";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -216,6 +229,11 @@ export class RedisService {
     return this.executeWithCircuit("get", null, async () => this.client!.get(key));
   }
 
+  /** Distinguish a confirmed missing key from a failed read for authorization-sensitive queue recovery. */
+  public async getWithResult(key: string): Promise<{ value: string | null } | null> {
+    return this.executeWithCircuit("getWithResult", null, async () => ({ value: await this.client!.get(key) }));
+  }
+
   /**
    * Delete a key from Redis
    * @param key Redis key
@@ -416,6 +434,91 @@ export class RedisService {
     });
   }
 
+  /** Narrow, read-only session projection; null means the source could not be confirmed. */
+  public async projectTerminalSessions(
+    ownerUserId: string,
+    keys: readonly string[],
+    expectedRevisions?: readonly string[],
+  ): Promise<TerminalSessionProjection[] | null> {
+    if (
+      !isTerminalSessionIdentifier(ownerUserId) ||
+      keys.length > TERMINAL_SESSION_STORAGE.projectionBatchSize ||
+      keys.some(
+        (key) =>
+          !key.startsWith(TERMINAL_SESSION_STORAGE.prefix + ":") ||
+          !isTerminalSessionIdentifier(key.slice(TERMINAL_SESSION_STORAGE.prefix.length + 1)),
+      ) ||
+      (expectedRevisions &&
+        (expectedRevisions.length !== keys.length ||
+          expectedRevisions.some((value) => !/^redis:[a-f0-9]{40}$/.test(value))))
+    )
+      return null;
+    if (!keys.length) return [];
+    return this.executeWithCircuit("projectTerminalSessions", null as TerminalSessionProjection[] | null, async () => {
+      const result = await this.client!.eval(
+        TERMINAL_SESSION_PROJECTION_SCRIPT,
+        keys.length,
+        ...keys,
+        ownerUserId,
+        terminalSessionProjectionShells,
+        TERMINAL_SESSION_STORAGE.prefix,
+        ...(expectedRevisions ?? keys.map(() => "")),
+      );
+      return parseTerminalSessionProjections(result, keys.length);
+    });
+  }
+
+  public async deletePendingTerminalSession(
+    ownerUserId: string,
+    deviceId: string,
+    sessionId: string,
+    revision: string,
+  ): Promise<boolean | null> {
+    if (
+      ![ownerUserId, deviceId, sessionId].every(isTerminalSessionIdentifier) ||
+      !/^redis:[a-f0-9]{40}$/.test(revision)
+    )
+      return null;
+    return this.executeWithCircuit("deletePendingTerminalSession", null as boolean | null, async () => {
+      const result = await this.client!.eval(
+        TERMINAL_PENDING_SESSION_DELETE_SCRIPT,
+        1,
+        terminalSessionRedisKey(sessionId),
+        ownerUserId,
+        deviceId,
+        sessionId,
+        revision,
+      );
+      return result === 1 ? true : result === 0 ? false : null;
+    });
+  }
+
+  /** Confirm a single cursor page; an unavailable/malformed result never masquerades as an empty scan. */
+  public async scanKeyPageWithResult(
+    pattern: string,
+    cursor = "0",
+  ): Promise<{ cursor: string; keys: string[] } | null> {
+    if (!pattern || pattern.includes("\0") || cursor.trim() !== cursor || !/^[0-9]+$/.test(cursor)) return null;
+    return this.executeWithCircuit(
+      "scanKeyPageWithResult",
+      null as { cursor: string; keys: string[] } | null,
+      async () => {
+        const result = await this.client!.scan(cursor, "MATCH", pattern, "COUNT", String(REDIS_SCAN_COUNT));
+        if (
+          !Array.isArray(result) ||
+          result.length !== 2 ||
+          typeof result[0] !== "string" ||
+          result[0].trim() !== result[0] ||
+          !/^[0-9]+$/.test(result[0]) ||
+          !Array.isArray(result[1]) ||
+          result[1].some((key) => typeof key !== "string")
+        )
+          return null;
+        return { cursor: result[0], keys: result[1] };
+      },
+    );
+  }
+
   /**
    * Delete a batch of keys.
    * @returns number of deleted keys (0 when input is empty), or null when redis is unavailable.
@@ -434,10 +537,45 @@ export class RedisService {
    * @param ttl Time to live in seconds (optional)
    */
   public async set(key: string, value: string | number, ttl?: number): Promise<void> {
-    await this.executeWithCircuit("set", undefined, async () => {
-      if (ttl) await this.client!.setex(key, ttl, value.toString());
-      else await this.client!.set(key, value.toString());
-      return undefined;
+    await this.setWithResult(key, value, ttl);
+  }
+  /** Confirmed writes for authorization/revocation state; unavailable Redis returns null. */
+  public async setWithResult(key: string, value: string | number, ttl?: number): Promise<boolean | null> {
+    return this.executeWithCircuit("set", null, async () => {
+      const result = ttl
+        ? await this.client!.setex(key, ttl, value.toString())
+        : await this.client!.set(key, value.toString());
+      return result === "OK";
+    });
+  }
+
+  /** Atomic confirmed administrative writes; null means Redis could not confirm the outcome. Never retry here. */
+  public async writeIpErrorWeightWithResult(ip: string, input: IpErrorWeightWrite): Promise<boolean | null> {
+    if (
+      !canonicalIpAddressIdentifier(ip) ||
+      !input ||
+      !["set", "reset"].includes(input.kind) ||
+      (input.kind === "set" &&
+        (!Number.isSafeInteger(input.weight) ||
+          input.weight < 0 ||
+          input.weight > IP_ERROR_WEIGHT_LIMITS.manualMaximum))
+    )
+      return false;
+    const timestamp = Date.now();
+    if (!Number.isSafeInteger(timestamp) || timestamp <= 0) return false;
+    return this.executeWithCircuit("writeIpErrorWeight", null, async () => {
+      const result = await this.client!.eval(
+        IP_ERROR_WEIGHT_WRITE_SCRIPT,
+        4,
+        RedisService.getIpErrorWeightKey(ip),
+        RedisService.getIpErrorWeightTsKey(ip),
+        RedisService.getIpErrorKey(ip),
+        RedisService.getIpErrorBreakdownKey(ip),
+        input.kind,
+        String(input.kind === "set" ? input.weight : 0),
+        String(timestamp),
+      );
+      return result === 1;
     });
   }
 

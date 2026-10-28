@@ -1,6 +1,12 @@
+vi.mock("@/services/support/support-config-iam.service", () => ({ SupportConfigIamService: { getInstance: vi.fn() } }));
 import { publishTestAIResources } from "../../util/ai-resource-config";
 import { createHash } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Permission } from "@quyan/shared";
+import type { TypedRequest } from "@/types/express";
+import { readFileSync } from "node:fs";
+import { Project } from "ts-morph";
+import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
 import { env } from "../../../src/config/env";
 import { SupportAiService } from "../../../src/services/support/support-ai.service";
 
@@ -27,8 +33,10 @@ const SupportAiServiceCtor = SupportAiService as unknown as new (...args: any[])
 const supportKnowledgeConfig = env.integrations.supportKnowledge as { url: string; cacheTtlSeconds: number };
 const originalSupportKnowledgeConfig = { ...supportKnowledgeConfig };
 const originalChatLimits = { ...env.chat.resourceLimits };
+const originalIamMode = env.security.iamAuthorizationMode;
 
 afterEach(() => {
+  (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = originalIamMode;
   Object.assign(supportKnowledgeConfig, originalSupportKnowledgeConfig);
   Object.assign(env.chat.resourceLimits, originalChatLimits);
   publishTestAIResources();
@@ -390,6 +398,43 @@ describe("SupportAiService conversation retention", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("makes late RAM catalog sections discoverable without widening authorized document reads", async () => {
+    const { service } = createService();
+    const document = {
+      id: "zh-CN:ram-management",
+      slug: "ram-management",
+      title: "RAM IAM",
+      locale: "zh-CN",
+      path: "/zh-CN/ram-management",
+    };
+    (service as any).knowledgeDocuments = new Map([[document.id, document]]);
+    const sections = Array.from({ length: 20 }, (_, i) => ({
+      id: `${document.id}:${i}`,
+      heading: `Introduction ${i}`,
+      summary: "overview",
+      content: "overview",
+    }));
+    sections.push({
+      id: `${document.id}:20`,
+      heading: "quyan:ram:UpdateUser",
+      summary: "Resource acs:quyan:*:account_id:user/user_id",
+      content: '"Action": "quyan:ram:UpdateUser"',
+    });
+    const load = vi.spyOn(service as any, "loadDocumentSections").mockResolvedValue(sections);
+    const outlines = await (service as any).outlineDocumentation(
+      [document],
+      [document.id, "en:unsearched"],
+      "UpdateUser",
+    );
+    expect(outlines).toHaveLength(12);
+    expect(outlines[0].id).toBe(`${document.id}:20`);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledWith(document);
+    expect(
+      await (service as any).readDocumentation([document], [`${document.id}:20`, "en:unsearched:0"], outlines),
+    ).toMatchObject([{ content: '"Action": "quyan:ram:UpdateUser"' }]);
+  });
+
   it("uses a current-user Relay Token only when both user-funded controls are enabled", async () => {
     const { service, relayTokenService } = createService();
     relayTokenService.validateToken.mockResolvedValue({ userId: "user-1" });
@@ -493,5 +538,172 @@ describe("SupportAiService conversation retention", () => {
       }),
       3 * 24 * 60 * 60,
     );
+  });
+});
+
+describe("SupportAiService monitored conversation IAM rollout", () => {
+  const request = () =>
+    ({
+      user: { userId: "actor" },
+      authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+      headers: {},
+    }) as unknown as TypedRequest;
+  const fixture = () => {
+    const redis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify({ messages: [{ role: "user", content: "fixture conversation" }] })),
+    };
+    const iam = {
+      read: vi
+        .fn()
+        .mockImplementation(
+          async (_action: string, _id: string, _request: unknown, read: (id: string) => Promise<unknown>) =>
+            read("peer"),
+        ),
+      authorize: vi.fn(),
+    };
+    const permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
+    return { redis, iam, permissions, service: new SupportAiServiceCtor({}, {}, {}, redis, {}, {}, iam, permissions) };
+  };
+  it("enforce reads only through the user authorization boundary", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, iam, redis } = fixture(),
+      req = request();
+    expect((await service.getMonitoredConversation("peer", req)).messages[0].content).toBe("fixture conversation");
+    expect(iam.read).toHaveBeenCalledWith("quyan:support:GetUserConversation", "peer", req, expect.any(Function));
+    expect(redis.get).toHaveBeenCalledWith("support-ai:conversation:peer");
+  });
+  it("enforce storage failures cannot fall back to unauthenticated conversation access", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, iam, redis } = fixture();
+    iam.read.mockRejectedValue(new Error("fixture outage"));
+    await expect(service.getMonitoredConversation("peer", request())).rejects.toThrow("fixture outage");
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s preserves existing role session permission before Redis access", async (mode) => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = mode;
+    const { service, permissions, redis } = fixture();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.getMonitoredConversation("peer", request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.SUPPORT_AI_ANALYTICS_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+  it("shadow performs only an authorization diagnostic before the original single read", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "shadow";
+    const { service, iam, redis } = fixture();
+    await service.getMonitoredConversation("peer", request());
+    expect(iam.authorize).toHaveBeenCalled();
+    expect(iam.read).not.toHaveBeenCalled();
+    expect(redis.get).toHaveBeenCalledTimes(1);
+  });
+  it("declares a fixed explicit server Action and real account user resolver", () => {
+    const file = "src/api/controllers/v1/support/support.controller.ts",
+      project = new Project({ useInMemoryFileSystem: true }),
+      source = project.createSourceFile("/backend/" + file, readFileSync(file, "utf8"));
+    const route = collectIamRoutes([source], "/backend").find((r) => r.key.includes("analytics/users/"));
+    expect(route).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:support:GetUserConversation"],
+      issues: [],
+      resourceKind: "single-resource",
+    });
+  });
+});
+
+describe("SupportAiService managed analytics IAM rollout", () => {
+  const request = () =>
+    ({
+      user: { userId: "actor" },
+      authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+      headers: {},
+    }) as unknown as TypedRequest;
+  const fixture = () => {
+    const repository = {
+        getAccountAnalytics: vi.fn().mockResolvedValue({ totalRequests: 2, totalUsers: 1 }),
+        getAnalytics: vi.fn().mockResolvedValue({ totalRequests: 20 }),
+      },
+      permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) },
+      collection = {
+        read: vi
+          .fn()
+          .mockImplementation(
+            async (_: string, _request: unknown, read: (ids: string[], principal: any) => Promise<unknown>) =>
+              read(["peer"], { accountOwnerId: "owner" }),
+          ),
+        authorizeCollection: vi.fn(),
+      };
+    return {
+      repository,
+      permissions,
+      collection,
+      service: new SupportAiServiceCtor({}, {}, {}, {}, repository, {}, {}, permissions, collection),
+    };
+  };
+  it("enforce aggregates only trusted user IDs and account identity from the collection boundary", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, repository, collection } = fixture(),
+      req = request();
+    expect(await service.getManagedAnalytics({ userId: "peer" }, req)).toMatchObject({ totalRequests: 2 });
+    expect(collection.read).toHaveBeenCalledWith(
+      "quyan:support:GetUserUsageAnalytics",
+      req,
+      expect.any(Function),
+      "peer",
+    );
+    expect(repository.getAccountAnalytics).toHaveBeenCalledWith({ accountOwnerId: "owner" }, { userId: "peer" }, [
+      "peer",
+    ]);
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it("enforce never falls back to global analytics when IAM fails", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, repository, collection } = fixture();
+    collection.read.mockRejectedValue(new Error("fixture denied"));
+    await expect(service.getManagedAnalytics({}, request())).rejects.toThrow("fixture denied");
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s requires legacy analytics permission in the current role session", async (mode) => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = mode;
+    const { service, repository, permissions } = fixture();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.getManagedAnalytics({}, request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.SUPPORT_AI_ANALYTICS_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it("shadow evaluates user metadata and performs the original aggregate query once", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "shadow";
+    const { service, repository, collection } = fixture(),
+      req = request();
+    collection.authorizeCollection.mockRejectedValue(new Error("fixture denied"));
+    expect(await service.getManagedAnalytics({}, req)).toMatchObject({ totalRequests: 20 });
+    expect(collection.authorizeCollection).toHaveBeenCalledWith("quyan:support:GetUserUsageAnalytics", req, undefined);
+    expect(collection.read).not.toHaveBeenCalled();
+    expect(repository.getAccountAnalytics).not.toHaveBeenCalled();
+    expect(repository.getAnalytics).toHaveBeenCalledTimes(1);
+  });
+  it("rejects invalid dates and user identifiers before any aggregate query", async () => {
+    const { service, repository } = fixture();
+    for (const query of [{ startAt: "invalid" }, { userId: "*" }, { pageSize: 101 }, { startAt: "2999-01-01" }])
+      await expect(service.getManagedAnalytics(query, request())).rejects.toMatchObject({ statusCode: 400 });
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+    expect(repository.getAccountAnalytics).not.toHaveBeenCalled();
+  });
+  it("declares collection metadata and structured query validation", () => {
+    const filename = "src/api/controllers/v1/support/support.controller.ts",
+      project = new Project({ useInMemoryFileSystem: true }),
+      source = project.createSourceFile("/backend/" + filename, readFileSync(filename, "utf8"));
+    const route = collectIamRoutes([source], "/backend").find((r) => r.method === "analytics");
+    expect(route).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:support:GetUserUsageAnalytics"],
+      resourceKind: "collection",
+      issues: [],
+    });
+    const method = source.getClassOrThrow("SupportController").getMethodOrThrow("analytics");
+    expect(method.getDecorator("Middlewares")?.getText()).toContain("validateQuery(supportAnalyticsQuerySchema)");
+    expect(method.getText()).toContain("getManagedAnalytics");
   });
 });

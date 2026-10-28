@@ -264,7 +264,8 @@ export interface RelayTokenDto {
   username?: string;
   ownerName?: string;
   name?: string;
-  token: string;
+  /** List/get omit this without the credential-reveal Action; mutation responses have separate authorization. */
+  token?: string;
   balance: number;
   totalTokens: number;
   requestCount: number;
@@ -341,11 +342,15 @@ export interface RelayRequestRouteTraceAttemptDto extends RelayRequestDiagnostic
 }
 
 export interface RelayRequestRouteTraceDto {
+  /** Native IAM identity of the logical request. */
+  resourceArn?: string;
   requestId: string;
   attempts: RelayRequestRouteTraceAttemptDto[];
 }
 
 export interface RelayRequestDiagnosticDto {
+  /** Native IAM identity, independent of the externally visible request label. */
+  resourceArn?: string;
   requestId: string;
   relayTokenId: string;
   relayTokenName?: string;
@@ -424,6 +429,8 @@ export interface RelayTokenCurrentQuotaQueryDto {
 }
 
 export interface RelayAvailableModelsMapDto {
+  /** Native IAM discovery-resource ARN keyed by visible model name. */
+  modelResourceArns?: Record<string, string>;
   /** 去重后的模型名称列表 */
   modelNames: string[];
   /** 仅包含可唯一映射的 modelId -> modelName */

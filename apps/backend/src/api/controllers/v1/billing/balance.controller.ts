@@ -1,3 +1,10 @@
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import {
+  iamAccountUserResourceResolver,
+  iamAccountUserBodyResourceResolver,
+  iamAccountUsersResourceResolver,
+} from "@/iam/request/account-user-resource-resolver";
+import { balanceGiftCodeResourceResolver } from "@/iam/request/balance-resource-resolvers";
 import {
   Controller,
   Delete,
@@ -29,7 +36,6 @@ import type {
   CreateBalanceTransferDto,
 } from "@/api/dto/billing/balance-transfer.dto";
 import type { UserBalanceResponse } from "@/api/dto/billing/user-balance.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { BalanceTransaction } from "@prisma/client";
 import type { TypedRequest } from "@/types/express";
@@ -54,6 +60,11 @@ import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.u
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay";
 import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver, iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 type UsageDataMap = Map<
   string,
@@ -294,6 +305,13 @@ export class BalanceController extends Controller {
 
   @Get("account")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetAccount",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getMyBalance(@Request() request: TypedRequest): Promise<BalanceAccountResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -308,6 +326,13 @@ export class BalanceController extends Controller {
 
   @Get("usage")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetUsage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getUsage(@Request() request: TypedRequest): Promise<UserBalanceResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -326,10 +351,17 @@ export class BalanceController extends Controller {
 
   @Get("account/{userId}")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_READ)
+  @CheckPermission(Permission.BALANCE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:balance:GetUserBalance",
+    resourceKind: "single-resource",
+    resource: iamAccountUserResourceResolver,
+  })
   @Middlewares(validateParams(balanceUserIdParamsSchema))
-  public async getUserBalance(@Path() userId: string): Promise<BalanceAccountResponse> {
-    const account = await this.balanceService.getBalance(userId);
+  public async getUserBalance(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<BalanceAccountResponse> {
+    const account = await this.balanceService.getManagedBalance(userId, request);
     return {
       id: account.id,
       userId: account.userId,
@@ -341,10 +373,17 @@ export class BalanceController extends Controller {
 
   @Post("accounts/batch")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_READ)
+  @CheckPermission(Permission.BALANCE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:balance:GetUserBalance",
+    resourceKind: "batch",
+    resource: iamAccountUsersResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(batchBalanceAccountsBodySchema))
-  public async getBatchBalances(@Body() body: { userIds: string[] }): Promise<BalanceAccountResponse[]> {
-    const accounts = await this.balanceService.getBatchBalances(body.userIds);
+  public async getBatchBalances(
+    @Body() body: { userIds: string[] },
+    @Request() request: TypedRequest,
+  ): Promise<BalanceAccountResponse[]> {
+    const accounts = await this.balanceService.getManagedBatchBalances(body.userIds, request);
     return accounts
       .map((account) => {
         if (!account) return null;
@@ -361,19 +400,27 @@ export class BalanceController extends Controller {
 
   @Post("recharge")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_RECHARGE)
+  @CheckPermission(Permission.BALANCE_RECHARGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:balance:RechargeUserBalance",
+    resourceKind: "single-resource",
+    resource: iamAccountUserBodyResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(rechargeBodySchema),
   )
-  public async recharge(@Body() body: RechargeRequest): Promise<BalanceAccountResponse> {
-    const account = await this.balanceService.recharge(
+  public async recharge(
+    @Body() body: RechargeRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BalanceAccountResponse> {
+    const account = await this.balanceService.rechargeManaged(
       body.userId,
       body.amount,
       body.description,
       body.countAsStatistics,
+      request,
     );
     return {
       id: account.id,
@@ -386,12 +433,26 @@ export class BalanceController extends Controller {
 
   @Get("transfers/config")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetTransferConfig",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getTransferConfig(@Request() _request: TypedRequest): Promise<BalanceTransferConfigDto> {
     return await this.balanceTransferService.getConfig();
   }
 
   @Post("gift-codes")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CreateGiftCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -407,17 +468,31 @@ export class BalanceController extends Controller {
 
   @Get("gift-codes")
   @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:balance:ListGiftCodes",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceGiftCodeListQuerySchema))
   public async getMyGiftCodes(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
   ): Promise<BalanceGiftCodeListResponse> {
-    return await this.balanceTransferService.listGiftCodes(request.user!.userId, page, pageSize);
+    return await this.balanceTransferService.listGiftCodes(request.user!.userId, page, pageSize, request);
   }
 
   @Delete("gift-codes/{id}")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CancelGiftCode",
+      resourceKind: "single-resource",
+      resource: balanceGiftCodeResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -433,6 +508,13 @@ export class BalanceController extends Controller {
 
   @Post("transfers")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CreateTransfer",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -448,6 +530,13 @@ export class BalanceController extends Controller {
 
   @Get("transactions")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:ListTransactions",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceTransactionsQuerySchema))
   public async getMyTransactions(
     @Query() type?: string,
@@ -487,7 +576,13 @@ export class BalanceController extends Controller {
 
   @Get("transactions/all")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:balance:ListUserTransactions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceAllTransactionsQuerySchema))
   public async getAllTransactions(
     @Query() userId?: string,
@@ -498,25 +593,28 @@ export class BalanceController extends Controller {
     @Query() tokenName?: string,
     @Query() startTime?: string,
     @Query() endTime?: string,
+    @Request() request?: TypedRequest,
   ): Promise<TransactionListResponse> {
     const start = startTime ? new Date(startTime) : undefined;
     const end = endTime ? new Date(endTime) : undefined;
 
     const pageSize = limit || 20;
     const page = offset ? Math.floor(offset / pageSize) + 1 : 1;
-    const result = await this.balanceService.getTransactions(userId, type, page, pageSize, model, start, end);
+    const { display, ...result } = await this.balanceService.getManagedTransactions(
+      { userId, type, page, pageSize, model, startTime: start, endTime: end, tokenName },
+      request,
+    );
 
     const relatedIds = result.records.filter((r) => r.relatedId).map((r) => r.relatedId!);
     const transferIds = result.records
       .filter((r) => (r.type === "peer_transfer_in" || r.type === "peer_transfer_out") && r.relatedId)
       .map((r) => r.relatedId!);
-    const [{ tokenNameMap, usageDataMap }, transferDataMap] = await Promise.all([
-      this.buildUsageMaps(relatedIds),
-      this.buildTransferDisplayDataMap(transferIds),
-    ]);
+    const [{ tokenNameMap, usageDataMap }, transferDataMap] = display
+      ? [display, display.transferDataMap]
+      : await Promise.all([this.buildUsageMaps(relatedIds), this.buildTransferDisplayDataMap(transferIds)]);
 
     let filteredRecords = result.records;
-    if (tokenName)
+    if (tokenName && !display)
       filteredRecords = filteredRecords.filter((r) => r.relatedId && tokenNameMap.get(r.relatedId) === tokenName);
 
     return {

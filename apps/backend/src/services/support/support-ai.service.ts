@@ -1,3 +1,19 @@
+import { SUPPORT_KNOWLEDGE_SECTION_CHARACTERS } from "@quyan/shared";
+import { SupportConfigIamService } from "./support-config-iam.service";
+import type { SupportConfigAction } from "@/store/support/support-config.store";
+import { updateSupportConfigSchema } from "@/api/schema/support/support-config.schema";
+import BusinessLogService from "@/services/system/businesslog.service";
+import { OperationType, OperationCategory } from "@/constant/operation-type";
+import { buildBusinessLogRequestContext } from "@/util/business-log-context";
+import { IamAccountUserCollectionService } from "@/services/users/iam-account-user-collection.service";
+import { supportAnalyticsQuerySchema } from "@/api/schema/support/support-analytics.schema";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { IamAccountUserAuthorizationService } from "@/services/users/iam-account-user-authorization.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { aiContentTooLarge } from "@/util/streaming/bounded-text";
@@ -130,7 +146,7 @@ const MIN_SESSION_RETENTION_DAYS = 1;
 const MAX_SESSION_RETENTION_DAYS = 7;
 const MAX_DOCUMENTATION_SEARCH_RESULTS = 6;
 const MAX_DOCUMENTATION_READ_RESULTS = 3;
-const MAX_DOCUMENTATION_READ_CHARACTERS = 1200;
+
 const MAX_DOCUMENTATION_OUTLINE_RESULTS = 12;
 const DEFAULT_AGENT_ROUNDS = 3;
 const MIN_AGENT_ROUNDS = 1;
@@ -163,6 +179,11 @@ export class SupportAiService {
     private readonly redisService = RedisService.getInstance(),
     private readonly usageRepository = SupportAiUsageRepository.getInstance(),
     private readonly relayTokenService = new RelayTokenService(),
+    private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly userCollectionIam = IamAccountUserCollectionService.getInstance(),
+    private readonly configIam = SupportConfigIamService.getInstance(),
+    private readonly configAudit = BusinessLogService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -248,9 +269,60 @@ export class SupportAiService {
     return this.configFrom(await this.values());
   }
 
+  async getAdminConfig(request?: TypedRequest) {
+    const userId = request && getIamPrincipal(request)?.subjectUserId;
+    const guard = await this.prepareConfig("quyan:support:GetConfig", userId ?? "", request);
+    if (!guard) return this.getConfig();
+    const result = this.configFrom(Object.fromEntries(guard.configs.map((row) => [row.key, row.value])));
+    await this.configIam.recheck(guard);
+    return result;
+  }
+
+  private async prepareConfig(action: SupportConfigAction, userId: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.configIam.prepare(action, userId, request as TypedRequest | undefined);
+      if (!guard) throw iamAccountDenied();
+      return guard;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.SUPPORT_AI_CONFIG], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      if (env.security.iamAuthorizationMode === "shadow") {
+        try {
+          await this.configIam.prepare(action, userId, request as TypedRequest);
+        } catch {
+          getLogger("SupportConfigIamBridge", LogCategory.SECURITY).warn(
+            "Support configuration shadow authorization failed",
+            { action, reason: "iam-evaluation-denied-or-unavailable" },
+          );
+        }
+      }
+    }
+    return undefined;
+  }
+
   async updateConfig(body: UpdateSupportAiConfigDto, actorUserId: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateSupportConfigSchema.safeParse(body);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid support configuration", undefined, { messageKey: "errors.badRequest" });
+      body = parsed.data;
+    }
+    const guard = await this.prepareConfig("quyan:support:UpdateConfig", actorUserId, request);
     const key = body.apiKey?.trim();
-    const current = await this.getConfig();
+    const current = guard
+      ? this.configFrom(Object.fromEntries(guard.configs.map((row) => [row.key, row.value])))
+      : await this.getConfig();
     const sessionRetentionDays = this.requireSessionRetentionDays(
       body.sessionRetentionDays ?? current.sessionRetentionDays,
     );
@@ -280,6 +352,21 @@ export class SupportAiService {
     ];
     if (key) updates.push([CONFIG_KEYS.SUPPORT_AI.API_KEY, this.encrypt(key)]);
     if (body.clearApiKey) updates.push([CONFIG_KEYS.SUPPORT_AI.API_KEY, ""]);
+    if (guard) {
+      const values = await this.configIam.update(Object.fromEntries(updates), guard);
+      await this.configAudit.logOperation({
+        operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+        operationCategory: OperationCategory.SYSTEM,
+        actorUserId,
+        targetResourceType: "SERVER_CONFIG",
+        targetResourceId: "support-ai",
+        description: "Support configuration updated",
+        changes: { keys: updates.map(([configKey]) => configKey) },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return this.configFrom(values);
+    }
     for (const [configKey, value] of updates) await this.configService.set(configKey, value, actorUserId, request);
     return this.getConfig();
   }
@@ -658,7 +745,7 @@ export class SupportAiService {
               title: document.title,
               locale: document.locale,
               path: document.path,
-              content: section.content.slice(0, MAX_DOCUMENTATION_READ_CHARACTERS),
+              content: section.content.slice(0, SUPPORT_KNOWLEDGE_SECTION_CHARACTERS),
             });
         }
         return result;
@@ -674,13 +761,14 @@ export class SupportAiService {
     return (await this.loadKnowledge())
       .filter((chunk) => selectedIds.has(chunk.id))
       .slice(0, MAX_DOCUMENTATION_READ_RESULTS)
-      .map((chunk) => ({ ...chunk, content: chunk.content.slice(0, MAX_DOCUMENTATION_READ_CHARACTERS) }));
+      .map((chunk) => ({ ...chunk, content: chunk.content.slice(0, SUPPORT_KNOWLEDGE_SECTION_CHARACTERS) }));
   }
 
   /** Loads section metadata for only the documents that a preceding search authorized. */
   private async outlineDocumentation(
     candidates: readonly DocumentationSearchResult[],
     requestedIds?: readonly string[],
+    query = "",
   ): Promise<DocumentationOutlineResult[]> {
     if (!this.knowledgeDocuments.size) {
       return candidates.slice(0, MAX_DOCUMENTATION_OUTLINE_RESULTS).map((candidate) => ({
@@ -709,10 +797,20 @@ export class SupportAiService {
           heading: section.heading,
           summary: section.summary,
         });
-        if (result.length >= MAX_DOCUMENTATION_OUTLINE_RESULTS) return result;
       }
     }
-    return result;
+    // A long RAM reference must not hide later catalog/rule sections behind the first twelve headings.
+    // Rank within the same search-authorized documents; this grants no new tool or read capability.
+    const terms = this.searchTerms(query);
+    const score = (entry: DocumentationOutlineResult) => {
+      const heading = entry.heading.toLocaleLowerCase();
+      const summary = entry.summary.toLocaleLowerCase();
+      return terms.reduce(
+        (total, term) => total + (heading.includes(term) ? 8 : 0) + (summary.includes(term) ? 2 : 0),
+        0,
+      );
+    };
+    return result.sort((left, right) => score(right) - score(left)).slice(0, MAX_DOCUMENTATION_OUTLINE_RESULTS);
   }
 
   private toolMetadata(candidates: readonly DocumentationSearchResult[]) {
@@ -936,6 +1034,31 @@ export class SupportAiService {
     return this.readConversation(userId);
   }
 
+  async getMonitoredConversation(userId: string, request?: TypedRequest) {
+    const action = "quyan:support:GetUserConversation",
+      iam = this.userIam;
+    if (env.security.iamAuthorizationMode === "enforce")
+      return iam.read(action, userId, request, (id) => this.readConversation(id));
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(
+      principal.subjectUserId,
+      [Permission.SUPPORT_AI_ANALYTICS_READ],
+      { assumedRoleSessionId: principal.roleSessionId },
+    );
+    if (!result.hasPermission) throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await iam.authorize(action, userId, request);
+      } catch {
+        getLogger("SupportConversationIamBridge", LogCategory.SECURITY).warn("Support conversation IAM shadow denied", {
+          action,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.readConversation(userId);
+  }
   async clearConversation(userId: string) {
     await this.redisService.delete(this.conversationKey(userId));
   }
@@ -962,6 +1085,40 @@ export class SupportAiService {
     });
   }
 
+  async getManagedAnalytics(input: SupportAiAnalyticsQueryDto, request?: TypedRequest) {
+    const validated = supportAnalyticsQuerySchema.safeParse(input);
+    if (!validated.success)
+      throw new BadRequestError("Invalid support analytics query", undefined, { messageKey: "errors.badRequest" });
+    const query = validated.data,
+      action = "quyan:support:GetUserUsageAnalytics";
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.userCollectionIam.read(
+        action,
+        request,
+        (ids, principal) => this.usageRepository.getAccountAnalytics(principal, query, ids),
+        query.userId,
+      );
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    if (
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.SUPPORT_AI_ANALYTICS_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow")
+      try {
+        await this.userCollectionIam.authorizeCollection(action, request, query.userId);
+      } catch {
+        getLogger("SupportAnalyticsIamBridge", LogCategory.SECURITY).warn("Support analytics IAM shadow denied", {
+          action,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    return this.usageRepository.getAnalytics(query);
+  }
   async getAnalytics(query: SupportAiAnalyticsQueryDto) {
     return this.usageRepository.getAnalytics(query);
   }
@@ -1009,6 +1166,7 @@ export class SupportAiService {
     await this.saveConversation(userId, history, config.sessionRetentionDays);
     let candidates: DocumentationSearchResult[] = [];
     let outlines: DocumentationOutlineResult[] = [];
+    let documentationQuery = content;
     const citations = new Map<string, { slug: string; title: string; url: string }>();
     let inputTokens = 0;
     let outputTokens = 0;
@@ -1031,6 +1189,7 @@ export class SupportAiService {
 
         if (action.tool === "documentation_search") {
           yield { type: "status", stage: "searching", round };
+          documentationQuery = `${content} ${action.query}`;
           candidates = await this.searchDocumentation(action.query, locale);
           messages.push({
             role: "user",
@@ -1041,7 +1200,7 @@ export class SupportAiService {
 
         if (action.tool === "documentation_outline") {
           yield { type: "status", stage: "reading", round };
-          outlines = await this.outlineDocumentation(candidates, action.ids);
+          outlines = await this.outlineDocumentation(candidates, action.ids, documentationQuery);
           messages.push({
             role: "user",
             content: `Tool result: documentation_outline\n${JSON.stringify(outlines)}`,

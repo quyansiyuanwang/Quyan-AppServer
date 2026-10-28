@@ -838,7 +838,7 @@ const availableSiteProfiles = computed(() =>
   currentSiteProfile.id === 'rejected'
     ? []
     : permissionsResolved.value
-      ? getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions)
+      ? getAccessibleSiteProfiles(currentSiteProfile, permissionStore.uiPermissions)
       : getAccessibleSiteProfiles(currentSiteProfile, Object.values(Permission)),
 )
 
@@ -1146,11 +1146,7 @@ const overviewSections = computed<OverviewSection[]>(() => {
           label: i18ns.t('nav.remoteTerminal'),
           icon: Monitor,
           route: 'remoteTerminal',
-          visible: canAny(
-            Permission.REMOTE_TERMINAL_DEVICE_READ,
-            Permission.REMOTE_TERMINAL_SESSION_READ,
-            Permission.REMOTE_TERMINAL_SESSION_CREATE,
-          ),
+          visible: true,
         },
         {
           key: 'remoteTerminalProductTemplates',

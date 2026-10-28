@@ -1,5 +1,13 @@
+import { toDeveloperPushDeliveryDto } from "./developer-push-delivery.mapping";
+import {
+  readStoredPushSecretReference,
+  pushChannelSecretReferenceDto,
+  toDeveloperPushChannelDto,
+  type StoredPushSecretReference,
+} from "./developer-push-channel.mapping";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import type { DeveloperItemResourceType } from "@/iam/resources/developer-resources";
 import { toCanonicalCredential } from "@quyan/shared";
 import { isIP } from "node:net";
 import nodemailer from "nodemailer";
@@ -87,11 +95,6 @@ type QuotaReceipt = {
   usageId: string;
   userId: string;
   chargeAmount: number;
-};
-
-type StoredPushSecretReference = {
-  secretInstanceId: string;
-  secretProjectId: string;
 };
 
 type BaiduIpLocationResponse = {
@@ -240,6 +243,41 @@ export class DeveloperProjectRepository {
       orderBy: { createTime: "desc" },
     });
     return projects.map((project) => this.toProjectDto(project));
+  }
+
+  async findProjectInAccount(projectId: string, accountOwnerId: string) {
+    return prisma.developerProject.findFirst({
+      where: {
+        id: projectId,
+        status: 1,
+        user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+      },
+      select: { id: true, userId: true },
+    });
+  }
+
+  async listProjectCandidates(options: { accountOwnerId?: string; userId?: string; skip: number; take: number }) {
+    if (!options.accountOwnerId && !options.userId)
+      throw new ForbiddenError("Project candidate boundary missing", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const projects = await prisma.developerProject.findMany({
+      where: {
+        status: 1,
+        ...(options.accountOwnerId
+          ? {
+              user: {
+                status: 1,
+                OR: [{ accountOwnerId: options.accountOwnerId }, { id: options.accountOwnerId, accountOwnerId: null }],
+              },
+            }
+          : { userId: options.userId }),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return projects.map((project) => ({ userId: project.userId, item: this.toProjectDto(project) }));
   }
 
   async getProject(projectId: string, userId: string): Promise<DeveloperProjectDto> {
@@ -420,10 +458,42 @@ export class DeveloperProjectRepository {
     return keys.map((key) => this.toApiKeyDto(key));
   }
 
-  async revokeProjectApiKey(projectId: string, keyId: string, userId: string): Promise<void> {
+  /** Metadata only: raw keys and hashes never enter the IAM candidate projection. */
+  async listProjectApiKeyCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<Array<Omit<DeveloperApiKeyDto, "key">>> {
+    const keys = await prisma.developerProjectApiKey.findMany({
+      where: { projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        scopes: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        requestCount: true,
+      },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return keys.map((key) => this.toApiKeyDto(key));
+  }
+  async revokeProjectApiKey(
+    projectId: string,
+    keyId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerProjectApiKey.updateMany({
-      where: { id: keyId, projectId },
+      where: {
+        id: keyId,
+        projectId,
+        ...(options.activeOnly ? { status: 1, project: { userId, status: 1, user: { status: 1 } } } : {}),
+      },
       data: { status: 0 },
     });
     if (!result.count)
@@ -598,24 +668,57 @@ export class DeveloperProjectRepository {
     }));
   }
 
-  async setKv(projectId: string, key: string, body: SetKvValueDto): Promise<DeveloperKvValueDto> {
+  /** Read only: IAM listing must not delete expired entries it is not permitted to modify. */
+  async listKvCandidates(projectId: string, userId: string, options: { skip: number; take: number }) {
+    const now = new Date();
+    const records = await prisma.developerKvEntry.findMany({
+      where: {
+        projectId,
+        status: 1,
+        project: { userId, status: 1 },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { key: true, version: true, expiresAt: true, updateTime: true },
+      orderBy: [{ key: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return records.map((record) => ({
+      key: record.key,
+      version: record.version,
+      expiresAt: asIso(record.expiresAt),
+      updateTime: record.updateTime.toISOString(),
+    }));
+  }
+
+  async setKv(
+    projectId: string,
+    key: string,
+    body: SetKvValueDto,
+    options: { database?: Prisma.TransactionClient; exactIdentity?: boolean } = {},
+  ): Promise<DeveloperKvValueDto> {
+    const database = options.database ?? prisma;
     const serialized = JSON.stringify(body.value);
     if (Buffer.byteLength(serialized) > MAX_KV_VALUE_BYTES)
       throw new BadRequestError("KV 值超过 64KB 限制", undefined, { messageKey: "developerProject.kvValueTooLarge" });
-    const existing = await prisma.developerKvEntry.findUnique({ where: { projectId_key: { projectId, key } } });
+    const existing = await database.developerKvEntry.findUnique({ where: { projectId_key: { projectId, key } } });
+    if (options.exactIdentity && existing && (existing.key !== key || existing.projectId !== projectId))
+      throw new NotFoundError("Noncanonical KV identity", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     if (!existing) {
-      const count = await prisma.developerKvEntry.count({ where: { projectId, status: 1 } });
+      const count = await database.developerKvEntry.count({ where: { projectId, status: 1 } });
       if (count >= MAX_KV_ENTRIES)
         throw new ForbiddenError("项目 KV 条目数已达上限", undefined, {
           messageKey: "developerProject.kvEntryLimitReached",
         });
     }
     const expiresAt = body.ttlSeconds ? new Date(Date.now() + body.ttlSeconds * 1000) : null;
-    const item = await prisma.developerKvEntry.upsert({
+    const item = await database.developerKvEntry.upsert({
       where: { projectId_key: { projectId, key } },
       create: { projectId, key, value: body.value as any, expiresAt },
       update: { value: body.value as any, expiresAt, version: { increment: 1 }, status: 1 },
     });
+    if (options.exactIdentity && (item.key !== key || item.projectId !== projectId))
+      throw new NotFoundError("KV identity changed", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     return {
       key: item.key,
       value: item.value,
@@ -634,6 +737,125 @@ export class DeveloperProjectRepository {
   async getProjectKv(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
     await this.assertProjectOwner(projectId, userId);
     return this.getKv(projectId, key);
+  }
+
+  /** IAM reads never mutate expired data; cleanup belongs to an explicit maintenance operation. */
+  async getProjectKvReadOnly(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
+    const item = await prisma.developerKvEntry.findFirst({
+      where: {
+        projectId,
+        key,
+        status: 1,
+        project: { userId, status: 1, user: { status: 1 } },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { projectId: true, key: true, value: true, version: true, expiresAt: true, updateTime: true },
+    });
+    if (!item || item.key !== key || item.projectId !== projectId)
+      throw new NotFoundError("KV key unavailable", undefined, { messageKey: "developerProject.kvKeyNotFound" });
+    return {
+      key: item.key,
+      value: item.value,
+      version: item.version,
+      expiresAt: asIso(item.expiresAt),
+      updateTime: item.updateTime.toISOString(),
+    };
+  }
+
+  /** Compare the stored identifier because MySQL string equality may be case insensitive. */
+  async findItemIdentity(
+    type: DeveloperItemResourceType,
+    projectId: string,
+    itemId: string,
+  ): Promise<{ projectId: string; itemId: string } | undefined> {
+    switch (type) {
+      case "kv-item": {
+        const item = await prisma.developerKvEntry.findUnique({
+          where: { projectId_key: { projectId, key: itemId } },
+          select: { projectId: true, key: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.key } : undefined;
+      }
+      case "secret": {
+        const item = await prisma.developerSecret.findUnique({
+          where: { projectId_alias: { projectId, alias: itemId } },
+          select: { projectId: true, alias: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.alias } : undefined;
+      }
+      case "short-link": {
+        const item = await prisma.developerShortLink.findFirst({
+          where: { id: itemId, projectId },
+          select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "push-delivery": {
+        const item = await prisma.developerPushDelivery.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "push-channel": {
+        const item = await prisma.developerPushChannel.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "status-monitor": {
+        const item = await prisma.developerStatusMonitor.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "project-api-key": {
+        const item = await prisma.developerProjectApiKey.findFirst({
+          where: { id: itemId, projectId },
+          select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+    }
+  }
+  async setProjectKvExact(
+    projectId: string,
+    userId: string,
+    key: string,
+    body: SetKvValueDto,
+  ): Promise<DeveloperKvValueDto> {
+    return prisma.$transaction(
+      async (tx) => {
+        const project = await tx.developerProject.findFirst({
+          where: { id: projectId, userId, status: 1, user: { status: 1 } },
+          select: { id: true },
+        });
+        if (!project || project.id !== projectId)
+          throw new NotFoundError("Project identity changed", undefined, {
+            messageKey: "developerProject.projectNotFound",
+          });
+        return this.setKv(projectId, key, body, { database: tx, exactIdentity: true });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+  async deleteProjectKvExact(projectId: string, userId: string, key: string): Promise<void> {
+    await prisma.$transaction(
+      async (tx) => {
+        const item = await tx.developerKvEntry.findFirst({
+          where: { projectId, key, project: { userId, status: 1, user: { status: 1 } } },
+          select: { id: true, key: true, projectId: true },
+        });
+        if (!item || item.key !== key || item.projectId !== projectId)
+          throw new NotFoundError("KV identity unavailable", undefined, {
+            messageKey: "developerProject.kvKeyNotFound",
+          });
+        await tx.developerKvEntry.delete({ where: { id: item.id } });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async listProjectKv(projectId: string, userId: string): Promise<Array<Omit<DeveloperKvValueDto, "value">>> {
@@ -692,19 +914,38 @@ export class DeveloperProjectRepository {
     return links.map((link) => this.shortLinkDto(link));
   }
 
+  private activeShortLinkWhere(projectId: string, userId: string, id?: string): Prisma.DeveloperShortLinkWhereInput {
+    return { id, projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } };
+  }
+  async listShortLinkCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperShortLinkDto[]> {
+    const links = await prisma.developerShortLink.findMany({
+      where: this.activeShortLinkWhere(projectId, userId),
+      select: { id: true, code: true, targetUrl: true, enabled: true, expiresAt: true, clickCount: true },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return links.map((link) => this.shortLinkDto(link));
+  }
   async updateShortLink(
     projectId: string,
     linkId: string,
     userId: string,
     body: UpdateShortLinkDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperShortLinkDto> {
     await this.assertProjectOwner(projectId, userId);
-    const existing = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const where = options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId };
+    const existing = await prisma.developerShortLink.findFirst({ where });
     if (!existing)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const result = await prisma.developerShortLink.updateMany({
-      where: { id: linkId, projectId },
+      where,
       data: {
         targetUrl,
         enabled: body.enabled,
@@ -713,14 +954,21 @@ export class DeveloperProjectRepository {
     });
     if (!result.count)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
-    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const link = await prisma.developerShortLink.findFirst({ where });
     if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     return this.shortLinkDto(link);
   }
 
-  async deleteShortLink(projectId: string, linkId: string, userId: string): Promise<void> {
+  async deleteShortLink(
+    projectId: string,
+    linkId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
-    const result = await prisma.developerShortLink.deleteMany({ where: { id: linkId, projectId } });
+    const result = await prisma.developerShortLink.deleteMany({
+      where: options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId },
+    });
     if (!result.count)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
   }
@@ -800,9 +1048,12 @@ export class DeveloperProjectRepository {
     userId: string,
     page = 1,
     pageSize = 50,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperShortLinkStatsDto> {
     await this.assertProjectOwner(projectId, userId);
-    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const link = await prisma.developerShortLink.findFirst({
+      where: options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId },
+    });
     if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
 
     const periodEnd = new Date();
@@ -1020,6 +1271,28 @@ export class DeveloperProjectRepository {
     }));
   }
 
+  async listSecretCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperSecretDto[]> {
+    const records = await prisma.developerSecret.findMany({
+      where: { projectId, status: 1, project: { userId, status: 1 } },
+      select: { id: true, alias: true, keyVersion: true, lastUsedAt: true, createTime: true, updateTime: true },
+      orderBy: [{ alias: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return records.map((record) => ({
+      id: record.id,
+      alias: record.alias,
+      keyVersion: record.keyVersion,
+      lastUsedAt: asIso(record.lastUsedAt),
+      createTime: record.createTime.toISOString(),
+      updateTime: record.updateTime.toISOString(),
+    }));
+  }
+
   async deleteSecret(projectId: string, alias: string, userId: string): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerSecret.deleteMany({ where: { projectId, alias } });
@@ -1086,6 +1359,7 @@ export class DeveloperProjectRepository {
     projectId: string,
     userId: string,
     body: CreateDeveloperStatusMonitorDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const target = await assertSafeOutboundUrl(body.targetUrl);
@@ -1095,20 +1369,34 @@ export class DeveloperProjectRepository {
       responseBodyMatchMode: body.responseBodyMatchMode,
       responseBodyMatch: body.responseBodyMatch,
     });
-    const monitor = await prisma.developerStatusMonitor.create({
-      data: {
-        projectId,
-        name: body.name,
-        targetUrl: target.url.toString(),
-        method: configuration.method,
-        requestBody: configuration.requestBody,
-        responseBodyMatchMode: configuration.responseBodyMatchMode,
-        responseBodyMatch: configuration.responseBodyMatch,
-        intervalSec: body.intervalSec ?? 60,
-        alertDelayMinutes: body.alertDelayMinutes ?? 5,
-        successStatusCodes: body.successStatusCodes,
-      },
-    });
+    const data: Prisma.DeveloperStatusMonitorUncheckedCreateInput = {
+      projectId,
+      name: body.name,
+      targetUrl: target.url.toString(),
+      method: configuration.method,
+      requestBody: configuration.requestBody,
+      responseBodyMatchMode: configuration.responseBodyMatchMode,
+      responseBodyMatch: configuration.responseBodyMatch,
+      intervalSec: body.intervalSec ?? 60,
+      alertDelayMinutes: body.alertDelayMinutes ?? 5,
+      successStatusCodes: body.successStatusCodes,
+    };
+    const monitor = options.activeOnly
+      ? await prisma.$transaction(
+          async (tx) => {
+            const project = await tx.developerProject.findFirst({
+              where: { id: projectId, userId, status: 1, user: { status: 1 } },
+              select: { id: true, userId: true },
+            });
+            if (!project || project.id !== projectId || project.userId !== userId)
+              throw new NotFoundError("Project changed before monitor creation", undefined, {
+                messageKey: "developerProject.projectNotFound",
+              });
+            return tx.developerStatusMonitor.create({ data });
+          },
+          { isolationLevel: "Serializable" },
+        )
+      : await prisma.developerStatusMonitor.create({ data });
     return this.monitorDto(monitor);
   }
 
@@ -1152,6 +1440,54 @@ export class DeveloperProjectRepository {
     };
   }
 
+  private activeStatusMonitorWhere(
+    projectId: string,
+    userId: string,
+    id?: string,
+  ): Prisma.DeveloperStatusMonitorWhereInput {
+    return { id, projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } };
+  }
+  async listStatusMonitorCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperStatusMonitorDto[]> {
+    const records = await prisma.developerStatusMonitor.findMany({
+      where: this.activeStatusMonitorWhere(projectId, userId),
+      select: {
+        id: true,
+        name: true,
+        targetUrl: true,
+        method: true,
+        requestBody: true,
+        responseBodyMatchMode: true,
+        responseBodyMatch: true,
+        intervalSec: true,
+        alertDelayMinutes: true,
+        successStatusCodes: true,
+        enabled: true,
+        lastCheckedAt: true,
+        lastStatus: true,
+        downSinceAt: true,
+        downAlertedAt: true,
+      },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return records.map((record) => this.monitorDto(record));
+  }
+  /** Ensures a delayed/manual check cannot dispatch or commit under a stale or aliased target. */
+  private async assertActiveMonitorIdentity(projectId: string, userId: string, monitorId: string): Promise<void> {
+    const record = await prisma.developerStatusMonitor.findFirst({
+      where: this.activeStatusMonitorWhere(projectId, userId, monitorId),
+      select: { id: true, projectId: true },
+    });
+    if (!record || record.id !== monitorId || record.projectId !== projectId)
+      throw new NotFoundError("Monitor target unavailable", undefined, {
+        messageKey: "developerProject.monitorTargetNotFound",
+      });
+  }
   async listStatusMonitors(projectId: string, userId: string): Promise<DeveloperStatusMonitorDto[]> {
     await this.assertProjectOwner(projectId, userId);
     const monitors = await prisma.developerStatusMonitor.findMany({
@@ -1166,10 +1502,14 @@ export class DeveloperProjectRepository {
     monitorId: string,
     userId: string,
     body: UpdateDeveloperStatusMonitorDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
-    const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
-    if (!existing)
+    const where = options.activeOnly
+      ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+      : { id: monitorId, projectId };
+    const existing = await prisma.developerStatusMonitor.findFirst({ where });
+    if (!existing || (options.activeOnly && (existing.id !== monitorId || existing.projectId !== projectId)))
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const clearResponseBodyMatch = body.responseBodyMatchMode === null || body.responseBodyMatch === null;
@@ -1190,7 +1530,7 @@ export class DeveloperProjectRepository {
       responseBodyMatch,
     });
     const result = await prisma.developerStatusMonitor.updateMany({
-      where: { id: monitorId, projectId },
+      where,
       data: {
         name: body.name,
         targetUrl,
@@ -1207,7 +1547,7 @@ export class DeveloperProjectRepository {
     if (!result.count)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const monitor = await prisma.developerStatusMonitor.findFirst({
-      where: { id: monitorId, projectId },
+      where,
       include: { project: { select: { userId: true } } },
     });
     if (!monitor)
@@ -1215,39 +1555,63 @@ export class DeveloperProjectRepository {
     return this.monitorDto(monitor);
   }
 
-  async deleteStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<void> {
+  async deleteStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
-    const result = await prisma.developerStatusMonitor.deleteMany({ where: { id: monitorId, projectId } });
+    if (options.activeOnly) await this.assertActiveMonitorIdentity(projectId, userId, monitorId);
+    const result = await prisma.developerStatusMonitor.deleteMany({
+      where: options.activeOnly
+        ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+        : { id: monitorId, projectId },
+    });
     if (!result.count)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
   }
 
-  async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {
+  async checkStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const monitor = await prisma.developerStatusMonitor.findFirst({
-      where: { id: monitorId, projectId },
+      where: options.activeOnly
+        ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+        : { id: monitorId, projectId },
       include: { project: { select: { userId: true } } },
     });
     if (!monitor)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
-    return this.performStatusCheck(monitor);
+    if (options.activeOnly && (monitor.id !== monitorId || monitor.projectId !== projectId))
+      throw new NotFoundError("Monitor identity mismatch", undefined, {
+        messageKey: "developerProject.monitorTargetNotFound",
+      });
+    return this.performStatusCheck(monitor, options.activeOnly ? { projectId, userId } : undefined);
   }
 
-  private async performStatusCheck(monitor: {
-    id: string;
-    name: string;
-    targetUrl: string;
-    method: string;
-    requestBody?: string | null;
-    responseBodyMatchMode?: string | null;
-    responseBodyMatch?: string | null;
-    successStatusCodes?: unknown;
-    lastStatus?: string | null;
-    alertDelayMinutes?: number;
-    downSinceAt?: Date | null;
-    downAlertedAt?: Date | null;
-    project?: { userId: string };
-  }): Promise<DeveloperStatusMonitorDto> {
+  private async performStatusCheck(
+    monitor: {
+      id: string;
+      name: string;
+      targetUrl: string;
+      method: string;
+      requestBody?: string | null;
+      responseBodyMatchMode?: string | null;
+      responseBodyMatch?: string | null;
+      successStatusCodes?: unknown;
+      lastStatus?: string | null;
+      alertDelayMinutes?: number;
+      downSinceAt?: Date | null;
+      downAlertedAt?: Date | null;
+      project?: { userId: string };
+    },
+    activeTarget?: { projectId: string; userId: string },
+  ): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
     let statusCode: number | null = null;
     let errorMessage: string | null = null;
@@ -1266,6 +1630,8 @@ export class DeveloperProjectRepository {
             messageKey: "developerProject.monitorRedirectLoop",
           });
         visited.add(currentUrl);
+        if (activeTarget)
+          await this.assertActiveMonitorIdentity(activeTarget.projectId, activeTarget.userId, monitor.id);
         response = await axios.request({
           url: currentUrl,
           method: requestMethod,
@@ -1315,6 +1681,7 @@ export class DeveloperProjectRepository {
       if (statusCodeMatches && !responseBodyMatches)
         errorMessage = `响应体不匹配（${responseBodyMatchMode === "equals" ? "完全匹配" : "包含"}）`;
     } catch (error) {
+      if (activeTarget && error instanceof NotFoundError) throw error;
       lastStatus = "down";
       errorMessage = error instanceof Error ? error.message.slice(0, 500) : "监控请求失败";
     }
@@ -1334,7 +1701,12 @@ export class DeveloperProjectRepository {
     let claimedDownAlert = false;
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.developerStatusMonitor.updateMany({
-        where: { id: monitor.id, ...(shouldAlertDown ? { downAlertedAt: null } : {}) },
+        where: {
+          ...(activeTarget
+            ? this.activeStatusMonitorWhere(activeTarget.projectId, activeTarget.userId, monitor.id)
+            : { id: monitor.id }),
+          ...(shouldAlertDown ? { downAlertedAt: null } : {}),
+        },
         data: {
           lastCheckedAt: checkedAt,
           lastStatus,
@@ -1345,7 +1717,11 @@ export class DeveloperProjectRepository {
       if (!result.count && !shouldAlertDown)
         throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       claimedDownAlert = shouldAlertDown && result.count === 1;
-      const updatedMonitor = await tx.developerStatusMonitor.findFirst({ where: { id: monitor.id } });
+      const updatedMonitor = await tx.developerStatusMonitor.findFirst({
+        where: activeTarget
+          ? this.activeStatusMonitorWhere(activeTarget.projectId, activeTarget.userId, monitor.id)
+          : { id: monitor.id },
+      });
       if (!updatedMonitor)
         throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       await tx.developerStatusCheck.create({
@@ -1742,10 +2118,7 @@ export class DeveloperProjectRepository {
   }
 
   private readPushSecretReference(config: unknown): StoredPushSecretReference | undefined {
-    if (!config || typeof config !== "object" || Array.isArray(config)) return undefined;
-    const value = config as Record<string, unknown>;
-    if (typeof value.secretInstanceId !== "string" || typeof value.secretProjectId !== "string") return undefined;
-    return { secretInstanceId: value.secretInstanceId, secretProjectId: value.secretProjectId };
+    return readStoredPushSecretReference(config);
   }
 
   private async resolvePushSecretReference(
@@ -1773,9 +2146,7 @@ export class DeveloperProjectRepository {
     secretAlias: string | null;
     config: Prisma.JsonValue | null;
   }): DeveloperPushSecretReferenceDto | undefined {
-    const reference = this.readPushSecretReference(channel.config);
-    if (!reference || !channel.secretAlias) return undefined;
-    return { secretInstanceId: reference.secretInstanceId, alias: channel.secretAlias };
+    return pushChannelSecretReferenceDto(channel);
   }
 
   private async resolveStoredPushSecret(reference: StoredPushSecretReference, alias: string): Promise<string> {
@@ -1826,17 +2197,7 @@ export class DeveloperProjectRepository {
     createTime: Date;
     updateTime: Date;
   }): DeveloperPushChannelDto {
-    return {
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      endpoint: channel.endpoint ?? "",
-      secretReference: this.pushChannelSecretReferenceDto(channel),
-      secretAlias: channel.secretAlias ?? undefined,
-      enabled: channel.enabled,
-      createTime: channel.createTime.toISOString(),
-      updateTime: channel.updateTime.toISOString(),
-    };
+    return toDeveloperPushChannelDto(channel);
   }
 
   async listPushChannels(projectId: string, userId: string): Promise<DeveloperPushChannelDto[]> {
@@ -1921,17 +2282,7 @@ export class DeveloperProjectRepository {
     createTime: Date;
     updateTime: Date;
   }): DeveloperPushDeliveryDto {
-    return {
-      id: delivery.id,
-      channelId: delivery.channelId,
-      success: delivery.deliveryStatus === "success",
-      error: delivery.errorMessage ?? undefined,
-      status: delivery.deliveryStatus,
-      attemptCount: delivery.attemptCount,
-      nextRetryAt: asIso(delivery.nextRetryAt),
-      createTime: delivery.createTime.toISOString(),
-      updateTime: delivery.updateTime.toISOString(),
-    };
+    return toDeveloperPushDeliveryDto(delivery);
   }
 
   async listPushDeliveries(projectId: string, userId: string): Promise<DeveloperPushDeliveryDto[]> {
@@ -2004,7 +2355,8 @@ export class DeveloperProjectRepository {
       });
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
-      const message = error instanceof Error ? error.message.slice(0, 500) : "推送失败";
+      // Provider errors can contain credential-bearing URLs or payloads; do not persist/reflect their text.
+      const message = "push-dispatch-failed";
       return this.updatePushDelivery(delivery.id, {
         deliveryStatus: "failed",
         attemptCount: { increment: 1 },

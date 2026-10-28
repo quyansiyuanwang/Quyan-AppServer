@@ -6,6 +6,7 @@ import { PermissionService } from "../../../src/services/users/permission.servic
 describe("RemoteTerminalProductController permissions", () => {
   const remoteTerminalProductServiceMock = {
     listDevices: vi.fn(),
+    listEntitlements: vi.fn(),
     getFilterOptions: vi.fn(),
   };
   const permissionServiceMock = {
@@ -40,42 +41,34 @@ describe("RemoteTerminalProductController permissions", () => {
     vi.restoreAllMocks();
   });
 
-  it("requires device write permission for management device list", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: ["remote_terminal:device:manage:read"],
-      checkedPermissions: ["remote_terminal:device:manage:read"],
-    });
+  it("forwards trusted request and filters to native device collection admission", async () => {
     const controller = new RemoteTerminalProductController();
-
-    await expect(
-      (controller as any).listDevices(undefined, undefined, undefined, undefined, undefined, request),
-    ).rejects.toMatchObject({
-      message: "缺少必要权限: remote_terminal:device:manage:read",
-    });
-    expect(remoteTerminalProductServiceMock.listDevices).not.toHaveBeenCalled();
+    await controller.listDevices(2, 10, "customer", "entitlement", 1, request);
+    expect(remoteTerminalProductServiceMock.listDevices).toHaveBeenCalledWith(
+      2,
+      10,
+      "customer",
+      "entitlement",
+      1,
+      request,
+    );
   });
 
-  it("requires device write or other management permission for filter options", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: [
-        "remote_terminal:product:read",
-        "remote_terminal:assignment:read",
-        "remote_terminal:device:manage:read",
-      ],
-      checkedPermissions: [
-        "remote_terminal:product:read",
-        "remote_terminal:assignment:read",
-        "remote_terminal:device:manage:read",
-      ],
-    });
+  it("forwards pagination, search and authenticated context for native option authorization", async () => {
     const controller = new RemoteTerminalProductController();
-
-    await expect((controller as any).getFilterOptions(request)).rejects.toMatchObject({
-      message:
-        "需要以下权限之一: remote_terminal:product:read, remote_terminal:assignment:read, remote_terminal:device:manage:read",
-    });
-    expect(remoteTerminalProductServiceMock.getFilterOptions).not.toHaveBeenCalled();
+    await controller.getFilterOptions(2, 20, "starter", request);
+    expect(remoteTerminalProductServiceMock.getFilterOptions).toHaveBeenCalledWith(2, 20, "starter", request);
+  });
+  it("forwards the trusted request to native entitlement collection admission", async () => {
+    const controller = new RemoteTerminalProductController();
+    await controller.listEntitlements(2, 10, "customer", "template", 1, request);
+    expect(remoteTerminalProductServiceMock.listEntitlements).toHaveBeenCalledWith(
+      2,
+      10,
+      "customer",
+      "template",
+      1,
+      request,
+    );
   });
 });

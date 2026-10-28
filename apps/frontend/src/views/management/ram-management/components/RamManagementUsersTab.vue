@@ -18,7 +18,7 @@
       <el-input
         v-model="userSearch"
         :prefix-icon="Search"
-        :placeholder="i18ns.t('RamManagement.searchPlaceholder')"
+        :placeholder="i18ns.t('RamManagement.pageSearchPlaceholder')"
         clearable
         style="width: 280px"
       />
@@ -66,11 +66,28 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
+    <el-alert
+      v-if="canReadUsers && userPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadUsers"
+      :page="userPage.page.value"
+      :page-size="userPage.pageSize.value"
+      :has-next="userPage.hasNext.value"
+      :loading="userPage.loading.value"
+      @previous="loadUsers(userPage.page.value - 1)"
+      @next="loadUsers(userPage.page.value + 1)"
+      @size="resizeUsersPage"
+    />
+    <el-empty v-if="!canReadUsers" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamUserDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
@@ -87,6 +104,8 @@ const {
   loading,
   loadGroups,
   loadUsers,
+  userPage,
+  resizeUsersPage,
   openUserDialog,
   selectedUsers,
   userSearch,

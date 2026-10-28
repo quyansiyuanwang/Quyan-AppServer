@@ -1,5 +1,8 @@
 <template>
   <section class="ram-section">
+    <RamIamResourceGroups @select="selectedResourceGroup = { id: $event }" />
+    <RamIamScopedAuthorizations :selected-resource-group="selectedResourceGroup" />
+    <el-divider />
     <div class="section-toolbar">
       <el-select
         v-model="authUserId"
@@ -20,7 +23,29 @@
       </el-button>
     </div>
 
+    <el-alert
+      v-if="canReadUsers && userPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadUsers"
+      :page="userPage.page.value"
+      :page-size="userPage.pageSize.value"
+      :has-next="userPage.hasNext.value"
+      :loading="userPage.loading.value"
+      @previous="loadUsers(userPage.page.value - 1)"
+      @next="loadUsers(userPage.page.value + 1)"
+      @size="resizeUsersPage"
+    />
     <div v-if="authUserId && effectivePerms" class="auth-summary">
+      <el-alert
+        v-if="effectivePerms.authorizationMode === 'enforce'"
+        :title="i18ns.t('RamManagement.effectiveIamProjectionHint')"
+        type="info"
+        :closable="false"
+      />
       <el-descriptions :column="1" border>
         <el-descriptions-item :label="i18ns.t('username')">
           {{ effectivePerms.ramUsername }}
@@ -74,8 +99,14 @@
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
+import { ref } from 'vue'
+import RamIamResourceGroups from './RamIamResourceGroups.vue'
+import RamIamScopedAuthorizations from './RamIamScopedAuthorizations.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
+
+const selectedResourceGroup = ref<{ id: string }>()
 
 const {
   Refresh,
@@ -86,5 +117,9 @@ const {
   loadEffectivePermissions,
   permissionBreakdownSource,
   users,
+  userPage,
+  canReadUsers,
+  loadUsers,
+  resizeUsersPage,
 } = useRamManagementContext()
 </script>

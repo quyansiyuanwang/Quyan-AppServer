@@ -1,4 +1,20 @@
+vi.mock("@/services/users/platform-oauth-review-mutation-iam.service", () => ({
+  PlatformOAuthReviewMutationIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/platform-oauth-review-iam.service", () => ({
+  PlatformOAuthReviewIamService: { getInstance: vi.fn() },
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/services/users/platform-oauth-client-mutation-iam.service", () => ({
+  PlatformOAuthClientMutationIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/platform-oauth-client-iam.service", () => ({
+  PlatformOAuthClientIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/oauth-client-mutation-iam.service", () => ({
+  OAuthClientMutationIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/oauth-client-iam.service", () => ({ OAuthClientIamService: { getInstance: vi.fn() } }));
 import { OperationCategory, OperationType } from "../../../src/constant/operation-type";
 import { BadRequestError } from "../../../src/util/errors";
 import { OAuthClientService } from "../../../src/services/users/oauth-client.service";

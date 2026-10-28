@@ -386,6 +386,45 @@ describe("DeveloperProjectService", () => {
     expect(refundQuota).toHaveBeenCalledWith(receipt);
   });
 
+  it("does not persist provider credentials from failed dispatch errors or reflect historical error text", async () => {
+    const now = new Date();
+    mocks.axios.post.mockRejectedValue(
+      new Error("fixture-private-credential https://example.com/?token=fixture-private-token"),
+    );
+    mocks.prisma.developerPushDelivery.updateMany.mockResolvedValue({ count: 1 });
+    mocks.prisma.developerPushDelivery.findUnique.mockResolvedValue({
+      id: "delivery-1",
+      channelId: "channel-1",
+      deliveryStatus: "failed",
+      attemptCount: 1,
+      nextRetryAt: now,
+      createTime: now,
+      updateTime: now,
+      errorMessage: "fixture-private-historical-token",
+    });
+    const result = await (DeveloperProjectService.getInstance() as any).dispatchPushDelivery(
+      {
+        id: "delivery-1",
+        projectId: "project-1",
+        channelId: "channel-1",
+        title: "Fixture",
+        content: "Fixture content",
+      },
+      { endpoint: "https://example.com/fixture", enabled: true, type: "webhook", config: null, secretAlias: null },
+    );
+    expect(mocks.prisma.developerPushDelivery.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deliveryStatus: "failed",
+          errorMessage: "push-dispatch-failed",
+          attemptCount: { increment: 1 },
+          nextRetryAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({ status: "failed", failureReason: "dispatch_failed" });
+    expect(JSON.stringify(result)).not.toContain("fixture-private");
+  });
   it("exposes recent status checks and calculates public availability", async () => {
     mocks.prisma.developerProductConfig.findUnique.mockResolvedValue({ enabled: true });
     mocks.prisma.developerProject.findFirst.mockResolvedValue({

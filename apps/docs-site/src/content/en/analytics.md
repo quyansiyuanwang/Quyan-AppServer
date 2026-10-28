@@ -64,12 +64,24 @@ Heatmap data is only collected when the heatmap endpoint is configured and the t
 
 ## Permission requirements
 
-| Action                     | Required permission  |
-| -------------------------- | -------------------- |
-| View analytics overview    | `ANALYTICS_OVERVIEW` |
-| View analytics funnel      | `ANALYTICS_FUNNEL`   |
-| View analytics heatmap     | `ANALYTICS_HEATMAP`  |
-| Configure heatmap endpoint | `SYSTEM_CONFIG`      |
+| Action                     | Required permission |
+| -------------------------- | ------------------- |
+| View analytics overview    | `ANALYTICS_READ`    |
+| View analytics funnel      | `ANALYTICS_READ`    |
+| View analytics heatmap     | `ANALYTICS_READ`    |
+| Configure heatmap endpoint | `SYSTEM_CONFIG`     |
+
+## IAM report authorization
+
+The JWT query APIs require `ANALYTICS_READ`. With IAM enforcement, this eligibility must come from an actual deployment-wide group. The three reports have separate actions and resources:
+
+| API                      | IAM action                              | Resource ARN                                     |
+| ------------------------ | --------------------------------------- | ------------------------------------------------ |
+| `POST /v1/track/stats`   | `quyan:analytics:GetTrackingStatistics` | `acs:platform:*:platform:system/tracking-stats`  |
+| `POST /v1/track/funnel`  | `quyan:analytics:GetFunnelStatistics`   | `acs:platform:*:platform:system/tracking-funnel` |
+| `POST /v1/heatmap/query` | `quyan:analytics:GetHeatmap`            | `acs:platform:*:platform:system/heatmap-stats`   |
+
+These are deployment-level aggregate reports. Date, page and event filters select report data; they do not restrict authorization to that page or turn the report into an account-scoped resource. Account policies cannot grant deployment-wide eligibility. A matching Deny overrides Allow, and results are withheld if eligibility, policies or the current role session become invalid during a read. AssumeRole uses its own role grants. The anonymous collection endpoints retain their existing collection behavior.
 
 ## Notes
 

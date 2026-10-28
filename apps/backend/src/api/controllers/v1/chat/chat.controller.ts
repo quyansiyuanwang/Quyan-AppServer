@@ -15,7 +15,11 @@ import {
 } from "@tsoa/runtime";
 import { ChatService } from "@/services/chat/chat.service";
 import { SSEStreamService } from "@/util/streaming/sse";
+import type { RequestHandler } from "express";
 import type { TypedRequest } from "@/types/express";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { chatConversationResourceResolver, chatMessageResourceResolver } from "@/iam/request/chat-resource-resolvers";
 import type {
   CreateConversationRequest,
   UpdateConversationRequest,
@@ -38,7 +42,14 @@ export class ChatController extends Controller {
   @Post("conversations")
   @Security("jwt")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:CreateConversation",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async createConversation(
     @Body() body: CreateConversationRequest,
     @Request() request: TypedRequest,
@@ -50,6 +61,13 @@ export class ChatController extends Controller {
 
   @Get("conversations")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:ListConversations",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getConversations(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
@@ -66,6 +84,13 @@ export class ChatController extends Controller {
 
   @Get("conversations/{conversationId}")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:GetConversation",
+      resourceKind: "single-resource",
+      resource: chatConversationResourceResolver,
+    }),
+  )
   public async getConversation(
     @Path() conversationId: string,
     @Request() request: TypedRequest,
@@ -78,7 +103,14 @@ export class ChatController extends Controller {
   @Put("conversations/{conversationId}")
   @Security("jwt")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:UpdateConversation",
+      resourceKind: "single-resource",
+      resource: chatConversationResourceResolver,
+    }),
+  )
   public async updateConversation(
     @Path() conversationId: string,
     @Body() body: UpdateConversationRequest,
@@ -92,7 +124,14 @@ export class ChatController extends Controller {
   @Delete("conversations/{conversationId}")
   @Security("jwt")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:DeleteConversation",
+      resourceKind: "single-resource",
+      resource: chatConversationResourceResolver,
+    }),
+  )
   public async deleteConversation(
     @Path() conversationId: string,
     @Request() request: TypedRequest,
@@ -104,6 +143,13 @@ export class ChatController extends Controller {
 
   @Get("conversations/{conversationId}/messages")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:ListMessages",
+      resourceKind: "single-resource",
+      resource: chatConversationResourceResolver,
+    }),
+  )
   public async getMessages(
     @Path() conversationId: string,
     @Request() request: TypedRequest,
@@ -120,7 +166,14 @@ export class ChatController extends Controller {
   @Delete("messages/{messageId}")
   @Security("jwt")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:DeleteMessage",
+      resourceKind: "single-resource",
+      resource: chatMessageResourceResolver,
+    }),
+  )
   public async deleteMessage(
     @Path() messageId: string,
     @Request() request: TypedRequest,
@@ -132,6 +185,13 @@ export class ChatController extends Controller {
 
   @Get("tokens")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:GetTokens",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getAvailableTokens(@Request() request: TypedRequest): Promise<SuccessResponse<ChatTokenResponse[]>> {
     const userId = request.user?.userId;
     const tokens = await this.chatService.getAvailableTokens(userId!);
@@ -141,7 +201,14 @@ export class ChatController extends Controller {
   @Post("conversations/{conversationId}/messages")
   @Security("jwt")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware)
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:chat:SendMessage",
+      resourceKind: "single-resource",
+      resource: chatConversationResourceResolver,
+    }),
+  )
   public async sendMessage(
     @Path() conversationId: string,
     @Body() body: SendMessageRequest,

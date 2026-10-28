@@ -5,9 +5,19 @@ const alias = /^[A-Z][A-Z0-9_]{0,99}$/;
 const key = /^[A-Za-z0-9._:-]{1,191}$/;
 const scopes = ["kv:read", "kv:write", "verification:send", "verification:verify", "ip:lookup", "push:send"] as const;
 
-export const projectIdParamsSchema = z.object({ projectId: z.string().trim().min(1) });
+export const developerProjectIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9_-]+$/);
+export const developerKvKeySchema = z.string().trim().regex(key);
+export const developerSecretAliasSchema = z.string().trim().regex(alias);
+export const projectIdParamsSchema = z.object({ projectId: developerProjectIdSchema });
+export const developerItemIdParamsSchema = z.object({ id: developerProjectIdSchema });
+export const secretAliasParamsSchema = z.object({ alias: developerSecretAliasSchema });
 export const idParamsSchema = z.object({ id: z.string().trim().min(1) });
-export const kvKeyParamsSchema = z.object({ key: z.string().trim().regex(key) });
+export const kvKeyParamsSchema = z.object({ key: developerKvKeySchema });
 export const shortCodeParamsSchema = z.object({ code: z.string().trim().min(3).max(80).regex(slug) });
 export const createProjectBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -34,7 +44,7 @@ export const updateShortLinkBodySchema = z.object({
   expiresAt: z.string().datetime().nullable().optional(),
 });
 export const upsertSecretBodySchema = z.object({
-  alias: z.string().trim().regex(alias),
+  alias: developerSecretAliasSchema,
   value: z.string().min(1).max(20_000),
 });
 const statusMonitorMethodSchema = z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);

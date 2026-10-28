@@ -1,8 +1,31 @@
+import { PlatformConfigurationIamService } from "./platform-configuration-iam.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import {
+  Permission,
+  DEFAULT_USER_GROUP_USERNAME,
+  isSensitiveServerConfigValue,
+  SERVER_CONFIG_SECRET_PLACEHOLDER,
+  writableServerConfigs,
+} from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
+import { BadRequestError } from "@/util/errors";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { AI_RESOURCE_CONFIG_KEY } from "@/config/ai-resource-policy";
 import BusinessLogService from "./businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import { AUTO_PROXY_POOL_CONFIG_POLICY } from "@/constant/auto-proxy-pool-policy";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { env } from "@/config/env";
 import { ServerConfigRepository } from "@/store/system/server-config.repository";
@@ -32,8 +55,6 @@ const DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER = 3;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES = 10;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT = 5;
 const DEFAULT_SOCIAL_AUTH_QR_LOGIN_ENABLED = true;
-const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES = 10;
-const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS = 168;
 
 export interface RegistrationConfig {
   enabled: boolean;
@@ -216,6 +237,8 @@ export class ConfigService {
   private constructor(
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly serverConfigRepository: ServerConfigStore = ServerConfigRepository.getInstance(),
+    private readonly configurationIam = PlatformConfigurationIamService.getInstance(),
+    private readonly configurationPermissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): ConfigService {
@@ -247,7 +270,7 @@ export class ConfigService {
         actorUserId,
         targetResourceType: "SERVER_CONFIG",
         description: `配置项 '${key}' 已更新`,
-        changes: { key, value: /password|apiKey|proxy/i.test(key) ? "***" : value },
+        changes: { key, value: isSensitiveServerConfigValue(key, value) ? "***" : value },
         success: true,
         ipAddress: this.getClientIP(request),
         userAgent: request?.headers["user-agent"],
@@ -255,8 +278,8 @@ export class ConfigService {
       });
   }
 
-  async getMultiple(keys: string[]): Promise<Record<string, string>> {
-    const configs = await this.serverConfigRepository.findByKeys(keys);
+  async getMultiple(keys: readonly string[]): Promise<Record<string, string>> {
+    const configs = await this.serverConfigRepository.findByKeys([...keys]);
     const result: Record<string, string> = {};
     for (const config of configs) result[config.key] = config.value;
 
@@ -267,6 +290,127 @@ export class ConfigService {
     if (configs[AI_RESOURCE_CONFIG_KEY] !== undefined)
       AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
     for (const [key, value] of Object.entries(configs)) await this.set(key, value, actorUserId, request);
+  }
+
+  private async assertConfigurationPermission(request: TypedRequest, userId?: string) {
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== principal.principalUserId ||
+      (userId !== undefined && principal.subjectUserId !== userId) ||
+      !(
+        await this.configurationPermissions.checkUserPermissions(principal.subjectUserId, [Permission.SYSTEM_CONFIG], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+
+  async getManagedConfigs(request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.configurationIam.list(request);
+    await this.assertConfigurationPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.configurationIam.list(request, false);
+      } catch {
+        getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn("Configuration shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return { configs: await this.getAllConfigs(), aiResourcesAllowed: true };
+  }
+
+  private maskManagedConfiguration<T>(value: T): T {
+    if (Array.isArray(value)) return value.map((item) => this.maskManagedConfiguration(item)) as T;
+    if (!value || typeof value !== "object" || value instanceof Date) return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        typeof item === "string" && item && isSensitiveServerConfigValue(key, item)
+          ? SERVER_CONFIG_SECRET_PLACEHOLDER
+          : this.maskManagedConfiguration(item),
+      ]),
+    ) as T;
+  }
+
+  async getManagedConfiguration<T>(keys: readonly string[], request: TypedRequest, read: () => Promise<T>): Promise<T> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.configurationIam.prepareRead(keys, request);
+      if (!guard) throw iamAccountDenied();
+      const result = this.maskManagedConfiguration(await read());
+      await this.configurationIam.recheck(guard);
+      return result;
+    }
+    await this.assertConfigurationPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.configurationIam.prepareRead(keys, request);
+      } catch {
+        getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn(
+          "Configuration read shadow evaluation failed",
+          { reason: "iam-evaluation-denied-or-unavailable" },
+        );
+      }
+    }
+    return read();
+  }
+
+  async setManagedConfiguration(configs: Record<string, string>, userId: string, request: TypedRequest) {
+    return this.setManagedConfigs(writableServerConfigs(configs), userId, request);
+  }
+
+  async setManagedConfigs(configs: Record<string, string>, userId: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.assertConfigurationPermission(request, userId);
+      if (env.security.iamAuthorizationMode === "shadow") {
+        try {
+          await this.configurationIam.prepareUpdate(Object.keys(configs), userId, request);
+        } catch {
+          getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn(
+            "Configuration mutation shadow evaluation failed",
+            { reason: "iam-evaluation-denied-or-unavailable" },
+          );
+        }
+      }
+      return this.setMultiple(configs, userId, request);
+    }
+    if (
+      !configs ||
+      typeof configs !== "object" ||
+      Array.isArray(configs) ||
+      Object.entries(configs).some(
+        ([, value]) => typeof value !== "string" || value === SERVER_CONFIG_SECRET_PLACEHOLDER,
+      )
+    )
+      throw new BadRequestError("Invalid configuration values", undefined, { messageKey: "errors.badRequest" });
+    const guard = await this.configurationIam.prepareUpdate(Object.keys(configs), userId, request);
+    if (!guard) throw iamAccountDenied();
+    // The dedicated support endpoint encrypts new credentials. Generic writes may clear, but never store plaintext.
+    if (configs[CONFIG_KEYS.SUPPORT_AI.API_KEY])
+      throw new BadRequestError("Use the support credential endpoint", undefined, { messageKey: "errors.badRequest" });
+    const resourceSettings =
+      configs[AI_RESOURCE_CONFIG_KEY] === undefined
+        ? undefined
+        : AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
+    const rows = await this.configurationIam.update(configs, guard);
+    if (resourceSettings) {
+      const row = rows.find((row) => row.key === AI_RESOURCE_CONFIG_KEY);
+      if (!row) throw iamAccountDenied();
+      AIResourceConfigService.getInstance().apply(resourceSettings, row.updateTime.toISOString());
+    }
+    await this.businessLogService.logOperation({
+      operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+      operationCategory: OperationCategory.SYSTEM,
+      actorUserId: userId,
+      targetResourceType: "SERVER_CONFIG",
+      description: "Authorized server configuration updated",
+      changes: { keys: Object.keys(configs) },
+      success: true,
+      ipAddress: this.getClientIP(request),
+      userAgent: request.headers["user-agent"],
+    });
   }
 
   async getAllConfigs(): Promise<Record<string, string>> {
@@ -283,7 +427,7 @@ export class ConfigService {
     return {
       enabled: configs[CONFIG_KEYS.REGISTRATION.ENABLED] === "true",
       maxAccountsPerEmail: parseInt(configs[CONFIG_KEYS.REGISTRATION.MAX_ACCOUNTS_PER_EMAIL] || "3", 10),
-      defaultGroupUsername: configs[CONFIG_KEYS.REGISTRATION.DEFAULT_GROUP_USERNAME] || "user",
+      defaultGroupUsername: configs[CONFIG_KEYS.REGISTRATION.DEFAULT_GROUP_USERNAME] || DEFAULT_USER_GROUP_USERNAME,
       verificationCodeExpiry: parseInt(configs[CONFIG_KEYS.REGISTRATION.VERIFICATION_CODE_EXPIRY] || "300", 10),
     };
   }
@@ -364,24 +508,21 @@ export class ConfigService {
   }
 
   async getAutoProxyPoolConfig(): Promise<AutoProxyPoolConfig> {
-    const keys = [
-      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
-      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
-    ];
+    const keys = AUTO_PROXY_POOL_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
 
     return {
       cacheHitRateMinSamples: sanitizeInt(
         configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES],
-        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
-        1,
-        1000,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.default,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.min,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.max,
       ),
       cacheHitRateWindowHours: sanitizeInt(
         configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS],
-        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
-        1,
-        24 * 365,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.default,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.min,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.max,
       ),
     };
   }
@@ -398,12 +539,7 @@ export class ConfigService {
   }
 
   async getCaptchaConfig(): Promise<CaptchaConfig> {
-    const keys = [
-      CONFIG_KEYS.CAPTCHA.PROVIDER,
-      CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER,
-      CONFIG_KEYS.CAPTCHA.MIN_SCORE,
-      CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES,
-    ];
+    const keys = CAPTCHA_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
     const envEnabled = env.auth.recaptcha.enabled;
     const provider = this.parseCaptchaProvider(
@@ -439,16 +575,7 @@ export class ConfigService {
 
   async getSocialAuthConfig(): Promise<SocialAuthConfig> {
     const envConfig = env.auth.social;
-    const keys = [
-      CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED,
-      CONFIG_KEYS.SOCIAL_AUTH.STATE_TTL_SECONDS,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_TTL_SECONDS,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_POLL_INTERVAL_SECONDS,
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.GITHUB),
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN),
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB),
-    ];
+    const keys = SOCIAL_AUTH_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
 
     return {
@@ -612,7 +739,7 @@ export class ConfigService {
   }
 
   async getIpBanConfig(): Promise<IpBanConfig> {
-    const keys = Object.values(CONFIG_KEYS.IP_BAN);
+    const keys = IP_BAN_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
     return {
       enabled: configs[CONFIG_KEYS.IP_BAN.ENABLED] === "true",
@@ -664,7 +791,7 @@ export class ConfigService {
   }
 
   async getRelayConfig(): Promise<RelayConfig> {
-    const configs = await this.getMultiple(Object.values(CONFIG_KEYS.RELAY));
+    const configs = await this.getMultiple(RELAY_CONFIGURATION_KEYS);
     return {
       upstreamUrl: configs[CONFIG_KEYS.RELAY.UPSTREAM_URL] || "",
       upstreamApiKey: configs[CONFIG_KEYS.RELAY.UPSTREAM_API_KEY] || "",
@@ -703,10 +830,7 @@ export class ConfigService {
   }
 
   async getRelayProxyConfig(): Promise<RelayProxyConfig> {
-    const configs = await this.getMultiple([
-      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED,
-      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL,
-    ]);
+    const configs = await this.getMultiple(RELAY_PROXY_CONFIGURATION_KEYS);
     const url = configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL] || "";
     return {
       enabled: configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED] === "true" && Boolean(url),

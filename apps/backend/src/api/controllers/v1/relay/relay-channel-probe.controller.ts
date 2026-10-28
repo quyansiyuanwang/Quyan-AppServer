@@ -1,4 +1,10 @@
 import {
+  platformRelayProbeAccountResourceResolver,
+  platformRelayProbeAccountCreateResourceResolver,
+} from "@/iam/request/relay-probe-resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
   Body,
   Controller,
   Delete,
@@ -16,7 +22,7 @@ import {
 import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import type { TypedRequest } from "@/types/express";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
@@ -71,22 +77,43 @@ export class RelayChannelProbeController extends Controller {
 
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeOverview",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   public listOverview(@Request() request: TypedRequest): Promise<RelayChannelProbeOverviewItemDto[]> {
-    return this.service.listOverview(request.user!.userId);
+    return this.service.listOverview(request.user!.userId, request);
   }
 
   @Get("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema))
   public getProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<RelayChannelProbeProfileDto> {
-    return this.service.getProfile(channelId, request.user!.userId);
+    return this.service.getProfile(channelId, request.user!.userId, request);
   }
 
   @Put("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SaveProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -100,12 +127,19 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: UpsertRelayChannelProbeProfileRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeProfileDto> {
-    return this.service.upsertProfile(channelId, body, request.user!.userId);
+    return this.service.upsertProfile(channelId, body, request.user!.userId, request);
   }
 
   @Delete("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -114,13 +148,20 @@ export class RelayChannelProbeController extends Controller {
     replayProtectionMiddleware,
   )
   public async clearProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<void> {
-    await this.service.clearProfile(channelId, request.user!.userId);
+    await this.service.clearProfile(channelId, request.user!.userId, request);
     this.setStatus(204);
   }
 
   @Post("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -135,12 +176,19 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeRunDto> {
     this.setStatus(202);
-    return this.service.createRun(channelId, body, request.user!.userId);
+    return this.service.createRun(channelId, body, request.user!.userId, request);
   }
 
   @Post("{channelId}/runs/reset")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ResetProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -154,24 +202,38 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: RelayChannelProbeMemberTargetDto,
     @Request() request: TypedRequest,
   ): Promise<void> {
-    await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId);
+    await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId, request);
     this.setStatus(204);
   }
 
   @Post("runs/latest")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListLatestProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateBody(relayChannelProbeLatestRunsBodySchema))
   public listLatestRuns(
     @Body() body: RelayChannelProbeLatestRunRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeLatestRunDto[]> {
-    return this.service.listLatestRuns(body, request.user!.userId);
+    return this.service.listLatestRuns(body, request.user!.userId, request);
   }
 
   @Post("runs/batch")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -184,12 +246,19 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<CreateRelayChannelProbeRunsResponse> {
     this.setStatus(202);
-    return this.service.createRuns(body, request.user!.userId);
+    return this.service.createRuns(body, request.user!.userId, request);
   }
 
   @Post("profiles/batch-copy")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CopyProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -201,12 +270,19 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: CopyRelayChannelProbeProfileRequest,
     @Request() request: TypedRequest,
   ): Promise<CopyRelayChannelProbeProfileResponse> {
-    return this.service.copyProfile(body, request.user!.userId);
+    return this.service.copyProfile(body, request.user!.userId, request);
   }
 
   @Get("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema), validateQuery(relayChannelProbeRunsQuerySchema))
   public listRuns(
     @Path() channelId: string,
@@ -215,12 +291,19 @@ export class RelayChannelProbeController extends Controller {
     @Query() pageSize?: number,
     @Query() memberChannelId?: string,
   ): Promise<RelayChannelProbeRunPageDto> {
-    return this.service.listRuns(channelId, request.user!.userId, page, pageSize, memberChannelId);
+    return this.service.listRuns(channelId, request.user!.userId, page, pageSize, memberChannelId, request);
   }
 
   @Delete("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ClearProbeHistory",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -235,12 +318,19 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
     @Query() memberChannelId?: string,
   ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
-    return this.service.clearRunHistory(channelId, scope, request.user!.userId, memberChannelId);
+    return this.service.clearRunHistory(channelId, scope, request.user!.userId, memberChannelId, request);
   }
 
   @Post("runs/apply")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ApplyProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -252,19 +342,30 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: ApplyRelayChannelProbeRunsRequest,
     @Request() request: TypedRequest,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
-    return this.service.applyRuns(body, request.user!.userId);
+    return this.service.applyRuns(body, request.user!.userId, request);
   }
 
   @Get("accounts")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
-  public listAccounts(): Promise<RelayChannelProbeAccountDto[]> {
-    return this.accountService.list();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE],
+    }),
+  )
+  public listAccounts(@Request() request: TypedRequest): Promise<RelayChannelProbeAccountDto[]> {
+    return this.accountService.list(request);
   }
 
   @Post("accounts")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:CreateProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountCreateResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -272,13 +373,20 @@ export class RelayChannelProbeController extends Controller {
     replayProtectionMiddleware,
     validateBody(saveRelayChannelProbeAccountBodySchema),
   )
-  public createAccount(@Body() body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.save(body);
+  public createAccount(
+    @Body() body: SaveRelayChannelProbeAccountRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.save(body, undefined, request);
   }
 
   @Put("accounts/{accountId}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:UpdateProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -290,13 +398,18 @@ export class RelayChannelProbeController extends Controller {
   public updateAccount(
     @Path() accountId: string,
     @Body() body: SaveRelayChannelProbeAccountRequest,
+    @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.save(body, accountId);
+    return this.accountService.save(body, accountId, request);
   }
 
   @Delete("accounts/{accountId}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:DeleteProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -304,14 +417,18 @@ export class RelayChannelProbeController extends Controller {
     validateParams(relayChannelProbeAccountParamsSchema),
     replayProtectionMiddleware,
   )
-  public async deleteAccount(@Path() accountId: string): Promise<void> {
-    await this.accountService.remove(accountId);
+  public async deleteAccount(@Path() accountId: string, @Request() request: TypedRequest): Promise<void> {
+    await this.accountService.remove(accountId, request);
     this.setStatus(204);
   }
 
   @Post("accounts/{accountId}/refresh")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:RefreshProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -319,13 +436,23 @@ export class RelayChannelProbeController extends Controller {
     validateParams(relayChannelProbeAccountParamsSchema),
     replayProtectionMiddleware,
   )
-  public refreshAccount(@Path() accountId: string): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.refresh(accountId);
+  public refreshAccount(
+    @Path() accountId: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.refresh(accountId, request);
   }
 
   @Post("targets/configure")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ConfigureProbeTarget",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -337,12 +464,19 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: ConfigureRelayChannelProbeTargetsRequest,
     @Request() request: TypedRequest,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
-    return this.service.configureTargets(body, request.user!.userId);
+    return this.service.configureTargets(body, request.user!.userId, request);
   }
 
   @Post("accounts/bindings")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:BindProbeAccount",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -354,6 +488,6 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: BindRelayChannelProbeAccountsRequest,
     @Request() request: TypedRequest,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
-    return this.service.bindAccounts(body, request.user!.userId);
+    return this.service.bindAccounts(body, request.user!.userId, request);
   }
 }

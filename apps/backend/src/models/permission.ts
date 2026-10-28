@@ -49,6 +49,8 @@ export interface UserFullPermissions {
   removedPermissions: PermissionList;
   /** 最终有效权限列表 */
   effectivePermissions: PermissionList;
+  /** 仅供前端入口展示的潜在操作集合，不代表任意资源上的执行或委派权限 */
+  uiPermissions?: PermissionList;
 }
 
 /**

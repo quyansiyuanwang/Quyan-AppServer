@@ -213,3 +213,19 @@ Submitting for review belongs to the app maintenance flow. The final approve/rej
 - [`auth-center-client-review-management`](/en/auth-center-client-review-management)
 - [`oauth-app-management`](/en/oauth-app-management)
 - [`api-documentation`](/en/api-documentation)
+
+## IAM resource scope
+
+When IAM enforcement is enabled, the application list includes only your own applications allowed by `quyan:auth_center:ListClients`. Opening an application also requires `quyan:auth_center:GetClient`; list access does not automatically grant detail access.
+
+The application ARN is `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`. Here, `clientId` is the application record ID, not the public identifier used for login integration. The account and user identifiers come from the authenticated identity. A policy cannot grant access to another user's or another account's applications. You can add your own applications to a resource group and grant access within that group.
+
+Applications with no matching Allow or a matching Deny are excluded from the list, and detail requests are denied. List and detail responses expose only the secret preview and whether a secret is configured, never the raw secret or its hash. Creation, secret rotation, and review still require their respective permissions and retain the existing step-up verification requirements.
+
+With IAM enforcement enabled, review submission, secret rotation, and deletion require `quyan:auth_center:SubmitClientReview`, `quyan:auth_center:RotateClientSecret`, and `quyan:auth_center:DeleteClient`, respectively, on the application ARN above. Read permissions do not automatically grant these operations. Successful rotation returns the new secret only in that response; store it securely immediately. Subsequent list and detail responses show only its preview. If permission is revoked or the application version changes during an operation, the write is denied or rolled back.
+
+Editing an application requires `quyan:auth_center:UpdateClient` on its resource. Scope changes also require the current identity to be allowed to grant each requested scope; an assumed-role session uses the role's permissions. Editing cannot directly approve a review or write a client secret. Configuration changes to approved or rejected applications reset review to draft. Switching to a public client clears its existing secret and retains PKCE and grant-type validation.
+
+Calling application management APIs with an OAuth bearer token requires the grantable `auth_center_client` scope, or its equivalent Auth Center client read-permission scope. This scope permits entry to the management APIs and does not replace IAM authorization. Reads, edits, deletion, review submission, and secret rotation each check their operation permission and resource scope. A role session cannot use the signed-in user's permissions outside that role to grant a scope.
+
+Creating an application requires `quyan:auth_center:CreateClient` on the authenticated user's parent resource, `acs:quyan:*:<accountId>:user/<userId>`. Read or edit access to an existing application does not grant creation. The server generates the record ID and public client identifier, with an initial draft review state. A confidential client's new secret is returned only in the successful creation response. Creation does not automatically grant subsequent reads, edits, or deletion; configure those permissions on the application ARN separately.

@@ -2,6 +2,26 @@
 
 此页面用于浏览已发布的远程终端产品方案、购买或领取权益，以及管理已注册的设备。
 
+启用 IAM 强制模式后，解绑使用 `quyan:remote_terminal:RevokeMyDeviceBinding`，查看解绑提示使用 `quyan:remote_terminal:GetMyUnbindReminder`。两个操作均需获准访问本人绑定的 `acs:remote-terminal:*:<accountId>:product-binding/<userId>/<bindingId>` 和所属权益的 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`；访问其他用户的绑定始终拒绝。已登录用户可查看自己的解绑提示，解绑仍需对应权限。次数限制按权益共享，并发解绑也不会超过剩余额度；操作期间授权或次数配置发生变化会使操作失败。
+
+本人注册令牌轮换使用 `quyan:remote_terminal:RotateMyRegistrationToken`，同时检查权益 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>` 和令牌 `acs:remote-terminal:*:<accountId>:product-registration-token/<userId>/<entitlementId>/<tokenId>`。登录身份保留本人轮换能力，匹配的显式拒绝仍会阻止操作；首次创建可对当前权益下的令牌使用 `*`。轮换失败会保留原令牌，成功后需用新令牌更新 Agent 配置。
+
+安装令牌签发使用 `quyan:remote_terminal:GetMyInstallToken`，资源为 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`。已登录用户保留本人权益的签发能力，匹配的显式拒绝仍会阻止操作；其他用户权益或设备额度为零时不能签发。服务端在返回令牌前复查权益和授权，操作期间变化时不返回凭据。安装令牌仍按响应中的到期时间失效，安装协议保持不变。
+
+在 IAM enforce 模式下，新安装令牌绑定签发主体及当时的授权、身份和权益修订。设备注册时还会重新检查这些信息；策略撤销、签发用户停用或身份修订变化、角色会话撤销、AccessKey 撤销或过期、权益配置变化都可能使尚未到期的令牌失效。此时请重新获取安装令牌。来源 IP、HTTPS 等条件按设备实际注册请求检查，不沿用签发时的浏览器属性。
+
+设备名额检查、绑定保存和令牌使用记录在同一次授权事务中完成；授权失败不会留下新绑定，也不会返回新的设备心跳凭据。重新启用已禁用设备同样占用设备名额，已解绑设备还受现有冷却规则约束。旧格式的安装令牌可在 legacy/shadow 模式继续使用，enforce 模式需要重新签发。新格式令牌在回退授权模式后仍保持原有 IAM 限制。长期注册令牌仍采用其原有有效性和轮换规则。
+
+IAM 强制模式下，购买及续期使用 `quyan:remote_terminal:ClaimPublishedTemplate`，同时检查本人用户资源、已发布商品 `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>` 和最终权益。商品资源表示向该身份开放的已发布套餐，不授予平台模板管理权限。认证用户保留购买本人资源的能力，匹配的显式 Deny 仍可阻止购买。余额扣减、交易流水与权益变更在同一事务中提交；授权失败时不会返回权益或凭据，扣款一并回滚。续期只收取本次续期或升级费用，权益中的购买金额记录累计值。购买结果不返回注册凭据，获取凭据需另行使用注册令牌轮换操作。
+
+个人权益列表使用 `quyan:remote_terminal:ListMyEntitlements`，在计算总数及分页之前逐项检查 `product-entitlement` 资源，拒绝的权益不会出现在列表中。模板名称、注册令牌元数据及已注册设备数量还需要同一 Action 对对应关联资源的读取权限；权限不完整时省略相关字段。IAM 强制模式下，列表不会返回注册令牌明文，获取凭据需使用单独授权的令牌轮换操作。列表始终限制为当前身份的权益，即使其他用户属于同一账号也不会混入。
+
+个人设备列表使用 `quyan:remote_terminal:ListMyDevices`，先逐项检查 `product-binding` 资源，再计算总数和分页，拒绝的设备不会出现在列表中。父权益被拒绝时省略权益名称，注册令牌资源被拒绝时省略令牌引用。列表只返回支持的 Shell 名称，不读取心跳凭据或完整主机快照。设备和所属权益必须归属于当前身份，归属关系不一致时拒绝读取。
+
+在 IAM 强制模式下，已发布套餐列表使用 `quyan:remote_terminal:ListPublishedTemplates`，逐项检查 `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`。只显示已启用、已发布且当前身份可访问的套餐。显式 Deny 可隐藏指定套餐或全部套餐。查看套餐不授予购买或管理平台模板的权限，这些操作使用独立 Action。
+
+每次续期或升级只扣除本次操作的费用。权益中的购买金额记录历次购买和续期的累计实付金额，不会再次按累计金额扣款；免费续期保留累计金额，不新增购买扣款。余额不足以支付本次费用时，续期失败，权益保持原状。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。

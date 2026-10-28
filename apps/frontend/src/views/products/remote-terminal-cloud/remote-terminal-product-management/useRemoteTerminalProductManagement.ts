@@ -5,13 +5,15 @@ import type { FormInstance, FormRules } from 'element-plus/es'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { remoteTerminalProductService } from '@/service/remoteTerminalProductService'
+import { useSessionStore } from '@/stores/sessionStore'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { useRemoteTerminalTemplateOptions } from './useRemoteTerminalTemplateOptions'
+import { useRemoteTerminalManagementList } from './useRemoteTerminalManagementList'
 import { permissionService } from '@/service/permissionService'
 import { userService } from '@/service/userService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import type {
   RemoteTerminalBillingUnit,
-  RemoteTerminalBoundDeviceDto,
-  RemoteTerminalFilterOptionsDto,
   RemoteTerminalProductTemplateDto,
   RemoteTerminalUserEntitlementDto,
 } from '@/client/types.gen'
@@ -23,35 +25,27 @@ interface UserOption {
   username: string
 }
 
-const USER_OPTIONS_PAGE_SIZE = 20
-
 export function useRemoteTerminalProductManagement(
   section: RemoteTerminalProductManagementSection,
 ) {
   const permissionStore = usePermissionStore()
+  const session = useSessionStore()
 
-  const loading = ref(false)
   const dialogSubmitting = ref(false)
   const resettingUnbind = ref(false)
 
-  const templates = ref<RemoteTerminalProductTemplateDto[]>([])
-  const entitlements = ref<RemoteTerminalUserEntitlementDto[]>([])
-  const devices = ref<RemoteTerminalBoundDeviceDto[]>([])
-  const filterOptions = reactive<RemoteTerminalFilterOptionsDto>({
-    templateStatusOptions: [],
-    assignmentStatusOptions: [],
-    deviceStatusOptions: [],
-    publishStatusOptions: [],
-    templates: [],
-  })
+  const templateOptions = useRemoteTerminalTemplateOptions(remoteTerminalProductService, () =>
+    sessionCoordinator.getAuthorizationIdentity(),
+  )
+  const { filterOptions } = templateOptions
 
   const templateKeyword = ref('')
   const templateStatus = ref<number | undefined>()
   const entitlementFilter = reactive<{ userId?: string; templateId?: string; status?: number }>({})
   const deviceFilter = reactive<{ userId?: string; entitlementId?: string; status?: number }>({})
 
-  const userOptions = ref<UserOption[]>([])
-  const userOptionsLoading = ref(false)
+  const selectedUserOption = ref<UserOption>()
+  const userKeyword = ref('')
 
   const templateDialogVisible = ref(false)
   const entitlementDialogVisible = ref(false)
@@ -337,6 +331,7 @@ export function useRemoteTerminalProductManagement(
   }
 
   const resetEntitlementForm = () => {
+    selectedUserOption.value = undefined
     editingEntitlementId.value = undefined
     entitlementForm.userId = ''
     entitlementForm.templateId = ''
@@ -352,121 +347,109 @@ export function useRemoteTerminalProductManagement(
     entitlementFormRef.value?.clearValidate()
   }
 
-  const loadUserOptions = async (keyword?: string) => {
-    userOptionsLoading.value = true
-    try {
-      const result = await userService.getAllUsers({
-        page: 1,
-        pageSize: USER_OPTIONS_PAGE_SIZE,
-        keyword: keyword?.trim() || undefined,
-      })
-      const users = Array.isArray(result?.users) ? result.users : []
-      userOptions.value = users
-        .map((item: { id: string; username?: string }) => ({
-          id: item.id,
-          username: item.username || item.id,
-        }))
-        .sort((a, b) => a.username.localeCompare(b.username))
-    } catch {
-      userOptions.value = []
-    } finally {
-      userOptionsLoading.value = false
+  const loadUserOptions = (keyword?: string) => {
+    if (keyword !== undefined) {
+      userKeyword.value = keyword.trim()
+      return userChoices.reloadFirst()
     }
+    return userChoices.load()
   }
-
   const ensureUserOption = (userId?: string, username?: string | null) => {
-    if (!userId) return
-    if (userOptions.value.some((item) => item.id === userId)) return
-    userOptions.value = [{ id: userId, username: username || userId }, ...userOptions.value]
+    selectedUserOption.value = userId ? { id: userId, username: username || userId } : undefined
   }
-
   const handleUserSearch = (query: string) => {
     void loadUserOptions(query)
   }
 
   const loadFilterOptions = async () => {
     if (!canView.value) {
-      filterOptions.templateStatusOptions = []
-      filterOptions.assignmentStatusOptions = []
-      filterOptions.deviceStatusOptions = []
-      filterOptions.publishStatusOptions = []
-      filterOptions.templates = []
+      templateOptions.reset()
       return
     }
 
-    const result = await remoteTerminalProductService.getFilterOptions()
-    filterOptions.templateStatusOptions = result.templateStatusOptions || []
-    filterOptions.assignmentStatusOptions = result.assignmentStatusOptions || []
-    filterOptions.deviceStatusOptions = result.deviceStatusOptions || []
-    filterOptions.publishStatusOptions = result.publishStatusOptions || []
-    filterOptions.templates = result.templates || []
+    await templateOptions.load()
   }
-
-  const loadTemplates = async () => {
-    if (!canReadTemplate.value) {
-      templates.value = []
+  const loadTemplateOptions = async (page = 1, keyword = templateOptions.keyword.value) => {
+    if (!canView.value) {
+      templateOptions.reset()
       return
     }
-
-    const result = await remoteTerminalProductService.listTemplates({
-      page: 1,
-      pageSize: 100,
-      keyword: templateKeyword.value.trim() || undefined,
-      status: templateStatus.value,
-    })
-    templates.value = result.records || []
+    await templateOptions.load(page, keyword)
   }
 
-  const loadEntitlements = async () => {
-    if (!canReadAssignment.value) {
-      entitlements.value = []
-      return
-    }
-
-    const result = await remoteTerminalProductService.listEntitlements({
-      page: 1,
-      pageSize: 100,
-      userId: entitlementFilter.userId,
-      templateId: entitlementFilter.templateId,
-      status: entitlementFilter.status,
-    })
-    entitlements.value = result.records || []
-    entitlements.value.forEach((item) => ensureUserOption(item.userId, item.username))
-  }
-
-  const loadDevices = async () => {
-    if (!canReadDevice.value) {
-      devices.value = []
-      return
-    }
-
-    const result = await remoteTerminalProductService.listDevices({
-      page: 1,
-      pageSize: 100,
-      userId: deviceFilter.userId,
-      entitlementId: deviceFilter.entitlementId,
-      status: deviceFilter.status,
-    })
-    devices.value = result.records || []
-    devices.value.forEach((item) => ensureUserOption(item.userId, item.username))
-  }
-
+  let authorizationRevision = 0
+  const authorizationIdentity = () =>
+    `${sessionCoordinator.getAuthorizationIdentity()}:${authorizationRevision}`
+  const userChoices = useRemoteTerminalManagementList<UserOption>(
+    async (pagination) => {
+      const result = await userService.getAllUsers({
+        ...pagination,
+        keyword: userKeyword.value || undefined,
+      })
+      return {
+        ...result,
+        records: result.users.map((user) => ({ id: user.id, username: user.username || user.id })),
+      }
+    },
+    authorizationIdentity,
+    () => canView.value,
+  )
+  const userOptions = userChoices.records,
+    userOptionsLoading = userChoices.loading
+  const templateList = useRemoteTerminalManagementList(
+    (pagination) =>
+      remoteTerminalProductService.listTemplates({
+        ...pagination,
+        keyword: templateKeyword.value.trim() || undefined,
+        status: templateStatus.value,
+      }),
+    authorizationIdentity,
+    () => canReadTemplate.value,
+  )
+  const entitlementList = useRemoteTerminalManagementList(
+    (pagination) =>
+      remoteTerminalProductService.listEntitlements({ ...pagination, ...entitlementFilter }),
+    authorizationIdentity,
+    () => canReadAssignment.value,
+  )
+  const deviceList = useRemoteTerminalManagementList(
+    (pagination) => remoteTerminalProductService.listDevices({ ...pagination, ...deviceFilter }),
+    authorizationIdentity,
+    () => canReadDevice.value,
+  )
+  const entitlementOptions = useRemoteTerminalManagementList(
+    (pagination) =>
+      remoteTerminalProductService.listEntitlements({ ...pagination, userId: deviceFilter.userId }),
+    authorizationIdentity,
+    () => canReadAssignment.value,
+  )
+  const templates = templateList.records,
+    entitlements = entitlementList.records,
+    devices = deviceList.records
+  const loading = computed(
+    () =>
+      templateList.loading.value ||
+      entitlementList.loading.value ||
+      deviceList.loading.value ||
+      entitlementOptions.loading.value ||
+      templateOptions.loading.value ||
+      userOptionsLoading.value,
+  )
+  const loadTemplates = () => templateList.load()
+  const loadEntitlements = () => entitlementList.load()
+  const loadDevices = () => deviceList.load()
   const refreshAll = async () => {
     if (!canView.value) return
-    loading.value = true
-    try {
-      await Promise.all([
-        loadFilterOptions(),
-        section === 'entitlements' || section === 'devices' ? loadUserOptions() : Promise.resolve(),
-      ])
-      if (section === 'templates') await loadTemplates()
-      if (section === 'entitlements') await loadEntitlements()
-      if (section === 'devices') await Promise.all([loadEntitlements(), loadDevices()])
-    } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
-    } finally {
-      loading.value = false
-    }
+    await Promise.all([
+      loadFilterOptions(),
+      section === 'entitlements' || section === 'devices' ? loadUserOptions() : Promise.resolve(),
+      section === 'templates'
+        ? loadTemplates()
+        : section === 'entitlements'
+          ? loadEntitlements()
+          : loadDevices(),
+      section === 'devices' ? entitlementOptions.load() : Promise.resolve(),
+    ])
   }
 
   const openCreateTemplateDialog = () => {
@@ -735,16 +718,42 @@ export function useRemoteTerminalProductManagement(
     }
   }
 
+  const resetReadState = () => {
+    authorizationRevision++
+    templateList.reset()
+    entitlementList.reset()
+    deviceList.reset()
+    entitlementOptions.reset()
+    templateOptions.reset()
+    userChoices.reset()
+    userKeyword.value = ''
+    selectedUserOption.value = undefined
+    templateDialogVisible.value = false
+    entitlementDialogVisible.value = false
+    tokenDialogVisible.value = false
+    limitAdjustDialogVisible.value = false
+  }
+  watch(
+    () => {
+      // Track token replacement without retaining bearer values in option state.
+      void session.accessToken
+      return sessionCoordinator.getAuthorizationIdentity()
+    },
+    resetReadState,
+    { flush: 'sync' },
+  )
+  watch(() => permissionStore.currentUserPermissions, resetReadState, { flush: 'sync' })
+
   watch([templateKeyword, templateStatus], () => {
     if (!canReadTemplate.value) return
-    void loadTemplates()
+    void templateList.reloadFirst()
   })
 
   watch(
     () => [entitlementFilter.userId, entitlementFilter.templateId, entitlementFilter.status],
     () => {
       if (!canReadAssignment.value) return
-      void loadEntitlements()
+      void entitlementList.reloadFirst()
     },
   )
 
@@ -752,7 +761,16 @@ export function useRemoteTerminalProductManagement(
     () => [deviceFilter.userId, deviceFilter.entitlementId, deviceFilter.status],
     () => {
       if (!canReadDevice.value) return
-      void loadDevices()
+      void deviceList.reloadFirst()
+    },
+  )
+
+  watch(
+    () => deviceFilter.userId,
+    () => {
+      deviceFilter.entitlementId = undefined
+      entitlementOptions.reset()
+      if (section === 'devices' && canReadAssignment.value) void entitlementOptions.load()
     },
   )
 
@@ -762,6 +780,12 @@ export function useRemoteTerminalProductManagement(
   })
 
   return {
+    userChoices,
+    selectedUserOption,
+    templateList,
+    entitlementList,
+    deviceList,
+    entitlementOptions,
     canReadAssignment,
     canReadDevice,
     canReadTemplate,
@@ -783,6 +807,8 @@ export function useRemoteTerminalProductManagement(
     entitlementFormRules,
     entitlements,
     filterOptions,
+    templateOptions,
+    loadTemplateOptions,
     formatBillingUnitLabel,
     formatDateTime,
     formatPrice,

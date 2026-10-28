@@ -1,5 +1,18 @@
-import type { Permission } from "@/constant/permission";
+import type {
+  IamPolicyDocument,
+  IamTrustPolicyDocument,
+  IamStatement,
+  IamEvaluationResult,
+  IamPolicyDiagnosis,
+  IamDelegationResult,
+  IamAuthorizationContract,
+  IamResourceGroupContract,
+  IamResourceGroupMemberContract,
+  IamResourceGroupSummary,
+  IamManagementPageResult,
+} from "@quyan/shared";
 import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
+import type { Permission } from "@/constant/permission";
 
 export interface RamUserDto {
   id: string;
@@ -43,6 +56,7 @@ export interface UpdateRamUserDto {
 }
 
 export interface RamRoleDto {
+  trustPolicyHash?: string;
   id: string;
   accountOwnerId: string;
   name: string;
@@ -63,12 +77,17 @@ export interface CreateRamRoleDto {
 }
 
 export interface UpdateRamRoleDto {
+  expectedTrustPolicyHash?: string;
   description?: string;
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
   status?: number;
 }
 
+export interface SetRamRoleTrustPolicyDto {
+  document: IamTrustPolicyDocument;
+  expectedDocumentHash?: string;
+}
 export interface RamRoleBindingDto {
   id: string;
   roleId: string;
@@ -120,8 +139,61 @@ export type GetRamRoleBindingsResponse = RamRoleBindingDto[];
 export type GetRamRoleSessionsResponse = RamRoleSessionDto[];
 
 // ── RAM 权限策略 DTO ──
+export type IamStatementDto = IamStatement;
+export type IamPolicyDocumentDto = IamPolicyDocument;
+export interface RamPolicyVersionDto {
+  id: string;
+  version: number;
+  document: IamPolicyDocumentDto;
+  documentHash: string;
+  isDefault: boolean;
+  createdBy: string;
+  createTime: string;
+}
+export interface RamPolicyVersionPageDto {
+  items: RamPolicyVersionDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  defaultVersionId?: string;
+  defaultDocumentHash?: string;
+}
+export interface CreateRamPolicyVersionDto {
+  document: IamPolicyDocumentDto;
+  expectedDocumentHash?: string;
+}
+export interface SetDefaultRamPolicyVersionDto {
+  versionId: string;
+  expectedDocumentHash: string;
+}
+export type CheckIamDelegationResponseDto = IamDelegationResult;
+export interface DiagnoseIamPolicyDto {
+  documentText: string;
+  policyKind?: "identity" | "trust";
+}
+export type DiagnoseIamPolicyResponseDto = IamPolicyDiagnosis;
+export interface ValidateIamPolicyDto {
+  document: IamPolicyDocumentDto;
+}
+export interface ValidateIamPolicyResponseDto {
+  valid: boolean;
+  documentHash: string;
+  document: IamPolicyDocumentDto;
+  broadWildcard: boolean;
+}
+export interface SimulateIamPolicyDto {
+  principalId: string;
+  action: string;
+  resource: string;
+  /** Optional raw identity draft. When present, evaluate it in isolation, without saved grants. */
+  documentText?: string;
+}
+export type SimulateIamPolicyResponseDto = IamEvaluationResult;
 
 export interface RamPolicyDto {
+  document?: IamPolicyDocumentDto;
+  defaultVersion?: number;
+  documentHash?: string;
   id: string;
   accountOwnerId: string;
   name: string;
@@ -136,10 +208,13 @@ export interface RamPolicyDto {
 export interface CreateRamPolicyDto {
   name: string;
   description?: string;
-  permissions: Permission[];
+  permissions?: Permission[];
+  document?: IamPolicyDocumentDto;
 }
 
 export interface UpdateRamPolicyDto {
+  document?: IamPolicyDocumentDto;
+  expectedDocumentHash?: string;
   description?: string;
   permissions?: Permission[];
   status?: number;
@@ -167,6 +242,8 @@ export interface AttachPolicyBodyDto {
 // ── 授权概览 DTO ──
 
 export interface EffectivePermissionDto {
+  /** Projection hint only; resource-level authorization remains server-enforced. */
+  authorizationMode?: "legacy" | "shadow" | "enforce";
   userId: string;
   username: string;
   ramUsername: string;
@@ -198,3 +275,38 @@ export interface RamGroupDto {
 }
 
 export type GetRamGroupsResponse = RamGroupDto[];
+
+export type RamAuthorizationDto = IamAuthorizationContract;
+export interface CreateRamAuthorizationDto {
+  principalType: "user" | "group" | "role";
+  principalId: string;
+  policyId: string;
+  scopeType: "account" | "resource-group" | "resource";
+  scopeResourceId?: string;
+  scopeArn?: string;
+  description?: string;
+}
+export type RamResourceGroupDto = IamResourceGroupContract;
+export interface CreateRamResourceGroupDto {
+  name: string;
+  description?: string;
+}
+export interface AddRamResourceGroupMemberDto {
+  resourceArn: string;
+}
+
+export type RamAuthorizationPageDto = IamManagementPageResult<IamAuthorizationContract>;
+export type RamResourceGroupPageDto = IamManagementPageResult<IamResourceGroupSummary>;
+export type RamResourceGroupMemberPageDto = IamManagementPageResult<IamResourceGroupMemberContract>;
+
+export type RamRolePageDto = IamManagementPageResult<RamRoleDto>;
+export type RamPolicyPageDto = IamManagementPageResult<RamPolicyDto>;
+
+export type RamVisibleGroupPageDto = IamManagementPageResult<RamGroupDto>;
+
+export type RamUserPageDto = IamManagementPageResult<RamUserDto>;
+export type RamRoleSessionPageDto = IamManagementPageResult<RamRoleSessionDto>;
+
+export type RamRoleBindingPageDto = IamManagementPageResult<RamRoleBindingDto>;
+
+export type RamPolicyAttachmentPageDto = IamManagementPageResult<RamPolicyAttachmentDto>;

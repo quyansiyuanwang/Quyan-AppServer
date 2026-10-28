@@ -1,3 +1,71 @@
+import { RelayProbeRunApplyRepository } from "@/store/relay/relay-probe-run-apply.repository";
+import {
+  buildProbePricingSnapshot,
+  fingerprintProbePricing,
+  defaultProbeEndpoint,
+  requiresLargeMultiplierConfirmation,
+  resolveProbeModelPricing,
+} from "./relay-probe-pricing";
+export {
+  defaultProbeEndpoint,
+  requiresLargeMultiplierConfirmation,
+  resolveProbeModelPricing,
+} from "./relay-probe-pricing";
+import { RELAY_PROBE_APPLY_POLICY } from "@/constant/relay-probe";
+import { RelayProbeTargetConfigureRepository } from "@/store/relay/relay-probe-target-configure.repository";
+import { platformRelayProbeAccountArn } from "@/iam/resources/platform-relay-probe-resources";
+import { RelayProbeAccountBindingRepository } from "@/store/relay/relay-probe-account-binding.repository";
+import { RelayProbeProfileCopyRepository } from "@/store/relay/relay-probe-profile-copy.repository";
+import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
+import { RelayProbeBatchTargetRepository } from "@/store/relay/relay-probe-batch-target.repository";
+import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
+import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
+import { PlatformManagementReadRepository } from "@/store/system/platform-management-read.repository";
+import { assertProbeRunExecution, withProbeRunExecution } from "./relay-probe-execution-context";
+import { RelayProbeRunAdmissionStore } from "./relay-probe-run-admission";
+import { RelayProbeRunExecutionIamService } from "./relay-probe-run-execution-iam.service";
+import { RelayProbeRunCreateRepository } from "@/store/relay/relay-probe-run-create.repository";
+import { requestTransportConditionContext } from "@/iam/request/condition-context";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import {
+  createRelayChannelProbeRunBodySchema,
+  createRelayChannelProbeRunsBodySchema,
+  copyRelayChannelProbeProfileBodySchema,
+  bindRelayChannelProbeAccountsBodySchema,
+  configureRelayChannelProbeTargetsBodySchema,
+  applyRelayChannelProbeRunsBodySchema,
+} from "@/api/schema/relay/relay-channel-probe.schema";
+import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
+import {
+  RelayProbeRunResetRepository,
+  type RelayProbeQueueSnapshot,
+} from "@/store/relay/relay-probe-run-reset.repository";
+import { createId } from "@paralleldrive/cuid2";
+import {
+  RelayProbeProfileSaveRepository,
+  type RelayProbeProfileSaveMetadata,
+} from "@/store/relay/relay-probe-profile-save.repository";
+import type { RelayProbeProfileReadRecord } from "@/store/relay/relay-probe-profile-read.repository";
+import {
+  RelayProbeOverviewReadRepository,
+  type RelayProbeOverviewRecord,
+} from "@/store/relay/relay-probe-overview-read.repository";
+import { RelayProbeProfileDeleteRepository } from "@/store/relay/relay-probe-profile-delete.repository";
+import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
+import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
+import { RelayProbeRunHistoryMutationRepository } from "@/store/relay/relay-probe-run-history-mutation.repository";
+import {
+  clearRelayChannelProbeRunHistoryQuerySchema,
+  upsertRelayChannelProbeProfileBodySchema,
+} from "@/api/schema/relay/relay-channel-probe.schema";
+import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { RelayProbeReadIamService } from "./relay-probe-read-iam.service";
+import { RelayProbeRunHistoryReadRepository } from "@/store/relay/relay-probe-run-history-read.repository";
+import { relayChannelProbeRunsQuerySchema } from "@/api/schema/relay/relay-channel-probe.schema";
+import { RelayProbeLatestRunReadIamService } from "./relay-probe-latest-run-read-iam.service";
+import type { RelayProbeRunPublicRecord } from "@/store/relay/relay-probe-run-public-select";
+import type { TypedRequest } from "@/types/express";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
@@ -13,8 +81,6 @@ import {
   LockBackendUnavailableError,
   NotFoundError,
 } from "@/util/errors";
-import { resolveMappedModel } from "@/util/model-mapping.util";
-import { resolveModelId } from "@/util/model-resolution.util";
 import { RelayChannelService } from "./relay-channel.service";
 import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
@@ -93,10 +159,8 @@ const PROBE_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const PROBE_LOCK_ACQUIRE_TIMEOUT_MS = 5 * 60 * 1000;
 const RUN_LEASE_MS = 6 * 60 * 1000;
-const SUGGESTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SUGGESTION_MAX_AGE_MS = RELAY_PROBE_APPLY_POLICY.suggestionMaxAgeMs;
 const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
-const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Upstream billing ledgers are commonly eventually consistent. Keep both
@@ -108,23 +172,7 @@ const PROBE_BALANCE_SETTLEMENT_POLL_MS = 2_000;
 const PROBE_BALANCE_SETTLEMENT_TIMEOUT_MS = 30_000;
 const MIN_VERIFIED_SAMPLE_COUNT = 3;
 const MAX_ACCEPTED_SAMPLE_SPREAD = 0.2;
-const LARGE_MULTIPLIER_CHANGE_RATIO = 0.2;
-
-export function requiresLargeMultiplierConfirmation(
-  sourceMultiplier: number,
-  targetMultiplier: number,
-  previousSuggestedMultiplier?: number,
-): boolean {
-  if (
-    Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) <=
-    LARGE_MULTIPLIER_CHANGE_RATIO
-  )
-    return false;
-  return (
-    previousSuggestedMultiplier == null ||
-    Math.abs(previousSuggestedMultiplier - targetMultiplier) / Math.max(targetMultiplier, Number.EPSILON) > 0.1
-  );
-}
+const LARGE_MULTIPLIER_CHANGE_RATIO = RELAY_PROBE_APPLY_POLICY.largeChangeRatio;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
@@ -133,6 +181,9 @@ export type RelayChannelProbeTopologyItem = Pick<
   "id" | "name" | "enabled" | "channelType" | "poolMembers"
 >;
 
+type ProbeCompatibilityMetadata = Pick<RelayChannel, "allowedFormats" | "allowedModels"> & {
+  upstreamConfigured: boolean;
+};
 type ProbeFormat = RelayProbeFormat;
 type ConfiguredProbeFormat = RelayConfiguredRequestFormat;
 type ProbeBalanceSnapshot = { balance: number; observedAt: string };
@@ -157,18 +208,6 @@ export function resolveProbeBillableInputTokens(
   inputIncludesCacheRead: boolean,
 ): number {
   return resolveFreshInputTokens(requestTokens, cacheReadTokens, cacheCreationTokens, inputIncludesCacheRead);
-}
-
-export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
-  return format === "openai-responses"
-    ? "openai-responses"
-    : format === "openai" || format === "openai-chat-completions"
-      ? "openai-chat-completions"
-      : format === "anthropic"
-        ? "anthropic-messages"
-        : format === "gemini"
-          ? "gemini-generate-content"
-          : "openai-chat-completions";
 }
 
 export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): void {
@@ -570,30 +609,6 @@ export function resolveProbeLockScopes(probeGroup?: string | null, accountId?: s
   ].sort();
 }
 
-/**
- * Probe traffic must resolve models in the same way as relay traffic: the
- * configured model name selects local pricing, while its modelId is what the
- * upstream receives. This matters for channel-level aliases and mappings.
- */
-export function resolveProbeModelPricing(
-  probeModel: string,
-  channelModelMapping: Record<string, string> | null | undefined,
-  modelRates: ModelPricingItemDto[],
-): { rate: ModelPricingItemDto; upstreamModelId: string } {
-  const pricingModel = resolveMappedModel(probeModel.trim(), channelModelMapping);
-  const rate = modelRates.find((item) => item.model === pricingModel);
-  if (!rate)
-    throw new BadRequestError("探针模型没有本地定价配置", undefined, {
-      messageKey: "relayChannelProbe.modelNoLocalPricing",
-    });
-  const upstreamModelId = rate.modelId?.trim() || resolveModelId(rate).trim();
-  if (!upstreamModelId)
-    throw new BadRequestError("探针模型缺少上游模型标识", undefined, {
-      messageKey: "relayChannelProbe.modelMissingUpstreamId",
-    });
-  return { rate, upstreamModelId };
-}
-
 type ProbeUsage = {
   requestTokens: number;
   responseTokens: number;
@@ -727,7 +742,98 @@ export class RelayChannelProbeService {
     return this.instance;
   }
 
-  async listOverview(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
+  async listOverview(actorUserId: string, request?: TypedRequest): Promise<RelayChannelProbeOverviewItemDto[]> {
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:ListProbeOverview",
+      actorUserId,
+      request,
+      ({ principal, decide, decideRelated, recheck, visible }) =>
+        RelayProbeOverviewReadRepository.getInstance().list(
+          principal,
+          decide,
+          decideRelated,
+          recheck,
+          visible,
+          (records) => this.toIamOverview(records),
+        ),
+      () => this.listOverviewLegacy(actorUserId),
+    );
+  }
+
+  private toIamOverview(records: RelayProbeOverviewRecord[]): RelayChannelProbeOverviewItemDto[] {
+    const enabled = (channel: RelayProbeOverviewRecord["channel"]) =>
+      channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.providerServiceEnabled !== false;
+    const topology: RelayChannelProbeTopologyItem[] = records.map((row) => ({
+      id: row.channel.id,
+      name: row.channel.name,
+      channelType: row.channel.channelType as RelayChannelType,
+      enabled: enabled(row.channel),
+      poolMembers: row.members?.map((member) => ({
+        memberChannelId: member.channel.id,
+        enabled: member.membershipEnabled,
+        memberChannelEnabled: enabled(member.channel) && member.channel.pooledMemberEnabled !== false,
+        priority: 0,
+        weight: 1,
+      })),
+    }));
+    return records.map((row) => {
+      const channel = row.channel,
+        profile = row.profile;
+      // Decryption is reached only after the exact profile grant; denied/member-external names never enter the DTO.
+      const credentials = profile?.encryptedCredentials ? this.decryptCredentials(profile) : {};
+      const profileDto = profile ? this.toProfileDto(profile) : undefined;
+      if (profileDto && row.members)
+        profileDto.credentialNames = profileDto.credentialNames.filter((id) => row.profileMembers.has(id));
+      return {
+        channelId: channel.id,
+        channelName: channel.name,
+        channelType: channel.channelType as RelayChannelType,
+        enabled: enabled(channel),
+        visibilityMode: channel.visibilityMode as RelayChannelProbeOverviewItemDto["visibilityMode"],
+        customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
+        multiplier: Number(channel.multiplier),
+        allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats ?? ""),
+        allowedProbeModels: parseAllowedModelsJson(channel.allowedModels) ?? [],
+        profile: profileDto,
+        targetConfig: this.toTargetConfigDto(channel.id, undefined, row.targetConfig ?? null),
+        ...(row.latestRun ? { latestRun: this.toRunDto(row.latestRun) } : {}),
+        ...(row.members
+          ? {
+              members: row.members.map((member) => {
+                const compatibility = profile
+                  ? this.getProbeChannelCompatibility(
+                      {
+                        allowedFormats: member.channel.allowedFormats,
+                        allowedModels: member.channel.allowedModels,
+                        upstreamConfigured: member.upstreamConfigured,
+                      },
+                      member.targetConfig?.probeFormat ?? profile.probeFormat,
+                      member.targetConfig?.probeModel ?? profile.probeModel,
+                    )
+                  : { compatible: true };
+                return {
+                  channelId: member.channel.id,
+                  channelName: member.channel.name,
+                  enabled:
+                    member.membershipEnabled && enabled(member.channel) && member.channel.pooledMemberEnabled !== false,
+                  hasCredentials:
+                    (row.profileMembers.has(member.channel.id) && Boolean(credentials[member.channel.id])) ||
+                    Boolean(member.targetConfig?.accountId),
+                  allowedProbeFormats: this.toAllowedProbeFormats(member.channel.allowedFormats ?? ""),
+                  allowedProbeModels: parseAllowedModelsJson(member.channel.allowedModels) ?? [],
+                  compatible: compatibility.compatible,
+                  ...(compatibility.reason ? { incompatibilityReason: compatibility.reason } : {}),
+                  targetConfig: this.toTargetConfigDto(channel.id, member.channel.id, member.targetConfig ?? null),
+                  ...(member.latestRun ? { latestRun: this.toRunDto(member.latestRun) } : {}),
+                };
+              }),
+            }
+          : {}),
+      };
+    });
+  }
+
+  private async listOverviewLegacy(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
     const [channels, topology] = await Promise.all([
       RelayChannelService.getInstance().listChannels(actorUserId, true),
       this.listChannelTopology(),
@@ -757,7 +863,7 @@ export class RelayChannelProbeService {
           visibilityMode: channel.visibilityMode,
           customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
           multiplier: channel.multiplier,
-          allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
+          allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats ?? ""),
           allowedProbeModels: channel.allowedModels,
           profile: profile ? this.toProfileDto(profile) : undefined,
           targetConfig: profile
@@ -855,13 +961,17 @@ export class RelayChannelProbeService {
     profile: Pick<ProbeProfileRecord, "encryptedCredentials" | "credentialIv" | "credentialAuthTag">,
   ) {
     try {
-      return this.decryptCredentials(profile as ProbeProfileRecord);
+      return this.decryptCredentials(profile);
     } catch {
       return {};
     }
   }
 
-  private getProbeChannelCompatibility(member: RelayChannel, format: string, model: string) {
+  private getProbeChannelCompatibility(
+    member: RelayChannel | ProbeCompatibilityMetadata,
+    format: string,
+    model: string,
+  ) {
     try {
       this.assertProbeRelayChannelCompatibility(member, format, model);
       return { compatible: true };
@@ -870,7 +980,11 @@ export class RelayChannelProbeService {
     }
   }
 
-  private assertProbeRelayChannelCompatibility(channel: RelayChannel, format: string, model: string): void {
+  private assertProbeRelayChannelCompatibility(
+    channel: RelayChannel | ProbeCompatibilityMetadata,
+    format: string,
+    model: string,
+  ): void {
     if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
       throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`, undefined, {
         messageKey: "relayChannelProbe.formatProbeUnsupported",
@@ -881,11 +995,13 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.modelNotSupportedByChannel",
       });
     const upstreamConfigured =
-      format === "openai" || format.startsWith("openai-")
-        ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
-        : format === "anthropic"
-          ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
-          : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
+      "upstreamConfigured" in channel
+        ? channel.upstreamConfigured
+        : format === "openai" || format.startsWith("openai-")
+          ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
+          : format === "anthropic"
+            ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
+            : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
     if (!upstreamConfigured)
       throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`, undefined, {
         messageKey: "relayChannelProbe.upstreamMissingForFormat",
@@ -931,7 +1047,38 @@ export class RelayChannelProbeService {
     });
   }
 
-  async getProfile(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
+  async getProfile(
+    channelId: string,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeProfileDto> {
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:GetProbeProfile",
+      actorUserId,
+      request,
+      async ({ principal, decide, recheck, visible }) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeProfileReadRepository.getInstance().get(
+          principal,
+          channelId,
+          decide,
+          recheck,
+          visible,
+          (profile, members) => {
+            const dto = this.toProfileDto(profile);
+            if (members) dto.credentialNames = dto.credentialNames.filter((name) => members.has(name));
+            return dto;
+          },
+        );
+      },
+      () => this.getProfileLegacy(channelId, actorUserId),
+    );
+  }
+  private async getProfileLegacy(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const profile = await this.repository.findProfile(channelId);
     if (!profile)
@@ -953,16 +1100,86 @@ export class RelayChannelProbeService {
     }
   }
 
-  async upsertProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest, actorUserId: string) {
+  async upsertProfile(
+    channelId: string,
+    input: UpsertRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeProfileDto> {
+    const body = upsertRelayChannelProbeProfileBodySchema.parse(input),
+      reservedId = createId();
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:SaveProbeProfile",
+      actorUserId,
+      request,
+      (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return this.channelLockService.withWrite(channelId, () =>
+          RelayProbeProfileSaveRepository.getInstance().save(
+            channelId,
+            reservedId,
+            body.probeFormat,
+            guard,
+            (metadata, previous) => {
+              if (metadata.channelType !== "pooled")
+                this.assertProbeRelayChannelCompatibility(metadata, body.probeFormat, body.probeModel);
+              return this.prepareProfileConfiguration(body, metadata, previous);
+            },
+            (profile) => this.toProfileDto(profile),
+          ),
+        );
+      },
+      () => this.upsertProfileLegacy(channelId, body, actorUserId, reservedId),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+  private async upsertProfileLegacy(
+    channelId: string,
+    body: UpsertRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    reservedId: string,
+  ) {
     const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (!isProbeableChannelType(channel.channelType))
-      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针", undefined, {
+      throw new BadRequestError("Unsupported probe target", undefined, {
         messageKey: "relayChannelProbe.balanceProbeScopeInvalid",
       });
     const existing = await this.repository.findProfile(channelId);
     if (existing) await this.assertCanModifyBoundProfile(existing.id, actorUserId);
     if (channel.channelType !== "pooled")
       this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
+    const members = channel.channelType === "pooled" ? await this.resolvePoolMembers(channelId) : [];
+    const data = this.prepareProfileConfiguration(
+      body,
+      {
+        channelType: channel.channelType,
+        allowedFormats: channel.allowedFormats,
+        allowedModels: JSON.stringify(channel.allowedModels),
+        upstreamConfigured: true,
+        members: members.map((member) => ({
+          id: member.channel.id,
+          active: member.membershipEnabled && this.isEnabledProbeMember(member.channel),
+        })),
+      },
+      existing ?? undefined,
+    );
+    const profile = await this.repository.upsertProfile({
+      where: { relayChannelId: channelId },
+      create: { ...data, id: reservedId, relayChannelId: channelId },
+      update: data,
+    });
+    return this.toProfileDto(profile);
+  }
+  private prepareProfileConfiguration(
+    body: UpsertRelayChannelProbeProfileRequest,
+    metadata: RelayProbeProfileSaveMetadata,
+    existing: RelayProbeProfileReadRecord | undefined,
+  ): Omit<Prisma.RelayChannelProbeProfileUncheckedCreateInput, "id" | "relayChannelId"> {
     const probeEndpoint = body.probeEndpoint ?? normalizeProbeEndpoint(existing?.probeEndpoint, body.probeFormat);
     assertProbeEndpointCompatibility(probeEndpoint, body.probeFormat);
     const cacheMode: RelayChannelProbeCacheMode =
@@ -977,21 +1194,19 @@ export class RelayChannelProbeService {
       : (body.preventCache ?? existing?.preventCache ?? true);
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
     let encryptedMemberCredentials: { ciphertext: string; iv: string; authTag: string } | undefined;
-    if (channel.channelType === "pooled") {
+    if (metadata.channelType === "pooled") {
       if (body.credentials)
         throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据", undefined, {
           messageKey: "relayChannelProbe.pooledMemberCredentialsRequired",
         });
-      const members = await this.resolvePoolMembers(channelId);
-      const activeMembers = members.filter(
-        (member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel),
-      );
+      const members = metadata.members;
+      const activeMembers = members.filter((member) => member.active);
       if (!activeMembers.length)
         throw new BadRequestError("逻辑混池没有可用的物理成员用于探针", undefined, {
           messageKey: "relayChannelProbe.pooledNoUsableMember",
         });
-      const memberIds = new Set(members.map((member) => member.channel.id));
-      const existingCredentials = existing ? this.tryDecryptCredentials(existing) : {};
+      const memberIds = new Set(members.map((member) => member.id));
+      const existingCredentials = existing?.encryptedCredentials ? this.decryptCredentials(existing) : {};
       if (body.memberCredentials && Object.keys(body.memberCredentials).some((id) => !memberIds.has(id)))
         throw new BadRequestError("逻辑混池包含无效的物理成员探针凭据", undefined, {
           messageKey: "relayChannelProbe.pooledInvalidMemberCredentials",
@@ -1010,66 +1225,55 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.pooledMemberCredentialsOnly",
       });
     }
-    const profile = await this.repository.upsertProfile({
-      where: { relayChannelId: channelId },
-      create: {
-        relayChannelId: channelId,
-        enabled: body.enabled,
-        probeFormat: body.probeFormat,
-        probeEndpoint,
-        probeModel: body.probeModel,
-        probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache,
-        cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
-        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
-        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
-        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
-        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
-        upstreamCurrency: body.upstreamCurrency || "CNY",
-        localCurrency: body.localCurrency || "CNY",
-        upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
-        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
-        probeGroup: this.normalizeProbeGroup(body.probeGroup),
-        distributionMultiplier: body.distributionMultiplier ?? 1,
-        workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        encryptedCredentials: encryptedMemberCredentials?.ciphertext ?? encrypted?.ciphertext,
-        credentialIv: encryptedMemberCredentials?.iv ?? encrypted?.iv,
-        credentialAuthTag: encryptedMemberCredentials?.authTag ?? encrypted?.authTag,
-      },
-      update: {
-        enabled: body.enabled,
-        probeFormat: body.probeFormat,
-        probeEndpoint,
-        probeModel: body.probeModel,
-        probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache,
-        cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
-        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
-        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
-        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
-        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
-        upstreamCurrency: body.upstreamCurrency || "CNY",
-        localCurrency: body.localCurrency || "CNY",
-        upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
-        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
-        probeGroup: this.normalizeProbeGroup(body.probeGroup),
-        distributionMultiplier: body.distributionMultiplier ?? 1,
-        workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        ...(encryptedMemberCredentials || encrypted
-          ? {
-              encryptedCredentials: (encryptedMemberCredentials ?? encrypted)!.ciphertext,
-              credentialIv: (encryptedMemberCredentials ?? encrypted)!.iv,
-              credentialAuthTag: (encryptedMemberCredentials ?? encrypted)!.authTag,
-            }
-          : {}),
-      },
-    });
-    return this.toProfileDto(profile);
+    return {
+      enabled: body.enabled,
+      probeFormat: body.probeFormat,
+      probeEndpoint,
+      probeModel: body.probeModel,
+      probePayload: body.probePayload as Prisma.InputJsonValue,
+      preventCache,
+      cacheMode,
+      sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+      strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
+      measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
+      balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
+      balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
+      upstreamCurrency: body.upstreamCurrency || "CNY",
+      localCurrency: body.localCurrency || "CNY",
+      upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
+      upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
+      probeGroup: this.normalizeProbeGroup(body.probeGroup),
+      distributionMultiplier: body.distributionMultiplier ?? 1,
+      workflow: body.workflow as unknown as Prisma.InputJsonValue,
+      ...(encryptedMemberCredentials || encrypted
+        ? {
+            encryptedCredentials: (encryptedMemberCredentials ?? encrypted)!.ciphertext,
+            credentialIv: (encryptedMemberCredentials ?? encrypted)!.iv,
+            credentialAuthTag: (encryptedMemberCredentials ?? encrypted)!.authTag,
+          }
+        : {}),
+    };
   }
 
-  async clearProfile(channelId: string, actorUserId: string): Promise<void> {
+  async clearProfile(channelId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:DeleteProbeProfile",
+      actorUserId,
+      request,
+      async (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return this.channelLockService.withWrite(channelId, () =>
+          RelayProbeProfileDeleteRepository.getInstance().remove(channelId, guard),
+        );
+      },
+      () => this.clearProfileLegacy(channelId, actorUserId),
+    );
+  }
+  private async clearProfileLegacy(channelId: string, actorUserId: string): Promise<void> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     await this.channelLockService.withWrite(channelId, async () => {
       if (await this.repository.findActiveRun(channelId))
@@ -1085,25 +1289,193 @@ export class RelayChannelProbeService {
   }
 
   /** Cancels stuck queued/running work and releases its queue slot without changing the probe profile. */
-  async resetRunState(channelId: string, actorUserId: string, memberChannelId?: string): Promise<void> {
-    await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
-    const runIds = await this.repository.cancelActiveRuns(channelId, "探针任务已由操作人员重置", memberChannelId);
-    await Promise.all(
-      runIds.map((runId) =>
-        this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId, memberChannelId), runId),
-      ),
+  async resetRunState(
+    channelId: string,
+    actorUserId: string,
+    memberChannelId?: string,
+    request?: TypedRequest,
+  ): Promise<void> {
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ResetProbeRuns",
+      actorUserId,
+      request,
+      (guard) =>
+        this.channelLockService.withQueueWrite(channelId, async () => {
+          try {
+            platformRelayChannelArn(channelId);
+            if (memberChannelId) platformRelayChannelArn(memberChannelId);
+          } catch {
+            throw iamAccountDenied();
+          }
+          const observed = await RelayProbeRunResetRepository.getInstance().reset(
+            channelId,
+            memberChannelId,
+            "Probe task reset by operator",
+            guard,
+            (ids) => this.readProbeQueueSlots(channelId, ids),
+          );
+          if (guard.persist) {
+            await guard.recheck();
+            await this.releaseObservedProbeQueueSlots(channelId, observed);
+          }
+        }),
+      () =>
+        this.channelLockService.withQueueWrite(channelId, () =>
+          this.resetRunStateLegacy(channelId, actorUserId, memberChannelId),
+        ),
     );
-    // A process restart can leave only the Redis reservation behind. At this point
-    // all persisted active runs have been cancelled, so force-release the exact
-    // channel slot even when there was no matching database row.
-    await this.redis.delete(this.getRunQueueSlotKey(channelId, memberChannelId));
+  }
+  private async readProbeQueueSlots(
+    channelId: string,
+    memberIds: readonly (string | undefined)[],
+  ): Promise<RelayProbeQueueSnapshot[]> {
+    const observed: RelayProbeQueueSnapshot[] = [];
+    for (const memberChannelId of memberIds) {
+      const result = await this.redis.getWithResult(relayProbeQueueSlotKey(channelId, memberChannelId));
+      if (!result)
+        throw new LockBackendUnavailableError("Probe queue unavailable", undefined, {
+          messageKey: "relayChannelProbe.queueBackendUnavailable",
+        });
+      const { value } = result;
+      observed.push({ memberChannelId, value });
+    }
+    return observed;
+  }
+  private async releaseObservedProbeQueueSlots(channelId: string, observed: RelayProbeQueueSnapshot[]): Promise<void> {
+    for (const slot of observed) {
+      if (!slot.value) continue;
+      if (
+        (await this.redis.deleteIfValueMatches(relayProbeQueueSlotKey(channelId, slot.memberChannelId), slot.value)) ===
+        null
+      )
+        throw new LockBackendUnavailableError("Probe queue cleanup unavailable after task cancellation", undefined, {
+          messageKey: "relayChannelProbe.queueBackendUnavailable",
+        });
+    }
+  }
+  private async resetRunStateLegacy(channelId: string, actorUserId: string, memberChannelId?: string): Promise<void> {
+    const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
+    const activeMembers = await this.repository.listActiveRunMembers(channelId, memberChannelId);
+    const current =
+      !memberChannelId && channel.channelType === "pooled"
+        ? (await this.resolvePoolMembers(channelId)).map((member) => member.channel.id)
+        : [];
+    const slots = memberChannelId
+      ? [memberChannelId]
+      : [
+          undefined,
+          ...new Set([
+            ...current,
+            ...activeMembers.flatMap((row) => (row.probeMemberChannelId ? [row.probeMemberChannelId] : [])),
+          ]),
+        ];
+    const observed = await this.readProbeQueueSlots(channelId, slots);
+    await this.repository.cancelActiveRuns(channelId, "Probe task reset by operator", memberChannelId);
+    await this.releaseObservedProbeQueueSlots(channelId, observed);
   }
 
   async createRun(
     channelId: string,
+    input: CreateRelayChannelProbeRunRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeRunDto> {
+    const parsed = createRelayChannelProbeRunBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe target", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      runId = createId();
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CreateProbeRun",
+      actorUserId,
+      request,
+      (guard) =>
+        this.channelLockService.withQueueWrite(channelId, async () => {
+          try {
+            platformRelayChannelArn(channelId);
+            if (body.memberChannelId) platformRelayChannelArn(body.memberChannelId);
+          } catch {
+            throw iamAccountDenied();
+          }
+          const queueKey = relayProbeQueueSlotKey(channelId, body.memberChannelId);
+          let undoAdmission: (() => Promise<void>) | undefined,
+            owned = false;
+          try {
+            const run = await RelayProbeRunCreateRepository.getInstance().create(
+              channelId,
+              runId,
+              body,
+              guard,
+              (format, previous, override) =>
+                override
+                  ? defaultProbeEndpoint(format as ProbeFormat)
+                  : normalizeProbeEndpoint(previous, format as ProbeFormat),
+              async (target) => {
+                if (
+                  request!.user?.impersonatorId ||
+                  request!.user?.updatedAt !==
+                    guard.snapshot.users
+                      .find((user) => user.id === guard.principal.subjectUserId)
+                      ?.updateTime.toISOString()
+                )
+                  throw iamAccountDenied();
+                const reserved = await this.redis.setIfNotExists(queueKey, runId, RELAY_PROBE_QUEUE_POLICY.slotTtlMs);
+                if (reserved !== true)
+                  throw reserved === false
+                    ? new ConflictError("Probe already reserved", undefined, {
+                        messageKey: "relayChannelProbe.probeAlreadyQueued",
+                      })
+                    : new LockBackendUnavailableError("Probe queue unavailable", undefined, {
+                        messageKey: "relayChannelProbe.queueBackendUnavailable",
+                      });
+                owned = true;
+                undoAdmission = await RelayProbeRunAdmissionStore.getInstance().save({
+                  version: 1,
+                  runId,
+                  channelId,
+                  memberChannelId: body.memberChannelId ?? null,
+                  ...target,
+                  principal: guard.principal,
+                  identity: {
+                    principalUpdatedAt: guard.snapshot.users
+                      .find((user) => user.id === guard.principal.subjectUserId)!
+                      .updateTime.toISOString(),
+                    ownerUpdatedAt: guard.snapshot.users
+                      .find((user) => user.id === guard.principal.accountOwnerId)!
+                      .updateTime.toISOString(),
+                    accessKeyId: request!.accessKey?.id,
+                    accessKeyRevision: await captureIamAccessKeyRevision(guard.principal, request!.accessKey?.id),
+                  },
+                  transport: {
+                    ...requestTransportConditionContext(request!),
+                    "acs:SecureTransport": request!.secure === true,
+                  },
+                  expiresAt: Date.now() + RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+                });
+              },
+            );
+            return run ? this.toRunDto(run) : undefined;
+          } catch (error) {
+            await undoAdmission?.().catch(() => undefined);
+            if (owned) await this.redis.deleteIfValueMatches(queueKey, runId).catch(() => null);
+            throw error;
+          }
+        }),
+      () =>
+        this.channelLockService.withQueueWrite(channelId, () =>
+          this.createRunLegacy(channelId, body, actorUserId, runId, request),
+        ),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+  private async createRunLegacy(
+    channelId: string,
     body: CreateRelayChannelProbeRunRequest,
     actorUserId: string,
+    reservedId?: string,
+    request?: TypedRequest,
   ): Promise<RelayChannelProbeRunDto> {
     const profile = await this.repository.findProfileWithChannel(channelId);
     if (!profile)
@@ -1140,8 +1512,8 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.queueBackendUnavailable",
       });
     const reservationId = randomUUID();
-    const queueKey = this.getRunQueueSlotKey(channelId, memberChannelId || undefined);
-    const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RUN_QUEUE_SLOT_TTL_MS);
+    const queueKey = relayProbeQueueSlotKey(channelId, memberChannelId || undefined);
+    const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RELAY_PROBE_QUEUE_POLICY.slotTtlMs);
     if (reserved === null)
       throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable", undefined, {
         messageKey: "relayChannelProbe.queueBackendUnavailable",
@@ -1153,6 +1525,7 @@ export class RelayChannelProbeService {
 
     try {
       const run = await this.repository.createRun({
+        ...(reservedId ? { id: reservedId } : {}),
         relayChannelId: channelId,
         probeMemberChannelId: memberChannelId,
         probeMemberChannelName: memberChannelId ? executionChannel.name : null,
@@ -1169,7 +1542,58 @@ export class RelayChannelProbeService {
         balanceSettlementReads: profile.balanceSettlementReads,
         forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
-      const attached = await this.redis.replaceIfValueMatches(queueKey, reservationId, run.id, RUN_QUEUE_SLOT_TTL_MS);
+      if (request && env.security.iamAuthorizationMode === "shadow") {
+        const principal = getIamPrincipal(request);
+        if (principal) {
+          try {
+            const snapshot = await PlatformManagementReadRepository.getInstance().snapshot(
+              principal,
+              Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+            );
+            if (
+              request.user?.impersonatorId ||
+              request.user?.updatedAt !==
+                snapshot.users.find((user) => user.id === principal.subjectUserId)?.updateTime.toISOString()
+            )
+              throw iamAccountDenied();
+            await RelayProbeRunAdmissionStore.getInstance().save({
+              version: 1,
+              runId: run.id,
+              channelId,
+              memberChannelId,
+              profileId: profile.id,
+              profileUpdatedAt: profile.updateTime.toISOString(),
+              targetConfigId: targetConfig?.id ?? null,
+              targetConfigUpdatedAt: targetConfig?.updateTime.toISOString() ?? null,
+              accountId: targetConfig?.accountId ?? null,
+              principal,
+              identity: {
+                principalUpdatedAt: snapshot.users
+                  .find((user) => user.id === principal.subjectUserId)!
+                  .updateTime.toISOString(),
+                ownerUpdatedAt: snapshot.users
+                  .find((user) => user.id === principal.accountOwnerId)!
+                  .updateTime.toISOString(),
+                accessKeyId: request.accessKey?.id,
+                accessKeyRevision: await captureIamAccessKeyRevision(principal, request.accessKey?.id),
+              },
+              transport: {
+                ...requestTransportConditionContext(request),
+                "acs:SecureTransport": request.secure === true,
+              },
+              expiresAt: Date.now() + RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+            });
+          } catch {
+            /* Shadow admission storage must not change the legacy result. */
+          }
+        }
+      }
+      const attached = await this.redis.replaceIfValueMatches(
+        queueKey,
+        reservationId,
+        run.id,
+        RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+      );
       // The persistent run remains authoritative if Redis recovers between the
       // reservation and attachment. The database active-run check still keeps
       // later submissions from creating a second task.
@@ -1183,31 +1607,84 @@ export class RelayChannelProbeService {
   }
 
   async createRuns(
-    body: CreateRelayChannelProbeRunsRequest,
+    input: CreateRelayChannelProbeRunsRequest,
     actorUserId: string,
+    request?: TypedRequest,
   ): Promise<CreateRelayChannelProbeRunsResponse> {
+    const parsed = createRelayChannelProbeRunsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe batch", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    const targets: RelayChannelProbeTargetDto[] = [...(body.targets ?? [])],
+      rejected: CreateRelayChannelProbeRunsResponse["rejected"] = [];
+    const deduplicate = (entries: readonly RelayChannelProbeTargetDto[]) => [
+      ...new Map(
+        entries.map((target) => [JSON.stringify([target.channelId, target.memberChannelId ?? null]), target]),
+      ).values(),
+    ];
+    const reason = (error: unknown) =>
+      translateMessage(
+        error instanceof ConflictError
+          ? "relayChannelProbe.probeAlreadyQueued"
+          : error instanceof LockBackendUnavailableError
+            ? "relayChannelProbe.queueBackendUnavailable"
+            : error instanceof BadRequestError
+              ? "errors.badRequest"
+              : "permission.insufficientPermission",
+        request?.locale ?? DEFAULT_BACKEND_LOCALE,
+      );
+    await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CreateProbeRun",
+      actorUserId,
+      request,
+      async (guard) => {
+        const discovered: RelayChannelProbeTargetDto[] = [],
+          failures: typeof rejected = [];
+        for (const channelId of body.channelIds ?? []) {
+          try {
+            discovered.push(...(await RelayProbeBatchTargetRepository.getInstance().expand(channelId, guard)));
+          } catch (error) {
+            failures.push({ channelId, reason: reason(error) });
+          }
+          if (deduplicate([...discovered, ...targets]).length > RELAY_PROBE_BATCH_POLICY.targets)
+            throw new BadRequestError("Probe expansion exceeds batch limit", undefined, {
+              messageKey: "errors.badRequest",
+            });
+        }
+        if (guard.persist) {
+          targets.push(...discovered);
+          rejected.push(...failures);
+        }
+        return undefined;
+      },
+      async () => {
+        for (const channelId of body.channelIds ?? []) {
+          try {
+            const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+            if (channel.channelType === "pooled") {
+              const members = await this.resolvePoolMembers(channelId);
+              targets.push(
+                ...members
+                  .filter((member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel))
+                  .map((member) => ({ channelId, memberChannelId: member.channel.id })),
+              );
+            } else targets.push({ channelId });
+          } catch (error) {
+            rejected.push({ channelId, reason: reason(error) });
+          }
+          if (deduplicate(targets).length > RELAY_PROBE_BATCH_POLICY.targets)
+            throw new BadRequestError("Probe expansion exceeds batch limit", undefined, {
+              messageKey: "errors.badRequest",
+            });
+        }
+      },
+    );
+    // Deduplicate explicit + expanded entries before independent per-resource scheduling.
+    const unique = deduplicate(targets);
+    if (unique.length > RELAY_PROBE_BATCH_POLICY.targets)
+      throw new BadRequestError("Probe expansion exceeds batch limit", undefined, { messageKey: "errors.badRequest" });
     const queued: RelayChannelProbeRunDto[] = [];
-    const rejected: Array<{ channelId: string; memberChannelId?: string; reason: string }> = [];
-    const targets: RelayChannelProbeTargetDto[] = [...(body.targets ?? [])];
-    for (const channelId of body.channelIds ?? []) {
-      try {
-        const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-        if (channel.channelType === "pooled") {
-          const members = await this.resolvePoolMembers(channelId);
-          targets.push(
-            ...members
-              .filter((member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel))
-              .map((member) => ({ channelId, memberChannelId: member.channel.id })),
-          );
-        } else targets.push({ channelId });
-      } catch (error) {
-        rejected.push({ channelId, reason: error instanceof Error ? error.message : "探针任务创建失败" });
-      }
-    }
-
-    // Queue one record at a time so a blocked or already-running channel never prevents
-    // independent channels from being scheduled.
-    for (const target of targets) {
+    for (const target of unique) {
       try {
         queued.push(
           await this.createRun(
@@ -1218,14 +1695,11 @@ export class RelayChannelProbeService {
               forceWithoutCacheBuster: body.forceWithoutCacheBuster,
             },
             actorUserId,
+            request,
           ),
         );
       } catch (error) {
-        rejected.push({
-          channelId: target.channelId,
-          ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
-          reason: error instanceof Error ? error.message : "探针任务创建失败",
-        });
+        rejected.push({ ...target, reason: reason(error) });
       }
     }
     return { queued, rejected };
@@ -1238,8 +1712,58 @@ export class RelayChannelProbeService {
    * prevent the operator from configuring the rest of the selected set.
    */
   async copyProfile(
+    input: CopyRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<CopyRelayChannelProbeProfileResponse> {
+    const parsed = copyRelayChannelProbeProfileBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid profile copy targets", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      reserved = new Map(body.targetChannelIds.map((id) => [id, createId()]));
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CopyProbeProfile",
+      actorUserId,
+      request,
+      async (guard) => {
+        const copied: RelayChannelProbeProfileDto[] = [],
+          rejected: CopyRelayChannelProbeProfileResponse["rejected"] = [];
+        for (const targetId of body.targetChannelIds) {
+          try {
+            platformRelayChannelArn(body.sourceChannelId);
+            platformRelayChannelArn(targetId);
+            const ids = [body.sourceChannelId, targetId].sort();
+            const record = await this.channelLockService.withWrite(ids[0]!, () =>
+              this.channelLockService.withWrite(ids[1]!, () =>
+                RelayProbeProfileCopyRepository.getInstance().copy(
+                  body.sourceChannelId,
+                  targetId,
+                  reserved.get(targetId)!,
+                  Boolean(body.overwriteExisting),
+                  guard,
+                  (row) => this.toProfileDto(row),
+                ),
+              ),
+            );
+            if (record) copied.push(record);
+          } catch {
+            rejected.push({
+              channelId: targetId,
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { copied, rejected };
+      },
+      () => this.copyProfileLegacy(body, actorUserId, reserved),
+    );
+    return result;
+  }
+
+  private async copyProfileLegacy(
     body: CopyRelayChannelProbeProfileRequest,
     actorUserId: string,
+    reserved?: ReadonlyMap<string, string>,
   ): Promise<CopyRelayChannelProbeProfileResponse> {
     const channelService = RelayChannelService.getInstance();
     const sourceChannel = await channelService.getChannel(body.sourceChannelId, actorUserId);
@@ -1286,7 +1810,11 @@ export class RelayChannelProbeService {
           continue;
         }
         if (existing) await this.assertCanModifyBoundProfile(existing.id, actorUserId);
-        copied.push(this.toProfileDto(await this.repository.copyProfile(sourceProfile, channelId)));
+        copied.push(
+          this.toProfileDto(
+            await this.repository.copyProfile(sourceProfile, channelId, true, reserved?.get(channelId)),
+          ),
+        );
       } catch (error) {
         rejected.push({
           channelId,
@@ -1340,8 +1868,60 @@ export class RelayChannelProbeService {
   }
 
   async configureTargets(
+    input: ConfigureRelayChannelProbeTargetsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    const parsed = configureRelayChannelProbeTargetsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe targets", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      reserved = new Map([...new Set(body.targets.map((row) => row.channelId))].map((id) => [id, createId()]));
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ConfigureProbeTarget",
+      actorUserId,
+      request,
+      async (guard) => {
+        const configured: RelayChannelProbeTargetConfigDto[] = [],
+          rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
+        for (const target of body.targets) {
+          try {
+            platformRelayChannelArn(target.channelId);
+            if (target.memberChannelId) platformRelayChannelArn(target.memberChannelId);
+            if (body.sourceChannelId) platformRelayChannelArn(body.sourceChannelId);
+            const ids = [
+              ...new Set([target.channelId, ...(body.sourceChannelId ? [body.sourceChannelId] : [])]),
+            ].sort();
+            const operation = () =>
+              RelayProbeTargetConfigureRepository.getInstance().configure(
+                target,
+                body.sourceChannelId,
+                reserved.get(target.channelId)!,
+                Boolean(body.overwriteExisting),
+                guard,
+              );
+            const record = await this.channelLockService.withWrite(ids[0]!, () =>
+              ids.length > 1 ? this.channelLockService.withWrite(ids[1]!, operation) : operation(),
+            );
+            if (record) configured.push(record);
+          } catch {
+            rejected.push({
+              channelId: target.channelId,
+              ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { configured, rejected };
+      },
+      () => this.configureTargetsLegacy(body, actorUserId, reserved),
+    );
+  }
+
+  private async configureTargetsLegacy(
     body: ConfigureRelayChannelProbeTargetsRequest,
     actorUserId: string,
+    reserved?: ReadonlyMap<string, string>,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
     const configured: RelayChannelProbeTargetConfigDto[] = [];
     const rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
@@ -1384,7 +1964,7 @@ export class RelayChannelProbeService {
         assertProbeEndpointCompatibility(defaultProbeEndpoint(format as ProbeFormat), format as ProbeFormat);
         if (template === source && source) {
           // Validate first; a rejected target must not retain an unusable copied profile.
-          profile = await this.repository.copyProfile(source, target.channelId, false);
+          profile = await this.repository.copyProfile(source, target.channelId, false, reserved?.get(target.channelId));
         }
         if (!profile)
           throw new BadRequestError("Configure a template first", undefined, {
@@ -1415,6 +1995,45 @@ export class RelayChannelProbeService {
   }
 
   async bindAccounts(
+    input: BindRelayChannelProbeAccountsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    const parsed = bindRelayChannelProbeAccountsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe bindings", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:BindProbeAccount",
+      actorUserId,
+      request,
+      async (guard) => {
+        const configured: RelayChannelProbeTargetConfigDto[] = [],
+          rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
+        for (const target of body.targets) {
+          try {
+            platformRelayChannelArn(target.channelId);
+            if (target.memberChannelId) platformRelayChannelArn(target.memberChannelId);
+            if (target.accountId) platformRelayProbeAccountArn(target.accountId);
+            const record = await this.channelLockService.withWrite(target.channelId, () =>
+              RelayProbeAccountBindingRepository.getInstance().bind(target, guard),
+            );
+            if (record) configured.push(record);
+          } catch {
+            rejected.push({
+              channelId: target.channelId,
+              ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { configured, rejected };
+      },
+      () => this.bindAccountsLegacy(body, actorUserId),
+    );
+  }
+
+  private async bindAccountsLegacy(
     body: BindRelayChannelProbeAccountsRequest,
     actorUserId: string,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
@@ -1450,7 +2069,47 @@ export class RelayChannelProbeService {
     return { configured, rejected };
   }
 
-  async listRuns(channelId: string, actorUserId: string, page = 1, pageSize = 20, memberChannelId?: string) {
+  async listRuns(
+    channelId: string,
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    memberChannelId?: string,
+    request?: TypedRequest,
+  ) {
+    const parsed = relayChannelProbeRunsQuerySchema.safeParse({ page, pageSize, memberChannelId });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe history pagination", undefined, { messageKey: "errors.badRequest" });
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:ListProbeRuns",
+      actorUserId,
+      request,
+      async ({ principal, decide, recheck, visible }) => {
+        try {
+          platformRelayChannelArn(channelId);
+          if (parsed.data.memberChannelId) platformRelayChannelArn(parsed.data.memberChannelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeRunHistoryReadRepository.getInstance().list(
+          principal,
+          { channelId, memberChannelId: parsed.data.memberChannelId, page, pageSize },
+          decide,
+          recheck,
+          visible,
+          (run) => this.toRunDto(run),
+        );
+      },
+      () => this.listRunsLegacy(channelId, actorUserId, page, pageSize, memberChannelId),
+    );
+  }
+  private async listRunsLegacy(
+    channelId: string,
+    actorUserId: string,
+    page: number,
+    pageSize: number,
+    memberChannelId?: string,
+  ) {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
     const result = await this.repository.listRuns(channelId, page, pageSize, memberChannelId);
@@ -1463,6 +2122,19 @@ export class RelayChannelProbeService {
    * each polling interval.
    */
   async listLatestRuns(
+    body: RelayChannelProbeLatestRunRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeLatestRunDto[]> {
+    return RelayProbeLatestRunReadIamService.getInstance().latest(
+      actorUserId,
+      body,
+      request,
+      (run) => this.toRunDto(run),
+      () => this.listLatestRunsLegacy(body, actorUserId),
+    );
+  }
+  private async listLatestRunsLegacy(
     body: RelayChannelProbeLatestRunRequest,
     actorUserId: string,
   ): Promise<RelayChannelProbeLatestRunDto[]> {
@@ -1487,6 +2159,37 @@ export class RelayChannelProbeService {
     scope: RelayChannelProbeRunHistoryScope,
     actorUserId: string,
     memberChannelId?: string,
+    request?: TypedRequest,
+  ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
+    const parsed = clearRelayChannelProbeRunHistoryQuerySchema.safeParse({ scope, memberChannelId });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe history clear scope", undefined, { messageKey: "errors.badRequest" });
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ClearProbeHistory",
+      actorUserId,
+      request,
+      async (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+          if (parsed.data.memberChannelId) platformRelayChannelArn(parsed.data.memberChannelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeRunHistoryMutationRepository.getInstance().clear(
+          channelId,
+          scope,
+          parsed.data.memberChannelId,
+          guard,
+        );
+      },
+      () => this.clearRunHistoryLegacy(channelId, scope, actorUserId, memberChannelId),
+    );
+  }
+  private async clearRunHistoryLegacy(
+    channelId: string,
+    scope: RelayChannelProbeRunHistoryScope,
+    actorUserId: string,
+    memberChannelId?: string,
   ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
@@ -1495,6 +2198,67 @@ export class RelayChannelProbeService {
   }
 
   async applyRuns(
+    input: ApplyRelayChannelProbeRunsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ApplyRelayChannelProbeRunsResponse> {
+    const parsed = applyRelayChannelProbeRunsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe applications", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ApplyProbeRun",
+      actorUserId,
+      request,
+      async (guard) => {
+        let applied = 0;
+        const rejected: ApplyRelayChannelProbeRunsResponse["rejected"] = [];
+        const overrides = new Map((body.overrides ?? []).map((row) => [row.runId, row.multiplier]));
+        for (const runId of body.runIds) {
+          try {
+            if (
+              await RelayProbeRunApplyRepository.getInstance().apply(
+                runId,
+                overrides.get(runId),
+                Boolean(body.forceLargeChange),
+                guard,
+                (channelId, operation) => this.channelLockService.withWrite(channelId, operation),
+              )
+            )
+              applied++;
+          } catch (error) {
+            // Only parameter-free, closed-domain diagnostics may reach this partial-success response.
+            const messageKey =
+              error instanceof BadRequestError || error instanceof ConflictError
+                ? (
+                    [
+                      "relayChannelProbe.resultNotApplicable",
+                      "relayChannelProbe.resultStabilityFailed",
+                      "relayChannelProbe.suggestionExpired",
+                      "relayChannelProbe.legacyResultMissingBillingSnapshot",
+                      "relayChannelProbe.multiplierChangedReprobe",
+                      "relayChannelProbe.billingConfigChangedReprobe",
+                      "relayChannelProbe.largeMultiplierChangeNeedsConfirmation",
+                      "relayChannelProbe.modelNoLocalPricing",
+                      "relayChannelProbe.modelMissingUpstreamId",
+                    ] as const
+                  ).find((key) => key === error.messageKey)
+                : undefined;
+            rejected.push({
+              runId,
+              reason: translateMessage(
+                messageKey ?? "permission.insufficientPermission",
+                request?.locale ?? DEFAULT_BACKEND_LOCALE,
+              ),
+            });
+          }
+        }
+        return { applied, rejected };
+      },
+      () => this.applyRunsLegacy(body, actorUserId),
+    );
+  }
+  private async applyRunsLegacy(
     body: ApplyRelayChannelProbeRunsRequest,
     actorUserId: string,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
@@ -1660,16 +2424,47 @@ export class RelayChannelProbeService {
   }
 
   private async executeRun(runId: string, owner: string): Promise<void> {
+    try {
+      const recheck = await RelayProbeRunExecutionIamService.getInstance().prepare(runId, owner);
+      await withProbeRunExecution(recheck, () => this.executeAuthorizedRun(runId, owner));
+    } catch {
+      const cancelled = await this.repository.completeClaimedRun(runId, owner, {
+        status: "cancelled",
+        finishedAt: new Date(),
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        errorMessage: "Probe execution authorization unavailable",
+      });
+      if (!cancelled.count) return;
+      const identity = await this.repository.findRunQueueIdentity(runId);
+      if (identity)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(identity.relayChannelId, identity.probeMemberChannelId ?? undefined),
+            runId,
+          )
+          .catch(() => null);
+    }
+  }
+  private async executeAuthorizedRun(runId: string, owner: string): Promise<void> {
+    await assertProbeRunExecution();
     const run = await this.repository.findRunWithProfile(runId);
     if (!run || run.leaseOwner !== owner) return;
     if (!run.profile) {
-      await this.repository.completeClaimedRun(runId, owner, {
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: "cancelled",
         finishedAt: new Date(),
         leaseOwner: null,
         leaseExpiresAt: null,
         errorMessage: "探针档案已清空，任务已取消",
       });
+      if (finalized.count)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(run.relayChannelId, run.probeMemberChannelId ?? undefined),
+            runId,
+          )
+          .catch(() => null);
       return;
     }
     const leaseHeartbeat = setInterval(
@@ -1679,7 +2474,8 @@ export class RelayChannelProbeService {
       Math.floor(RUN_LEASE_MS / 3),
     );
     leaseHeartbeat.unref();
-    let accountBound = false;
+    let accountBound = false,
+      completed = false;
     try {
       const original = run.profile;
       const target = await this.accountRepository.findTarget(
@@ -1711,7 +2507,8 @@ export class RelayChannelProbeService {
           ? executeSamples()
           : this.channelLockService.withWrite(scopes[index]!, () => withScopes(index + 1), GROUP_LOCK_TIMEOUT_MS);
       const result = await withScopes(0);
-      await this.repository.completeClaimedRun(runId, owner, {
+      await assertProbeRunExecution();
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: result.succeededCount ? "succeeded" : "failed",
         finishedAt: new Date(),
         leaseOwner: null,
@@ -1748,22 +2545,25 @@ export class RelayChannelProbeService {
         balanceSnapshots: result.balanceSnapshots as Prisma.InputJsonValue,
         errorMessage: result.succeededCount ? null : (result.samples[0]?.errorMessage ?? "所有探针样本均失败"),
       });
+      completed = finalized.count > 0;
     } catch (error) {
-      await this.repository.completeClaimedRun(runId, owner, {
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: axios.isAxiosError(error) && error.code === "ECONNABORTED" ? "timed_out" : "failed",
         finishedAt: new Date(),
         leaseOwner: null,
         leaseExpiresAt: null,
         errorMessage: accountBound ? "号池探针执行失败，请检查账号状态和登录冷却" : this.safeError(error),
       });
+      completed = finalized.count > 0;
     } finally {
       clearInterval(leaseHeartbeat);
-      await this.redis
-        .deleteIfValueMatches(
-          this.getRunQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
-          runId,
-        )
-        .catch(() => null);
+      if (completed)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
+            runId,
+          )
+          .catch(() => null);
     }
   }
 
@@ -1785,6 +2585,7 @@ export class RelayChannelProbeService {
       let modelRequestSent = false;
       let observedAccountToken: string | undefined;
       try {
+        await assertProbeRunExecution();
         const executionChannel = this.resolveProbeExecutionChannel(profile, run.probeMemberChannelId);
         const variables = await this.resolveProbeVariables(profile, executionChannel.id, accountId);
         observedAccountToken = accountId ? variables.accountToken : undefined;
@@ -1904,6 +2705,7 @@ export class RelayChannelProbeService {
                 : "缓存命中未被上游用量验证",
         });
       } catch (error) {
+        await assertProbeRunExecution();
         const balanceUnauthorized =
           accountId && error instanceof Error && error.message.includes("PROBE_BALANCE_AUTH_EXPIRED");
         if (balanceUnauthorized) {
@@ -1987,6 +2789,7 @@ export class RelayChannelProbeService {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(rawUrl));
       try {
+        await assertProbeRunExecution();
         const body = interpolateRequiredProbeVariables(step.body || {}, variables);
         const headers = getProbeWorkflowHeaders(
           step.method,
@@ -2145,6 +2948,7 @@ export class RelayChannelProbeService {
           : { Authorization: `Bearer ${apiKey}` };
       const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId, endpoint));
       if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
+      await assertProbeRunExecution();
       const response = await axios.post(endpointUrl.toString(), payload, {
         headers,
         httpAgent: base.httpAgent,
@@ -2311,22 +3115,17 @@ export class RelayChannelProbeService {
   ): Promise<Record<string, unknown>> {
     const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
     const executionChannel = this.resolveProbeExecutionChannel(profile, memberChannelId ?? null);
-    return {
-      model: profile.probeModel,
-      modelMapping: executionChannel.modelMapping ?? {},
+    return buildProbePricingSnapshot(
+      profile,
+      profile.relayChannel,
+      executionChannel.modelMapping,
       rate,
-      globalMultiplier: relayConfig.globalMultiplier,
-      timeMultiplier: computeMultiplierForTime((profile.relayChannel.timePeriodMultipliers as any[]) || [], new Date()),
-      timePeriodMultipliers: profile.relayChannel.timePeriodMultipliers ?? [],
-      contextLengthMultipliers: profile.relayChannel.contextLengthMultipliers ?? [],
-      inputTokensIncludeCacheRead: profile.relayChannel.inputTokensIncludeCacheRead === true,
-      cacheMode: profile.cacheMode,
-      endpoint: profile.probeEndpoint,
-    };
+      relayConfig.globalMultiplier,
+    );
   }
 
   private fingerprintPricingSnapshot(snapshot: Record<string, unknown>): string {
-    return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+    return fingerprintProbePricing(snapshot);
   }
 
   private getEncryptionKey(): Buffer {
@@ -2345,7 +3144,9 @@ export class RelayChannelProbeService {
     );
     return { ciphertext, iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
   }
-  private decryptCredentials(profile: ProbeProfileRecord): Record<string, unknown> {
+  private decryptCredentials(
+    profile: Pick<ProbeProfileRecord, "encryptedCredentials" | "credentialIv" | "credentialAuthTag">,
+  ): Record<string, unknown> {
     if (!profile.encryptedCredentials || !profile.credentialIv || !profile.credentialAuthTag)
       throw new BadRequestError("渠道探针凭据未配置", undefined, {
         messageKey: "relayChannelProbe.credentialsNotConfigured",
@@ -2409,7 +3210,10 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.credentialsInvalidFormat",
       });
     const variables = Object.fromEntries(entries) as Record<string, string>;
-    if (accountId) variables.accountToken = await this.accountService.getToken(accountId);
+    if (accountId) {
+      await assertProbeRunExecution();
+      variables.accountToken = await this.accountService.getToken(accountId);
+    }
     return variables;
   }
   private toProfileDto(profile: any): RelayChannelProbeProfileDto {
@@ -2440,7 +3244,7 @@ export class RelayChannelProbeService {
       updateTime: profile.updateTime,
     };
   }
-  private toRunDto(run: ProbeRunRecord): RelayChannelProbeRunDto {
+  private toRunDto(run: RelayProbeRunPublicRecord): RelayChannelProbeRunDto {
     const n = (value: Prisma.Decimal | null) => (value == null ? undefined : Number(value));
     return {
       id: run.id,
@@ -2557,9 +3361,5 @@ export class RelayChannelProbeService {
     if (Date.now() - this.lastCleanupAt < 60 * 60 * 1000) return;
     this.lastCleanupAt = Date.now();
     await this.repository.deleteRunsBefore(new Date(Date.now() - RUN_RETENTION_MS));
-  }
-
-  private getRunQueueSlotKey(channelId: string, memberChannelId?: string): string {
-    return `${RUN_QUEUE_SLOT_PREFIX}:${channelId}:${memberChannelId || "channel"}`;
   }
 }

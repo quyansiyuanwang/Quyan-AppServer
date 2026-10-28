@@ -1,3 +1,12 @@
+import {
+  PlatformRelayProbeAccountRefreshIamService,
+  type ProbeAccountRefreshGuard,
+} from "./platform-relay-probe-account-refresh-iam.service";
+import { assertProbeRunExecution } from "./relay-probe-execution-context";
+import { RELAY_PROBE_ACCOUNT_POLICY } from "./relay-probe-account-policy";
+import { PlatformRelayProbeAccountCreateIamService } from "./platform-relay-probe-account-create-iam.service";
+import { PlatformRelayProbeAccountUpdateIamService } from "./platform-relay-probe-account-update-iam.service";
+import type { ProbeAccountEncryptedConfiguration } from "@/store/relay/platform-relay-probe-account-update.repository";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
@@ -14,9 +23,14 @@ import type {
   SaveRelayChannelProbeAccountRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
-const PREFIX = "relay:probe-account:v1";
-const LOCK_MS = 35_000;
-const TOKEN_SAFETY_MS = 30_000;
+import type { TypedRequest } from "@/types/express";
+import { PlatformRelayProbeAccountReadIamService } from "./platform-relay-probe-account-read-iam.service";
+import { PlatformRelayProbeAccountDeleteIamService } from "./platform-relay-probe-account-delete-iam.service";
+import { projectRelayProbeAccount } from "./relay-probe-account-projection";
+
+const PREFIX = RELAY_PROBE_ACCOUNT_POLICY.cachePrefix;
+const LOCK_MS = RELAY_PROBE_ACCOUNT_POLICY.loginLockTtlMs;
+const TOKEN_SAFETY_MS = RELAY_PROBE_ACCOUNT_POLICY.tokenSafetyMs;
 type AccountError =
   | "accountBackendUnavailable"
   | "accountCredentialsRequired"
@@ -75,23 +89,17 @@ export class RelayChannelProbeAccountService {
     return undefined;
   }
   private dto(account: RelayChannelProbeAccount, cached: boolean) {
-    return {
-      id: account.id,
-      name: account.name,
-      tokenPath: account.tokenPath,
-      expiresPath: account.expiresPath ?? undefined,
-      expiresMode: (account.expiresMode as "seconds" | "iso" | null) ?? undefined,
-      fallbackTtlSeconds: account.fallbackTtlSeconds,
-      minLoginIntervalSeconds: account.minLoginIntervalSeconds,
-      lastLoginAttemptAt: account.lastLoginAttemptAt ?? undefined,
-      nextLoginAt: account.lastLoginAttemptAt
-        ? new Date(account.lastLoginAttemptAt.getTime() + account.minLoginIntervalSeconds * 1000)
-        : undefined,
-      cached,
-      hasCredentials: Boolean(account.encryptedCredentials),
-    };
+    return projectRelayProbeAccount({ ...account, hasCredentials: Boolean(account.encryptedCredentials) }, cached);
   }
-  async list() {
+  async list(request?: TypedRequest) {
+    return PlatformRelayProbeAccountReadIamService.getInstance().list(
+      request,
+      async (account) =>
+        projectRelayProbeAccount(account, Boolean(await this.readSession(account.id).catch(() => undefined))),
+      () => this.listLegacy(),
+    );
+  }
+  private async listLegacy() {
     const accounts = await this.repository.list();
     return Promise.all(
       accounts.map(async (account) =>
@@ -99,27 +107,57 @@ export class RelayChannelProbeAccountService {
       ),
     );
   }
-  async save(body: SaveRelayChannelProbeAccountRequest, id?: string) {
+  async save(body: SaveRelayChannelProbeAccountRequest, id?: string, request?: TypedRequest) {
+    if (id !== undefined)
+      return PlatformRelayProbeAccountUpdateIamService.getInstance().update(
+        id,
+        body,
+        (input, previous) => this.encryptConfiguration(input, previous),
+        request,
+        () => this.saveLegacy(body, id),
+        async () => {
+          await this.redis.delete(this.cacheKey(id));
+        },
+      );
+    return PlatformRelayProbeAccountCreateIamService.getInstance().create(
+      body,
+      (input) => this.encryptConfiguration(input),
+      request,
+      (reservedId) => this.saveLegacy(body, undefined, reservedId),
+    );
+  }
+  private encryptConfiguration(
+    body: SaveRelayChannelProbeAccountRequest,
+    previous?: ProbeAccountEncryptedConfiguration,
+  ) {
+    if (body.credentials && Object.hasOwn(body.credentials, "accountToken")) throw bad("accountReservedVariable");
+    const variables =
+      body.credentials ??
+      (previous
+        ? (
+            this.decrypt({
+              ciphertext: previous.encryptedCredentials,
+              iv: previous.credentialIv,
+              authTag: previous.credentialAuthTag,
+            }) as { variables: Record<string, string> }
+          ).variables
+        : {});
+    const encrypted = this.encrypt({ variables, workflow: body.loginWorkflow });
+    return {
+      encryptedCredentials: encrypted.ciphertext,
+      credentialIv: encrypted.iv,
+      credentialAuthTag: encrypted.authTag,
+    };
+  }
+  private async saveLegacy(body: SaveRelayChannelProbeAccountRequest, id?: string, reservedId?: string) {
     const existing = id ? await this.repository.find(id) : null;
     if (id && !existing)
       throw new NotFoundError("Probe account not found", undefined, {
         messageKey: "relayChannelProbe.accountNotFound",
       });
     if (!existing && !body.credentials) throw bad("accountCredentialsRequired");
-    if (body.credentials && Object.hasOwn(body.credentials, "accountToken")) throw bad("accountReservedVariable");
-    // Encrypt the entire login request, not just credential variables. Some upstreams
-    // require sensitive static headers or body fields; neither belongs in a JSON column.
-    const previous = existing
-      ? (this.decrypt({
-          ciphertext: existing.encryptedCredentials,
-          iv: existing.credentialIv,
-          authTag: existing.credentialAuthTag,
-        }) as { variables: Record<string, string> })
-      : undefined;
-    const encrypted = this.encrypt({
-      variables: body.credentials ?? previous?.variables ?? {},
-      workflow: body.loginWorkflow,
-    });
+    // The entire login request can contain secrets, so it is always encrypted.
+    const encrypted = this.encryptConfiguration(body, existing ?? undefined);
     const config = {
       name: body.name,
       tokenPath: body.tokenPath,
@@ -131,20 +169,27 @@ export class RelayChannelProbeAccountService {
     const account = existing
       ? await this.repository.update(existing.id, {
           ...config,
-          encryptedCredentials: encrypted.ciphertext,
-          credentialIv: encrypted.iv,
-          credentialAuthTag: encrypted.authTag,
+          ...encrypted,
         })
       : await this.repository.create({
+          ...(reservedId ? { id: reservedId } : {}),
           ...config,
-          encryptedCredentials: encrypted.ciphertext,
-          credentialIv: encrypted.iv,
-          credentialAuthTag: encrypted.authTag,
+          ...encrypted,
         });
     if (existing) await this.redis.delete(this.cacheKey(account.id));
     return this.dto(account, false);
   }
-  async remove(id: string) {
+  async remove(id: string, request?: TypedRequest) {
+    return PlatformRelayProbeAccountDeleteIamService.getInstance().remove(
+      id,
+      request,
+      () => this.removeLegacy(id),
+      async () => {
+        await this.redis.delete(this.cacheKey(id));
+      },
+    );
+  }
+  private async removeLegacy(id: string) {
     const account = await this.repository.find(id);
     if (!account)
       throw new NotFoundError("Probe account not found", undefined, {
@@ -165,7 +210,71 @@ export class RelayChannelProbeAccountService {
       });
     return account;
   }
-  async refresh(id: string) {
+  async refresh(id: string, request?: TypedRequest) {
+    return PlatformRelayProbeAccountRefreshIamService.getInstance().execute(
+      id,
+      request,
+      () => this.refreshLegacy(id),
+      (guard) => this.refreshNative(id, guard),
+    );
+  }
+  private async refreshNative(id: string, guard: ProbeAccountRefreshGuard) {
+    await guard.recheck();
+    if (!this.redis.isRedisAvailable()) throw bad("accountBackendUnavailable");
+    const previous = await this.redis.get(this.cacheKey(id));
+    let published: string | undefined;
+    try {
+      await this.getToken(id, {
+        recheck: guard.recheck,
+        recordAttempt: guard.recordAttempt,
+        publish: async (value, expiresAt) => {
+          await guard.publish(async () => {
+            published = value;
+            await this.redis.set(
+              this.cacheKey(id),
+              value,
+              Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds, Math.floor((expiresAt - Date.now()) / 1000)),
+            );
+            if ((await this.redis.get(this.cacheKey(id))) !== value) throw bad("accountBackendUnavailable");
+          });
+        },
+      });
+      const account = await this.repository.findPublic(id);
+      if (!account)
+        throw new NotFoundError("Probe account not found", undefined, {
+          messageKey: "relayChannelProbe.accountNotFound",
+        });
+      await guard.recheck();
+      return projectRelayProbeAccount({ ...account, hasCredentials: true }, true);
+    } catch (error) {
+      if (published !== undefined) await this.restoreRefreshSession(id, published, previous);
+      throw error;
+    }
+  }
+  private async restoreRefreshSession(id: string, published: string, previous: string | null) {
+    try {
+      if (previous) {
+        const old = this.decrypt(JSON.parse(previous) as Encrypted) as Session;
+        if (
+          typeof old.token === "string" &&
+          Number.isFinite(old.expiresAt) &&
+          old.expiresAt > Date.now() + TOKEN_SAFETY_MS
+        ) {
+          const restored = await this.redis.replaceIfValueMatches(
+            this.cacheKey(id),
+            published,
+            previous,
+            Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds * 1000, old.expiresAt - Date.now()),
+          );
+          if (restored) return;
+        }
+      }
+    } catch {
+      /* Only an owned publication may be removed; never overwrite a newer session. */
+    }
+    await this.redis.deleteIfValueMatches(this.cacheKey(id), published).catch(() => null);
+  }
+  private async refreshLegacy(id: string) {
     // A manual refresh must not replace a token while any probe on this account
     // is measuring the same balance; use the exact lock key as executeRun.
     return RelayChannelProbeLockService.getInstance().withWrite(
@@ -182,7 +291,7 @@ export class RelayChannelProbeAccountService {
         await this.getToken(id);
         return this.dto(await this.assertExists(id), true);
       },
-      5 * 60_000,
+      RELAY_PROBE_ACCOUNT_POLICY.refreshLockWaitMs,
     );
   }
   async invalidateSession(id: string, observedToken: string): Promise<void> {
@@ -199,31 +308,55 @@ export class RelayChannelProbeAccountService {
     if (session.token === observedToken) await this.redis.deleteIfValueMatches(this.cacheKey(id), raw);
   }
 
-  async getToken(id: string): Promise<string> {
+  async getToken(
+    id: string,
+    refresh?: {
+      recheck: () => Promise<void>;
+      recordAttempt: () => Promise<void>;
+      publish: (value: string, expiresAt: number) => Promise<void>;
+    },
+  ): Promise<string> {
+    await assertProbeRunExecution();
+    await refresh?.recheck();
     await this.assertExists(id);
-    const cached = await this.readSession(id);
-    if (cached) return cached.token;
+    if (!refresh) {
+      const cached = await this.readSession(id);
+      if (cached) return cached.token;
+    }
     const lockId = randomUUID();
     const acquired = await this.redis.setIfNotExists(this.lockKey(id), lockId, LOCK_MS);
     if (acquired === null) throw bad("accountBackendUnavailable");
     if (!acquired) {
+      if (refresh) throw bad("accountLoginInProgress");
       for (let attempt = 0; attempt < 110; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 300));
+        await assertProbeRunExecution();
         const renewed = await this.readSession(id);
         if (renewed) return renewed.token;
       }
       throw bad("accountLoginInProgress");
     }
     try {
-      const renewed = await this.readSession(id);
-      if (renewed) return renewed.token;
+      if (!refresh) {
+        await assertProbeRunExecution();
+        const renewed = await this.readSession(id);
+        if (renewed) return renewed.token;
+      }
+      await assertProbeRunExecution();
+      await refresh?.recheck();
       const latest = await this.assertExists(id);
       if (
         latest.lastLoginAttemptAt &&
         Date.now() < latest.lastLoginAttemptAt.getTime() + latest.minLoginIntervalSeconds * 1000
       )
         throw bad("accountLoginCooldown");
-      await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      if (refresh) await refresh.recordAttempt();
+      else {
+        await assertProbeRunExecution();
+        await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      }
+      await assertProbeRunExecution();
+      await refresh?.recheck();
       const stored = this.decrypt({
         ciphertext: latest.encryptedCredentials,
         iv: latest.credentialIv,
@@ -245,30 +378,36 @@ export class RelayChannelProbeAccountService {
       }
       let data: unknown;
       try {
-        const response = await axios.request({
-          method: workflow.method,
-          url: safe.url.toString(),
-          headers: interpolateRequiredProbeVariables(workflow.headers ?? {}, credentials) as Record<string, string>,
-          params: interpolateRequiredProbeVariables(workflow.query ?? {}, credentials),
-          data:
-            workflow.method === "POST"
-              ? interpolateRequiredProbeVariables(workflow.body ?? {}, credentials)
-              : undefined,
-          httpAgent: safe.httpAgent,
-          httpsAgent: safe.httpsAgent,
-          proxy: false,
-          maxRedirects: 0,
-          timeout: 15_000,
-          maxContentLength: 1024 * 1024,
-          validateStatus: (status) => status >= 200 && status < 300,
-        });
-        data = response.data;
-      } catch {
-        throw bad("accountLoginFailed");
+        await assertProbeRunExecution();
+        await refresh?.recheck();
+        try {
+          const response = await axios.request({
+            method: workflow.method,
+            url: safe.url.toString(),
+            headers: interpolateRequiredProbeVariables(workflow.headers ?? {}, credentials) as Record<string, string>,
+            params: interpolateRequiredProbeVariables(workflow.query ?? {}, credentials),
+            data:
+              workflow.method === "POST"
+                ? interpolateRequiredProbeVariables(workflow.body ?? {}, credentials)
+                : undefined,
+            httpAgent: safe.httpAgent,
+            httpsAgent: safe.httpsAgent,
+            proxy: false,
+            maxRedirects: 0,
+            timeout: 15_000,
+            maxContentLength: 1024 * 1024,
+            validateStatus: (status) => status >= 200 && status < 300,
+          });
+          data = response.data;
+        } catch {
+          throw bad("accountLoginFailed");
+        }
       } finally {
         safe.httpAgent.destroy();
         safe.httpsAgent.destroy();
       }
+      await assertProbeRunExecution();
+      await refresh?.recheck();
       const raw = readProbeJsonPath(data, latest.tokenPath);
       if (typeof raw !== "string" || !raw.trim()) throw bad("accountLoginFailed");
       const rawExpiry = latest.expiresPath ? readProbeJsonPath(data, latest.expiresPath) : undefined;
@@ -281,11 +420,15 @@ export class RelayChannelProbeAccountService {
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + TOKEN_SAFETY_MS) throw bad("accountLoginFailed");
       const session = { token: raw, expiresAt };
       const encrypted = this.encrypt(session);
-      await this.redis.set(
-        this.cacheKey(id),
-        JSON.stringify(encrypted),
-        Math.min(86_400, Math.floor((expiresAt - Date.now()) / 1000)),
-      );
+      if (refresh) {
+        if ((await this.redis.get(this.lockKey(id))) !== lockId) throw bad("accountLoginInProgress");
+        await refresh.publish(JSON.stringify(encrypted), expiresAt);
+      } else
+        await this.redis.set(
+          this.cacheKey(id),
+          JSON.stringify(encrypted),
+          Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds, Math.floor((expiresAt - Date.now()) / 1000)),
+        );
       if (!(await this.readSession(id))) throw bad("accountBackendUnavailable");
       return raw;
     } finally {

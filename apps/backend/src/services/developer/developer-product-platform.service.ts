@@ -16,6 +16,7 @@ import { CustomCode } from "@/constant/custom-code";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
+import { DEVELOPER_PRODUCT_CALL_LOG_LIMIT } from "@/constant/developer-product-read";
 import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -443,8 +444,15 @@ export class DeveloperProductPlatformService {
     return instances.map((instance) => this.instanceDto(instance));
   }
 
-  async listInstances(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductInstanceDto[]> {
-    const user = await this.assertProductAccess(actorUserId, productCode);
+  async listInstances(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    options: { iamAuthorized?: boolean } = {},
+  ): Promise<DeveloperProductInstanceDto[]> {
+    const user = options.iamAuthorized
+      ? await prisma.user.findUnique({ where: { id: actorUserId }, select: { id: true, accountOwnerId: true } })
+      : await this.assertProductAccess(actorUserId, productCode);
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     return this.listInstancesForAccountOwner(this.accountOwnerId(user), productCode);
   }
 
@@ -452,8 +460,9 @@ export class DeveloperProductPlatformService {
     actorUserId: string,
     productCode: DeveloperProductCode,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductInstanceDto[]> {
-    await this.assertProductPermission(actorUserId, productCode, permission);
+    if (!options.iamAuthorized) await this.assertProductPermission(actorUserId, productCode, permission);
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
@@ -479,8 +488,10 @@ export class DeveloperProductPlatformService {
     actorUserId: string,
     productCode: DeveloperProductCode,
     body: CreateDeveloperProductInstanceDto,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductInstanceDto> {
-    await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
+    if (!options.iamAuthorized)
+      await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
@@ -532,8 +543,10 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     requireEnabled: boolean,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<any> {
-    await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
+    if (!options.iamAuthorized)
+      await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
     const instance = await prisma.developerProductInstance.findFirst({
       where: {
         id: instanceId,
@@ -559,20 +572,26 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     body: UpdateDeveloperProductInstanceDto,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductInstanceDto> {
-    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     const updated = await prisma.developerProductInstance.updateMany({
       where: { id: instanceId, status: 1 },
       data: { enabled: body.enabled },
     });
     if (!updated.count)
       throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
-    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     return this.instanceDto(instance);
   }
 
-  async deleteInstance(actorUserId: string, productCode: DeveloperProductCode, instanceId: string): Promise<void> {
-    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+  async deleteInstance(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    instanceId: string,
+    options: { iamAuthorized?: boolean } = {},
+  ): Promise<void> {
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     await prisma.$transaction(async (tx) => {
       await tx.developerProductApiKey.updateMany({
         where: { instanceId: instance.id, status: 1 },
@@ -632,8 +651,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<any> {
-    await this.assertProductPermission(actorUserId, productCode, permission);
+    if (!options.iamAuthorized) await this.assertProductPermission(actorUserId, productCode, permission);
     const instance = await prisma.developerProductInstance.findFirst({
       where: { id: instanceId, status: 1, entitlement: { productCode, status: 1 } },
       include: { entitlement: true },
@@ -658,8 +678,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<{ backingProjectId: string; accountOwnerId: string }> {
-    const instance = await this.getAuthorizedInstance(actorUserId, productCode, instanceId, permission);
+    const instance = await this.getAuthorizedInstance(actorUserId, productCode, instanceId, permission, options);
     return { backingProjectId: instance.backingProjectId, accountOwnerId: instance.entitlement.accountOwnerId };
   }
 
@@ -667,8 +688,9 @@ export class DeveloperProductPlatformService {
     actorUserId: string,
     productCode: DeveloperProductCode,
     instanceId: string,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductApiKeyDto[]> {
-    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     const keys = await prisma.developerProductApiKey.findMany({
       where: { instanceId, status: 1 },
       orderBy: { createTime: "desc" },
@@ -676,8 +698,13 @@ export class DeveloperProductPlatformService {
     return keys.map((key) => this.keyDto(key));
   }
 
-  async listSubjects(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductSubjectDto[]> {
-    await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
+  async listSubjects(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    options: { iamAuthorized?: boolean } = {},
+  ): Promise<DeveloperProductSubjectDto[]> {
+    if (!options.iamAuthorized)
+      await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
@@ -712,8 +739,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     body: CreateDeveloperProductApiKeyDto,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductApiKeyDto> {
-    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     const actor = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
@@ -763,8 +791,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     keyId: string,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<void> {
-    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false, options);
     const result = await prisma.developerProductApiKey.updateMany({
       where: { id: keyId, instanceId, status: 1 },
       data: { status: -1 },
@@ -858,8 +887,15 @@ export class DeveloperProductPlatformService {
     };
   }
 
-  async getUsageForActor(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductUsageDto> {
-    const user = await this.assertProductAccess(actorUserId, productCode);
+  async getUsageForActor(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    options: { iamAuthorized?: boolean } = {},
+  ): Promise<DeveloperProductUsageDto> {
+    const user = options.iamAuthorized
+      ? await prisma.user.findUnique({ where: { id: actorUserId }, select: { id: true, accountOwnerId: true } })
+      : await this.assertProductAccess(actorUserId, productCode);
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     const accountProduct = await this.getAccountProduct(this.accountOwnerId(user), productCode);
     return this.getUsage(accountProduct.id);
   }
@@ -884,7 +920,7 @@ export class DeveloperProductPlatformService {
     const logs = await prisma.developerProductCallLog.findMany({
       where: { entitlementId },
       orderBy: { createTime: "desc" },
-      take: 200,
+      take: DEVELOPER_PRODUCT_CALL_LOG_LIMIT,
     });
     return logs.map((log) => ({
       id: log.id,
@@ -903,8 +939,12 @@ export class DeveloperProductPlatformService {
   async listCallLogsForActor(
     actorUserId: string,
     productCode: DeveloperProductCode,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductCallLogDto[]> {
-    const user = await this.assertProductAccess(actorUserId, productCode);
+    const user = options.iamAuthorized
+      ? await prisma.user.findUnique({ where: { id: actorUserId }, select: { id: true, accountOwnerId: true } })
+      : await this.assertProductAccess(actorUserId, productCode);
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     const accountProduct = await this.getAccountProduct(this.accountOwnerId(user), productCode);
     return this.listCallLogs(productCode, accountProduct.id);
   }

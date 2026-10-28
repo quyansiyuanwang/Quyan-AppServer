@@ -8,13 +8,33 @@ import { env } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
-import { BadRequestError, NotFoundError } from "@/util/errors";
-import {
-  DATA_LIFECYCLE_DATASETS,
-  ObservabilityRepository,
-  type DataLifecycleDataset,
-} from "@/store/system/observability.repository";
+import { ApiError, BadRequestError, NotFoundError, InternalServerError } from "@/util/errors";
+import { ObservabilityRepository } from "@/store/system/observability.repository";
+import { DATA_LIFECYCLE_DATASETS, type DataLifecycleDataset } from "@/constant/data-maintenance-datasets";
 import { ConfigService } from "@/services/system/config.service";
+import { PlatformLifecycleReadIamService } from "./platform-lifecycle-read-iam.service";
+import { PlatformLifecycleHistoryIamService } from "./platform-lifecycle-history-iam.service";
+import { PlatformLifecycleExecutionIamService } from "./platform-lifecycle-execution-iam.service";
+import type { LifecycleExecutionGuard } from "@/store/system/platform-lifecycle-execution.store";
+import { PlatformLifecycleControlIamService } from "./platform-lifecycle-control-iam.service";
+import BusinessLogService from "./businesslog.service";
+import { OperationType, OperationCategory } from "@/constant/operation-type";
+import { extractClientIp } from "@/util/ip-extractor";
+import {
+  updateLifecyclePolicyBodySchema,
+  updateLifecycleScheduleBodySchema,
+} from "@/api/schema/system/data-lifecycle.schema";
+import {
+  PlatformLifecycleDownloadIamService,
+  type LifecycleDownloadGuard,
+} from "./platform-lifecycle-download-iam.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { isLifecycleDataset } from "@/iam/resources/platform-lifecycle-resources";
+import { lifecycleCandidatesQuerySchema } from "@/api/schema/system/data-lifecycle.schema";
+import type { TypedRequest } from "@/types/express";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 
 const logger = getLogger("DataLifecycleService", LogCategory.SYSTEM);
 const ARCHIVE_BATCH_SIZE = 1000;
@@ -50,6 +70,13 @@ export class DataLifecycleService {
   private constructor(
     private readonly repository: ObservabilityRepository = ObservabilityRepository.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly iamReads = PlatformLifecycleReadIamService.getInstance(),
+    private readonly iamHistory = PlatformLifecycleHistoryIamService.getInstance(),
+    private readonly iamDownloads = PlatformLifecycleDownloadIamService.getInstance(),
+    private readonly iamControls = PlatformLifecycleControlIamService.getInstance(),
+    private readonly businessLogs = BusinessLogService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly iamExecution = PlatformLifecycleExecutionIamService.getInstance(),
   ) {}
 
   public static getInstance(): DataLifecycleService {
@@ -59,6 +86,78 @@ export class DataLifecycleService {
 
   public async initialize(): Promise<void> {
     await this.repository.ensureLifecyclePolicies();
+  }
+
+  public async listPoliciesRequest(request: TypedRequest) {
+    return this.iamReads.readDatasets(
+      "quyan:system:data_lifecycle:ListPolicies",
+      DATA_LIFECYCLE_DATASETS,
+      request,
+      async (allowed) => {
+        if (env.security.iamAuthorizationMode !== "enforce") return this.listPolicies();
+        if (!allowed.size) return [];
+        const policies = (await this.repository.listLifecyclePolicies()).filter(
+          (p) => p.status === 1 && isLifecycleDataset(p.dataset) && allowed.has(p.dataset),
+        );
+        const result = await Promise.all(
+          policies.map(async (policy) => ({
+            ...policy,
+            candidateCount: await this.countCandidates(
+              policy.dataset as DataLifecycleDataset,
+              this.cutoff(policy.hotRetentionDays),
+            ),
+          })),
+        );
+        const current = await this.repository.listLifecyclePolicies();
+        if (
+          policies.some(
+            (p) =>
+              !current.some(
+                (c) =>
+                  c.id === p.id &&
+                  c.dataset === p.dataset &&
+                  c.status === 1 &&
+                  c.updateTime.getTime() === p.updateTime.getTime(),
+              ),
+          )
+        )
+          throw iamAccountDenied();
+        return result;
+      },
+    );
+  }
+  public async getScheduleRequest(request: TypedRequest) {
+    return this.iamReads.readSchedule(request, () => this.getSchedule());
+  }
+  public async previewRequest(dataset: string, request: TypedRequest) {
+    return this.iamReads.readDatasets("quyan:system:data_lifecycle:PreviewPolicy", [dataset], request, () =>
+      this.readActivePolicy(dataset, () => this.preview(dataset)),
+    );
+  }
+  public async listCandidatesRequest(dataset: string, page: number, pageSize: number, request: TypedRequest) {
+    const parsed = lifecycleCandidatesQuerySchema.strict().safeParse({ page, pageSize });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle candidate query", undefined, { messageKey: "errors.badRequest" });
+    return this.iamReads.readDatasets("quyan:system:data_lifecycle:ListCandidates", [dataset], request, () =>
+      this.readActivePolicy(dataset, () => this.listCandidates(dataset, page, pageSize)),
+    );
+  }
+
+  private async readActivePolicy<T>(dataset: string, read: () => Promise<T>): Promise<T> {
+    if (env.security.iamAuthorizationMode !== "enforce") return read();
+    if (!isLifecycleDataset(dataset)) throw iamAccountDenied();
+    const policy = await this.repository.getLifecyclePolicy(dataset);
+    if (!policy || policy.status !== 1) throw iamAccountDenied();
+    const result = await read();
+    const current = await this.repository.getLifecyclePolicy(dataset);
+    if (
+      !current ||
+      current.id !== policy.id ||
+      current.status !== 1 ||
+      current.updateTime.getTime() !== policy.updateTime.getTime()
+    )
+      throw iamAccountDenied();
+    return result;
   }
 
   public async listPolicies() {
@@ -85,6 +184,77 @@ export class DataLifecycleService {
         : DEFAULT_SCHEDULE_TIME,
       timezone: SCHEDULE_TIMEZONE,
     };
+  }
+
+  private async auditLifecycleControl(
+    request: TypedRequest,
+    resourceType: string,
+    resourceId: string,
+    changes: Record<string, string | number | boolean>,
+  ) {
+    await this.businessLogs.logOperation({
+      operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+      operationCategory: OperationCategory.SYSTEM,
+      actorUserId: getIamPrincipal(request)?.subjectUserId,
+      targetResourceType: resourceType,
+      targetResourceId: resourceId,
+      description: "Authorized lifecycle configuration updated",
+      changes,
+      success: true,
+      ipAddress: extractClientIp(request),
+    });
+  }
+  public async updatePolicyRequest(
+    dataset: string,
+    input: { enabled: boolean; hotRetentionDays: number },
+    request: TypedRequest,
+  ) {
+    const parsed = updateLifecyclePolicyBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle policy update", undefined, { messageKey: "errors.badRequest" });
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamControls.prepare("quyan:system:data_lifecycle:UpdatePolicy", request, dataset, false),
+      );
+      return this.updatePolicy(dataset, parsed.data.enabled, parsed.data.hotRetentionDays);
+    }
+    const guard = await this.iamControls.prepare("quyan:system:data_lifecycle:UpdatePolicy", request, dataset);
+    if (!guard) throw iamAccountDenied();
+    const policy = await this.iamControls.updatePolicy(guard, parsed.data);
+    await this.auditLifecycleControl(request, "LIFECYCLE_POLICY", policy.id, { dataset, ...parsed.data });
+    const candidateCount = await this.countCandidates(
+      policy.dataset as DataLifecycleDataset,
+      this.cutoff(policy.hotRetentionDays),
+    );
+    await guard.users.recheck();
+    const current = await this.iamControls.policyTarget(guard);
+    if (
+      !current ||
+      current.id !== policy.id ||
+      current.status !== 1 ||
+      current.updateTime.getTime() !== policy.updateTime.getTime()
+    )
+      throw iamAccountDenied();
+    return { ...policy, candidateCount };
+  }
+  public async updateScheduleRequest(input: { enabled: boolean; time: string }, request: TypedRequest) {
+    const parsed = updateLifecycleScheduleBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle schedule update", undefined, { messageKey: "errors.badRequest" });
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamControls.prepare("quyan:system:data_lifecycle:UpdateSchedule", request, undefined, false),
+      );
+      return this.updateSchedule(parsed.data, getIamPrincipal(request)?.subjectUserId, request);
+    }
+    const guard = await this.iamControls.prepare("quyan:system:data_lifecycle:UpdateSchedule", request);
+    if (!guard) throw iamAccountDenied();
+    await this.iamControls.updateSchedule(guard, parsed.data);
+    await this.auditLifecycleControl(request, "LIFECYCLE_SCHEDULE", "default", parsed.data);
+    await guard.users.recheck();
+    return { ...parsed.data, timezone: SCHEDULE_TIMEZONE };
   }
 
   public async updateSchedule(input: { enabled: boolean; time: string }, actorUserId?: string, request?: Request) {
@@ -157,7 +327,49 @@ export class DataLifecycleService {
     return { dataset, cutoffAt, candidateCount, items };
   }
 
-  public async runPolicy(dataset: string, runType: "manual" | "scheduled", startedByUserId?: string) {
+  private async failExecution(guard: LifecycleExecutionGuard, runId: string, error: unknown): Promise<never> {
+    try {
+      await this.iamExecution.repository.fail(guard, runId);
+    } catch {
+      logger.warn("Lifecycle execution failure state could not be saved", { reason: "run-bookkeeping-unavailable" });
+    }
+    if (error instanceof ApiError) throw error;
+    throw new InternalServerError("Lifecycle archive interrupted", undefined, {
+      messageKey: "errors.internalServerError",
+    });
+  }
+
+  public async runPolicyRequest(dataset: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamExecution.prepare("quyan:system:data_lifecycle:RunPolicy", [dataset], request),
+      );
+      return this.runPolicy(dataset, "manual", request.user?.userId);
+    }
+    const [guard] = await this.iamExecution.prepare("quyan:system:data_lifecycle:RunPolicy", [dataset], request);
+    if (!guard) throw iamAccountDenied();
+    return this.runPolicy(dataset, "manual", guard.users.principal.subjectUserId, guard);
+  }
+
+  public async runPoliciesRequest(datasets: string[], request: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamExecution.prepare("quyan:system:data_lifecycle:RunBatch", datasets, request),
+      );
+      return this.runPolicies(datasets, "manual", request.user?.userId);
+    }
+    const guards = await this.iamExecution.prepare("quyan:system:data_lifecycle:RunBatch", datasets, request);
+    return this.runPolicies(datasets, "manual", getIamPrincipal(request)?.subjectUserId, guards);
+  }
+
+  public async runPolicy(
+    dataset: string,
+    runType: "manual" | "scheduled",
+    startedByUserId?: string,
+    guard?: LifecycleExecutionGuard,
+  ) {
     if (!isDataset(dataset))
       throw new BadRequestError("Unsupported lifecycle dataset", undefined, {
         messageKey: "dataLifecycle.unsupportedDataset",
@@ -166,26 +378,42 @@ export class DataLifecycleService {
       throw new BadRequestError("Archive OSS is not configured", undefined, {
         messageKey: "dataLifecycle.archiveOssNotConfigured",
       });
-    const policy = await this.repository.getLifecyclePolicy(dataset);
+    if (
+      guard &&
+      (guard.dataset !== dataset || runType !== "manual" || startedByUserId !== guard.users.principal.subjectUserId)
+    )
+      throw iamAccountDenied();
+    await guard?.recheck();
+    const policy = guard?.policy ?? (await this.repository.getLifecyclePolicy(dataset));
     if (!policy)
       throw new NotFoundError("Lifecycle policy not found", undefined, { messageKey: "dataLifecycle.policyNotFound" });
     if (!policy.enabled && runType === "scheduled") return null;
 
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
     const candidateCount = await this.countCandidates(dataset, cutoffAt);
-    const run = await this.repository.createLifecycleRun({
-      policyId: policy.id,
-      dataset,
-      runType,
-      cutoffAt,
-      startedByUserId,
-    });
+    await guard?.recheck();
+    const run = guard
+      ? await this.iamExecution.repository.start(guard, cutoffAt, candidateCount)
+      : await this.repository.createLifecycleRun({
+          policyId: policy.id,
+          dataset,
+          runType,
+          cutoffAt,
+          startedByUserId,
+        });
     if (candidateCount === 0) {
-      await this.repository.updateLifecycleRun(run.id, { runStatus: "completed", completedAt: new Date() });
+      if (guard) {
+        try {
+          await this.iamExecution.repository.complete(guard, run.id);
+          await guard.recheck();
+        } catch (error) {
+          return this.failExecution(guard, run.id, error);
+        }
+      } else await this.repository.updateLifecycleRun(run.id, { runStatus: "completed", completedAt: new Date() });
       return { runId: run.id, candidateCount: 0, archivedCount: 0, deletedCount: 0 };
     }
 
-    if (dataset === SERVER_LOG_DATASET) return this.archiveServerLogs({ policy, run, candidateCount, cutoffAt });
+    if (dataset === SERVER_LOG_DATASET) return this.archiveServerLogs({ policy, run, candidateCount, cutoffAt, guard });
 
     try {
       let archivedCount = 0;
@@ -198,13 +426,16 @@ export class DataLifecycleService {
       // the export bounded while ensuring a run drains all candidates, even when
       // the dataset is much larger than ARCHIVE_BATCH_SIZE.
       while (true) {
+        await guard?.recheck();
         const records = await this.repository.listDatasetBatch(dataset, cutoffAt, ARCHIVE_BATCH_SIZE);
         if (records.length === 0) break;
 
+        await guard?.recheck();
         const body = Buffer.from(`${records.map(stringifyArchiveRow).join("\n")}\n`, "utf8");
         const compressed = gzipSync(body, { level: 9 });
         const sha256 = createHash("sha256").update(compressed).digest("hex");
         const objectKey = this.objectKey(dataset, run.id, cutoffAt, batchNumber);
+        await guard?.recheck();
         await client.put(objectKey, compressed, {
           headers: {
             // These are downloadable archive files, not HTTP-compressed responses.
@@ -214,7 +445,9 @@ export class DataLifecycleService {
             "x-oss-meta-sha256": sha256,
           },
         });
+        await guard?.recheck();
         const head = await client.head(objectKey);
+        await guard?.recheck();
         const metadata = (head.res.headers || {}) as Record<string, string | undefined>;
         const uploadedChecksum = metadata["x-oss-meta-sha256"];
         const uploadedLength = Number(metadata["content-length"] || 0);
@@ -223,7 +456,7 @@ export class DataLifecycleService {
 
         const ids = records.map((record) => String(record.id)).filter(Boolean);
         if (ids.length === 0) throw new Error("Archive batch contained no identifiable records");
-        lastArtifact = await this.repository.createArchiveArtifact({
+        const artifactInput = {
           lifecycleRunId: run.id,
           dataset,
           objectKey,
@@ -234,28 +467,40 @@ export class DataLifecycleService {
             policy.archiveRetentionDays == null
               ? null
               : new Date(Date.now() + policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
-        });
-        const batchDeletedCount = await this.repository.deleteDatasetIds(dataset, ids);
+        };
+        await guard?.recheck();
+        const committed = guard
+          ? await this.iamExecution.repository.commitArchive(guard, artifactInput, records)
+          : undefined;
+        lastArtifact = committed?.artifact ?? (await this.repository.createArchiveArtifact(artifactInput));
+        const batchDeletedCount = committed?.deletedCount ?? (await this.repository.deleteDatasetIds(dataset, ids));
         archivedCount += ids.length;
         deletedCount += batchDeletedCount;
         batchNumber += 1;
-        await this.repository.updateLifecycleRun(run.id, { candidateCount, archivedCount, deletedCount });
+        if (!guard) await this.repository.updateLifecycleRun(run.id, { candidateCount, archivedCount, deletedCount });
       }
 
-      await this.repository.updateLifecycleRun(run.id, {
-        candidateCount,
-        archivedCount,
-        deletedCount,
-        runStatus: "completed",
-        completedAt: new Date(),
-      });
-      await this.repository.updateLifecyclePolicy(dataset, {
-        enabled: policy.enabled,
-        hotRetentionDays: policy.hotRetentionDays,
-        lastRunAt: new Date(),
-      });
+      if (guard) {
+        await guard.recheck();
+        await this.iamExecution.repository.complete(guard, run.id);
+        await guard.recheck();
+      } else {
+        await this.repository.updateLifecycleRun(run.id, {
+          candidateCount,
+          archivedCount,
+          deletedCount,
+          runStatus: "completed",
+          completedAt: new Date(),
+        });
+        await this.repository.updateLifecyclePolicy(dataset, {
+          enabled: policy.enabled,
+          hotRetentionDays: policy.hotRetentionDays,
+          lastRunAt: new Date(),
+        });
+      }
       return { runId: run.id, artifact: lastArtifact, candidateCount, archivedCount, deletedCount };
     } catch (error) {
+      if (guard) return this.failExecution(guard, run.id, error);
       const message = error instanceof Error ? error.message : String(error);
       await this.repository.updateLifecycleRun(run.id, {
         candidateCount,
@@ -267,11 +512,31 @@ export class DataLifecycleService {
     }
   }
 
-  public async runPolicies(datasets: string[] | undefined, runType: "manual" | "scheduled", startedByUserId?: string) {
-    const policies = await this.repository.listLifecyclePolicies();
-    const selected = datasets?.length
-      ? policies.filter((policy) => datasets.includes(policy.dataset))
-      : policies.filter((policy) => policy.enabled);
+  public async runPolicies(
+    datasets: string[] | undefined,
+    runType: "manual" | "scheduled",
+    startedByUserId?: string,
+    guards?: LifecycleExecutionGuard[],
+  ) {
+    if (
+      guards &&
+      (runType !== "manual" ||
+        guards.some(
+          (g) =>
+            g.action !== "quyan:system:data_lifecycle:RunBatch" || g.users.principal.subjectUserId !== startedByUserId,
+        ))
+    )
+      throw iamAccountDenied();
+    const recheck = async () => {
+      for (const guard of guards ?? []) await guard.recheck();
+    };
+    await recheck();
+    const policies = guards?.map((g) => g.policy) ?? (await this.repository.listLifecyclePolicies());
+    const selected = guards
+      ? policies
+      : datasets?.length
+        ? policies.filter((policy) => datasets.includes(policy.dataset))
+        : policies.filter((policy) => policy.enabled);
     const selectedDatasets = new Set(selected.map((policy) => policy.dataset));
     const results = [];
 
@@ -282,7 +547,14 @@ export class DataLifecycleService {
 
     for (const policy of selected) {
       try {
-        const result = await this.runPolicy(policy.dataset, runType, startedByUserId);
+        await recheck();
+        const result = await this.runPolicy(
+          policy.dataset,
+          runType,
+          startedByUserId,
+          guards?.find((g) => g.dataset === policy.dataset),
+        );
+        await recheck();
         results.push({
           dataset: policy.dataset,
           runId: result?.runId,
@@ -292,17 +564,26 @@ export class DataLifecycleService {
           deletedCount: result?.deletedCount ?? 0,
         });
       } catch (error) {
+        if (guards) {
+          await recheck();
+          if ((error as { statusCode?: number })?.statusCode === 403) throw error;
+        }
         results.push({
           dataset: policy.dataset,
           status: "failed" as const,
           candidateCount: 0,
           archivedCount: 0,
           deletedCount: 0,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          errorMessage: guards
+            ? "Lifecycle archive interrupted"
+            : error instanceof Error
+              ? error.message
+              : String(error),
         });
       }
     }
 
+    await recheck();
     return {
       items: results,
       completedCount: results.filter((result) => result.status === "completed").length,
@@ -327,6 +608,47 @@ export class DataLifecycleService {
         }
   }
 
+  private async legacyLifecycleRead(request: TypedRequest) {
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.SYSTEM_DATA_LIFECYCLE_MANAGE],
+          { assumedRoleSessionId: principal.roleSessionId },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowLifecycleRead(read: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await read();
+    } catch {
+      getLogger("LifecycleHistoryIam", LogCategory.SECURITY).warn("Lifecycle history IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  public async listRunsRequest(page: number, pageSize: number, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamHistory.listRuns(page, pageSize, request);
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamHistory.listRuns(page, pageSize, request, false));
+    return this.listRuns(page, pageSize);
+  }
+  public async listArtifactsRequest(runId: string, page: number, pageSize: number, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.iamHistory.listArtifacts(runId, page, pageSize, request);
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamHistory.listArtifacts(runId, page, pageSize, request, false));
+    return this.listArchiveArtifacts(runId, page, pageSize);
+  }
+
   public listRuns(page: number, pageSize: number) {
     return this.repository.listLifecycleRuns(page, pageSize);
   }
@@ -335,12 +657,26 @@ export class DataLifecycleService {
     return this.repository.listArchiveArtifacts(runId, page, pageSize);
   }
 
-  public async getArchiveDownloadInfo(artifactId: string) {
+  public async getArchiveDownloadRequest(artifactId: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.iamDownloads.prepare(artifactId, request);
+      if (!guard) throw iamAccountDenied();
+      return this.getArchiveDownloadInfo(artifactId, guard);
+    }
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamDownloads.prepare(artifactId, request, false));
+    return this.getArchiveDownloadInfo(artifactId);
+  }
+  public async getArchiveDownloadInfo(artifactId: string, guard?: LifecycleDownloadGuard) {
+    if (guard) {
+      if (guard.artifact.id !== artifactId) throw iamAccountDenied();
+      await guard.recheck();
+    }
     if (!env.integrations.objectStorage.archive.enabled)
       throw new BadRequestError("Archive OSS is not configured", undefined, {
         messageKey: "dataLifecycle.archiveOssNotConfigured",
       });
-    const artifact = await this.repository.getArchiveArtifact(artifactId);
+    const artifact = guard ? guard.artifact : await this.repository.getArchiveArtifact(artifactId);
     if (!artifact || artifact.deletedAt)
       throw new NotFoundError("Archive artifact not found", undefined, {
         messageKey: "dataLifecycle.artifactNotFound",
@@ -349,6 +685,7 @@ export class DataLifecycleService {
     const head = (await client.head(artifact.objectKey)) as {
       res?: { headers?: Record<string, string | string[] | undefined> };
     };
+    if (guard) await guard.recheck();
     const headers = head.res?.headers ?? {};
     const storageClass = String(headers["x-oss-storage-class"] ?? "").toLowerCase();
     const restoreHeader = String(headers["x-oss-restore"] ?? "");
@@ -373,7 +710,9 @@ export class DataLifecycleService {
         name: string,
         options: { type: string },
       ) => Promise<unknown>;
+      if (guard) await guard.recheck();
       await restore(artifact.objectKey, { type: restoreType });
+      if (guard) await guard.recheck();
       return {
         url: null,
         expiresInSeconds: 0,
@@ -382,8 +721,11 @@ export class DataLifecycleService {
       };
     }
 
+    if (guard) await guard.recheck();
+    const url = client.signatureUrl(artifact.objectKey, { expires: 300, method: "GET" });
+    if (guard) await guard.recheck();
     return {
-      url: client.signatureUrl(artifact.objectKey, { expires: 300, method: "GET" }),
+      url,
       expiresInSeconds: 300,
       restoreRequired: false,
       restoreStatus: "ready" as const,
@@ -474,24 +816,30 @@ export class DataLifecycleService {
     run: { id: string };
     candidateCount: number;
     cutoffAt: Date;
+    guard?: LifecycleExecutionGuard;
   }) {
     let archivedCount = 0;
     let deletedCount = 0;
     try {
+      await input.guard?.recheck();
       const candidates = await this.listServerLogCandidates(input.cutoffAt);
       const client = this.getOssClient();
       for (const [index, candidate] of candidates.entries()) {
+        await input.guard?.recheck();
         const source = await fs.readFile(candidate.path);
         const compressed = candidate.name.endsWith(".gz") ? source : gzipSync(source, { level: 9 });
         const sha256 = createHash("sha256").update(compressed).digest("hex");
         const objectKey = this.objectKey(SERVER_LOG_DATASET, input.run.id, input.cutoffAt, index, candidate.name);
+        await input.guard?.recheck();
         await client.put(objectKey, compressed, {
           headers: {
             "Content-Type": "application/gzip",
             "x-oss-meta-sha256": sha256,
           },
         });
+        await input.guard?.recheck();
         const head = await client.head(objectKey);
+        await input.guard?.recheck();
         const metadata = Object.fromEntries(
           Object.entries((head.res.headers || {}) as Record<string, string | undefined>).map(([key, value]) => [
             key.toLowerCase(),
@@ -504,7 +852,7 @@ export class DataLifecycleService {
         )
           throw new Error("Archive object verification failed");
 
-        await this.repository.createArchiveArtifact({
+        const artifactInput = {
           lifecycleRunId: input.run.id,
           dataset: SERVER_LOG_DATASET,
           objectKey,
@@ -515,32 +863,49 @@ export class DataLifecycleService {
             input.policy.archiveRetentionDays == null
               ? null
               : new Date(Date.now() + input.policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
-        });
-        // The local file is removed only after OSS upload, checksum, and length verification.
-        await fs.unlink(candidate.path);
+        };
+        if (input.guard) await this.iamExecution.repository.commitArchive(input.guard, artifactInput, []);
+        else await this.repository.createArchiveArtifact(artifactInput);
         archivedCount += 1;
+        // The local file is removed only after OSS upload, checksum, and length verification.
+        if (input.guard) {
+          await input.guard.recheck();
+          const current = await fs.readFile(candidate.path);
+          if (!source.equals(current)) throw iamAccountDenied();
+          await input.guard.recheck();
+        }
+        await fs.unlink(candidate.path);
+        if (input.guard) await this.iamExecution.repository.recordExternalDeletion(input.guard, input.run.id);
         deletedCount += 1;
+        if (!input.guard)
+          await this.repository.updateLifecycleRun(input.run.id, {
+            candidateCount: input.candidateCount,
+            archivedCount,
+            deletedCount,
+          });
+      }
+
+      if (input.guard) {
+        await input.guard.recheck();
+        await this.iamExecution.repository.complete(input.guard, input.run.id);
+        await input.guard.recheck();
+      } else {
         await this.repository.updateLifecycleRun(input.run.id, {
           candidateCount: input.candidateCount,
           archivedCount,
           deletedCount,
+          runStatus: "completed",
+          completedAt: new Date(),
+        });
+        await this.repository.updateLifecyclePolicy(SERVER_LOG_DATASET, {
+          enabled: input.policy.enabled,
+          hotRetentionDays: input.policy.hotRetentionDays,
+          lastRunAt: new Date(),
         });
       }
-
-      await this.repository.updateLifecycleRun(input.run.id, {
-        candidateCount: input.candidateCount,
-        archivedCount,
-        deletedCount,
-        runStatus: "completed",
-        completedAt: new Date(),
-      });
-      await this.repository.updateLifecyclePolicy(SERVER_LOG_DATASET, {
-        enabled: input.policy.enabled,
-        hotRetentionDays: input.policy.hotRetentionDays,
-        lastRunAt: new Date(),
-      });
       return { runId: input.run.id, candidateCount: input.candidateCount, archivedCount, deletedCount };
     } catch (error) {
+      if (input.guard) return this.failExecution(input.guard, input.run.id, error);
       const message = error instanceof Error ? error.message : String(error);
       await this.repository.updateLifecycleRun(input.run.id, {
         candidateCount: input.candidateCount,

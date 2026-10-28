@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import RelaySettingsChannelDialogs from '@/views/relay/relay-settings/components/RelaySettingsChannelDialogs.vue'
+import { relaySettingsManagementContextKey } from '@/views/relay/relay-settings/context'
+import { routerKey } from 'vue-router'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref, shallowRef } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
@@ -206,6 +209,52 @@ const mountComposable = async () => {
 }
 
 describe('useRelaySettingsManagement', () => {
+  it('edits extra request headers in the channel drawer and hydrates saved names', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.openEditChannelDialog(
+      createChannelRow({ routingConfig: { forwardedRequestHeaders: ['x-sdk-custom'] } }),
+    )
+    const editor = mount(RelaySettingsChannelDialogs, {
+      global: {
+        provide: {
+          [relaySettingsManagementContextKey as symbol]: api,
+          [routerKey as symbol]: { push: vi.fn() },
+        },
+        stubs: {
+          ModelMappingEditor: true,
+          RelayProviderShareEditor: true,
+          'el-table': { template: '<div />' },
+          'el-select': defineComponent({
+            name: 'ElSelect',
+            props: ['modelValue', 'multiple', 'filterable', 'allowCreate'],
+            emits: ['update:modelValue'],
+            template: '<div><slot /></div>',
+          }),
+        },
+      },
+    })
+    const field = editor.find('[data-testid="forwarded-request-headers"]')
+    expect(field.exists()).toBe(true)
+    const select = field.findComponent({ name: 'ElSelect' })
+    expect(select.props()).toMatchObject({
+      modelValue: ['x-sdk-custom'],
+      multiple: '',
+      filterable: '',
+      allowCreate: '',
+    })
+    select.vm.$emit('update:modelValue', ['x-opencode-session', 'x-stainless-retry-count'])
+    await flushPromises()
+    expect(api.channelForm.value.routingConfig.forwardedRequestHeaders).toEqual([
+      'x-opencode-session',
+      'x-stainless-retry-count',
+    ])
+    api.channelForm.value.channelType = 'pooled'
+    await flushPromises()
+    expect(editor.find('[data-testid="forwarded-request-headers"]').exists()).toBe(false)
+    editor.unmount()
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -858,7 +907,7 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
-  it('sends standalone channel payload with health tracking only and respects manual model restriction', async () => {
+  it('sends standalone channel payload with health tracking and configured request headers and respects manual model restriction', async () => {
     const { api, wrapper } = await mountComposable()
 
     api.channelForm.value = {
@@ -884,6 +933,7 @@ describe('useRelaySettingsManagement', () => {
       geminiUpstreamApiKey: '',
       allowedFormats: ['openai'],
       routingConfig: {
+        forwardedRequestHeaders: [' X-Stainless-Retry-Count ', 'x-stainless-retry-count'],
         maxRetries: 9,
         failoverThreshold: 2,
         retryStatusCodes: ['5xx'],
@@ -904,6 +954,7 @@ describe('useRelaySettingsManagement', () => {
         channelType: 'standalone',
         routingConfig: {
           healthTrackingMode: 'automatic',
+          forwardedRequestHeaders: ['x-stainless-retry-count'],
         },
         poolMembers: [],
         allowedModels: JSON.stringify(['gpt-4o-mini']),
@@ -918,6 +969,19 @@ describe('useRelaySettingsManagement', () => {
       }),
     )
 
+    const beforeCount = createChannelMock.mock.calls.length
+    api.channelForm.value.routingConfig.forwardedRequestHeaders = ['Authorization']
+    await api.handleSaveChannel()
+    expect(createChannelMock).toHaveBeenCalledTimes(beforeCount)
+    expect(messageErrorMock).toHaveBeenCalled()
+
+    api.channelForm.value.routingConfig.forwardedRequestHeaders = []
+    await api.handleSaveChannel()
+    expect(createChannelMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routingConfig: expect.objectContaining({ forwardedRequestHeaders: [] }),
+      }),
+    )
     wrapper.unmount()
   })
   it('opens the independent batch model dialog for selected channels', async () => {

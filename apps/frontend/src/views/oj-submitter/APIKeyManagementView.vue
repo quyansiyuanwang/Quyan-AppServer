@@ -15,7 +15,7 @@
           <el-table-column prop="name" :label="i18ns.t('ojSubmitter.apiKeyName')" min-width="160" />
           <el-table-column prop="key" :label="i18ns.t('ojSubmitter.apiKey')" min-width="220">
             <template #default="{ row }">
-              <span class="key-preview">{{ maskSecret(row.key) }}</span>
+              <span class="key-preview">{{ maskSecret(row.key ?? '') }}</span>
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('ojSubmitter.channelName')" min-width="150">
@@ -49,7 +49,7 @@
           <el-table-column :label="i18ns.t('actions')" width="220" fixed="right">
             <template #default="{ row }">
               <div class="table-actions">
-                <el-button size="small" @click="copyKey(row.key)">
+                <el-button v-if="row.key" size="small" @click="copyKey(row.key)">
                   {{ i18ns.t('ojSubmitter.copyKey') }}
                 </el-button>
                 <el-button size="small" @click="handleEdit(row)">
@@ -81,12 +81,12 @@
             <el-card v-for="row in apiKeys" :key="row.id" class="mobile-item" shadow="never">
               <div class="mobile-item__header">
                 <div class="mobile-item__title">{{ row.name || '-' }}</div>
-                <el-button link type="primary" @click="copyKey(row.key)">
+                <el-button v-if="row.key" link type="primary" @click="copyKey(row.key)">
                   {{ i18ns.t('ojSubmitter.copyKey') }}
                 </el-button>
               </div>
 
-              <div class="mobile-item__key">{{ maskSecret(row.key) }}</div>
+              <div class="mobile-item__key">{{ maskSecret(row.key ?? '') }}</div>
 
               <div v-if="row.channelName" class="mobile-item__meta">
                 {{ i18ns.t('ojSubmitter.channelName') }}: {{ row.channelName }}
@@ -306,7 +306,7 @@ const handleCreate = async () => {
       expiresAt: form.value.expiresAt?.toISOString(),
       channelId: form.value.channelId || undefined,
     })
-    newKey.value = created.key
+    newKey.value = created.key ?? ''
     showCreateDialog.value = false
     showNewKeyDialog.value = true
     resetCreateForm()

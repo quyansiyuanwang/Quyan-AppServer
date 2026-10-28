@@ -15,11 +15,33 @@ import type {
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { AuthCenterClientRepository } from "@/store/users/auth-center-client.repository";
-import type { AuthCenterClientStore, AuthCenterClientUpdateInput } from "@/store/users/auth-center-client.store";
+import type {
+  AuthCenterClientCreateInput,
+  AuthCenterClientStore,
+  AuthCenterClientUpdateInput,
+} from "@/store/users/auth-center-client.store";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
-import { maskSecret } from "@quyan/shared";
+import { maskSecret, Permission } from "@quyan/shared";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { PermissionService } from "./permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import {
+  createAuthCenterClientBodySchema,
+  updateAuthCenterClientBodySchema,
+  reviewAuthCenterClientBodySchema,
+} from "@/api/schema/users/auth-center-client.schema";
+import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
+import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
+import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
+import { PlatformAuthCenterReviewIamService } from "./platform-auth-center-review-iam.service";
+import { PlatformAuthCenterReviewMutationIamService } from "./platform-auth-center-review-mutation-iam.service";
+import type { PlatformAuthCenterReviewMutationAction } from "@/store/users/platform-auth-center-review-mutation.store";
+import type { AuthCenterClientView } from "@/store/users/auth-center-client-management.store";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const DEFAULT_SCOPES = ["profile"];
 const REVIEW_STATUS = {
@@ -38,6 +60,11 @@ export class AuthCenterClientService {
   private constructor(
     private readonly repository: AuthCenterClientStore = AuthCenterClientRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iam = AuthCenterClientIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = AuthCenterClientMutationIamService.getInstance(),
+    private readonly platformReviews = PlatformAuthCenterReviewIamService.getInstance(),
+    private readonly reviewMutations = PlatformAuthCenterReviewMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): AuthCenterClientService {
@@ -50,7 +77,42 @@ export class AuthCenterClientService {
     data: CreateAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid auth center application creation", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.mutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_CREATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+    );
+
     const clientType = data.clientType ?? "confidential";
     const grantTypes = this.normalizeGrantTypes(data.grantTypes, clientType);
     const redirectUris = this.normalizeStringArray(data.redirectUris);
@@ -69,7 +131,7 @@ export class AuthCenterClientService {
     const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
 
-    const created = await this.repository.create({
+    const createData: AuthCenterClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -92,7 +154,17 @@ export class AuthCenterClientService {
       isPkceRequired,
       accessTokenLifetime: data.accessTokenLifetime ?? DEFAULT_ACCESS_TOKEN_LIFETIME,
       refreshTokenLifetime: data.refreshTokenLifetime ?? DEFAULT_REFRESH_TOKEN_LIFETIME,
-    });
+    };
+    const created = guard
+      ? await this.mutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.identity.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_CREATE,
@@ -118,12 +190,47 @@ export class AuthCenterClientService {
     };
   }
 
-  async listClients(userId: string): Promise<AuthCenterClientDto[]> {
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== userId ||
+      principal.principalUserId !== userId ||
+      !(
+        await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await operation();
+    } catch {
+      getLogger("AuthCenterClientIamBridge", LogCategory.SECURITY).warn(
+        "Auth center client IAM shadow evaluation failed",
+        {
+          reason: "iam-evaluation-denied-or-unavailable",
+        },
+      );
+    }
+  }
+  async listClients(userId: string, request?: TypedRequest): Promise<AuthCenterClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.iam.list(userId, request)).map((item) => this.toDto(item));
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.diagnoseList(userId, request));
     const clients = await this.repository.findByUserId(userId);
     return clients.map((item) => this.toDto(item));
   }
 
-  async getClient(id: string, userId: string): Promise<AuthCenterClientDto> {
+  async getClient(id: string, userId: string, request?: TypedRequest): Promise<AuthCenterClientDto> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.toDto((await this.iam.get(userId, id, request))!);
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.get(userId, id, request, false));
     const client = await this.requireOwnedClient(id, userId);
     return this.toDto(client);
   }
@@ -134,7 +241,15 @@ export class AuthCenterClientService {
     data: UpdateAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid auth center application update", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = parsed.data;
+    }
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:UpdateClient", userId, id, request);
     const nextClientType = data.clientType ?? existing.clientType;
     const nextGrantTypes = Object.prototype.hasOwnProperty.call(data, "grantTypes")
       ? this.normalizeGrantTypes(data.grantTypes, nextClientType)
@@ -159,7 +274,11 @@ export class AuthCenterClientService {
 
     const updateData: AuthCenterClientUpdateInput = {};
     if (data.scopes !== undefined)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
 
     if (Object.prototype.hasOwnProperty.call(data, "name") && data.name !== undefined)
       updateData.name = data.name.trim();
@@ -167,7 +286,11 @@ export class AuthCenterClientService {
       updateData.description = this.normalizeNullableText(data.description);
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris")) updateData.redirectUris = nextRedirectUris;
     if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))
@@ -200,7 +323,17 @@ export class AuthCenterClientService {
       updateData.reviewedByUserId = null;
     }
 
-    const updated = await this.repository.update(id, updateData);
+    if (guard && updateData.scopes) {
+      const scopes = [...updateData.scopes];
+      guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+          assumedRoleSessionId: guard.identity.principal.roleSessionId,
+        });
+      };
+    }
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_UPDATE,
@@ -221,9 +354,42 @@ export class AuthCenterClientService {
     return this.toDto(updated);
   }
 
+  private async prepareWrite(action: AuthCenterClientMutationAction, userId: string, id: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.mutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(
+            userId,
+            [
+              action === "quyan:auth_center:DeleteClient"
+                ? Permission.AUTH_CENTER_CLIENT_DELETE
+                : Permission.AUTH_CENTER_CLIENT_UPDATE,
+            ],
+            {
+              assumedRoleSessionId: principal.roleSessionId,
+            },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return { existing: await this.requireOwnedClient(id, userId), guard: undefined };
+  }
+
   async deleteClient(id: string, userId: string, request?: Request): Promise<void> {
-    const existing = await this.requireOwnedClient(id, userId);
-    await this.repository.delete(id);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:DeleteClient", userId, id, request);
+    if (guard) await this.mutations.revoke(guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_DELETE,
@@ -239,14 +405,21 @@ export class AuthCenterClientService {
   }
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const existing = await this.repository.findById(id);
+    const prepared = await this.prepareReviewMutation(
+      "quyan:auth_center:DeleteReviewedClient",
+      reviewerUserId,
+      id,
+      request,
+    );
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("Auth Center client not found", undefined, {
         messageKey: "oauth.clientNotFound",
         messageParams: { client: "Auth Center" },
       });
 
-    await this.repository.delete(id);
+    if (prepared) await this.reviewMutations.mutate(prepared.guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_DELETE,
@@ -265,7 +438,7 @@ export class AuthCenterClientService {
   }
 
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<AuthCenterClientWithSecretDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:RotateClientSecret", userId, id, request);
     if (existing.clientType === "public")
       throw new BadRequestError("Public Auth Center client does not use client secret", undefined, {
         messageKey: "oauth.publicClientNoSecret",
@@ -273,10 +446,13 @@ export class AuthCenterClientService {
       });
 
     const rawClientSecret = this.generateClientSecret();
-    const updated = await this.repository.update(id, {
+    const updateData = {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
       clientSecretPreview: maskSecret(rawClientSecret),
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_SECRET_ROTATE,
@@ -297,7 +473,7 @@ export class AuthCenterClientService {
   }
 
   async submitForReview(id: string, userId: string, request?: Request): Promise<AuthCenterClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:SubmitClientReview", userId, id, request);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
       throw new BadRequestError("Auth Center client is already pending review", undefined, {
@@ -305,13 +481,16 @@ export class AuthCenterClientService {
         messageParams: { client: "Auth Center" },
       });
 
-    const updated = await this.repository.update(id, {
+    const updateData = {
       reviewStatus: REVIEW_STATUS.PENDING,
       submittedAt: new Date(),
       reviewComment: null,
       reviewedAt: null,
       reviewedByUserId: null,
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_SUBMIT_REVIEW,
@@ -334,7 +513,34 @@ export class AuthCenterClientService {
 
   async listClientsForReview(
     query: AuthCenterClientReviewListQueryDto,
+    request?: Request,
   ): Promise<AuthCenterClientReviewListResponseDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.platformReviews.list(query, request as TypedRequest | undefined);
+      return {
+        ...result,
+        items: result.items.map((item) => ({
+          ...this.toDto(item),
+          ownerUsername: item.user.username,
+          reviewerUsername: item.reviewedBy?.username ?? undefined,
+        })),
+      };
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(
+            principal.subjectUserId,
+            [Permission.AUTH_CENTER_CLIENT_REVIEW_READ],
+            { assumedRoleSessionId: principal.roleSessionId },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformReviews.diagnose(query, request as TypedRequest));
+    }
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.repository.findReviewList({
@@ -362,7 +568,16 @@ export class AuthCenterClientService {
     data: ReviewAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientDto> {
-    const existing = await this.repository.findById(id);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = reviewAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid Auth Center review decision", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = { ...parsed.data, reviewComment: parsed.data.reviewComment ?? undefined };
+    }
+    const prepared = await this.prepareReviewMutation("quyan:auth_center:ReviewClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("Auth Center client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -374,12 +589,11 @@ export class AuthCenterClientService {
         messageParams: { client: "Auth Center" },
       });
 
-    const updated = await this.repository.update(id, {
-      reviewStatus: data.reviewStatus,
-      reviewComment: this.normalizeNullableText(data.reviewComment),
-      reviewedAt: new Date(),
-      reviewedByUserId: reviewerUserId,
-    });
+    const decision = { reviewStatus: data.reviewStatus, reviewComment: this.normalizeNullableText(data.reviewComment) };
+    const updated = prepared
+      ? await this.reviewMutations.mutate(prepared.guard, decision)
+      : await this.repository.update(id, { ...decision, reviewedAt: new Date(), reviewedByUserId: reviewerUserId });
+    if (!updated) throw iamAccountDenied();
 
     await this.businessLogService.logOperation({
       operationType:
@@ -402,6 +616,35 @@ export class AuthCenterClientService {
     });
 
     return this.toDto(updated);
+  }
+
+  private async prepareReviewMutation(
+    action: PlatformAuthCenterReviewMutationAction,
+    userId: string,
+    id: string,
+    request?: Request,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.reviewMutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.reviewMutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return undefined;
   }
 
   private async requireOwnedClient(id: string, userId: string): Promise<AuthCenterClient> {
@@ -500,7 +743,7 @@ export class AuthCenterClientService {
     return value.filter((item): item is string => typeof item === "string");
   }
 
-  private toDto(client: AuthCenterClient): AuthCenterClientDto {
+  private toDto(client: AuthCenterClient | AuthCenterClientView): AuthCenterClientDto {
     return {
       id: client.id,
       userId: client.userId,
@@ -527,7 +770,7 @@ export class AuthCenterClientService {
       lastUsedAt: client.lastUsedAt?.toISOString(),
       createTime: client.createTime.toISOString(),
       updateTime: client.updateTime.toISOString(),
-      hasClientSecret: !!client.clientSecretHash,
+      hasClientSecret: "hasClientSecret" in client ? client.hasClientSecret : !!client.clientSecretHash,
     };
   }
 }

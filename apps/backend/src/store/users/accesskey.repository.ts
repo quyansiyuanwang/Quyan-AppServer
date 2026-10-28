@@ -35,9 +35,9 @@ export class AccessKeyRepository implements AccessKeyStore {
     return prisma.accessKey.update({ where: { id }, data });
   }
 
-  async delete(id: string): Promise<AccessKey> {
+  async delete(id: string, userId: string): Promise<AccessKey> {
     return prisma.accessKey.update({
-      where: { id },
+      where: { id, userId, status: MANAGED_STATUS.ENABLED },
       data: { status: MANAGED_STATUS.DELETED },
     });
   }

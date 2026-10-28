@@ -33,8 +33,12 @@ class RemoteTerminalProductService {
     return this.instance
   }
 
-  async getFilterOptions(): Promise<RemoteTerminalFilterOptionsDto> {
-    const result = await remoteTerminalProductApi.getFilterOptions({})
+  async getFilterOptions(params?: {
+    page?: number
+    pageSize?: number
+    keyword?: string
+  }): Promise<RemoteTerminalFilterOptionsDto> {
+    const result = await remoteTerminalProductApi.getFilterOptions({ params: params || {} })
     return result.data
   }
 

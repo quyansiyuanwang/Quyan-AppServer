@@ -18,6 +18,65 @@
 
 拥有 `RELAY_CHANNEL_REVIEW` 权限的管理员在独立“渠道供应审核”页面处理初始提交和修改申请，并可单独保存倍率、提供者及结算方式。
 
+## 我的渠道提交的 IAM 权限
+
+启用 IAM 强制授权后，“我的渠道提交”使用 `quyan:relay:ListMyChannelSubmissions`，资源为 `acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>`。账号及提交者字段来自已认证身份。这是个人提交访问权限，不是平台渠道管理权限，不要求部署全局管理组资格。仅 JSON 策略也可授予指定本人提交的读取权限，不会同时授予创建、审核、删除渠道或健康访问权限。
+
+列表始终只包含当前用户自己提交且未删除的独立渠道，包括待审核、已拒绝、已停用和提供者暂停服务的记录。即使策略使用通配符，也不能列出其他提交者的渠道。授权过滤先于分页和总数计算，总数只代表获准的提交。私有可见性不会让原提交者看不到自己的提交。扮演角色时只使用该角色的策略，不继承用户自身策略。这些无 OAuth scope 的接口不接受 OAuth 令牌。
+
+响应保留审核信息、有效模型及上游密钥是否存在的布尔标记，不返回密钥原文。独立渠道提交不暴露池父节点或无关成员。读取过程中身份、授权或相关资源数据发生变化时，拒绝返回结果。legacy/shadow 只执行一次原有内容读取，不为 shadow 比较重复读取配置。
+
+### 创建待审核提交
+
+启用 IAM 强制授权后，创建提交使用 `quyan:relay:CreateMyChannelSubmission`。服务端预分配渠道 ID，并要求此 Action 同时允许：
+
+- 新渠道提交：`acs:relay:*:<accountId>:channel-submission/<submitterUserId>/*`；
+- 每个提供者关联：`acs:relay:*:<accountId>:submission-provider/<submitterUserId>/*/<providerUserId>`。
+
+关联 ARN 中的 `*` 是服务端分配的渠道 ID。即使请求未显式配置提供者，也会添加原提交者的零比例、手动结算关联，因此策略需要允许本人的关联。要限制可配置的其他提供者，逐个填写其用户 ID，而不是放宽为任意提供者。关联仅代表本次提交中的收益配置，不授予目标用户的账号或 IAM 管理权限；提供者用户名由服务端解析为真实用户 ID 后再授权。
+
+新提交固定为待审核、停用的独立渠道，请求不能指定资源 ID、冒充其他提交者或自行设为审核通过。创建、提供者关联和响应投影在同一事务内校验；授权、身份或关联数据变化导致校验失败时，不保留部分提交。响应只包含上游密钥是否存在的标记，不返回密钥内容。原有 `RELAY_CHANNEL_SUBMIT` 在迁移期间仅映射为当前提交者范围，legacy/shadow 仍只执行一次原业务创建。
+
+可视化资源构造器、目录与可下载 JSON Schema 使用明确的字段名：`submitterUserId` 为原始提交者，`channelId` 为提交的渠道，`providerUserId` 为拟议收益接收者。个人变更申请资源使用 `submitterUserId` 与 `requestId`。这些模板标签不改变已保存的 ARN。Schema 与 AI 辅助还会提供必需 Action 和特定操作变体所需的 Action；它们说明额外检查，不自动授予权限。身份信息缺失或操作变体不明确时，应先补充信息，而不是扩大授权。
+
+### 删除与服务开关
+
+删除本人提交需要 `quyan:relay:DeleteMyChannelSubmission`，暂停或恢复服务需要 `quyan:relay:SetMyChannelSubmissionServiceStatus`。两个 Action 均使用上述提交资源 ARN，可只授予指定渠道的操作权限；列表读取、审核及平台管理权限不会被一并授予。通配符也不能绕过原提交者归属检查。
+
+删除仅适用于待审核、已拒绝或已下架的本人独立渠道；删除与相关令牌渠道引用清理一同提交或取消。服务开关仅适用于已审核通过的独立渠道；管理员停用后，供应者不能自行恢复。请求保留二次验证和重放保护，不接受 OAuth 令牌。写入期间身份、角色会话、AccessKey、策略或目标状态发生变化时，整次数据库修改取消，不产生部分更新。服务开关响应仍只返回密钥存在标记，不返回密钥原文。
+
+### 创建和替换修改申请
+
+启用 IAM 强制授权后，原始提交者需要对以下全部资源拥有 `quyan:relay:CreateMyChannelChangeRequest`：
+
+- 现有自有渠道：`acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>`；
+- 服务端分配的新申请：`acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*`；
+- 每条将被替换的旧待审核申请，使用其各自的修改申请 ARN；
+- 每条显式提议的提供者关联：`acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>`。
+
+提案不会修改线上提供者，也不会自动加入提交者。省略提供者列表表示保留现有配置供审核；显式空列表表示提议移除全部提供者。接收者可以属于其他账号，但提案不授予管理其账号的权限。服务端固定解析后的接收者身份；用户名被改名、停用或转给其他用户后，不能静默将已授权的提案转向另一用户。接收者身份失效时，请重新提交申请。
+
+新密钥单独加密保存，不放入配置快照、公开响应或审计载荷。密钥留空表示保留现有密钥，返回标记仅表示是否存在。已上架渠道在申请待审核期间继续使用当前配置；被拒渠道重新进入待审核并保持禁用。授权、身份、接收者、模型目录或响应数据发生变化时，新申请、旧申请替换及被拒渠道恢复会一起取消。
+
+例如，以下策略允许对一个自有渠道和指定提供者提交修改提案；请将所有占位符替换为真实标识：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:relay:CreateMyChannelChangeRequest",
+    "Resource": [
+      "acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>",
+      "acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*",
+      "acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>"
+    ]
+  }
+}
+```
+
+申请通配符也允许替换该提交者的待审核申请，但不授予读取、审核、删除或平台管理 Action。显式 Deny 仍优先。二次验证和重放保护仍然必需，不接受 OAuth Token。现有 `RELAY_CHANNEL_SUBMIT` 权限自动映射到新 Action；仅使用旧账号级 `quyan:relay:channel:Submit` 别名的 JSON 策略，需要采用新 Action 和资源类型。legacy/shadow 模式仅执行一次原创建操作，不会额外进行原生写入。
+
 ## 收益与结算
 
 收益只来自实际从消费者余额扣除的金额：失败请求、零扣费和月卡完全覆盖的请求不会产生收益；月卡只覆盖一部分时，只按剩余的实际扣费计算。每笔收益保存发生时的渠道、提供者和比例快照，后续调整不会修改历史记录。
@@ -25,6 +84,36 @@
 提供者可配置实时、每 N 天、每日固定时刻或手动结算。实时收益会直接进入可消费余额；定时结算按服务端上海时区运行；手动模式可在此页面点击“转入余额”。转入后收益作为独立佣金流水计入可消费余额，不会被记为充值。
 
 同一渠道可以有多位提供者。单个人的比例范围是 0% 到 100%，但总比例可以超过 100%；超出的部分由平台补贴，管理员会在渠道编辑器中明确看到总比例和平台剩余或补贴。
+
+启用资源级 IAM 强制授权时，收益明细需要 `quyan:relay:ListMyProviderEarnings` 同时允许本人的提供者资源（`acs:relay:*:<accountId>:provider/<userId>/<providerId>`）和收益资源（`acs:relay:*:<accountId>:provider-earning/<userId>/<earningId>`）。被拒绝的收益不会计入明细、总数及待结算／已结算汇总。宽泛策略也不能读取他人的收益。提供者配置停用后，历史收益仍可查询，但同样受资源授权约束。
+
+启用 IAM 强制授权时，“转入余额”需要 `quyan:relay:ClaimMyProviderEarnings` 同时允许本次涉及的所有手动结算提供者、待结算收益、本人的余额账户（`acs:balance:*:<accountId>:account/<userId>`）及新结算和流水资源（`acs:relay:*:<accountId>:provider-settlement/<userId>/*`、`acs:balance:*:<accountId>:transaction/<userId>/*`）。任何资源被拒绝或授权发生变化，整次转入都会取消，不会留下部分提供者已结算或余额已增加的结果。重复领取不会再次转入已结算收益。实时和定时结算继续遵循其配置的结算方式。
+
+## 资源级提交审核
+
+启用 IAM 强制授权后，上架、拒绝和下架已提交渠道，需要对 `acs:platform:*:platform:relay-channel/<channelId>` 拥有 `quyan:relay:ReviewChannelSubmission`。上架还会对每条拟议提供者关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>` 检查同一 Action，包括提交者隐含的零比例关联。关联权限控制收益配置，不授予管理接收者账号的权限。审核者还必须保留部署管理组赋予的审核资格，账号策略不能自行创建该资格。二次验证和重放保护仍然生效。
+
+上架会启用渠道和提供者服务。拒绝必须填写原因；拒绝与下架会禁用渠道，不替换现有提供者。存在有效的待审核变更申请时，必须先审核该申请。审核、提供者变更与安全配置响应在同一事务内完成：最终权限、身份、接收者、待审核申请或响应数据发生变化时，审核回滚。响应不包含上游密钥值。混池响应只包含另行通过授权的关联渠道及其贡献的能力，不会因审核权限泄露无关渠道。
+
+旧 `RELAY_CHANNEL_REVIEW` 权限会自动映射到新 Action。使用旧 `quyan:relay:channel:Review` 和账号内渠道 ARN 的 JSON 策略，需要显式改为平台 Action 与资源范围。legacy/shadow 模式仍只执行一次原有审核；shadow 不会重复写入，也不会读取原生配置响应。
+
+## 资源级提供者配置
+
+启用 IAM 强制授权后，修改渠道倍率或提供者列表，需要对 `acs:platform:*:platform:relay-channel/<channelId>` 拥有 `quyan:relay:UpdateChannelProviderConfig`。替换提供者时，还需对每条当前有效和拟议关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>` 拥有同一 Action，移除提供者同样受授权控制。仅修改倍率时，不要求无关提供者关联的权限。
+
+提供者用户名由服务端解析为真实接收者 ID。接收者可以属于其他账号，但关联权限不授予管理该账号的权限。提交空提供者列表会停用全部现有关联，不会自动加入编辑者或提交者。重新配置保留已结算收益历史，并采用选定的结算计划。操作期间身份、权限、接收者或响应数据发生变化，整个写入（包括倍率修改）都会取消。响应仅暴露凭据是否存在，不返回未获授权的混池贡献。
+
+操作者还必须保留部署管理组赋予的渠道审核或渠道更新资格。现有 `RELAY_CHANNEL_REVIEW` 和 `RELAY_CHANNEL_UPDATE` 权限会映射到新 Action；仅使用旧账号级 `quyan:relay:channel:Review` 或 `quyan:relay:channel:Update` 别名的 JSON 策略，需要显式改用新 Action 及平台渠道、提供者关联资源。二次验证和重放保护仍然必需，不接受 OAuth Token。legacy/shadow 模式只执行一次原业务操作，不会额外执行原生写入。
+
+## 资源级修改申请审核
+
+启用 IAM 强制授权后，审核修改申请使用 `quyan:relay:ReviewChannelChangeRequest`，必须同时允许申请资源 `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>` 和渠道资源 `acs:platform:*:platform:relay-channel/<channelId>`。审核者仍须具有部署管理的审核资格；账号策略不能自行授予该资格。二次验证和防重放要求保持不变。
+
+批准还需要逐一允许每个当前及拟议提供者关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>`，包括被移除的关联。该授权不授予接收者的账号管理权限。明确的空提供者列表会停用全部关联；省略列表则保持现有关联，不会自动添加提交者。新的修改申请固定提供者身份，用户名改变或被他人重新使用后不能把分成转给其他人。既有已结算记录保留。
+
+批准只应用申请中的渠道配置及明确提供的新凭据，不改变路由、可见性或关联 Token。对已获批渠道，当前管理员停用及提供者暂停状态仍然有效，不会因批准修改而恢复服务。拒绝必须填写原因，不会解密待应用凭据或检查失效的上游、模型及提供者配置；申请本身仍须具有可安全展示的合法结构。恢复申请被拒绝时，按经服务端校验的原状态恢复。已完成的审核请求仍会重新检查访问权限。
+
+审核状态、配置、提供者变更及安全响应在同一事务内完成。期间权限、身份、接收者、申请、模型目录或响应数据发生变化会撤销整个操作，响应不会包含密钥或内部绑定信息。旧 `RELAY_CHANNEL_REVIEW` 自动映射为此 Action；仅使用旧 JSON Action 的策略须明确改用上述平台资源范围。legacy/shadow 模式仍只执行一次原有业务写入。
 
 ## 相关页面
 

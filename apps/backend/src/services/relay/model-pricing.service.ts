@@ -1,3 +1,12 @@
+import { PlatformModelPricingWriteIamService } from "./platform-model-pricing-write-iam.service";
+import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
+import { PlatformModelPricingReadIamService } from "./platform-model-pricing-read-iam.service";
 import type {
   ModelPricingDto,
   CreateModelPricingRequest,
@@ -12,7 +21,11 @@ import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
-import { DEFAULT_CACHE_CREATION_MULTIPLIER, DEFAULT_CACHE_READ_MULTIPLIER } from "@/constant/pricing";
+import {
+  DEFAULT_CACHE_CREATION_MULTIPLIER,
+  DEFAULT_CACHE_READ_MULTIPLIER,
+  DEFAULT_MODEL_PRICING_SUPPORTED_FORMATS,
+} from "@/constant/pricing";
 import { RECORD_STATUS } from "@/constant/status";
 import type { Request } from "express";
 
@@ -22,6 +35,9 @@ export class ModelPricingService {
   private constructor(
     private readonly modelPricingRepository: ModelPricingStore = ModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformModelPricingReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly iamWrites = PlatformModelPricingWriteIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -44,6 +60,118 @@ export class ModelPricingService {
     };
   }
 
+  async exportManagedModelPricing(request: TypedRequest): Promise<ModelPricingDto[]> {
+    const project = (rows: ModelPricing[]) =>
+      rows.map((row) => {
+        if (!["token-based", "per-request"].includes(row.pricingType)) throw iamAccountDenied();
+        return this.toDto(row);
+      });
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.list(request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.MODEL_PRICING_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(request, project, false);
+      } catch {
+        getLogger("ModelPricing", LogCategory.SECURITY).warn("Model pricing export shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.getModelPricing();
+  }
+  private async managedWrite(
+    operation: "create" | "update" | "delete",
+    id: string | undefined,
+    data: CreateModelPricingRequest | UpdateModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== actorUserId ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    const evaluate = (persist: boolean) =>
+      operation === "create"
+        ? this.iamWrites.create(data as CreateModelPricingRequest, actorUserId, request, persist)
+        : this.iamWrites.mutate(operation, id!, data, actorUserId, request, persist);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const row = await evaluate(true);
+      if (!row) throw iamAccountDenied();
+      await this.businessLogService.logOperation({
+        operationType:
+          operation === "create"
+            ? OperationType.MODEL_PRICING_CREATE
+            : operation === "update"
+              ? OperationType.MODEL_PRICING_UPDATE
+              : OperationType.MODEL_PRICING_DELETE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: row.id,
+        targetResourceType: "MODEL_PRICING",
+        description: `Model pricing ${operation}`,
+        ...(operation === "delete" ? {} : { changes: maskSensitiveData(data) }),
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return row;
+    }
+    if (
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.MODEL_PRICING_UPDATE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await evaluate(false);
+      } catch {
+        getLogger("ModelPricing", LogCategory.SECURITY).warn("Model pricing mutation shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return undefined;
+  }
+  async createManagedModelPricing(data: CreateModelPricingRequest, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("create", undefined, data, actorUserId, request);
+    return row ? this.toDto(row) : this.createModelPricing(data, actorUserId, request);
+  }
+  async updateManagedModelPricing(
+    id: string,
+    data: UpdateModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const row = await this.managedWrite("update", id, data, actorUserId, request);
+    return row ? this.toDto(row) : this.updateModelPricing(id, data, actorUserId, request);
+  }
+  async deleteManagedModelPricing(id: string, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("delete", id, {}, actorUserId, request);
+    if (!row) await this.deleteModelPricing(id, actorUserId, request);
+  }
   async getModelPricing(): Promise<ModelPricingDto[]> {
     const models = await this.modelPricingRepository.listActiveOrderedByModel();
 
@@ -109,7 +237,7 @@ export class ModelPricingService {
       provider: data.provider,
       cacheCreationMultiplier: data.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
       cacheReadMultiplier: data.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER,
-      supportedFormats: data.supportedFormats || "openai-chat-completions,anthropic,gemini",
+      supportedFormats: data.supportedFormats || DEFAULT_MODEL_PRICING_SUPPORTED_FORMATS,
     };
 
     const existingModel = await this.modelPricingRepository.findByModel(normalizedModelName);
@@ -245,6 +373,60 @@ export class ModelPricingService {
     });
   }
 
+  async importManagedModelPricing(
+    models: readonly CreateModelPricingRequest[],
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== actorUserId ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const receipt = await this.iamWrites.importModels(models, actorUserId, request);
+      if (!receipt) throw iamAccountDenied();
+      await this.businessLogService.logOperation({
+        operationType: OperationType.MODEL_PRICING_IMPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: "batch",
+        targetResourceType: "MODEL_PRICING",
+        description: "Imported model pricing",
+        changes: {
+          created: receipt.created,
+          updated: receipt.updated,
+          total: receipt.total,
+          recordIds: receipt.recordIds,
+        },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return { created: receipt.created, updated: receipt.updated, total: receipt.total };
+    }
+    if (
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.MODEL_PRICING_UPDATE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamWrites.importModels(models, actorUserId, request, false);
+      } catch {
+        getLogger("ModelPricing", LogCategory.SECURITY).warn("Model pricing import shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.importModelPricing([...models], actorUserId, request);
+  }
   async importModelPricing(
     models: {
       model: string;

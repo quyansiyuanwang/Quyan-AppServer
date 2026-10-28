@@ -1,22 +1,22 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
 
-export interface EffectiveRelayPoolMember {
+export interface EffectiveRelayPoolMember<TChannel = RelayChannel> {
   memberChannelId: string;
   priority: number;
   weight: Prisma.Decimal | number;
   enabled: boolean;
-  memberChannel?: RelayChannel | null;
+  memberChannel?: TChannel | null;
 }
 
-type RelayChannelWithPoolRelations = RelayChannel & {
+type RelayChannelWithPoolRelations<TChannel> = TChannel & {
   poolMembers?: Array<{
     memberChannelId: string;
     priority: number;
     weight: Prisma.Decimal | number;
     enabled: boolean;
-    memberChannel?: RelayChannel | null;
+    memberChannel?: TChannel | null;
   }>;
-  pooledChildren?: RelayChannel[];
+  pooledChildren?: (TChannel & Pick<RelayChannel, "id" | "pooledPriority" | "pooledWeight" | "pooledMemberEnabled">)[];
 };
 
 /**
@@ -24,9 +24,11 @@ type RelayChannelWithPoolRelations = RelayChannel & {
  * member set. A strict child owns its member settings when both relations name
  * the same channel.
  */
-export function resolveEffectiveRelayPoolMembers(channel: RelayChannel): EffectiveRelayPoolMember[] {
-  const withRelations = channel as RelayChannelWithPoolRelations;
-  const members = new Map<string, EffectiveRelayPoolMember>();
+export function resolveEffectiveRelayPoolMembers<TChannel extends Pick<RelayChannel, "id" | "channelType">>(
+  channel: RelayChannelWithPoolRelations<TChannel>,
+): EffectiveRelayPoolMember<TChannel>[] {
+  const withRelations = channel;
+  const members = new Map<string, EffectiveRelayPoolMember<TChannel>>();
 
   for (const member of withRelations.poolMembers ?? []) {
     members.set(member.memberChannelId, {

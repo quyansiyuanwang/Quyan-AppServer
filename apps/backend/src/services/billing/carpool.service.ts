@@ -1,3 +1,17 @@
+import { PlatformCarpoolOrderDeliveryIamService } from "./platform-carpool-order-delivery-iam.service";
+import { PlatformCarpoolDeliveryChannelReadIamService } from "./platform-carpool-delivery-channel-read-iam.service";
+import { PlatformCarpoolOrderRefundIamService } from "./platform-carpool-order-refund-iam.service";
+import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
+import { PlatformCarpoolOrderReadIamService } from "./platform-carpool-order-read-iam.service";
+import { PlatformCarpoolTemplateWriteIamService } from "./platform-carpool-template-write-iam.service";
+import { bindCarpoolTemplateWrite } from "@/store/billing/carpool-template-write";
+import type { MonthlyPassTemplate } from "@prisma/client";
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
+import { CarpoolOrderIamService } from "./carpool-order-iam.service";
 import crypto from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
@@ -225,7 +239,21 @@ export class CarpoolService {
     );
     return { total, records: records.map((item) => this.packageDto(item)) };
   }
-  async listTemplates(page = 1, pageSize = 20, keyword?: string, publishStatus?: string) {
+  async listTemplates(page = 1, pageSize = 20, keyword?: string, publishStatus?: string, request?: TypedRequest) {
+    if (request) {
+      const { total, records } = await PlatformTemplateReadIamService.getInstance("carpool").list(
+        request,
+        { page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)) },
+        { keyword, publishStatus },
+        (record) => this.packageDto(record, true),
+        () => this.listTemplatesLegacy(page, pageSize, keyword, publishStatus),
+      );
+      return { total, records };
+    }
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, keyword, publishStatus);
+  }
+  private async listTemplatesLegacy(page: number, pageSize: number, keyword?: string, publishStatus?: string) {
     const [total, records] = await this.repository.findTemplates(
       Math.max(1, page),
       Math.min(100, Math.max(1, pageSize)),
@@ -234,8 +262,11 @@ export class CarpoolService {
     );
     return { total, records: records.map((item) => this.packageDto(item, true)) };
   }
-  private async templateData(data: CreateCarpoolPackageTemplateRequest | UpdateCarpoolPackageTemplateRequest) {
-    const monthly = await this.repository.findActiveMonthlyPassTemplate(data.monthlyPassTemplateId);
+  private async templateData(
+    data: CreateCarpoolPackageTemplateRequest | UpdateCarpoolPackageTemplateRequest,
+    source?: MonthlyPassTemplate,
+  ) {
+    const monthly = source ?? (await this.repository.findActiveMonthlyPassTemplate(data.monthlyPassTemplateId));
     if (!monthly)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -253,49 +284,93 @@ export class CarpoolService {
       snapshotAllowedChannels: monthly.allowedChannels,
     };
   }
-  async createTemplate(data: CreateCarpoolPackageTemplateRequest) {
-    return this.packageDto(await this.repository.createTemplate(await this.templateData(data)), true);
+  async createTemplate(data: CreateCarpoolPackageTemplateRequest, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      undefined,
+      data.monthlyPassTemplateId,
+    );
+    const input = {
+      ...(await this.templateData(data, prepared?.guard.monthlySource?.record)),
+      status: 1,
+      publishStatus: "draft",
+      publishedAt: null,
+    };
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(await this.repository.createTemplate(input, ...(prepared ? [prepared.guard] : [])), true);
   }
-  async updateTemplate(id: string, data: UpdateCarpoolPackageTemplateRequest) {
-    if (!(await this.repository.findTemplate(id)))
+  async updateTemplate(id: string, data: UpdateCarpoolPackageTemplateRequest, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+      data.monthlyPassTemplateId,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
       throw new NotFoundError("Carpool package template not found", undefined, {
         messageKey: "carpool.packageTemplateNotFound",
       });
-    return this.packageDto(await this.repository.updateTemplate(id, await this.templateData(data)), true);
+    const input = await this.templateData(data, prepared?.guard.monthlySource?.record);
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(
+      await this.repository.updateTemplate(id, input, ...(prepared ? [prepared.guard] : [])),
+      true,
+    );
   }
-  async duplicateTemplate(id: string) {
-    const template = await this.repository.findTemplate(id);
+  async duplicateTemplate(id: string, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "DuplicateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    const template = prepared?.target?.record ?? (await this.repository.findTemplate(id));
     if (!template)
       throw new NotFoundError("Carpool package template not found", undefined, {
         messageKey: "carpool.packageTemplateNotFound",
       });
+    const { id: _id, createTime: _created, updateTime: _updated, ...fields } = template;
+    const input = {
+      ...fields,
+      name: `${template.name} Copy ${Date.now().toString().slice(-6)}`,
+      publishStatus: "draft",
+      publishedAt: null,
+      status: 1,
+    };
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(await this.repository.createTemplate(input, ...(prepared ? [prepared.guard] : [])), true);
+  }
+  async archiveTemplate(id: string, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "ArchiveTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
+    await this.repository.archiveTemplate(id, ...(prepared ? [prepared.guard] : []));
+  }
+  async publishTemplate(id: string, published: boolean, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      published ? "PublishTemplate" : "UnpublishTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     return this.packageDto(
-      await this.repository.createTemplate({
-        ...template,
-        id: undefined,
-        name: `${template.name} Copy ${Date.now().toString().slice(-6)}`,
-        publishStatus: "draft",
-        publishedAt: null,
-        status: 1,
-        createTime: undefined,
-        updateTime: undefined,
-      }),
+      await this.repository.updateTemplatePublication(id, published, ...(prepared ? [prepared.guard] : [])),
       true,
     );
-  }
-  async archiveTemplate(id: string) {
-    if (!(await this.repository.findTemplate(id)))
-      throw new NotFoundError("Carpool package template not found", undefined, {
-        messageKey: "carpool.packageTemplateNotFound",
-      });
-    await this.repository.archiveTemplate(id);
-  }
-  async publishTemplate(id: string, published: boolean) {
-    if (!(await this.repository.findTemplate(id)))
-      throw new NotFoundError("Carpool package template not found", undefined, {
-        messageKey: "carpool.packageTemplateNotFound",
-      });
-    return this.packageDto(await this.repository.updateTemplatePublication(id, published), true);
   }
 
   async createOrder(data: CreateCarpoolOrderRequest, userId: string) {
@@ -332,13 +407,26 @@ export class CarpoolService {
     });
     return this.dto(order, userId);
   }
-  async getOrder(id: string, userId: string, admin = false) {
+  async getOrder(id: string, userId: string, admin = false, request?: TypedRequest) {
+    if (admin) {
+      const record = await PlatformCarpoolOrderReadIamService.getInstance().get(request, id, async () => {
+        const row = await this.repository.findOrder(id);
+        if (!row)
+          throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
+        return row;
+      });
+      return this.dto(record, undefined, true);
+    }
     const order = await this.repository.findOrder(id);
     if (!order) throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
     if (!admin && !order.members.some((member) => member.userId === userId)) throw new ForbiddenError();
     return this.dto(order, admin ? undefined : userId, admin);
   }
-  async listMine(userId: string, page = 1, pageSize = 20, state?: string, keyword?: string) {
+  async listMine(userId: string, page = 1, pageSize = 20, state?: string, keyword?: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await CarpoolOrderIamService.getInstance().list(userId, page, pageSize, state, keyword, request);
+      return { ...result, records: result.records.map((record) => this.dto(record, userId)) };
+    }
     const [total, records] = await this.repository.findOrdersForUser(
       userId,
       Math.max(1, page),
@@ -346,19 +434,51 @@ export class CarpoolService {
       state,
       keyword,
     );
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        const projected = await CarpoolOrderIamService.getInstance().list(
+          userId,
+          page,
+          pageSize,
+          state,
+          keyword,
+          request,
+        );
+        if (
+          projected.total !== total ||
+          projected.records.map((record) => record.id).join() !== records.map((record) => record.id).join()
+        )
+          getLogger("CarpoolOrderIam", LogCategory.SECURITY).warn("Carpool IAM shadow population differs", {
+            action: "quyan:carpool:ListMyOrders",
+            reason: "resource-population-difference",
+          });
+      } catch {
+        getLogger("CarpoolOrderIam", LogCategory.SECURITY).warn("Carpool IAM shadow evaluation unavailable", {
+          action: "quyan:carpool:ListMyOrders",
+          reason: "iam-evaluation-unavailable",
+        });
+      }
+    }
     return { total, records: records.map((item) => this.dto(item, userId)) };
   }
-  async listAdmin(state?: string, page = 1, pageSize = 20, keyword?: string) {
-    const [orderPage, groupedCounts] = await Promise.all([
-      this.repository.findOrdersForAdmin(state, Math.max(1, page), Math.min(100, Math.max(1, pageSize)), keyword),
-      this.repository.countAdminOrdersByState(keyword),
-    ]);
-    const [total, records] = orderPage;
-    return {
-      total,
-      records: records.map((item) => this.dto(item, undefined, true)),
-      stateCounts: Object.fromEntries(groupedCounts.map((item) => [item.state, item._count._all])),
-    };
+  async listAdmin(state?: string, page = 1, pageSize = 20, keyword?: string, request?: TypedRequest) {
+    const result = await PlatformCarpoolOrderReadIamService.getInstance().list(
+      request,
+      { state, page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)), keyword },
+      async () => {
+        const [orderPage, groupedCounts] = await Promise.all([
+          this.repository.findOrdersForAdmin(state, Math.max(1, page), Math.min(100, Math.max(1, pageSize)), keyword),
+          this.repository.countAdminOrdersByState(keyword),
+        ]);
+        const [total, records] = orderPage;
+        return {
+          total,
+          records,
+          stateCounts: Object.fromEntries(groupedCounts.map((item) => [item.state, item._count._all])),
+        };
+      },
+    );
+    return { ...result, records: result.records.map((row) => this.dto(row, undefined, true)) };
   }
 
   async invite(orderId: string, userId: string, hours = 72) {
@@ -611,50 +731,72 @@ export class CarpoolService {
       );
     });
   }
-  async accept(orderId: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
-      const order = await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId } });
-      if (order.state !== "submitted")
-        throw new BadRequestError("Carpool has not been submitted", undefined, { messageKey: "carpool.notSubmitted" });
-      await tx.carpoolOrder.update({ where: { id: orderId }, data: { state: "accepted", acceptedAt: new Date() } });
-      await this.event(tx, orderId, "accepted", actorUserId);
-      return this.dto(
-        await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId }, include: carpoolOrderInclude }),
-        undefined,
-        true,
-      );
-    });
+  async accept(orderId: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderWriteIamService.getInstance().prepare(actorUserId, request, orderId);
+    return this.repository.withTransaction(
+      async (tx) => {
+        const order = await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId } });
+        if (order.state !== "submitted")
+          throw new BadRequestError("Carpool has not been submitted", undefined, {
+            messageKey: "carpool.notSubmitted",
+          });
+        await tx.carpoolOrder.update({ where: { id: orderId }, data: { state: "accepted", acceptedAt: new Date() } });
+        await this.event(tx, orderId, "accepted", actorUserId);
+        return this.dto(
+          await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId }, include: carpoolOrderInclude }),
+          undefined,
+          true,
+        );
+      },
+      ...(guard ? [guard] : []),
+    );
   }
   async listDeliveryChannels(
     page = 1,
     pageSize = 20,
     keyword?: string,
     orderId?: string,
+    request?: TypedRequest,
   ): Promise<CarpoolDeliveryChannelListResponse> {
-    let allowedChannelIds: string[] | undefined;
-    if (orderId) {
-      const order = await this.repository.findOrderSummary(orderId);
-      if (!order)
-        throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
-      if (order.state !== "accepted")
-        throw new BadRequestError("Carpool must be accepted before selecting a delivery channel", undefined, {
-          messageKey: "carpool.acceptBeforeChannel",
-        });
-      allowedChannelIds = parseAllowedChannels(order.allowedChannels) ?? undefined;
-    }
-    const [total, records] = await this.repository.listEligibleDeliveryChannels(
-      Math.max(1, page),
-      Math.min(100, Math.max(1, pageSize)),
-      keyword,
-      allowedChannelIds,
+    return PlatformCarpoolDeliveryChannelReadIamService.getInstance().list(
+      request,
+      { page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)), keyword, orderId },
+      async () => {
+        let allowedChannelIds: string[] | undefined;
+        if (orderId) {
+          const order = await this.repository.findOrderSummary(orderId);
+          if (!order)
+            throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
+          if (order.state !== "accepted")
+            throw new BadRequestError("Carpool must be accepted before selecting a delivery channel", undefined, {
+              messageKey: "carpool.acceptBeforeChannel",
+            });
+          allowedChannelIds = parseAllowedChannels(order.allowedChannels) ?? undefined;
+        }
+        const [total, records] = await this.repository.listEligibleDeliveryChannels(
+          Math.max(1, page),
+          Math.min(100, Math.max(1, pageSize)),
+          keyword,
+          allowedChannelIds,
+        );
+        return {
+          total,
+          records: records.map((item) => ({ id: item.id, name: item.name, channelType: item.channelType })),
+        };
+      },
     );
-    return { total, records: records.map((item) => ({ id: item.id, name: item.name, channelType: item.channelType })) };
   }
-  async fulfill(orderId: string, relayChannelId: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
+  async fulfill(orderId: string, relayChannelId: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderDeliveryIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      orderId,
+      relayChannelId,
+    );
+    const mutate = async (tx: Prisma.TransactionClient) => {
       const order = await tx.carpoolOrder.findUnique({
         where: { id: orderId },
-        include: { members: true, packageTemplate: true },
+        include: { members: true, packageTemplate: { select: { monthlyPassTemplateId: true } } },
       });
       if (!order)
         throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
@@ -670,13 +812,14 @@ export class CarpoolService {
       // Revalidate all delivery eligibility inside the serializable fulfillment transaction.
       const channel = await tx.relayChannel.findFirst({
         where: { id: relayChannelId, status: 1, providerServiceEnabled: true, submissionStatus: "approved" },
+        select: { id: true },
       });
       if (!channel)
         throw new NotFoundError("Eligible relay channel not found", undefined, {
           messageKey: "carpool.eligibleChannelNotFound",
         });
       const templateId = order.monthlyPassTemplateId ?? order.packageTemplate.monthlyPassTemplateId;
-      const template = await tx.monthlyPassTemplate.findUnique({ where: { id: templateId } });
+      const template = await tx.monthlyPassTemplate.findUnique({ where: { id: templateId }, select: { id: true } });
       // The order's quota, validity, model and channel constraints are immutable snapshots.
       // A later template unpublish/disable must not make an already accepted order undeliverable.
       if (!template)
@@ -700,7 +843,7 @@ export class CarpoolService {
             status: 1,
           },
         });
-        await tx.relayToken.create({
+        const token = await tx.relayToken.create({
           data: {
             userId: member.userId,
             carpoolMemberId: member.id,
@@ -710,7 +853,9 @@ export class CarpoolService {
             quotaLimit: member.finalQuota,
             allowedModels: order.allowedModels,
           },
+          select: { id: true },
         });
+        await guard?.checkDelivery(member.userId, pass.id, token.id);
         await tx.carpoolMember.update({
           where: { id: member.id },
           data: { userMonthlyPassId: pass.id, state: "delivered" },
@@ -726,10 +871,17 @@ export class CarpoolService {
         undefined,
         true,
       );
-    });
+    };
+    return guard ? this.repository.withDeliveryTransaction(guard, mutate) : this.repository.withTransaction(mutate);
   }
-  async fail(orderId: string, reason: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
+  async fail(orderId: string, reason: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderRefundIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      orderId,
+      reason,
+    );
+    const mutate = async (tx: Prisma.TransactionClient) => {
       const order = await tx.carpoolOrder.findUniqueOrThrow({
         where: { id: orderId },
         include: { members: { include: { reservation: true } } },
@@ -755,7 +907,7 @@ export class CarpoolService {
           throw new BadRequestError("Balance account unavailable", undefined, {
             messageKey: "carpool.balanceAccountUnavailable",
           });
-        await tx.balanceTransaction.create({
+        const ledger = await tx.balanceTransaction.create({
           data: {
             userId: member.userId,
             type: "carpool_refund",
@@ -767,6 +919,7 @@ export class CarpoolService {
             model: "carpool",
           },
         });
+        if (guard) await guard.checkLedger(member.userId, ledger.id);
         await tx.balanceReservation.update({ where: { id: member.reservation.id }, data: { state: "refunded" } });
       }
       await tx.carpoolOrder.update({
@@ -779,7 +932,8 @@ export class CarpoolService {
         undefined,
         true,
       );
-    });
+    };
+    return guard ? this.repository.withRefundTransaction(guard, mutate) : this.repository.withTransaction(mutate);
   }
   /**
    * Carries the legacy order deadline into its dedicated snapshot field.

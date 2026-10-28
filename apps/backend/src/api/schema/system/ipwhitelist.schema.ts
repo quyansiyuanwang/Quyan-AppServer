@@ -1,6 +1,12 @@
+import { isIP } from "node:net";
 import { z } from "zod";
 
-const ipLikeSchema = z.string().trim().min(1).max(45);
+const ipLikeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(45)
+  .refine((value) => isIP(value) !== 0, "IP address must be valid IPv4 or IPv6");
 
 const validDateString = (value: string): boolean => {
   const timestamp = Date.parse(value);

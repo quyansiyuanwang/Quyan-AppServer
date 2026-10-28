@@ -8,6 +8,8 @@ import type {
   APILogWithoutResponse,
   APILogStatsRow,
 } from "./apilog.store";
+import { resolveApiLogWhere } from "./apilog-query";
+import { API_LOG_STATS_SELECT, API_LOG_LIST_SELECT } from "./apilog.store";
 import { RECORD_STATUS } from "@/constant/status";
 
 /**
@@ -22,61 +24,6 @@ const logger = getLogger("APILogRepository", LogCategory.STORAGE);
  * 负责 API 日志的数据库操作
  */
 export class APILogRepository implements APILogStore {
-  private async buildWhere(params: QueryAPILogParams): Promise<any> {
-    const where: any = { status: RECORD_STATUS.ACTIVE };
-
-    if (params.user) {
-      const users = await prisma.user.findMany({
-        where: {
-          OR: [{ username: { contains: params.user } }, { id: params.user }],
-          status: RECORD_STATUS.ACTIVE,
-        },
-        select: { id: true },
-        take: 100,
-      });
-
-      const userIDs = users.map((u) => u.id);
-      if (userIDs.length === 0) return { impossible: true };
-
-      where.userID = { in: userIDs };
-    }
-
-    if (params.search)
-      where.OR = [
-        { path: { contains: params.search } },
-        { requestID: { contains: params.search } },
-        { ipAddress: { contains: params.search } },
-        { queryParams: { string_contains: params.search } },
-        { bodyParams: { string_contains: params.search } },
-      ];
-    else {
-      if (params.requestID) where.requestID = { contains: params.requestID };
-      if (params.path) where.path = { contains: params.path };
-      if (params.ip) where.ipAddress = { contains: params.ip };
-    }
-
-    if (params.method)
-      if (Array.isArray(params.method)) where.method = params.method.length > 0 ? { in: params.method } : undefined;
-      else where.method = params.method;
-
-    if (params.statusCode)
-      if (Array.isArray(params.statusCode))
-        where.statusCode = params.statusCode.length > 0 ? { in: params.statusCode } : undefined;
-      else where.statusCode = params.statusCode;
-
-    if (params.startDate || params.endDate) {
-      where.createTime = {};
-      if (params.startDate) where.createTime.gte = params.startDate;
-      if (params.endDate) where.createTime.lte = params.endDate;
-    } else {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      where.createTime = { gte: thirtyDaysAgo };
-    }
-
-    return where;
-  }
-
   private static instance: APILogRepository;
 
   /**
@@ -183,8 +130,8 @@ export class APILogRepository implements APILogStore {
    */
   public async query(params: QueryAPILogParams): Promise<{ logs: APILogWithoutResponse[]; total: number }> {
     try {
-      const where = await this.buildWhere(params);
-      if (where.impossible) return { logs: [], total: 0 };
+      const where = await resolveApiLogWhere(prisma, params);
+      if (!where) return { logs: [], total: 0 };
 
       const [logs, total] = await Promise.all([
         prisma.aPILog.findMany({
@@ -192,21 +139,7 @@ export class APILogRepository implements APILogStore {
           orderBy: { createTime: "desc" },
           take: params.limit || 100,
           skip: params.offset || 0,
-          select: {
-            id: true,
-            status: true,
-            createTime: true,
-            updateTime: true,
-            requestID: true,
-            userID: true,
-            path: true,
-            method: true,
-            queryParams: true,
-            bodyParams: true,
-            requestHeaders: true,
-            ipAddress: true,
-            statusCode: true,
-          },
+          select: API_LOG_LIST_SELECT,
         }),
         prisma.aPILog.count({ where }),
       ]);
@@ -220,20 +153,13 @@ export class APILogRepository implements APILogStore {
 
   public async listForStats(params: QueryAPILogParams): Promise<APILogStatsRow[]> {
     try {
-      const where = await this.buildWhere(params);
-      if (where.impossible) return [];
+      const where = await resolveApiLogWhere(prisma, params);
+      if (!where) return [];
 
       return prisma.aPILog.findMany({
         where,
         orderBy: { createTime: "asc" },
-        select: {
-          createTime: true,
-          userID: true,
-          method: true,
-          path: true,
-          statusCode: true,
-          ipAddress: true,
-        },
+        select: API_LOG_STATS_SELECT,
       });
     } catch (error) {
       logger.error("Failed to list API logs for stats", { error, params });

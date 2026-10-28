@@ -39,6 +39,54 @@
 - 创建敏感凭证时，可能需要额外验证。
 - 访问密钥应像密码一样保密，不应出现在公开截图或聊天记录中。
 
+## 创建权限和安全验证
+
+启用 IAM 强制授权后，创建访问密钥需要 `quyan:ram:CreateAccessKey`，发送创建验证码需要独立的 `quyan:ram:SendAccessKeyCreationVerificationCode`。这两项操作的资源是当前执行用户，而不是尚未生成的密钥：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": ["quyan:ram:CreateAccessKey", "quyan:ram:SendAccessKeyCreationVerificationCode"],
+    "Resource": "acs:quyan:*:<accountId>:user/<userId>"
+  }
+}
+```
+
+替换为当前账号和当前执行用户的 ID。两项权限不会自动授予；创建权限不包含列表或撤销权限，也不能替其他用户创建密钥。匹配的 Deny 优先。
+
+未启用二次验证时，创建必须提交有效、未使用的邮箱验证码；同一验证码只能完成一次创建。验证码消费和密钥写入一起成功或一起回滚。启用二次验证后仍需通过已有安全挑战，但不需要额外邮箱验证码，也不会发送该验证码。
+
+验证过程中邮箱、二次验证设置、账户状态或角色会话发生变化，请重新认证并重新发起流程；冲突不会产生新密钥。第三方 OAuth 应用仍可在 `accesskey` scope、用户授权和上述权限约束下发起创建；这不允许它们读取或删除已有密钥。完整新密钥仅在创建成功时返回，请立即保存。
+
+## 撤销权限和资源范围
+
+启用 IAM 策略授权后，删除访问密钥需要 `quyan:ram:DeleteAccessKey`。策略可以限定到当前用户的一把密钥：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:ram:DeleteAccessKey",
+    "Resource": "acs:quyan:*:<accountId>:access-key/<userId>/<keyId>"
+  }
+}
+```
+
+请用当前账号 ID、当前用户 ID 和实际密钥 ID 替换占位符。授予此操作不允许读取完整密钥或管理其他用户的密钥；匹配的 Deny 会覆盖 Allow。
+
+删除仍需通过重放保护；已启用二次验证时，这项高风险操作会要求验证。撤销后，该密钥不能继续用于新请求认证。账号、角色会话或密钥归属在授权后发生变化时，请求会被拒绝；并发变更导致冲突时，请刷新列表后重试。
+
+## 列表权限和分页
+
+启用 IAM 强制授权后，`quyan:ram:ListAccessKeys` 控制当前用户自己的哪些密钥出现在列表中。资源 ARN 与撤销操作相同，但此权限不会授予删除能力或完整明文读取能力；匹配的 Deny 会隐藏对应密钥，即使使用通配符授权也不能列出其他用户的密钥。
+
+页面采用服务端分页，支持上一页、下一页和每页条数。权限过滤后当前页可能为空，但后续页仍可能存在可见密钥；如果下一页可用，请继续翻页。页面不会展示未过滤的资源总数。刷新重试当前页，创建成功后返回第一页。完整密钥只在创建成功的对话框中显示，不会在任何列表接口中返回。
+
+API 客户端建议使用 `GET /v1/accesskeys/page?page=1&pageSize=50`，响应包含 `items`、`page`、`pageSize` 和 `hasNext`。原有 `GET /v1/accesskeys` 数组接口保留兼容性，返回完整的已授权脱敏列表。第三方 OAuth 应用无权读取这两个列表。
+
 ## 相关页面
 
 - `account-settings`

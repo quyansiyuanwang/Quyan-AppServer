@@ -27,7 +27,14 @@ import { Permission } from "@/constant/permission";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  platformIpWhitelistStatusResource,
+  platformIpWhitelistCreateResource,
+  platformIpWhitelistDeleteResource,
+} from "@/iam/request/platform-ip-whitelist-resource-resolvers";
 import { IPWhiteListService } from "@/services/system/ipwhitelist.service";
 import { IPWhiteList } from "@/store/security/ipwhitelist";
 import {
@@ -60,23 +67,37 @@ export class IPWhitelistController extends Controller {
   /** 获取白名单列表 */
   @Get("/list")
   @Security("jwt")
-  @RequirePermission(Permission.IP_WHITELIST_READ, "jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ip_whitelist:ListEntries",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(ipWhitelistListQuerySchema))
   public async getAllIPWhitelists(
+    @Request() request: TypedRequest,
     @Query() limit?: number,
     @Query() offset?: number,
   ): Promise<GetAllIPWhitelistsResponse> {
-    const { whitelists, total } = await this.service.list(limit, offset);
+    const { whitelists, total } = await this.service.listManaged(limit, offset, request);
     return { whitelists: whitelists.map((whitelist) => this.toDto(whitelist)), total };
   }
 
   /** 检查 IP 是否在白名单 */
   @Get("/exists/{ip}")
   @Security("jwt")
-  @RequirePermission(Permission.IP_WHITELIST_READ, "jwt")
+  @CheckPermission(Permission.IP_WHITELIST_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ip_whitelist:GetStatus",
+    resourceKind: "single-resource",
+    resource: platformIpWhitelistStatusResource,
+  })
   @Middlewares(validateParams(ipWhitelistIpParamsSchema))
-  public async isExistsWhiteIp(@Path() ip: string): Promise<CheckIPWhitelistResponse> {
-    const isWhitelisted = await this.service.isWhitelisted(ip);
+  public async isExistsWhiteIp(
+    @Path() ip: string,
+    @Request() request: TypedRequest,
+  ): Promise<CheckIPWhitelistResponse> {
+    const isWhitelisted = await this.service.isManagedWhitelisted(ip, request);
     return { isWhitelisted };
   }
 
@@ -84,7 +105,11 @@ export class IPWhitelistController extends Controller {
   @Post("/add")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Created, "Created")
-  @RequirePermission(Permission.IP_WHITELIST_CREATE, "jwt")
+  @CheckPermission(Permission.IP_WHITELIST_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ip_whitelist:CreateEntry",
+    resourceKind: "collection",
+    resource: platformIpWhitelistCreateResource,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -98,7 +123,13 @@ export class IPWhitelistController extends Controller {
     if (!body.ipAddress)
       throw new BadRequestError("IP 地址不能为空", undefined, { messageKey: "ipWhitelist.ipRequired" });
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
-    const record = await this.service.add(body.ipAddress, body.reason ?? "", request.user!.userId, expiresAt, request);
+    const record = await this.service.addManaged(
+      body.ipAddress,
+      body.reason ?? "",
+      request.user!.userId,
+      expiresAt,
+      request,
+    );
     this.setStatus(HttpStatusCode.Created);
     return { whitelist: this.toDto(record) };
   }
@@ -106,7 +137,11 @@ export class IPWhitelistController extends Controller {
   /** 从白名单移除 IP */
   @Delete("/remove/{ip}")
   @Security("jwt")
-  @RequirePermission(Permission.IP_WHITELIST_DELETE, "jwt")
+  @CheckPermission(Permission.IP_WHITELIST_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ip_whitelist:DeleteEntry",
+    resourceKind: "single-resource",
+    resource: platformIpWhitelistDeleteResource,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -114,7 +149,7 @@ export class IPWhitelistController extends Controller {
     validateParams(ipWhitelistIpParamsSchema),
   )
   public async removeWhiteIp(@Path() ip: string, @Request() request: TypedRequest): Promise<DeleteIPWhitelistResponse> {
-    const success = await this.service.remove(ip, request.user!.userId, request);
+    const success = await this.service.removeManaged(ip, request.user!.userId, request);
     if (!success)
       throw new NotFoundError(`IP ${ip} 不在白名单中`, undefined, {
         messageKey: "ipWhitelist.notFoundByIp",

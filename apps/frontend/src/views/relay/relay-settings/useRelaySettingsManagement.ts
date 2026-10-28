@@ -1,3 +1,12 @@
+import { normalizeRelayForwardedHeaderNames } from '@quyan/shared'
+import { useRelayGlobalConfiguration } from './useRelayGlobalConfiguration'
+import {
+  resolveModelId,
+  normalizeSupportedFormats,
+  serializeSupportedFormats,
+  type ModelRateRow,
+} from './relayModelRates'
+export type { ModelRateRow } from './relayModelRates'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -6,7 +15,6 @@ import { i18ns } from '@/locales'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
 import { relayChannelService } from '@/service/relayChannelService'
@@ -15,11 +23,7 @@ import { usePermissionStore } from '@/stores/permissionStore'
 import { userService } from '@/service/userService'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { isTwoFactorRequiredResponse } from '@/service/twoFactorNavigationService'
-import {
-  normalizeRelayFormats,
-  serializeRelayFormats,
-  toConfiguredRelayFormats,
-} from '@/utils/relay-formats'
+import { normalizeRelayFormats, toConfiguredRelayFormats } from '@/utils/relay-formats'
 import type {
   ModelPricingItemDto,
   RelayChannelDto,
@@ -35,34 +39,14 @@ import type {
   RelayChannelType,
   RelayChannelUpstreamModelDto,
   RelayChannelSubmissionStatus,
-  RelayChannelTopologyMode,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
   ContextLengthMultiplierRule,
   RelayChannelProviderConfigRequest,
   TimePeriodMultiplierRule,
-  UpdateRelayConfigRequest,
   BatchUpdateRelayChannelsRequest,
   BatchUpdateRelayChannelsResponse,
 } from '@/client/types.gen'
-
-export type ModelRateRow = {
-  model: string
-  modelId: string
-  pricingType?: 'token-based' | 'per-request'
-  inputPrice: number
-  outputPrice: number
-  fixedPrice?: number
-  cacheCreationMultiplier: number
-  cacheReadMultiplier: number
-  supportedFormats: string[] | string
-}
-
-type ModelIdentitySource = {
-  model?: string | null
-  modelId?: string | null
-  provider?: string | null
-}
 
 type RelayConfigModelRateItem = ModelPricingItemDto & { provider?: string | null }
 
@@ -79,15 +63,6 @@ type RelayChannelRoutingConfigFormDto = Omit<
   allowedModelsMode?: RelayChannelAllowedModelsMode | null
 }
 
-type RelayConfigUpdatePayload = Omit<
-  UpdateRelayConfigRequest,
-  'modelRates' | 'monitorNameMapping'
-> & {
-  modelRates: ModelPricingItemDto[]
-  monitorNameMapping?: Record<string, string> | null
-}
-
-const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/
 const MAX_LOGGED_ALLOWED_MODEL_PARSE_ERRORS = 200
 
 const showRequestError = (error: unknown, fallback: string) => {
@@ -97,22 +72,6 @@ const showRequestError = (error: unknown, fallback: string) => {
 
   showRequestErrorNotice(error, fallback)
 }
-
-const resolveModelId = (source: ModelIdentitySource): string => {
-  const explicitModelId = source.modelId?.trim()
-  if (explicitModelId) return explicitModelId
-
-  const providerModelId = source.provider?.trim()
-  if (providerModelId) return providerModelId
-
-  return source.model?.trim() || ''
-}
-
-const normalizeSupportedFormats = (formats?: string | null): string[] =>
-  toConfiguredRelayFormats(formats)
-
-const serializeSupportedFormats = (formats: string[] | string): string =>
-  serializeRelayFormats(formats)
 
 const CHANNEL_VISIBILITY_USER_PAGE_SIZE = 100
 
@@ -139,6 +98,7 @@ const toSupportedFormatsArray = (formats: string[] | string | undefined): string
 }
 
 const recommendedRoutingConfigForm = () => ({
+  forwardedRequestHeaders: [] as string[],
   maxRetries: 2,
   failoverThreshold: 0,
   retryStatusCodes: ['4xx', '5xx'] as string[],
@@ -195,6 +155,8 @@ const normalizeOptionalThreshold = (value?: number | null): number | null => {
 }
 
 const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | null) => ({
+  forwardedRequestHeaders:
+    normalizeRelayForwardedHeaderNames(config?.forwardedRequestHeaders ?? []) ?? [],
   maxRetries:
     typeof config?.maxRetries === 'number' && Number.isFinite(config.maxRetries)
       ? config.maxRetries
@@ -311,8 +273,6 @@ export const useRelaySettingsManagement = () => {
   const canReviewChannelSubmission = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_CHANNEL_REVIEW),
   )
-  const loading = ref(false)
-  const saving = ref(false)
   const showImportDialog = ref(false)
   const importText = ref('')
   const editingRowIndex = ref<number | null>(null)
@@ -344,199 +304,30 @@ export const useRelaySettingsManagement = () => {
     ].join('\n'),
   )
 
-  const modelRates = ref<ModelRateRow[]>([])
-  const globalMultiplier = ref(1)
-  const uptimeStatusUrl = ref('')
-  const enableQueue = ref(true)
-  const maxConcurrency = ref(5)
-  const queueTimeoutSec = ref(30)
-  const upstreamStreamTimeoutSec = ref(120)
-  const preflightBufferLimitMB = ref(2)
-  const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('anonymous-range')
-  const channelTopologyMode = ref<RelayChannelTopologyMode>('legacy')
-  const relayCustomKeyEnabled = ref(true)
-  const relayCustomKeyMaxTokensPerUser = ref(3)
-  const relayCustomKeyCreateLimitWindowMinutes = ref(10)
-  const relayCustomKeyCreateLimitMaxCount = ref(5)
-  const relayUpstreamUrl = ref('')
-  const relayUpstreamApiKey = ref('')
-  const relayAllowedModels = ref('')
-  const monitorConfigEnabled = ref(false)
-  const showOnlyConfigured = ref(false)
-  const monitorConfigs = ref<
-    {
-      monitorId: string
-      displayName: string
-    }[]
-  >([])
-
-  const loadConfig = async () => {
-    loading.value = true
-    try {
-      const [relayConfig, relaySystemConfig] = await Promise.all([
-        relayConfigService.getRelayConfig(),
-        configService.getRelayConfig(),
-      ])
-      globalMultiplier.value = relayConfig.globalMultiplier
-      uptimeStatusUrl.value = relayConfig.uptimeStatusUrl || ''
-      enableQueue.value = relayConfig.enableQueue ?? true
-      maxConcurrency.value = relayConfig.maxConcurrency ?? 5
-      queueTimeoutSec.value = Math.round((relayConfig.queueTimeout ?? 30000) / 1000)
-      upstreamStreamTimeoutSec.value = Math.round(
-        (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
-      )
-      preflightBufferLimitMB.value =
-        (relayConfig.preflightBufferLimitBytes ?? 2 * 1024 * 1024) / 1024 / 1024
-      apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
-      channelTopologyMode.value = relayConfig.channelTopologyMode ?? 'legacy'
-      relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
-      relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
-      relayAllowedModels.value = relaySystemConfig.allowedModels || ''
-      relayCustomKeyEnabled.value = relaySystemConfig.customKeyEnabled
-      relayCustomKeyMaxTokensPerUser.value = relaySystemConfig.customKeyMaxTokensPerUser
-      relayCustomKeyCreateLimitWindowMinutes.value =
-        relaySystemConfig.customKeyCreateLimitWindowMinutes
-      relayCustomKeyCreateLimitMaxCount.value = relaySystemConfig.customKeyCreateLimitMaxCount
-
-      if (relayConfig.monitorNameMapping) {
-        monitorConfigEnabled.value = true
-        showOnlyConfigured.value = relayConfig.showOnlyConfigured ?? false
-        monitorConfigs.value = Object.entries(relayConfig.monitorNameMapping).map(([id, name]) => ({
-          monitorId: id,
-          displayName: name as string,
-        }))
-      } else {
-        monitorConfigEnabled.value = false
-        showOnlyConfigured.value = false
-        monitorConfigs.value = []
-      }
-
-      modelRates.value = (relayConfig.modelRates || []).map((m: RelayConfigModelRateItem) => {
-        const modelName = (m.model || '').trim()
-        const modelId = resolveModelId(m)
-        return {
-          model: modelName,
-          modelId: modelId || modelName,
-          pricingType: m.pricingType || 'token-based',
-          inputPrice: m.inputPrice,
-          outputPrice: m.outputPrice,
-          fixedPrice: m.fixedPrice,
-          cacheCreationMultiplier: m.cacheCreationMultiplier ?? 1.25,
-          cacheReadMultiplier: m.cacheReadMultiplier ?? 0.1,
-          supportedFormats: normalizeSupportedFormats(m.supportedFormats),
-        }
-      })
-    } catch (error: any) {
-      console.error('loadConfig error:', error)
-      showRequestError(error, i18ns.t('ServerConfigView.loadFailed'))
-    } finally {
-      loading.value = false
-    }
-  }
-
-  const save = async () => {
-    saving.value = true
-    try {
-      const normalizedCustomKeyMaxTokensPerUser = Math.max(0, relayCustomKeyMaxTokensPerUser.value)
-      const normalizedCustomKeyCreateLimitWindowMinutes = Math.max(
-        1,
-        relayCustomKeyCreateLimitWindowMinutes.value,
-      )
-      const normalizedCustomKeyCreateLimitMaxCount = Math.max(
-        0,
-        relayCustomKeyCreateLimitMaxCount.value,
-      )
-
-      const validRates = modelRates.value.filter((r) => {
-        const model = r.model.trim()
-        const pricingType = r.pricingType || 'token-based'
-
-        if (!model) return false
-
-        if (pricingType === 'per-request') {
-          return r.fixedPrice != null && r.fixedPrice > 0
-        }
-
-        return r.inputPrice > 0 && r.outputPrice > 0
-      })
-
-      const modelNames = validRates.map((r) => r.model.trim())
-      const uniqueModels = new Set(modelNames)
-      if (uniqueModels.size !== modelNames.length) {
-        ElMessage.error(i18ns.t('ServerConfigView.duplicateModelName'))
-        return
-      }
-
-      const normalizedModelIds = validRates.map((rate) =>
-        resolveModelId({ model: rate.model, modelId: rate.modelId }),
-      )
-      const invalidModelId = normalizedModelIds.find((modelId) => !MODEL_ID_PATTERN.test(modelId))
-      if (invalidModelId) {
-        ElMessage.error(`Invalid model ID format: ${invalidModelId}`)
-        return
-      }
-
-      let monitorNameMapping: Record<string, string> | null = null
-      if (monitorConfigEnabled.value) {
-        const validConfigs = monitorConfigs.value.filter(
-          (c) => c.monitorId.trim() && c.displayName.trim(),
-        )
-        if (validConfigs.length > 0) {
-          monitorNameMapping = {}
-          validConfigs.forEach((c) => {
-            monitorNameMapping![c.monitorId.trim()] = c.displayName.trim()
-          })
-        }
-      }
-
-      const payload: RelayConfigUpdatePayload = {
-        globalMultiplier: globalMultiplier.value,
-        uptimeStatusUrl: uptimeStatusUrl.value || undefined,
-        monitorNameMapping,
-        showOnlyConfigured: monitorNameMapping ? showOnlyConfigured.value : false,
-        uptimeTransformRules: undefined,
-        uptimeStaticData: undefined,
-        enableQueue: enableQueue.value,
-        maxConcurrency: maxConcurrency.value,
-        queueTimeout: queueTimeoutSec.value * 1000,
-        upstreamStreamTimeout: upstreamStreamTimeoutSec.value * 1000,
-        preflightBufferLimitBytes: Math.round(preflightBufferLimitMB.value * 1024 * 1024),
-        apiCatalogPoolVisibility: apiCatalogPoolVisibility.value,
-        modelRates: validRates.map((r) => ({
-          model: r.model.trim(),
-          modelId: resolveModelId({ model: r.model, modelId: r.modelId }),
-          pricingType: r.pricingType || 'token-based',
-          inputPrice: r.inputPrice,
-          outputPrice: r.outputPrice,
-          fixedPrice: r.fixedPrice,
-          cacheCreationMultiplier: r.cacheCreationMultiplier,
-          cacheReadMultiplier: r.cacheReadMultiplier,
-          supportedFormats: serializeSupportedFormats(r.supportedFormats),
-        })),
-      }
-
-      await Promise.all([
-        relayConfigService.updateRelayConfig(payload),
-        configService.setRelayConfig({
-          upstreamUrl: relayUpstreamUrl.value,
-          upstreamApiKey: relayUpstreamApiKey.value,
-          allowedModels: relayAllowedModels.value,
-          customKeyEnabled: relayCustomKeyEnabled.value,
-          customKeyMaxTokensPerUser: normalizedCustomKeyMaxTokensPerUser,
-          customKeyCreateLimitWindowMinutes: normalizedCustomKeyCreateLimitWindowMinutes,
-          customKeyCreateLimitMaxCount: normalizedCustomKeyCreateLimitMaxCount,
-        }),
-      ])
-
-      ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
-      await loadAvailableModels()
-    } catch (error: any) {
-      console.error('save error:', error)
-      showRequestError(error, i18ns.t('ServerConfigView.saveFailed'))
-    } finally {
-      saving.value = false
-    }
-  }
+  const configuration = useRelayGlobalConfiguration(() => loadAvailableModels())
+  const {
+    loading,
+    saving,
+    modelRates,
+    globalMultiplier,
+    uptimeStatusUrl,
+    enableQueue,
+    maxConcurrency,
+    queueTimeoutSec,
+    upstreamStreamTimeoutSec,
+    preflightBufferLimitMB,
+    apiCatalogPoolVisibility,
+    channelTopologyMode,
+    relayCustomKeyEnabled,
+    relayCustomKeyMaxTokensPerUser,
+    relayCustomKeyCreateLimitWindowMinutes,
+    relayCustomKeyCreateLimitMaxCount,
+    monitorConfigEnabled,
+    showOnlyConfigured,
+    monitorConfigs,
+    loadConfig,
+    save,
+  } = configuration
 
   const exportModelPricing = () => {
     const data = {
@@ -2461,9 +2252,19 @@ export const useRelaySettingsManagement = () => {
 
     channelSaving.value = true
     try {
+      const forwardedRequestHeaders = normalizeRelayForwardedHeaderNames(
+        channelForm.value.routingConfig.forwardedRequestHeaders ?? [],
+      )
+      if (isUpstreamChannel && !forwardedRequestHeaders) {
+        ElMessage.error(i18ns.t('relay.forwardedRequestHeadersInvalid'))
+        return
+      }
       const routingConfig = isPooledChannel
         ? buildRoutingConfigPayload()
-        : buildStandaloneHealthTrackingPayload()
+        : {
+            ...buildStandaloneHealthTrackingPayload(),
+            forwardedRequestHeaders: forwardedRequestHeaders!,
+          }
       const visibilityConfig =
         channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
       const poolMembers =
@@ -2670,6 +2471,7 @@ export const useRelaySettingsManagement = () => {
   const legacyAddPoolMember = () => void openPoolMemberPicker()
 
   return {
+    ...configuration,
     Permission,
     isDesktop,
     loading,

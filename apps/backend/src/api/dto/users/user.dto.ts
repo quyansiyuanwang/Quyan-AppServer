@@ -4,6 +4,8 @@ import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-enc
  * 用户基本信息
  */
 export interface UserDto {
+  /** Owning account resolved by the server; clients must not infer ownership from the subject ID. */
+  accountOwnerId?: string;
   /** 用户ID */
   id: string;
 

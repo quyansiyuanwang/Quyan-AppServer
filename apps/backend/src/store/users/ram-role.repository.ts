@@ -1,3 +1,5 @@
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
+import { ConflictError } from "@/util/errors";
 import { AccountStatus } from "@/util/auth/account-status";
 import { prisma } from "@/config/database";
 import type {
@@ -46,6 +48,32 @@ export class RamRoleRepository implements RamRoleStore {
     return prisma.ramRole.findMany({ where: { accountOwnerId, ...ACTIVE_WHERE }, orderBy: { createTime: "desc" } });
   }
 
+  async listRolesPage(accountOwnerId: string, pagination: IamManagementSearchPage) {
+    const candidates = await prisma.ramRole.findMany({
+      where: {
+        accountOwnerId,
+        ...ACTIVE_WHERE,
+        ...(pagination.keyword
+          ? {
+              OR: [
+                { id: { contains: pagination.keyword } },
+                { name: { contains: pagination.keyword } },
+                { description: { contains: pagination.keyword } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pagination.pageSize,
+      take: pagination.pageSize + 1,
+    });
+    return {
+      items: candidates.slice(0, pagination.pageSize),
+      ...pagination,
+      hasNext: candidates.length > pagination.pageSize,
+    };
+  }
+
   async updateRole(roleId: string, data: UpdateRamRoleInput): Promise<RamRole> {
     const updateData: Prisma.RamRoleUncheckedUpdateInput = {};
     if (data.description !== undefined) updateData.description = data.description;
@@ -55,7 +83,20 @@ export class RamRoleRepository implements RamRoleStore {
     if (data.maxSessionDuration !== undefined) updateData.maxSessionDuration = data.maxSessionDuration;
     if (data.status !== undefined) updateData.status = data.status;
 
-    return prisma.ramRole.update({ where: { id: roleId }, data: updateData });
+    if (!data.expectedUpdateTime) return prisma.ramRole.update({ where: { id: roleId }, data: updateData });
+    updateData.updateTime = new Date(Math.max(Date.now(), data.expectedUpdateTime.getTime() + 1));
+    return prisma.$transaction(
+      async (tx) => {
+        const result = await tx.ramRole.updateMany({
+          where: { id: roleId, status: AccountStatus.ACTIVE, updateTime: data.expectedUpdateTime },
+          data: updateData,
+        });
+        if (result.count !== 1)
+          throw new ConflictError("Role version changed", undefined, { messageKey: "iam.versionConflict" });
+        return tx.ramRole.findUniqueOrThrow({ where: { id: roleId } });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async softDeleteRole(roleId: string): Promise<RamRole> {
@@ -86,15 +127,70 @@ export class RamRoleRepository implements RamRoleStore {
     await prisma.ramGroupRoleBinding.deleteMany({ where: { roleId, groupId } });
   }
 
-  async listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]> {
+  async listRoleBindingsForUser(
+    userId: string,
+    groupId?: string | null,
+    projection?: { groupAccountOwnerId: string },
+  ): Promise<RamRoleBindingRecord[]> {
+    // Derive scope from persisted identity, never from a caller-supplied group or binding.
+    let accountOwnerId: string;
+    let effectiveGroupId: string | undefined;
+    if (userId) {
+      // A projection option must never override a real user's persisted identity.
+      if (projection) return [];
+      const user = await prisma.user.findFirst({
+        where: { id: userId, ...ACTIVE_WHERE },
+        select: {
+          id: true,
+          accountOwnerId: true,
+          groupId: true,
+          group: { select: { id: true, status: true, accountOwnerId: true } },
+        },
+      });
+      if (!user) return [];
+      accountOwnerId = user.accountOwnerId || user.id;
+      if (
+        groupId &&
+        groupId === user.groupId &&
+        user.group?.status === AccountStatus.ACTIVE &&
+        (!user.group.accountOwnerId || user.group.accountOwnerId === accountOwnerId)
+      )
+        effectiveGroupId = user.group.id;
+    } else {
+      // Global groups have no intrinsic namespace. Callers must resolve the real target account first.
+      // The default internal call still accepts only account-owned groups for RAM compatibility.
+      if (userId !== "" || !groupId) return [];
+      const namespace = projection?.groupAccountOwnerId;
+      if (projection && (!namespace || !/^[A-Za-z0-9_-]{1,128}$/.test(namespace))) return [];
+      const group = await prisma.group.findFirst({
+        where: { id: groupId, ...ACTIVE_WHERE, ...(projection ? {} : { accountOwnerId: { not: null } }) },
+        select: { id: true, accountOwnerId: true },
+      });
+      if (
+        !group ||
+        group.id !== groupId ||
+        (group.accountOwnerId !== null && namespace && group.accountOwnerId !== namespace)
+      )
+        return [];
+      accountOwnerId = namespace ?? group.accountOwnerId!;
+      if (!accountOwnerId) return [];
+      effectiveGroupId = group.id;
+    }
     const [userBindings, groupBindings] = await Promise.all([
-      prisma.ramUserRoleBinding.findMany({
-        where: { userId, role: ACTIVE_WHERE },
-        include: { role: true },
-      }),
-      groupId
+      userId
+        ? prisma.ramUserRoleBinding.findMany({
+            where: { userId, accountOwnerId, ...ACTIVE_WHERE, role: { accountOwnerId, ...ACTIVE_WHERE } },
+            include: { role: true },
+          })
+        : Promise.resolve([]),
+      effectiveGroupId
         ? prisma.ramGroupRoleBinding.findMany({
-            where: { groupId, role: ACTIVE_WHERE },
+            where: {
+              groupId: effectiveGroupId,
+              accountOwnerId,
+              ...ACTIVE_WHERE,
+              role: { accountOwnerId, ...ACTIVE_WHERE },
+            },
             include: { role: true },
           })
         : Promise.resolve([]),
@@ -107,8 +203,15 @@ export class RamRoleRepository implements RamRoleStore {
 
     // Fetch role permissions from attached policies
     const roleIds = [...new Set(allBindings.map((b) => b.roleId))];
+    if (!roleIds.length) return [];
     const policyAttachments = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType: "role", targetId: { in: roleIds }, ...ACTIVE_WHERE },
+      where: {
+        accountOwnerId,
+        targetType: "role",
+        targetId: { in: roleIds },
+        ...ACTIVE_WHERE,
+        policy: { accountOwnerId, ...ACTIVE_WHERE },
+      },
       include: { policy: { select: { permissions: true } } },
     });
 
@@ -138,24 +241,111 @@ export class RamRoleRepository implements RamRoleStore {
     });
   }
 
+  /** Stable source order: direct user bindings, then group bindings; each source is time/id ordered. */
+  async listRoleBindingPage(
+    accountOwnerId: string,
+    roleId: string,
+    pagination: IamManagementPage,
+    target?: { userId: string; groupId?: string | null },
+  ) {
+    const { page, pageSize } = pagination,
+      skip = (page - 1) * pageSize;
+    const userWhere: Prisma.RamUserRoleBindingWhereInput = {
+      accountOwnerId,
+      roleId,
+      ...ACTIVE_WHERE,
+      ...(target ? { userId: target.userId } : {}),
+      role: { accountOwnerId, ...ACTIVE_WHERE },
+      user: {
+        status: { gte: AccountStatus.DISABLED },
+        OR: [{ id: accountOwnerId }, { accountOwnerId }, { accountOwnerId: null, parentUserId: accountOwnerId }],
+      },
+    };
+    const groupWhere: Prisma.RamGroupRoleBindingWhereInput = {
+      accountOwnerId,
+      roleId,
+      ...ACTIVE_WHERE,
+      ...(target ? { groupId: target.groupId ?? "" } : {}),
+      role: { accountOwnerId, ...ACTIVE_WHERE },
+      group: { accountOwnerId, ...ACTIVE_WHERE },
+    };
+    const userCount = await prisma.ramUserRoleBinding.count({ where: userWhere });
+    const users =
+      skip < userCount
+        ? await prisma.ramUserRoleBinding.findMany({
+            where: userWhere,
+            include: { role: true },
+            skip,
+            take: pageSize + 1,
+            orderBy: [{ createTime: "desc" }, { id: "asc" }],
+          })
+        : [];
+    const remaining = pageSize + 1 - users.length;
+    const groups =
+      remaining > 0
+        ? await prisma.ramGroupRoleBinding.findMany({
+            where: groupWhere,
+            include: { role: true },
+            skip: Math.max(0, skip - userCount),
+            take: remaining,
+            orderBy: [{ createTime: "desc" }, { id: "asc" }],
+          })
+        : [];
+    const candidates: RamRoleBindingRecord[] = [
+      ...users.map((binding) => ({
+        id: binding.id,
+        roleId,
+        roleName: binding.role.name,
+        permissions: [],
+        source: "user" as const,
+        principalId: binding.userId,
+      })),
+      ...groups.map((binding) => ({
+        id: binding.id,
+        roleId,
+        roleName: binding.role.name,
+        permissions: [],
+        source: "group" as const,
+        principalId: binding.groupId,
+      })),
+    ];
+    return { items: candidates.slice(0, pageSize), page, pageSize, hasNext: candidates.length > pageSize };
+  }
+
   async createRoleSession(data: {
     accountOwnerId: string;
     subjectUserId: string;
     roleId: string;
     sessionName: string;
     expiresAt: Date;
+    expectedRoleUpdateTime?: Date;
   }): Promise<ActiveRamRoleSession> {
-    return prisma.ramRoleSession.create({
-      data: {
-        accountOwnerId: data.accountOwnerId,
-        subjectUserId: data.subjectUserId,
-        roleId: data.roleId,
-        sessionName: data.sessionName,
-        expiresAt: data.expiresAt,
-        status: AccountStatus.ACTIVE,
+    return prisma.$transaction(
+      async (tx) => {
+        const role = await tx.ramRole.findFirst({
+          where: {
+            id: data.roleId,
+            accountOwnerId: data.accountOwnerId,
+            status: AccountStatus.ACTIVE,
+            ...(data.expectedRoleUpdateTime ? { updateTime: data.expectedRoleUpdateTime } : {}),
+          },
+        });
+        if (!role)
+          throw new ConflictError("Role changed during assumption", undefined, { messageKey: "iam.versionConflict" });
+        return tx.ramRoleSession.create({
+          data: {
+            accountOwnerId: data.accountOwnerId,
+            subjectUserId: data.subjectUserId,
+            roleId: data.roleId,
+            sessionName: data.sessionName,
+            expiresAt: data.expiresAt,
+            status: AccountStatus.ACTIVE,
+          },
+          include: { role: true },
+        });
       },
-      include: { role: true },
-    });
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async findActiveRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null> {
@@ -180,5 +370,30 @@ export class RamRoleRepository implements RamRoleStore {
       include: { role: true },
       orderBy: { createTime: "desc" },
     });
+  }
+  async listActiveRoleSessionsPage(accountOwnerId: string, pagination: IamManagementPage, subjectUserId?: string) {
+    const candidates = await prisma.ramRoleSession.findMany({
+      where: {
+        accountOwnerId,
+        subjectUserId,
+        status: AccountStatus.ACTIVE,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        role: { accountOwnerId },
+        subjectUser: {
+          status: { gte: AccountStatus.DISABLED },
+          OR: [{ id: accountOwnerId }, { accountOwnerId }, { accountOwnerId: null, parentUserId: accountOwnerId }],
+        },
+      },
+      include: { role: true },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pagination.pageSize,
+      take: pagination.pageSize + 1,
+    });
+    return {
+      items: candidates.slice(0, pagination.pageSize),
+      ...pagination,
+      hasNext: candidates.length > pagination.pageSize,
+    };
   }
 }

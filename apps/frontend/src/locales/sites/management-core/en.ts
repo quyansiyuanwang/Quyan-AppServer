@@ -398,6 +398,19 @@ const en = {
     importSuccess: 'Imported successfully',
     importFormatError: 'Invalid import format. Please check JSON format.',
     importPricingPlaceholder: 'Paste model pricing data in JSON format:',
+    invalidModelId:
+      'Model IDs must use letters, numbers, dots, underscores, colons, slashes, or hyphens and be at most 200 characters.',
+    invalidModelPricing:
+      'Prices and cache multipliers must be finite nonnegative numbers. A per-request price is required.',
+    noConfigurationChanges: 'No loaded configuration has changed.',
+    configurationPartiallySaved:
+      'Some settings were saved. The failed settings remain unsaved; retry after resolving the error.',
+    relayConfigurationUnavailable:
+      'Relay settings could not be loaded. Refresh after restoring access; these fields will not be saved.',
+    systemRelayConfigurationUnavailable:
+      'Custom key settings could not be loaded. Refresh after restoring access; these fields will not be saved.',
+    pricingReplacementHint:
+      'Changing model pricing replaces the entire active pricing list, including models hidden by your read permissions. Every affected model requires write permission.',
     duplicateModelName: 'Duplicate model names found, please check and retry',
     monitorConfigDescription: 'Configuration: Set display name for each monitor',
     monitorIdFormat: 'Monitor ID format: 2, 3, 7, 11, 12 (numeric IDs from upstream API)',

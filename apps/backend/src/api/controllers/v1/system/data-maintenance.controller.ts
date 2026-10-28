@@ -20,8 +20,6 @@ import type {
   OptimizeRequest,
 } from "@/api/dto/system/data-maintenance.dto";
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
-import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
@@ -34,6 +32,17 @@ import {
   optimizePreviewBodySchema,
 } from "@/api/schema/system/data-maintenance.schema";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  platformMaintenanceRunResourceResolver,
+  platformMaintenanceDatasetResourceResolver,
+  platformMaintenanceDatasetBatchResourceResolver,
+  platformMaintenanceOptimizeBatchResourceResolver,
+} from "@/iam/request/platform-maintenance-resource-resolvers";
 import { BadRequestError } from "@/util/errors";
 
 @Route("v1/data-maintenance")
@@ -43,7 +52,13 @@ export class DataMaintenanceController extends Controller {
 
   @Post("optimize/preview")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:PreviewOptimize",
+      resourceKind: "batch",
+      resource: platformMaintenanceDatasetBatchResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_optimize_preview", requireExplicitToken: true })
@@ -55,13 +70,20 @@ export class DataMaintenanceController extends Controller {
   )
   public async optimizePreview(
     @Body() body: Pick<OptimizeRequest, "datasets" | "captchaToken">,
+    @Request() request: TypedRequest,
   ): Promise<OptimizePreviewResponse> {
-    return this.service.optimizePreview(body.datasets);
+    return this.service.previewOptimizeRequest(body.datasets, request);
   }
 
   @Post("optimize")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:CreateOptimizeRun",
+      resourceKind: "batch",
+      resource: platformMaintenanceOptimizeBatchResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_optimize", requireExplicitToken: true })
@@ -80,17 +102,19 @@ export class DataMaintenanceController extends Controller {
       throw new BadRequestError("Confirmation phrase is invalid", undefined, {
         messageKey: "system.invalidConfirmationPhrase",
       });
-    return this.service.createOptimizeRun(
-      body.datasets,
-      request.user?.userId,
-      request.headers["x-request-id"] as string | undefined,
-    ) as any;
+    return this.service.createOptimizeRequest(body, request) as any;
   }
 
   @Post("imports/preview/{dataset}")
   @Consumes("application/gzip")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:PreviewImport",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_import_preview", requireExplicitToken: true })
@@ -105,18 +129,23 @@ export class DataMaintenanceController extends Controller {
     @Path() dataset: string,
     @Body() _body: Record<string, unknown>,
   ): Promise<DataMaintenanceImportPreviewResponse> {
-    const result = await this.service.previewImport(
+    return this.service.previewImportRequest(
       dataset,
       Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),
+      request,
     );
-    const { rows: _rows, ...response } = result;
-    return response;
   }
 
   @Post("imports/{dataset}")
   @Consumes("application/gzip")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:CreateImportRun",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_import", requireExplicitToken: true })
@@ -136,33 +165,45 @@ export class DataMaintenanceController extends Controller {
       throw new BadRequestError("Confirmation phrase is invalid", undefined, {
         messageKey: "system.invalidConfirmationPhrase",
       });
-    return this.service.createImportRun(
+    return this.service.createImportRequest(
       dataset,
       Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),
-      request.user?.userId,
-      request.headers["x-request-id"] as string | undefined,
+      request,
     ) as any;
   }
 
   @Get("runs")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:ListRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(maintenanceRunsQuerySchema))
   public async listRuns(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() operation?: string,
     @Query() runStatus?: string,
+    @Request() request?: TypedRequest,
   ): Promise<DataMaintenanceRunListResponse> {
-    const result = await this.service.listRuns(page, pageSize, { operation, runStatus });
+    const result = await this.service.listRuns(page, pageSize, { operation, runStatus }, request);
     return { ...result, page, pageSize } as DataMaintenanceRunListResponse;
   }
 
   @Get("runs/{runId}")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:GetRun",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceRunResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(maintenanceRunParamsSchema))
-  public async getRun(@Path() runId: string): Promise<DataMaintenanceRunDTO> {
-    return (await this.service.getRun(runId)) as any;
+  public async getRun(@Path() runId: string, @Request() request: TypedRequest): Promise<DataMaintenanceRunDTO> {
+    return (await this.service.getRun(runId, request)) as any;
   }
 }

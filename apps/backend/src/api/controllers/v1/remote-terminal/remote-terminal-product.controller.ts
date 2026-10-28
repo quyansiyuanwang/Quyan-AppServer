@@ -1,3 +1,16 @@
+import { terminalPurchaseResource } from "@/iam/request/terminal-purchase-resource-resolver";
+import { platformTerminalEntitlementAssignResource } from "@/iam/request/platform-terminal-entitlement-assign-resource-resolver";
+import { terminalInstallTokenResource } from "@/iam/request/terminal-install-token-resource-resolver";
+import {
+  terminalPersonalRegistrationRotationResource,
+  terminalManagementRegistrationRotationResource,
+} from "@/iam/request/terminal-registration-rotation-resource-resolvers";
+import { terminalPersonalUnbindResource } from "@/iam/request/terminal-personal-unbind-resource-resolver";
+import {
+  platformTerminalRevokeBindingResource,
+  platformTerminalDeleteEntitlementResource,
+  platformTerminalResetUnbindResource,
+} from "@/iam/request/platform-terminal-management-mutation-resource-resolvers";
 import {
   Body,
   Controller,
@@ -37,6 +50,7 @@ import {
   listRemoteTerminalDevicesQuerySchema,
   listRemoteTerminalEntitlementsQuerySchema,
   listRemoteTerminalTemplatesQuerySchema,
+  listRemoteTerminalTemplateOptionsQuerySchema,
   remoteTerminalDeviceBindingIdParamsSchema,
   remoteTerminalTemplateIdParamsSchema,
   rotateRemoteTerminalRegistrationTokenBodySchema,
@@ -44,12 +58,19 @@ import {
   updateRemoteTerminalProductTemplateBodySchema,
   createRemoteTerminalProductTemplateBodySchema,
 } from "@/api/schema/remote-terminal/remote-terminal.schema";
-import { Permission } from "@/constant/permission";
+import {
+  platformTerminalTemplateCreateResource,
+  platformTerminalTemplateWriteResource,
+} from "@/iam/request/platform-terminal-template-write-resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
 import type { TypedRequest } from "@/types/express";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
@@ -60,38 +81,66 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("filter-options")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.REMOTE_TERMINAL_PRODUCT_READ,
-    Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-    Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-  ])
-  public async getFilterOptions(): Promise<RemoteTerminalFilterOptionsDto> {
-    return this.remoteTerminalProductService.getFilterOptions();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListTemplateOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalTemplateOptionsQuerySchema),
+  )
+  public async getFilterOptions(
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+    @Request() request?: TypedRequest,
+  ): Promise<RemoteTerminalFilterOptionsDto> {
+    return this.remoteTerminalProductService.getFilterOptions(page, pageSize, keyword, request);
   }
 
   @Get("templates/published")
   @Security("jwt")
-  public async listPublishedTemplates(): Promise<RemoteTerminalProductTemplateDto[]> {
-    return this.remoteTerminalProductService.listPublishedTemplates();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListPublishedTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listPublishedTemplates(@Request() request?: TypedRequest): Promise<RemoteTerminalProductTemplateDto[]> {
+    return this.remoteTerminalProductService.listPublishedTemplates(request);
   }
 
   @Get("templates")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(listRemoteTerminalTemplatesQuerySchema))
   public async listTemplates(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateListResponse> {
-    return this.remoteTerminalProductService.listTemplates(page, pageSize, status, keyword);
+    return this.remoteTerminalProductService.listTemplates(page, pageSize, status, keyword, request);
   }
 
   @Post("templates")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:CreateTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateCreateResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -106,8 +155,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Put("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UpdateTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -124,8 +179,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("templates/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -140,8 +201,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("templates/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -156,8 +223,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:DeleteTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -171,33 +244,59 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("entitlements")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_READ)
-  @Middlewares(validateQuery(listRemoteTerminalEntitlementsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListEntitlements",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalEntitlementsQuerySchema),
+  )
   public async listEntitlements(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() templateId?: string,
     @Query() status?: number,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.remoteTerminalProductService.listEntitlements(page, pageSize, userId, templateId, status);
+    return this.remoteTerminalProductService.listEntitlements(page, pageSize, userId, templateId, status, request);
   }
 
   @Get("me/entitlements")
   @Security("jwt")
-  @Middlewares(validateQuery(listRemoteTerminalEntitlementsQuerySchema))
+  @Middlewares(
+    validateQuery(listRemoteTerminalEntitlementsQuerySchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListMyEntitlements",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserEntitlements(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.remoteTerminalProductService.listCurrentUserEntitlements(request.user!.userId, page, pageSize, status);
+    return this.remoteTerminalProductService.listCurrentUserEntitlements(
+      request.user!.userId,
+      page,
+      pageSize,
+      status,
+      request,
+    );
   }
 
   @Post("entitlements")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:AssignEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalEntitlementAssignResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -214,6 +313,13 @@ export class RemoteTerminalProductController extends Controller {
   @Post("me/entitlements/claim")
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(claimRemoteTerminalProductTemplateBodySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ClaimPublishedTemplate",
+      resourceKind: "single-resource",
+      resource: terminalPurchaseResource,
+    }),
+  )
   public async claimPublishedTemplate(
     @Body() body: ClaimRemoteTerminalProductTemplateRequest,
     @Request() request: TypedRequest,
@@ -223,7 +329,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Put("entitlements/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UpdateEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalDeleteEntitlementResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -241,7 +353,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("entitlements/{id}/reset-unbind-count")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ResetUnbindCount",
+      resourceKind: "single-resource",
+      resource: platformTerminalResetUnbindResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -256,7 +374,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("entitlements/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:DeleteEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalDeleteEntitlementResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -271,7 +395,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("entitlements/{id}/registration-token")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RotateRegistrationToken",
+      resourceKind: "single-resource",
+      resource: terminalManagementRegistrationRotationResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -296,6 +426,13 @@ export class RemoteTerminalProductController extends Controller {
     validateParams(entitlementIdParamsSchema),
     validateBody(rotateRemoteTerminalRegistrationTokenBodySchema),
   )
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RotateMyRegistrationToken",
+      resourceKind: "single-resource",
+      resource: terminalPersonalRegistrationRotationResource,
+    }),
+  )
   public async rotateCurrentUserRegistrationToken(
     @Path() id: string,
     @Body() body: RotateRemoteTerminalRegistrationTokenRequest,
@@ -311,53 +448,93 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("me/entitlements/{id}/install-token")
   @Security("jwt")
-  @Middlewares(validateParams(entitlementIdParamsSchema))
+  @Middlewares(
+    validateParams(entitlementIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:GetMyInstallToken",
+      resourceKind: "single-resource",
+      resource: terminalInstallTokenResource,
+    }),
+  )
   public async getMyInstallToken(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalInstallTokenDto> {
-    return this.remoteTerminalProductService.issueInstallToken(request.user!.userId, id);
+    return this.remoteTerminalProductService.issueInstallToken(request.user!.userId, id, request);
   }
 
   @Get("devices")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ)
-  @Middlewares(validateQuery(listRemoteTerminalDevicesQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListDeviceBindings",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalDevicesQuerySchema),
+  )
   public async listDevices(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() entitlementId?: string,
     @Query() status?: number,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.remoteTerminalProductService.listDevices(page, pageSize, userId, entitlementId, status);
+    return this.remoteTerminalProductService.listDevices(page, pageSize, userId, entitlementId, status, request);
   }
 
   @Get("me/devices")
   @Security("jwt")
-  @Middlewares(validateQuery(listRemoteTerminalDevicesQuerySchema))
+  @Middlewares(
+    validateQuery(listRemoteTerminalDevicesQuerySchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListMyDevices",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserDevices(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.remoteTerminalProductService.listCurrentUserDevices(request.user!.userId, page, pageSize, status);
+    return this.remoteTerminalProductService.listCurrentUserDevices(
+      request.user!.userId,
+      page,
+      pageSize,
+      status,
+      request,
+    );
   }
 
   @Get("me/devices/{id}/unbind-reminder")
   @Security("jwt")
-  @Middlewares(validateParams(remoteTerminalDeviceBindingIdParamsSchema))
+  @Middlewares(
+    validateParams(remoteTerminalDeviceBindingIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:GetMyUnbindReminder",
+      resourceKind: "single-resource",
+      resource: terminalPersonalUnbindResource,
+    }),
+  )
   public async getCurrentUserDeviceUnbindReminder(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalUnbindReminderDto> {
-    return this.remoteTerminalProductService.getCurrentUserDeviceUnbindReminder(request.user!.userId, id);
+    return this.remoteTerminalProductService.getCurrentUserDeviceUnbindReminder(request.user!.userId, id, request);
   }
 
   @Delete("devices/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RevokeDeviceBinding",
+      resourceKind: "single-resource",
+      resource: platformTerminalRevokeBindingResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -372,11 +549,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("me/devices/{id}")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.REMOTE_TERMINAL_DEVICE_READ,
-    Permission.REMOTE_TERMINAL_SESSION_CREATE,
-    Permission.REMOTE_TERMINAL_SESSION_READ,
-  ])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RevokeMyDeviceBinding",
+      resourceKind: "single-resource",
+      resource: terminalPersonalUnbindResource,
+    }),
+  )
   @Middlewares(validateParams(remoteTerminalDeviceBindingIdParamsSchema))
   public async revokeCurrentUserDevice(
     @Path() id: string,

@@ -28,8 +28,6 @@ import type {
 } from "@/api/dto/system/data-lifecycle.dto";
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 import { DataLifecycleSchedulerService } from "@/services/system/data-lifecycle-scheduler.service";
-import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -45,6 +43,17 @@ import {
   updateLifecycleScheduleBodySchema,
 } from "@/api/schema/system/data-lifecycle.schema";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  platformLifecycleDatasetResourceResolver,
+  platformLifecycleScheduleResourceResolver,
+  platformLifecycleRunResourceResolver,
+  platformLifecycleArtifactResourceResolver,
+} from "@/iam/request/platform-lifecycle-resource-resolvers";
 
 @Route("v1/data-lifecycle")
 @Tags("DataLifecycle")
@@ -54,21 +63,39 @@ export class DataLifecycleController extends Controller {
 
   @Get("policies")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
-  public async listPolicies(): Promise<DataLifecyclePolicyDTO[]> {
-    return await this.service.listPolicies();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListPolicies",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listPolicies(@Request() request: TypedRequest): Promise<DataLifecyclePolicyDTO[]> {
+    return await this.service.listPoliciesRequest(request);
   }
 
   @Get("schedule")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
-  public async getSchedule(): Promise<DataLifecycleScheduleDTO> {
-    return this.service.getSchedule();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:GetSchedule",
+      resourceKind: "single-resource",
+      resource: platformLifecycleScheduleResourceResolver,
+    }),
+  )
+  public async getSchedule(@Request() request: TypedRequest): Promise<DataLifecycleScheduleDTO> {
+    return this.service.getScheduleRequest(request);
   }
 
   @Put("schedule")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:UpdateSchedule",
+      resourceKind: "single-resource",
+      resource: platformLifecycleScheduleResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -80,14 +107,20 @@ export class DataLifecycleController extends Controller {
     @Request() request: TypedRequest,
     @Body() body: UpdateDataLifecycleScheduleRequest,
   ): Promise<DataLifecycleScheduleDTO> {
-    const schedule = await this.service.updateSchedule(body, request.user?.userId, request);
+    const schedule = await this.service.updateScheduleRequest(body, request);
     await this.scheduler.refreshSchedule();
     return schedule;
   }
 
   @Put("policies/{dataset}")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:UpdatePolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -97,36 +130,59 @@ export class DataLifecycleController extends Controller {
     validateBody(updateLifecyclePolicyBodySchema),
   )
   public async updatePolicy(
+    @Request() request: TypedRequest,
     @Path() dataset: string,
     @Body() body: UpdateDataLifecyclePolicyRequest,
   ): Promise<DataLifecyclePolicyDTO> {
-    return this.service.updatePolicy(dataset, body.enabled, body.hotRetentionDays);
+    return this.service.updatePolicyRequest(dataset, body, request);
   }
 
   @Get("policies/{dataset}/preview")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:PreviewPolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleDatasetParamsSchema))
-  public async preview(@Path() dataset: string): Promise<DataLifecyclePreviewResponse> {
-    return this.service.preview(dataset);
+  public async preview(
+    @Request() request: TypedRequest,
+    @Path() dataset: string,
+  ): Promise<DataLifecyclePreviewResponse> {
+    return this.service.previewRequest(dataset, request);
   }
 
   @Get("policies/{dataset}/candidates")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListCandidates",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleDatasetParamsSchema), validateQuery(lifecycleCandidatesQuerySchema))
   public async listCandidates(
+    @Request() request: TypedRequest,
     @Path() dataset: string,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<DataLifecycleCandidateListResponse> {
-    const result = await this.service.listCandidates(dataset, page, pageSize);
+    const result = await this.service.listCandidatesRequest(dataset, page, pageSize, request);
     return { ...result, page, pageSize };
   }
 
   @Post("policies/{dataset}/run")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:RunPolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -135,7 +191,7 @@ export class DataLifecycleController extends Controller {
     validateParams(lifecycleDatasetParamsSchema),
   )
   public async run(@Request() request: TypedRequest, @Path() dataset: string): Promise<DataLifecycleRunResultResponse> {
-    const result = await this.service.runPolicy(dataset, "manual", request.user?.userId);
+    const result = await this.service.runPolicyRequest(dataset, request);
     if (!result) return { runId: "", candidateCount: 0, archivedCount: 0, deletedCount: 0 };
     return {
       runId: result.runId,
@@ -148,7 +204,13 @@ export class DataLifecycleController extends Controller {
 
   @Post("batch/run")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:RunBatch",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -160,7 +222,7 @@ export class DataLifecycleController extends Controller {
     @Request() request: TypedRequest,
     @Body() body: BatchDataLifecycleRunRequest,
   ): Promise<BatchDataLifecycleRunResponse> {
-    const result = await this.scheduler.runManualBatch(body.datasets ?? [], request.user?.userId);
+    const result = await this.scheduler.runManualBatchRequest(body.datasets ?? [], request);
     return (
       result ?? {
         items: [],
@@ -173,13 +235,20 @@ export class DataLifecycleController extends Controller {
 
   @Get("runs")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(lifecycleRunsQuerySchema))
   public async listRuns(
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<DataLifecycleRunListResponse> {
-    const result = await this.service.listRuns(page, pageSize);
+    const result = await this.service.listRunsRequest(page, pageSize, request);
     return {
       ...result,
       page,
@@ -190,14 +259,21 @@ export class DataLifecycleController extends Controller {
 
   @Get("runs/{runId}/artifacts")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListArtifacts",
+      resourceKind: "single-resource",
+      resource: platformLifecycleRunResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleRunParamsSchema), validateQuery(lifecycleArtifactsQuerySchema))
   public async listArtifacts(
+    @Request() request: TypedRequest,
     @Path() runId: string,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<ArchiveArtifactListResponse> {
-    const result = await this.service.listArchiveArtifacts(runId, page, pageSize);
+    const result = await this.service.listArtifactsRequest(runId, page, pageSize, request);
     return {
       ...result,
       page,
@@ -208,7 +284,13 @@ export class DataLifecycleController extends Controller {
 
   @Post("artifacts/{artifactId}/download")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:DownloadArtifact",
+      resourceKind: "single-resource",
+      resource: platformLifecycleArtifactResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -216,7 +298,10 @@ export class DataLifecycleController extends Controller {
     replayProtectionMiddleware,
     validateParams(lifecycleArtifactParamsSchema),
   )
-  public async download(@Path() artifactId: string): Promise<ArchiveDownloadResponse> {
-    return this.service.getArchiveDownloadInfo(artifactId);
+  public async download(
+    @Request() request: TypedRequest,
+    @Path() artifactId: string,
+  ): Promise<ArchiveDownloadResponse> {
+    return this.service.getArchiveDownloadRequest(artifactId, request);
   }
 }

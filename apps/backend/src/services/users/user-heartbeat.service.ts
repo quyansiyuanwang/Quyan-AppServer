@@ -1,3 +1,11 @@
+import { UserOnlineRevocationIamService } from "./user-online-revocation-iam.service";
+import { env } from "@/config/env";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { UserOnlineMonitorIamService } from "./user-online-monitor-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import { ConfigService } from "@/services/system/config.service";
 import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
@@ -7,6 +15,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { extractClientIp } from "@/util/ip-extractor";
 import { UnauthorizedError } from "@/util/errors";
 import {
+  buildForceOfflineUserKey,
   buildForceOfflineAuthSessionKey,
   extractAuthSessionId,
   getForceOfflineAuthSessionTtlSeconds,
@@ -32,10 +41,6 @@ import type { UserStore } from "@/store/users/user.store";
 export class UserHeartbeatService {
   private static instance: UserHeartbeatService;
 
-  private getForceOfflineUserKey(userId: string) {
-    return `user:force_offline:${userId}`;
-  }
-
   private constructor(
     private readonly sessionRepository: UserOnlineSessionStore = UserOnlineSessionRepository.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
@@ -43,6 +48,9 @@ export class UserHeartbeatService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly redisService: RedisService = RedisService.getInstance(),
+    private readonly monitorIam = UserOnlineMonitorIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly revocationIam = UserOnlineRevocationIamService.getInstance(),
   ) {}
 
   static getInstance(): UserHeartbeatService {
@@ -102,7 +110,7 @@ export class UserHeartbeatService {
     if (!authSessionId)
       throw new UnauthorizedError("登录会话不存在，请重新登录", undefined, { messageKey: "auth.loginSessionNotFound" });
 
-    const forcedOfflineUser = await this.redisService.get(this.getForceOfflineUserKey(userId));
+    const forcedOfflineUser = await this.redisService.get(buildForceOfflineUserKey(userId));
     if (forcedOfflineUser)
       throw new UnauthorizedError("用户已被强制下线，请重新登录", undefined, { messageKey: "auth.forcedOffline" });
 
@@ -223,15 +231,46 @@ export class UserHeartbeatService {
     };
   }
 
-  async getOverview(params: {
-    page: number;
-    pageSize: number;
-    keyword?: string;
-    ipAddress?: string;
-    location?: string;
-    status?: "online" | "offline";
-  }): Promise<UserOnlineMonitorOverviewResponse> {
+  private async legacyMonitorRead(request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(
+      principal.subjectUserId,
+      [Permission.USER_ONLINE_MONITOR_READ],
+      { assumedRoleSessionId: principal.roleSessionId },
+    );
+    if (!result.hasPermission) throw iamAccountDenied();
+  }
+  private async shadowMonitorRead(operation: () => Promise<unknown>, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "shadow" || !request) return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OnlineMonitorIamBridge", LogCategory.SECURITY).warn("Online monitor IAM shadow denied", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async getOverview(
+    params: {
+      page: number;
+      pageSize: number;
+      keyword?: string;
+      ipAddress?: string;
+      location?: string;
+      status?: "online" | "offline";
+    },
+    request?: TypedRequest,
+  ): Promise<UserOnlineMonitorOverviewResponse> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.overview(params, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(
+      () => this.monitorIam.overview(params, runtimeConfig.timeoutSeconds, request),
+      request,
+    );
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
@@ -285,8 +324,12 @@ export class UserHeartbeatService {
     };
   }
 
-  async getUserDetail(userId: string): Promise<UserOnlineMonitorDetailDto> {
+  async getUserDetail(userId: string, request?: TypedRequest): Promise<UserOnlineMonitorDetailDto> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.detail(userId, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(() => this.monitorIam.detail(userId, runtimeConfig.timeoutSeconds, request), request);
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
@@ -316,16 +359,26 @@ export class UserHeartbeatService {
     };
   }
 
-  async getUserTimeline(params: {
-    userId: string;
-    page: number;
-    pageSize: number;
-    onlineOnly?: boolean;
-    offlineOnly?: boolean;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<UserOnlineMonitorTimelineGroupedResponse> {
+  async getUserTimeline(
+    params: {
+      userId: string;
+      page: number;
+      pageSize: number;
+      onlineOnly?: boolean;
+      offlineOnly?: boolean;
+      startDate?: string;
+      endDate?: string;
+    },
+    request?: TypedRequest,
+  ): Promise<UserOnlineMonitorTimelineGroupedResponse> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.timeline(params, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(
+      () => this.monitorIam.timeline(params, runtimeConfig.timeoutSeconds, request),
+      request,
+    );
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
@@ -367,6 +420,17 @@ export class UserHeartbeatService {
     };
   }
 
+  private async legacyMonitorRevocation(request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(
+      principal.subjectUserId,
+      [Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE],
+      { assumedRoleSessionId: principal.roleSessionId },
+    );
+    if (!result.hasPermission) throw iamAccountDenied();
+  }
   async forceOfflineSession(sessionId: string): Promise<ForceOfflineSessionResponse> {
     return this.forceOfflineSessionWithCurrentSession(sessionId);
   }
@@ -374,7 +438,19 @@ export class UserHeartbeatService {
   async forceOfflineSessionWithCurrentSession(
     sessionId: string,
     currentAuthSessionId?: string,
+    request?: TypedRequest,
   ): Promise<ForceOfflineSessionResponse> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.revocationIam.session(sessionId, request);
+    await this.legacyMonitorRevocation(request);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await this.revocationIam.authorizeSession(sessionId, request);
+      } catch {
+        getLogger("OnlineMonitorIamBridge", LogCategory.SECURITY).warn("Online session revocation shadow denied", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
     const endedAt = new Date();
     const closed = await this.sessionRepository.forceCloseSession(sessionId, endedAt);
     if (closed)
@@ -391,10 +467,21 @@ export class UserHeartbeatService {
     };
   }
 
-  async forceOfflineUser(userId: string): Promise<ForceOfflineUserResponse> {
+  async forceOfflineUser(userId: string, request?: TypedRequest): Promise<ForceOfflineUserResponse> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.revocationIam.user(userId, request);
+    await this.legacyMonitorRevocation(request);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await this.revocationIam.authorizeUser(userId, request);
+      } catch {
+        getLogger("OnlineMonitorIamBridge", LogCategory.SECURITY).warn("Online user revocation shadow denied", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
     const closedCount = await this.sessionRepository.closeActiveSessionsForUser(userId, new Date());
     await this.redisService.set(
-      this.getForceOfflineUserKey(userId),
+      buildForceOfflineUserKey(userId),
       new Date().toISOString(),
       getForceOfflineAuthSessionTtlSeconds(),
     );

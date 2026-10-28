@@ -1,7 +1,7 @@
 import { JsonEndpoint } from "@prisma/client";
 import { createHash, createPublicKey, verify, type KeyObject } from "crypto";
 import { JsonEndpointRepository } from "@/store/system/json-endpoint.repository";
-import type { JsonEndpointStore } from "@/store/system/json-endpoint.store";
+import type { UpdateJsonEndpointParams, JsonEndpointStore } from "@/store/system/json-endpoint.store";
 import {
   CreateJsonEndpointDto,
   UpdateJsonEndpointDto,
@@ -20,6 +20,13 @@ import type { Request } from "express";
 import bcrypt from "bcrypt";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { extractClientIp } from "@/util/ip-extractor";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { JsonEndpointIamService } from "./json-endpoint-iam.service";
+import { jsonEndpointDenied } from "@/store/system/json-endpoint-management.repository";
+import { jsonEndpointDto, jsonEndpointPublicPath } from "./json-endpoint-view";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const ACCESS_MODE_STATIC_PASSWORD = "static-password";
 const ACCESS_MODE_PUBLIC_KEY = "public-key";
@@ -49,6 +56,7 @@ export class JsonEndpointService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly redisService: RedisService = RedisService.getInstance(),
+    private readonly iam = JsonEndpointIamService.getInstance(),
   ) {}
 
   public static getInstance(): JsonEndpointService {
@@ -170,53 +178,43 @@ export class JsonEndpointService {
    * 映射到 DTO
    */
   private getPublicPath(endpoint: JsonEndpoint, ownerUsername: string): string {
-    return endpoint.isRootSlug ? `/v1/json/${endpoint.slug}` : `/v1/json/${ownerUsername}/${endpoint.slug}`;
+    return jsonEndpointPublicPath(endpoint, ownerUsername);
+  }
+  private mapToDto(endpoint: JsonEndpoint, ownerUsername: string): JsonEndpointDto {
+    return jsonEndpointDto(endpoint, ownerUsername);
   }
 
-  private mapToDto(endpoint: JsonEndpoint, ownerUsername: string): JsonEndpointDto {
-    return {
-      id: endpoint.id,
-      userId: endpoint.userId,
-      ownerUsername,
-      name: endpoint.name,
-      slug: endpoint.slug,
-      isRootSlug: endpoint.isRootSlug,
-      publicUrl: this.getPublicPath(endpoint, ownerUsername),
-      description: endpoint.description || undefined,
-      jsonContent: endpoint.jsonContent,
-      isPublic: endpoint.isPublic,
-      hasPassword: this.resolveAccessMode(endpoint) === ACCESS_MODE_STATIC_PASSWORD && !!endpoint.apiKey,
-      hasPublicKey: this.resolveAccessMode(endpoint) === ACCESS_MODE_PUBLIC_KEY && !!endpoint.publicKey,
-      accessMode: this.resolveAccessMode(endpoint),
-      publicKey: endpoint.publicKey || undefined,
-      publicKeyFingerprint: endpoint.publicKeyFingerprint || undefined,
-      signatureAlgorithm: endpoint.signatureAlgorithm || undefined,
-      accessCount: endpoint.accessCount,
-      lastAccessAt: endpoint.lastAccessAt?.toISOString(),
-      createTime: endpoint.createTime.toISOString(),
-      updateTime: endpoint.updateTime.toISOString(),
-    };
+  private async legacyReadGuard(userId: string, request?: TypedRequest, owners = false) {
+    const principal = request && getIamPrincipal(request);
+    if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+    const options = { assumedRoleSessionId: principal?.roleSessionId };
+    const manage = await this.permissionService.checkUserPermissions(
+      userId,
+      [Permission.JSON_ENDPOINT_MANAGE],
+      options,
+    );
+    const read = owners
+      ? undefined
+      : await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_READ], options);
+    if (!manage.hasPermission && !read?.hasPermission) throw jsonEndpointDenied();
+    return manage.hasPermission;
+  }
+  private async shadowRead(action: string, evaluate: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await evaluate();
+    } catch {
+      getLogger("JsonEndpointIamBridge", LogCategory.SECURITY).warn("JSON Endpoint IAM shadow evaluation denied", {
+        action,
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
   }
 
   private async getOwnerUsername(userId: string): Promise<string> {
     const owner = await this.userRepository.findById(userId);
     if (!owner) throw new NotFoundError("端点所属用户不存在", undefined, { messageKey: "jsonEndpoint.ownerNotFound" });
     return owner.username;
-  }
-
-  private async canManage(actorUserId: string): Promise<boolean> {
-    return this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_MANAGE);
-  }
-
-  private async assertCanAccessEndpoint(endpoint: JsonEndpoint, actorUserId: string): Promise<void> {
-    if (endpoint.userId === actorUserId) return;
-    if (!(await this.canManage(actorUserId)))
-      throw new ForbiddenError("无权管理此端点", undefined, { messageKey: "jsonEndpoint.manageDenied" });
-  }
-
-  private async assertCanSetRootSlug(actorUserId: string): Promise<void> {
-    if (!(await this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_ROOT_SLUG)))
-      throw new ForbiddenError("无权设置根 slug", undefined, { messageKey: "jsonEndpoint.rootSlugDenied" });
   }
 
   /**
@@ -237,19 +235,49 @@ export class JsonEndpointService {
     // 验证 slug 格式
     this.validateSlug(data.slug);
 
-    const canManage = await this.canManage(userId);
-    const ownerUserId = data.ownerUserId || userId;
-    if (ownerUserId !== userId && !canManage)
-      throw new ForbiddenError("无权指定端点所属用户", undefined, { messageKey: "jsonEndpoint.assignOwnerDenied" });
-    const ownerUsername = await this.getOwnerUsername(ownerUserId);
-    const isRootSlug = data.isRootSlug === true;
-    if (isRootSlug) {
-      await this.assertCanSetRootSlug(userId);
-      if (await this.repository.findByRootSlug(data.slug))
-        throw new BadRequestError("根 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
-    } else if (await this.repository.findByUserAndSlug(ownerUsername, data.slug)) {
-      throw new BadRequestError("该用户下 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.userSlugTaken" });
+    const ownerUserId = data.ownerUserId || userId,
+      isRootSlug = data.isRootSlug === true;
+    const state =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.iam.authorizeCreation(userId, ownerUserId, isRootSlug, request as TypedRequest | undefined)
+        : undefined;
+    if (!state) {
+      const principal = request && getIamPrincipal(request as TypedRequest);
+      if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+      const options = { assumedRoleSessionId: principal?.roleSessionId };
+      const manage = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_MANAGE],
+          options,
+        ),
+        own = await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_CREATE], options);
+      if ((!manage.hasPermission && !own.hasPermission) || (ownerUserId !== userId && !manage.hasPermission))
+        throw jsonEndpointDenied();
+      if (isRootSlug) {
+        const root = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_ROOT_SLUG],
+          options,
+        );
+        if (!root.hasPermission)
+          throw new ForbiddenError("Root slug permission denied", undefined, {
+            messageKey: "jsonEndpoint.rootSlugDenied",
+          });
+      }
+      await this.shadowRead("quyan:json_endpoint:CreateEndpoint", () =>
+        this.iam.authorizeCreation(userId, ownerUserId, isRootSlug, request as TypedRequest | undefined),
+      );
     }
+    const ownerUsername = state?.owner.username ?? (await this.getOwnerUsername(ownerUserId));
+    if (isRootSlug) {
+      if (state ? await this.iam.rootSlugExists(data.slug) : await this.repository.findByRootSlug(data.slug))
+        throw new BadRequestError("Root slug is occupied", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
+    } else if (
+      state
+        ? await this.iam.userSlugExists(ownerUserId, data.slug)
+        : await this.repository.findByUserAndSlug(ownerUsername, data.slug)
+    )
+      throw new BadRequestError("User slug is occupied", undefined, { messageKey: "jsonEndpoint.userSlugTaken" });
 
     const accessMode = data.isPublic ? undefined : (data.accessMode ?? ACCESS_MODE_STATIC_PASSWORD);
     if (accessMode === ACCESS_MODE_STATIC_PASSWORD && !data.isPublic && !data.password)
@@ -269,7 +297,7 @@ export class JsonEndpointService {
     const accessConfig = this.createAccessConfig(data.isPublic, accessMode, passwordHash, normalizedPublicKey);
 
     // 创建端点
-    const endpoint = await this.repository.create({
+    const createData = {
       userId: ownerUserId,
       name: data.name,
       slug: data.slug,
@@ -278,7 +306,10 @@ export class JsonEndpointService {
       ...accessConfig,
       isRootSlug,
       rootSlug: isRootSlug ? data.slug : null,
-    });
+    };
+    const endpoint = state
+      ? await this.iam.create(userId, state, createData, request as TypedRequest | undefined)
+      : await this.repository.create(createData);
 
     // 记录业务日志
     await this.businessLogService.logOperation({
@@ -295,25 +326,30 @@ export class JsonEndpointService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return this.mapToDto(endpoint, ownerUsername);
+    return jsonEndpointDto(endpoint, ownerUsername);
   }
 
   /**
    * 获取端点详情
    */
-  async getEndpoint(id: string, userId: string): Promise<JsonEndpointDto> {
+  async getEndpoint(id: string, userId: string, request?: TypedRequest): Promise<JsonEndpointDto> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.get(userId, id, request);
+    const canManage = await this.legacyReadGuard(userId, request);
+    await this.shadowRead("quyan:json_endpoint:GetEndpoint", () => this.iam.get(userId, id, request));
     const endpoint = await this.repository.findById(id);
     if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
-    await this.assertCanAccessEndpoint(endpoint, userId);
+    if (endpoint.userId !== userId && !canManage) throw jsonEndpointDenied();
     return this.mapToDto(endpoint, await this.getOwnerUsername(endpoint.userId));
   }
 
   /**
    * 列出用户的所有端点
    */
-  async listEndpoints(userId: string, ownerUserId?: string): Promise<JsonEndpointDto[]> {
-    const canManage = await this.canManage(userId);
+  async listEndpoints(userId: string, ownerUserId?: string, request?: TypedRequest): Promise<JsonEndpointDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.list(userId, ownerUserId, request);
+    const canManage = await this.legacyReadGuard(userId, request);
+    await this.shadowRead("quyan:json_endpoint:ListEndpoints", () => this.iam.list(userId, ownerUserId, request));
     if (ownerUserId && ownerUserId !== userId && !canManage)
       throw new ForbiddenError("无权查看其他用户端点", undefined, { messageKey: "jsonEndpoint.viewOthersDenied" });
     const endpoints =
@@ -325,9 +361,10 @@ export class JsonEndpointService {
     );
   }
 
-  async listOwnerOptions(actorUserId: string): Promise<JsonEndpointOwnerOptionDto[]> {
-    if (!(await this.canManage(actorUserId)))
-      throw new ForbiddenError("无权管理端点所属用户", undefined, { messageKey: "jsonEndpoint.manageOwnerDenied" });
+  async listOwnerOptions(actorUserId: string, request?: TypedRequest): Promise<JsonEndpointOwnerOptionDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.owners(actorUserId, request);
+    await this.legacyReadGuard(actorUserId, request, true);
+    await this.shadowRead("quyan:json_endpoint:ListEndpointOwners", () => this.iam.owners(actorUserId, request));
     const users = await this.userRepository.listNonDeleted();
     return users
       .filter((user) => user.status === 1)
@@ -344,19 +381,57 @@ export class JsonEndpointService {
     userId: string,
     request?: Request,
   ): Promise<JsonEndpointDto> {
-    const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
-
-    await this.assertCanAccessEndpoint(endpoint, userId);
+    const state =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.iam.configuration(userId, id, request as TypedRequest | undefined)
+        : undefined;
+    let canManage = false;
+    if (!state) {
+      const principal = request && getIamPrincipal(request as TypedRequest);
+      if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+      const options = { assumedRoleSessionId: principal?.roleSessionId };
+      const manage = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_MANAGE],
+          options,
+        ),
+        own = await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_UPDATE], options);
+      if (!manage.hasPermission && !own.hasPermission) throw jsonEndpointDenied();
+      canManage = manage.hasPermission;
+      await this.shadowRead("quyan:json_endpoint:UpdateEndpoint", () =>
+        this.iam.authorizeUpdate(userId, id, request as TypedRequest | undefined),
+      );
+    }
+    const endpoint = state?.endpoint ?? (await this.repository.findById(id));
+    if (!endpoint) throw new NotFoundError("Endpoint not found", undefined, { messageKey: "errors.endpointNotFound" });
+    if (!state && endpoint.userId !== userId && !canManage) throw jsonEndpointDenied();
 
     // 准备更新数据
-    const updateData: any = {};
+    const updateData: UpdateJsonEndpointParams = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.jsonContent !== undefined) updateData.jsonContent = data.jsonContent;
     if (data.isRootSlug !== undefined && data.isRootSlug !== endpoint.isRootSlug) {
-      await this.assertCanSetRootSlug(userId);
-      if (data.isRootSlug && (await this.repository.findByRootSlug(endpoint.slug)))
+      if (state) await this.iam.authorizeUpdate(userId, id, request as TypedRequest | undefined, true);
+      else {
+        const principal = request && getIamPrincipal(request as TypedRequest);
+        const permission = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_ROOT_SLUG],
+          { assumedRoleSessionId: principal?.roleSessionId },
+        );
+        if (!permission.hasPermission)
+          throw new ForbiddenError("Root slug permission denied", undefined, {
+            messageKey: "jsonEndpoint.rootSlugDenied",
+          });
+        await this.shadowRead("quyan:json_endpoint:SetRootSlug", () =>
+          this.iam.authorizeUpdate(userId, id, request as TypedRequest | undefined, true),
+        );
+      }
+      if (
+        data.isRootSlug &&
+        (state ? await this.iam.rootSlugExists(endpoint.slug) : await this.repository.findByRootSlug(endpoint.slug))
+      )
         throw new BadRequestError("根 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
       updateData.isRootSlug = data.isRootSlug;
       updateData.rootSlug = data.isRootSlug ? endpoint.slug : null;
@@ -406,7 +481,15 @@ export class JsonEndpointService {
     Object.assign(updateData, accessConfig);
 
     // 更新端点
-    const updated = await this.repository.update(id, updateData);
+    const updated = state
+      ? await this.iam.update(
+          userId,
+          state,
+          updateData,
+          data.isRootSlug !== undefined && data.isRootSlug !== endpoint.isRootSlug,
+          request as TypedRequest | undefined,
+        )
+      : await this.repository.update(id, updateData);
 
     // 记录业务日志
     await this.businessLogService.logOperation({
@@ -423,19 +506,39 @@ export class JsonEndpointService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return this.mapToDto(updated, await this.getOwnerUsername(updated.userId));
+    return jsonEndpointDto(
+      updated,
+      "ownerUsername" in updated ? updated.ownerUsername : await this.getOwnerUsername(updated.userId),
+    );
   }
 
   /**
    * 删除端点
    */
   async deleteEndpoint(id: string, userId: string, request?: Request): Promise<void> {
-    const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
-
-    await this.assertCanAccessEndpoint(endpoint, userId);
-
-    await this.repository.delete(id);
+    let endpoint: Pick<JsonEndpoint, "id" | "name" | "slug" | "userId">;
+    if (env.security.iamAuthorizationMode === "enforce")
+      endpoint = await this.iam.delete(userId, id, request as TypedRequest | undefined);
+    else {
+      const principal = request && getIamPrincipal(request as TypedRequest);
+      if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+      const options = { assumedRoleSessionId: principal?.roleSessionId };
+      const manage = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_MANAGE],
+          options,
+        ),
+        own = await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_DELETE], options);
+      if (!manage.hasPermission && !own.hasPermission) throw jsonEndpointDenied();
+      await this.shadowRead("quyan:json_endpoint:DeleteEndpoint", () =>
+        this.iam.authorizeDeletion(userId, id, request as TypedRequest | undefined),
+      );
+      const record = await this.repository.findById(id);
+      if (!record) throw new NotFoundError("Endpoint not found", undefined, { messageKey: "errors.endpointNotFound" });
+      if (record.userId !== userId && !manage.hasPermission) throw jsonEndpointDenied();
+      endpoint = record;
+      await this.repository.delete(id);
+    }
 
     // 记录业务日志
     await this.businessLogService.logOperation({

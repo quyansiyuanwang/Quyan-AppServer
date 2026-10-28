@@ -4,11 +4,11 @@
 
 后端支持多种认证方案（在 `tsoa.json` 中定义）：
 
-| 安全方案       | 用途             | Token 格式                                            |
-| -------------- | ---------------- | ----------------------------------------------------- |
-| `jwt`          | 标准用户认证     | `Authorization: Bearer <jwt>`                         |
+| 安全方案       | 用途             | Token 格式                                                                       |
+| -------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `jwt`          | 标准用户认证     | `Authorization: Bearer <jwt>`                                                    |
 | `relay-token`  | AI API 代理访问  | `Authorization: Bearer sk-rlt-<token>`（兼容旧 `rlt_<token>`） 或 `x-api-key` 头 |
-| `local-or-jwt` | 开发环境本地绕过 | 同上（localhost 请求免认证）                          |
+| `local-or-jwt` | 开发环境本地绕过 | 同上（localhost 请求免认证）                                                     |
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。
 
@@ -80,7 +80,9 @@ Access Token 只保存在前端内存；刷新 Cookie 不可由 JavaScript 读�
 3. **管理员强制登出** — 会话被撤销
 4. **Token 被加入黑名单** — JWT JTI 在 Redis 黑名单中
 
-## 权限系统 (RBAC)
+## Permission 兼容层
+
+以下公式描述 legacy 模式的基础权限计算。资源级 JSON 策略不能完整投影为全局 Permission 数组；IAM 模式的执行授权见下文。
 
 ### 权限计算
 
@@ -162,7 +164,120 @@ RAM 角色和策略：
 - `RamRole` — 可扮演的角色，含信任策略 (`trustPolicy`)
 - `RamPolicy` — 权限策略文档
 - `RamRoleSession` — 角色会话，含过期时间
-- 支持跨账户角色扮演
+- 角色、主体和授权资源必须属于同一账户，不允许跨账户角色扮演
+
+## IAM 策略授权
+
+IAM 将身份、操作、资源和条件分开建模。认证仍由 JWT、AccessKey 或角色会话完成；授权结果为 **显式 Deny > Allow > 默认拒绝**。前端菜单和旧 Permission 展示仅用于交互提示，不能代替服务端资源授权。
+
+### 契约与职责
+
+- `packages/shared/src/iam/` 是 Action、资源类型、条件键和策略类型的唯一事实来源。Action 只描述本产品真实能力；外部云服务示例不属于生产目录。
+- `apps/backend/src/iam/parser/` 校验并规范化策略；`evaluator/` 执行策略决策；`request/` 从可信请求上下文解析主体和资源。
+- `IamAuthorizationService` 合并用户、用户组、角色及授权范围，并校验有效角色会话。AssumeRole 不继承调用用户自己的策略。
+- Controller 声明固定 Action 和具名 Resource Resolver；Service 校验实际操作的对象；Repository 保持账户隔离、有效状态及事务内复核。
+
+身份策略使用 `Version: "1"`，支持 `Statement`、`Sid`、`Effect`、`Action`/`NotAction` 二选一、`Resource` 和类型化 `Condition`。Action/Resource 大小写敏感，仅支持 `*` 通配符。`NotAction` 在保存前展开为当前目录中兼容的有限 Action 集合，后续增加 Action 不会扩大已保存版本。未知字段、版本、操作或未实现条件均拒绝，不得静默忽略。角色信任策略使用独立校验器；`Principal` 不能出现在身份策略中。
+
+资源采用 `acs:<service>:<region>:<accountId>:<resourceType>/<resourceId>` 格式，必须与 Action 注册的资源类型兼容。ARN 中的账户来自认证上下文，不能由请求体覆盖。资源属性由服务端读取，例如文章的 `quyan:ResourceOwnerId` 指保存的作者用户 ID，而不是 ARN 中的账户 ID。
+
+### 接入 API
+
+新增 JWT API 应声明显式 IAM 定义，例如：
+
+```typescript
+@Post("{id}/publish")
+@Security("jwt")
+@Middlewares(
+  replayProtectionMiddleware,
+  validateParams(articleIdParamsSchema),
+  iamAuthorizationMiddleware({
+    action: "quyan:article:Publish",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  }),
+)
+public async publishArticle(
+  @Path() id: string,
+  @Request() request: TypedRequest,
+): Promise<ArticleDto> {
+  return this.service.publishArticle(id, request.user!.userId, request);
+}
+```
+
+`iamAuthorizationMiddleware` 从 `apps/backend/src/iam/middleware/iam-authorization.middleware.ts` 引入。上述 Resolver 复用 `request/article-resource-resolvers.ts` 中的实现；其他业务域应使用自身具名 Resolver，不复制匿名 ARN 拼接逻辑。
+
+接入时必须同时满足：
+
+1. Action 来自服务端元数据，不读取客户端提交的 Action Header/Query。
+2. Resolver 验证标识、数据库归属和规范大小写；不能可靠解析时拒绝，不回退到 `*`。
+3. Service 授权实际方法参数，不能仅依赖请求体或只检查批量请求的第一个对象。
+4. 列表先做数据库账户隔离，使用有界候选页或有界数据库扫描逐资源评估；不得返回未授权行或未经授权过滤的全局总数。采用候选页时，过滤后允许空页，客户端应根据 `hasNext` 继续翻页，不能用获准行数量推断列表结束。指定目标的批量修改使用 `authorizeMany`，全部允许后才写入；“全部”类操作应只更新逐资源获准的快照，不重新使用更宽的查询条件。
+5. 敏感写入在事务内复核有效身份、资源归属与已授权快照，避免授权后资源状态变化造成越权。
+6. Condition 的值只能来自已注册的可信属性提供器。缺失或异常属性安全拒绝，不能通过调用参数伪造主体或资源所有者。
+
+`iamCollectionAuthorizationMiddleware` 只验证集合边界，不能代替 Service 的逐行过滤。IAM 也不能替代计费、业务状态、凭据使用、公开可见性等业务校验。
+
+本人自助能力通过共享 Action 的 `defaultAuthorizationScope: "self"` 注册，资源类型还须明确声明 `authenticatedSelfScope`。默认授权只覆盖当前执行用户的身份 ARN 或以该用户为父级的注册子资源。例如通知收件箱资源为 `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`，默认模式只能访问本人的消息；显式 Deny 仍优先。不能仅因 Action 是 Read 或资源类型存在就自动授予默认权限。
+
+### 凭据资源管理
+
+访问密钥资源为 `acs:quyan:*:<accountId>:access-key/<userId>/<keyId>`。`quyan:ram:ListAccessKeys` 与 `quyan:ram:DeleteAccessKey` 是独立敏感操作，不注册默认本人授权；历史 `ACCESSKEY_READ`/`ACCESSKEY_DELETE` 只通过明确的兼容映射参与迁移。即使策略允许通配符，业务层仍限定当前执行用户自己的密钥，OAuth 第三方应用不能读取列表或撤销密钥。
+
+`GET /v1/accesskeys/page` 使用统一分页边界，返回 `items`、`page`、`pageSize` 和 `hasNext`，不返回未授权资源总数。旧数组接口保留完整已授权结果，不能悄悄替换成第一页。列表先读取无凭据的目标元数据，逐资源授权后再次求值，并在可串行化事务内复核账户、角色会话与资源快照，再读取并脱敏资料；密钥原文和历史凭据列不得进入列表 DTO 或授权日志。
+
+创建使用 `quyan:ram:CreateAccessKey`，发送创建验证码使用独立的 `quyan:ram:SendAccessKeyCreationVerificationCode`，二者均限定为可信执行用户 ARN `acs:quyan:*:<accountId>:user/<userId>`，无默认本人授权。只有显式 legacy `ACCESSKEY_CREATE` 转换可参与兼容映射；规范 legacy JSON Action 不会隐式扩展为原生敏感 Action。OAuth 创建还要求有效用户、应用和 `accesskey` scope，不能扩展到其他用户。
+
+创建中间件在 2FA 前获取邮箱、2FA 标记及用户版本快照，并通过服务端 WeakMap 记录安全链完成状态；不能从 Header、Query 或 Body 伪造此状态。Service 用实际用户参数再次授权；最终可串行化事务复核用户、账户、角色会话、OAuth 状态及安全快照。未启用 2FA 时，验证码以条件更新单次消费，与密钥插入同事务，失败回滚。仅创建响应返回完整新密钥，授权和操作审计不记录邮箱、验证码、名称或密钥。
+
+发送验证码复用同一安全链并在外部邮件分发前后复核安全快照；SMTP 不在数据库事务中。已发送邮件不能回滚，分发期间发生的并发安全变更会令请求失败，需要重新启动流程，不得据此放宽密钥写入校验。
+
+本人资料读取使用 `quyan:user:GetCurrentUser`，仅注册执行用户资源的默认本人 Allow，显式 Deny 仍优先。修改显示名称使用 `quyan:user:UpdateProfile`，没有默认本人授权，仅接受明确的旧 `USER_UPDATE_SELF_PROFILE` 兼容映射。个人资料接口不接受其他用户作为目标；管理员的用户详情/列表操作必须单独迁移，不能复用本人读取能力。
+
+资料读取先取无密码/凭据的版本元数据，服务层按实际用户参数授权后，在可串行化事务内再次校验有效账户、角色会话、OAuth profile scope 和用户版本，再投影现有 UserDto 的安全字段。更新事务只写已校验的姓名，比较所授权版本，冲突拒绝而不覆盖；操作审计使用静态描述和标识，不记录新名称。返回资料中的用户组必须是全局共享组或当前账号有效组，禁止通过组引用泄露其他账号资料。
+
+### 策略版本与委派
+
+策略文档保存在不可变版本中，默认版本指针决定执行的策略。更新或恢复默认版本需要当前文档 hash，冲突后重新读取并确认，不自动重试覆盖。
+
+创建、发布、绑定策略及修改主体关系需要对应管理 Action 和保守的委派子集证明。只能授予自身权限覆盖的 Action、Resource 和相同或更严格的 Condition；无法证明的通配符关系默认拒绝。账户恢复授权另行保护。策略文档不能被视为绕过跨账户、有效主体或资源归属检查的依据。
+
+旧 Permission 是兼容输入，不是完整 IAM 目录。转换还须保留历史业务限制：例如文章编辑/删除的旧权限仍限定执行用户本人创作的文章；排序和发布有各自独立的范围。不能仅比较 Permission 集合就认定资源授权语义一致。
+
+### 授权模式与数据迁移
+
+`IAM_AUTHORIZATION_MODE` 控制旧权限桥接：
+
+| 模式      | 旧权限桥接行为                        |
+| --------- | ------------------------------------- |
+| `legacy`  | 执行旧 Permission 检查                |
+| `shadow`  | 旧检查仍强制，同时评估 IAM 以比较结果 |
+| `enforce` | IAM 强制，读取或评估失败时拒绝        |
+
+显式 `iamAuthorizationMiddleware` 始终强制 IAM，不受上述旧权限桥接模式降级。IAM 文档写入和绑定要求 `enforce`。切换配置前，必须验证目标 API 的 Action/Resolver、逐资源检查、业务限制、委派和账户恢复路径；修改模式不会补齐缺失的端点定义。
+
+自定义旧策略可以通过仓库根目录的账户范围回填命令生成策略版本：
+
+```bash
+# 只读预检查
+pnpm --filter @quyan/backend run iam:backfill-policies -- --account-owner-id <ACCOUNT_OWNER_ID>
+
+# 由具备相应数据库操作权限的人员明确执行
+pnpm --filter @quyan/backend run iam:backfill-policies -- --apply --account-owner-id <ACCOUNT_OWNER_ID>
+```
+
+回填保留原字段及附件关系；系统策略、空权限和不符合条件的记录不会被转换成通配符授权。应用前重新检查来源快照，来源变化不会被覆盖；重跑跳过已转换记录。历史回填版本须校验 hash、可信来源及保留的旧权限数据，不能把来源标记本身当成授权。版本恢复保留对应的兼容语义，不改写历史文档。回滚模式前须考虑显式 JSON 策略不能由旧 Permission 完整表达。
+
+检查端点元数据及相对基线的覆盖退化：
+
+```bash
+pnpm --filter @quyan/backend run iam:routes:audit -- --check --base-ref <BASE_REF>
+pnpm --filter @quyan/backend run iam:routes:audit -- --require-complete
+```
+
+路由检查不能证明 Service 的资源隔离或历史业务限制，应结合目标模块的单元、数据库及 API 测试。授权日志仅记录安全的主体/决策标识和资源 hash，不记录策略全文、Token 或 Secret。
+
+策略编辑、JSON Schema、诊断与模拟的用户使用方法见 [RAM 管理文档](../../apps/docs-site/src/content/zh-CN/ram-management.md)。
 
 ## 双因素认证 (2FA)
 

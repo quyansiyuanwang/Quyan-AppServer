@@ -33,6 +33,8 @@
 - 配置自动轮转分配的处理人池。
 - 保存前展示未完成规则的校验摘要。
 
+强制模式下，通用配置接口读取或更新 `notification.ticketAssignmentRules` 时，还需要有效全局组的 `TICKET_REVIEW_UPDATE` 资格，以及对应的 `quyan:ticket:GetAssignmentRules` 或 `quyan:ticket:UpdateAssignmentRules` 授权。专用操作的 Deny 同样限制通用配置入口。缺少这些权限时，通用列表隐藏该键，包含该键的通知区块读取或批量保存会被拒绝。
+
 ## 常见操作
 
 1. 按状态 `pending` 筛选，找出尚未处理的新工单。
@@ -49,6 +51,28 @@
 | 更新状态 / 优先级 / 评论 | `TICKET_REVIEW_UPDATE` |
 | 删除工单                 | `TICKET_REVIEW_UPDATE` |
 | 管理分配规则             | `TICKET_REVIEW_UPDATE` |
+
+## 工单审核读取的资源权限
+
+IAM 强制模式下，审核列表使用 `quyan:ticket:ListReviewTickets`，详情使用 `quyan:ticket:GetReviewTicket`。每份工单对应 `acs:platform:*:platform:ticket-review/<提交者用户ID>/<工单ID>`，提交者由服务端从已保存工单解析。这是平台审核资源，提交者查看自己工单的权限另行控制。
+
+两项操作都要求当前主体属于具有 `TICKET_REVIEW_READ` 的有效平台全局组。个人附加权限、账户私有组和账户所有者身份均不能替代这一资格。策略可以进一步把审核范围限制到指定工单，显式 Deny 优先于 Allow。列表权限不自动授予详情权限。
+
+未获准工单不会进入列表、总数、分页或 `hasMore`。没有获准工单时返回空页。列表保持按最近回复排序，每页最多 100 条，页码最多 10,000。不存在或被拒绝的详情返回通用授权错误，不返回联系方式或评论。读取期间工单内容、评论、相关显示身份、管理资格或授权变化时，请求被拒绝。
+
+## 工单审核修改的资源权限
+
+IAM 强制模式下，更新工单使用 `quyan:ticket:UpdateReviewTicket`，审核回复使用 `quyan:ticket:AddReviewComment`，删除使用 `quyan:ticket:DeleteReviewTicket`。三项操作与审核读取共用 `acs:platform:*:platform:ticket-review/<提交者用户ID>/<工单ID>`，认证主体必须属于具有 `TICKET_REVIEW_UPDATE` 的有效平台全局组。策略可以独立限制各项操作；更新权限不自动授予删除或回复权限。
+
+提交前在写事务内复核授权和当前请求条件，失败时整笔回滚，包括评论和最近回复时间。更新响应使用同一事务内的详情，由更新权限授权，不额外要求详情读取权限。接口不支持修改提交者或指定评论作者。保存分配时处理人必须仍处于有效状态。删除后工单退出有效列表。现有重放保护、业务审计和公开回复通知继续生效。
+
+## 分配规则的资源权限
+
+IAM 强制模式下，读取与更新分配规则分别使用 `quyan:ticket:GetAssignmentRules` 和 `quyan:ticket:UpdateAssignmentRules`，资源统一为 `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`。这个 ARN 与通用配置接口使用同一资源身份，因此可以用 `Action: "*"` 的 Deny 同时限制两个入口。认证主体还必须属于有效部署管理全局组，且该组具有 `TICKET_REVIEW_UPDATE`；个人附加权限、私有组或账号所有者身份不能替代该资格。
+
+读取权限不会授予更新权限，更新权限也不会授予读取权限。尚未配置时读取返回空规则，不创建配置；首次获准保存可以创建配置。写入保留重放保护。请求期间配置内容、资格、授权或角色会话发生变化时会被拒绝；未能解析的已保存规则不会作为有效空配置返回。
+
+每次保存最多 100 条规则，每条规则最多 50 个处理人 ID，处理人 ID 去重后保存。规则需要至少一种工单类型或优先级条件。自动分配仍只会选取有效且具有审核权限的处理人；编辑规则不授予处理人新的审核权限。
 
 ## 说明
 

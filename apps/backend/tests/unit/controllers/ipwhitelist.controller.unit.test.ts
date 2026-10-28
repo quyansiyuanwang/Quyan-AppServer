@@ -6,7 +6,7 @@ import { setRequestContext } from "../../../src/util/request-context";
 
 describe("IPWhitelistController", () => {
   const ipWhiteListServiceMock = {
-    list: vi.fn(),
+    listManaged: vi.fn(),
     isWhitelisted: vi.fn(),
     add: vi.fn(),
     remove: vi.fn(),
@@ -28,7 +28,7 @@ describe("IPWhitelistController", () => {
   });
 
   it("maps whitelist records without losing controller context", async () => {
-    ipWhiteListServiceMock.list.mockResolvedValue({
+    ipWhiteListServiceMock.listManaged.mockResolvedValue({
       whitelists: [
         {
           id: "wl-1",
@@ -44,15 +44,11 @@ describe("IPWhitelistController", () => {
     });
 
     const controller = new IPWhitelistController();
-    setRequestContext({ user: { userId: "admin-1" } } as any);
-    const result = await controller.getAllIPWhitelists(10, 0);
+    const request = { user: { userId: "admin-1" } } as any;
+    setRequestContext(request);
+    const result = await controller.getAllIPWhitelists(request, 10, 0);
 
-    expect(ipWhiteListServiceMock.list).toHaveBeenCalledWith(10, 0);
-    expect(permissionServiceMock.checkUserPermissions).toHaveBeenCalledWith(
-      "admin-1",
-      expect.any(Array),
-      expect.any(Object),
-    );
+    expect(ipWhiteListServiceMock.listManaged).toHaveBeenCalledWith(10, 0, request);
     expect(result).toEqual({
       whitelists: [
         {

@@ -55,15 +55,15 @@ export const useGlobalNavigationSearch = () => {
       return currentSiteProfile.id === 'public' ? [currentSiteProfile] : []
     }
     const permissions = permissionsResolved.value
-      ? permissionStore.effectivePermissions
+      ? permissionStore.uiPermissions
       : (Object.values(Permission) as string[])
     return getAccessibleSiteProfiles(currentSiteProfile, permissions)
   })
 
   const allResults = computed<GlobalNavigationSearchResult[]>(() => {
     const results: GlobalNavigationSearchResult[] = []
-    const effectivePermissions = permissionsResolved.value
-      ? permissionStore.effectivePermissions
+    const uiPermissions = permissionsResolved.value
+      ? permissionStore.uiPermissions
       : (Object.values(Permission) as string[])
 
     for (const profile of accessibleProfiles.value) {
@@ -79,7 +79,7 @@ export const useGlobalNavigationSearch = () => {
 
       const routeEntries = collectVisibleNavigationRoutes(
         [...navigationMenuDefinition, debugNavigationNode],
-        effectivePermissions,
+        uiPermissions,
         (route) => {
           const entry = getRouteCatalogEntry(route)
           return Boolean(entry && hasFeatureRoute(profile, route) && !entry.path.includes(':'))

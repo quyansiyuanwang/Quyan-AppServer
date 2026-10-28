@@ -1,6 +1,10 @@
 import { prisma } from "@/config/database";
 import type { PasskeyCredential, Prisma } from "@prisma/client";
-import type { PasskeyCredentialRegView, PasskeyCredentialStore } from "./passkey-credential.store";
+import type {
+  PasskeyCredentialRegView,
+  PasskeyCredentialStore,
+  PasskeyCredentialPublicView,
+} from "./passkey-credential.store";
 
 export type { PasskeyCredentialRegView } from "./passkey-credential.store";
 
@@ -37,9 +41,10 @@ export class PasskeyCredentialRepository implements PasskeyCredentialStore {
     });
   }
 
-  async listByUserId(userId: string): Promise<PasskeyCredential[]> {
+  async listByUserId(userId: string): Promise<PasskeyCredentialPublicView[]> {
     return prisma.passkeyCredential.findMany({
       where: { userId },
+      select: { id: true, credentialId: true, name: true, deviceType: true, backedUp: true, createTime: true },
       orderBy: { createTime: "desc" },
     });
   }

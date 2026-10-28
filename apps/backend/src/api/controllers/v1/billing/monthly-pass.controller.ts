@@ -1,4 +1,14 @@
 import {
+  platformMonthlyPassAssignResources,
+  platformMonthlyPassBatchAssignTemplateResource,
+} from "@/iam/request/platform-monthly-pass-assign-resource-resolvers";
+import { monthlyPassPurchaseResources } from "@/iam/request/monthly-pass-purchase-resource-resolvers";
+import { platformMonthlyPassAssignmentResource } from "@/iam/request/platform-monthly-pass-assignment-resource-resolvers";
+import {
+  platformMonthlyPassTemplateCreateResource,
+  platformMonthlyPassTemplateWriteResource,
+} from "@/iam/request/platform-monthly-pass-template-write-resource-resolvers";
+import {
   Body,
   Controller,
   Delete,
@@ -30,7 +40,6 @@ import type {
   UserMonthlyPassListResponse,
 } from "@/api/dto/billing/monthly-pass.dto";
 import { MonthlyPassService } from "@/services/billing/monthly-pass.service";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   assignUserMonthlyPassBodySchema,
@@ -49,6 +58,11 @@ import {
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/monthly-passes")
@@ -58,37 +72,59 @@ export class MonthlyPassController extends Controller {
 
   @Get("filter-options")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.MONTHLY_PASS_TEMPLATE_READ,
-    Permission.MONTHLY_PASS_ASSIGNMENT_READ,
-    Permission.MONTHLY_PASS_USAGE_READ,
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:GetFilterOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async getFilterOptions(@Request() request: TypedRequest): Promise<MonthlyPassFilterOptionsDto> {
-    return this.monthlyPassService.getFilterOptions(request.user!.userId);
+    return this.monthlyPassService.getFilterOptions(request.user!.userId, request);
   }
 
   @Get("templates/published")
   @Security("jwt")
-  public async listPublishedTemplates(): Promise<MonthlyPassTemplateDto[]> {
-    return this.monthlyPassService.listPublishedTemplates();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListPublishedTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listPublishedTemplates(@Request() request: TypedRequest): Promise<MonthlyPassTemplateDto[]> {
+    return this.monthlyPassService.listPublishedTemplates(request);
   }
 
   @Get("templates")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(listMonthlyPassTemplatesQuerySchema))
   public async listTemplates(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<MonthlyPassTemplateListResponse> {
-    return this.monthlyPassService.listTemplates(page, pageSize, status, keyword);
+    return this.monthlyPassService.listTemplates(page, pageSize, status, keyword, request);
   }
 
   @Post("templates")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:CreateTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateCreateResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -104,7 +140,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("templates/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -117,7 +159,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("templates/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -133,7 +181,13 @@ export class MonthlyPassController extends Controller {
 
   @Put("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UpdateTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -151,7 +205,13 @@ export class MonthlyPassController extends Controller {
 
   @Delete("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:DeleteTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -165,33 +225,55 @@ export class MonthlyPassController extends Controller {
 
   @Get("user-passes")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListUserPasses",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.MONTHLY_PASS_ASSIGNMENT_READ],
+    }),
+  )
   @Middlewares(validateQuery(listUserMonthlyPassesQuerySchema))
   public async listUserPasses(
+    @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() templateId?: string,
     @Query() status?: number,
   ): Promise<UserMonthlyPassListResponse> {
-    return this.monthlyPassService.listUserPasses(page, pageSize, userId, templateId, status);
+    return this.monthlyPassService.listUserPasses(page, pageSize, userId, templateId, status, request);
   }
 
   @Get("me")
   @Security("jwt")
-  @Middlewares(validateQuery(listMyMonthlyPassesQuerySchema))
+  @Middlewares(
+    validateQuery(listMyMonthlyPassesQuerySchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListMyPasses",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserPasses(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<UserMonthlyPassListResponse> {
-    return this.monthlyPassService.listUserPasses(page, pageSize, request.user!.userId, undefined, status);
+    return this.monthlyPassService.listMyPasses(request.user!.userId, request, page, pageSize, status);
   }
 
   @Post("me/claim")
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(claimMonthlyPassTemplateBodySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ClaimPublishedTemplate",
+      resourceKind: "batch",
+      resource: monthlyPassPurchaseResources,
+    }),
+  )
   public async claimPublishedTemplate(
     @Body() body: ClaimMonthlyPassTemplateRequest,
     @Request() request: TypedRequest,
@@ -201,7 +283,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("user-passes")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:AssignUserPass",
+      resourceKind: "batch",
+      resource: platformMonthlyPassAssignResources,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -217,7 +305,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("user-passes/batch")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:AssignUserPassBatch",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassBatchAssignTemplateResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -233,7 +327,13 @@ export class MonthlyPassController extends Controller {
 
   @Put("user-passes/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UpdateUserPass",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassAssignmentResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -251,7 +351,13 @@ export class MonthlyPassController extends Controller {
 
   @Delete("user-passes/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:DeleteUserPass",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassAssignmentResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -265,9 +371,17 @@ export class MonthlyPassController extends Controller {
 
   @Get("usages")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_USAGE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListUsages",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.MONTHLY_PASS_USAGE_READ],
+    }),
+  )
   @Middlewares(validateQuery(listMonthlyPassUsagesQuerySchema))
   public async listUsages(
+    @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
@@ -276,6 +390,6 @@ export class MonthlyPassController extends Controller {
     @Query() startTime?: string,
     @Query() endTime?: string,
   ): Promise<MonthlyPassUsageListResponse> {
-    return this.monthlyPassService.listUsages(page, pageSize, userId, templateId, model, startTime, endTime);
+    return this.monthlyPassService.listUsages(page, pageSize, userId, templateId, model, startTime, endTime, request);
   }
 }

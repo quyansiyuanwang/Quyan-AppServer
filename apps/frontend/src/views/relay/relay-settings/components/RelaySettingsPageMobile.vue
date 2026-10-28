@@ -6,6 +6,18 @@
           <span>{{ i18ns.t('nav.relaySettings') }}</span>
         </template>
 
+        <el-alert
+          v-if="!loading && !relayConfigurationLoaded"
+          type="warning"
+          :closable="false"
+          :title="i18ns.t('ServerConfigView.relayConfigurationUnavailable')"
+        />
+        <el-alert
+          v-if="!loading && !systemRelayConfigurationLoaded"
+          type="warning"
+          :closable="false"
+          :title="i18ns.t('ServerConfigView.systemRelayConfigurationUnavailable')"
+        />
         <div class="flex flex-col gap-3">
           <section
             class="border border-[var(--el-border-color-lighter)] rounded-xl bg-[var(--el-fill-color-blank)] overflow-hidden"
@@ -36,7 +48,11 @@
                 v-show="isMobileSectionExpanded('basic')"
                 class="section-body px-4 pb-4"
               >
-                <el-form label-position="top" class="relay-settings-form">
+                <el-form
+                  :disabled="!relayConfigurationLoaded || saving"
+                  label-position="top"
+                  class="relay-settings-form"
+                >
                   <el-form-item
                     :label="i18ns.t('ServerConfigView.globalMultiplier')"
                     class="setting-block"
@@ -108,7 +124,11 @@
                 v-show="isMobileSectionExpanded('monitor')"
                 class="section-body px-4 pb-4"
               >
-                <el-form label-position="top" class="relay-settings-form">
+                <el-form
+                  :disabled="!relayConfigurationLoaded || saving"
+                  label-position="top"
+                  class="relay-settings-form"
+                >
                   <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')" class="setting-block">
                     <el-input
                       v-model="uptimeStatusUrl"
@@ -234,7 +254,11 @@
                 v-show="isMobileSectionExpanded('queue')"
                 class="section-body px-4 pb-4"
               >
-                <el-form label-position="top" class="relay-settings-form">
+                <el-form
+                  :disabled="!relayConfigurationLoaded || saving"
+                  label-position="top"
+                  class="relay-settings-form"
+                >
                   <el-form-item
                     :label="i18ns.t('ServerConfigView.enableQueue')"
                     class="setting-block"
@@ -342,7 +366,11 @@
                 v-show="isMobileSectionExpanded('customKey')"
                 class="section-body px-4 pb-4"
               >
-                <el-form label-position="top" class="relay-settings-form">
+                <el-form
+                  :disabled="!systemRelayConfigurationLoaded || saving"
+                  label-position="top"
+                  class="relay-settings-form"
+                >
                   <el-form-item
                     :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')"
                     class="setting-block"
@@ -437,7 +465,16 @@
                 v-show="isMobileSectionExpanded('pricing')"
                 class="section-body px-4 pb-4"
               >
-                <el-form label-position="top" class="relay-settings-form">
+                <el-form
+                  :disabled="!relayConfigurationLoaded || saving"
+                  label-position="top"
+                  class="relay-settings-form"
+                >
+                  <el-alert
+                    type="warning"
+                    :closable="false"
+                    :title="i18ns.t('ServerConfigView.pricingReplacementHint')"
+                  />
                   <el-form-item
                     :label="i18ns.t('ServerConfigView.allowedModelsAndPricing')"
                     class="setting-block"
@@ -720,9 +757,13 @@
         </div>
 
         <div class="mt-4 flex justify-end">
-          <el-button type="primary" :loading="saving" @click="save">{{
-            i18ns.t('save')
-          }}</el-button>
+          <el-button
+            type="primary"
+            :loading="saving"
+            :disabled="loading || (!relayConfigurationLoaded && !systemRelayConfigurationLoaded)"
+            @click="save"
+            >{{ i18ns.t('save') }}</el-button
+          >
         </div>
         <el-dialog
           v-model="showImportDialog"
@@ -1120,6 +1161,8 @@ const state = useRelaySettingsManagementContext()
 const {
   Permission,
   loading,
+  relayConfigurationLoaded,
+  systemRelayConfigurationLoaded,
   toggleMobileSection,
   isMobileSectionExpanded,
   isMobileSectionLoaded,

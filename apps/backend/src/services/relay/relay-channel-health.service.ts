@@ -144,9 +144,18 @@ export class RelayChannelHealthService {
   }
 
   async clearHealth(channelId: string, now = new Date()): Promise<boolean> {
-    const normalizedChannelId = channelId.trim();
-    if (!normalizedChannelId) return false;
+    return this.clearHealthMany([channelId], now);
+  }
 
+  /** One Redis DEL for the entire admitted batch; SQL rollback cannot undo this external effect. */
+  async clearHealthMany(channelIds: readonly string[], now = new Date()): Promise<boolean> {
+    if (
+      !channelIds.length ||
+      !Number.isFinite(now.getTime()) ||
+      channelIds.some((id) => typeof id !== "string" || !id.trim())
+    )
+      return false;
+    const normalizedChannelIds = [...new Set(channelIds.map((id) => id.trim()))];
     try {
       const currentBucket = this.getBucket(now.getTime());
       const buckets = Array.from(
@@ -154,11 +163,15 @@ export class RelayChannelHealthService {
         (_, index) => currentBucket - index * BUCKET_SECONDS,
       );
       const result = await this.redis.deleteMany(
-        buckets.map((bucket) => this.getBucketKey(normalizedChannelId, bucket)),
+        normalizedChannelIds.flatMap((id) => buckets.map((bucket) => this.getBucketKey(id, bucket))),
       );
-      return result !== null;
-    } catch (error) {
-      logger.warn("Failed to clear relay channel health", { channelId: normalizedChannelId, error });
+      return typeof result === "number" && Number.isSafeInteger(result) && result >= 0;
+    } catch {
+      // Transport errors can include connection credentials. Never log the raw error or Redis keys.
+      logger.warn("Failed to clear relay channel health", {
+        channelCount: normalizedChannelIds.length,
+        reason: "health-storage-unavailable",
+      });
       return false;
     }
   }

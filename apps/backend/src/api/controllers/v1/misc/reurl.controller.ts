@@ -1,4 +1,5 @@
 import { Body, Controller, Post, Request, Route, Security, SuccessResponse, Tags, Middlewares } from "@tsoa/runtime";
+import type { RequestHandler } from "express";
 import { HttpStatusCode } from "axios";
 import type { GenerateReURLRequest, GenerateReURLResponse } from "@/api/dto/system/reurl.dto";
 import { ReURLService } from "@/services/system/reurl.service";
@@ -7,6 +8,8 @@ import type { TypedRequest } from "@/types/express";
 import { generateReURLBodySchema } from "@/api/schema/system/reurl.schema";
 import { validateBody } from "@/middleware/validation";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 /**
  * ReURL 短链接控制器
@@ -28,7 +31,15 @@ export class ReURLController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "成功生成 ReURL")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(generateReURLBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(generateReURLBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:reurl:Generate",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async generateReURL(
     @Request() request: TypedRequest,
     @Body() requestBody: GenerateReURLRequest,

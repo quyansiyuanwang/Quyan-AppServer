@@ -3,6 +3,9 @@ import fs from "fs-extra";
 import os from "os";
 import path from "path";
 import { gzipSync } from "zlib";
+vi.mock("@/services/system/platform-management-read-iam.service", () => ({
+  PlatformManagementReadIamService: { getInstance: vi.fn() },
+}));
 import { SystemService } from "@/services/system/system.service";
 import { INTERNAL_LOG_METADATA_KEY } from "@/config/logging";
 

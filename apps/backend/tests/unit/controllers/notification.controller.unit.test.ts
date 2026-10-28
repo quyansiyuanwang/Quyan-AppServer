@@ -36,7 +36,7 @@ const serviceMock = {
   deleteWebhook: vi.fn(),
   testWebhook: vi.fn(),
   getLogs: vi.fn(),
-  getEventList: vi.fn(),
+  getAuthorizedEventList: vi.fn(),
 };
 
 const makeRequest = (userId = "user-1"): TypedRequest =>
@@ -91,7 +91,10 @@ describe("NotificationController", () => {
 
       const result = await controller.getPreferences(makeRequest());
 
-      expect(serviceMock.getPreference).toHaveBeenCalledWith("user-1");
+      expect(serviceMock.getPreference).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ user: { userId: "user-1" } }),
+      );
       expect(result).toEqual(prefDto);
     });
 
@@ -100,7 +103,10 @@ describe("NotificationController", () => {
 
       await controller.getPreferences(makeRequest("user-99"));
 
-      expect(serviceMock.getPreference).toHaveBeenCalledWith("user-99");
+      expect(serviceMock.getPreference).toHaveBeenCalledWith(
+        "user-99",
+        expect.objectContaining({ user: { userId: "user-99" } }),
+      );
     });
   });
 
@@ -135,7 +141,10 @@ describe("NotificationController", () => {
 
       const result = await controller.listWebhooks(makeRequest());
 
-      expect(serviceMock.listWebhooks).toHaveBeenCalledWith("user-1");
+      expect(serviceMock.listWebhooks).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ user: expect.objectContaining({ userId: "user-1" }) }),
+      );
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("wh-1");
     });
@@ -212,7 +221,7 @@ describe("NotificationController", () => {
 
       const result = await controller.testWebhook("wh-1", makeRequest());
 
-      expect(serviceMock.testWebhook).toHaveBeenCalledWith("wh-1", "user-1");
+      expect(serviceMock.testWebhook).toHaveBeenCalledWith("wh-1", "user-1", expect.any(Object));
       expect(result.success).toBe(true);
     });
 
@@ -241,7 +250,12 @@ describe("NotificationController", () => {
 
       const result = await controller.getLogs(2, 10, makeRequest());
 
-      expect(serviceMock.getLogs).toHaveBeenCalledWith("user-1", 2, 10);
+      expect(serviceMock.getLogs).toHaveBeenCalledWith(
+        "user-1",
+        2,
+        10,
+        expect.objectContaining({ user: { userId: "user-1" } }),
+      );
       expect(result).toEqual(logsDto);
     });
 
@@ -250,7 +264,12 @@ describe("NotificationController", () => {
 
       await controller.getLogs(1, 20, makeRequest());
 
-      expect(serviceMock.getLogs).toHaveBeenCalledWith("user-1", 1, 20);
+      expect(serviceMock.getLogs).toHaveBeenCalledWith(
+        "user-1",
+        1,
+        20,
+        expect.objectContaining({ user: { userId: "user-1" } }),
+      );
     });
   });
 
@@ -262,11 +281,14 @@ describe("NotificationController", () => {
         { value: NotificationEvent.BALANCE_LOW, label: "余额不足", hasThreshold: true, thresholdUnit: "元" },
         { value: NotificationEvent.ABNORMAL_LOGIN, label: "异常登录", hasThreshold: false },
       ];
-      serviceMock.getEventList.mockReturnValue(events);
+      serviceMock.getAuthorizedEventList.mockResolvedValue(events);
 
-      const result = await controller.getEventList();
+      const result = await controller.getEventList(makeRequest());
 
-      expect(serviceMock.getEventList).toHaveBeenCalledTimes(1);
+      expect(serviceMock.getAuthorizedEventList).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ user: { userId: "user-1" } }),
+      );
       expect(result).toHaveLength(2);
       expect(result[0].value).toBe(NotificationEvent.BALANCE_LOW);
     });

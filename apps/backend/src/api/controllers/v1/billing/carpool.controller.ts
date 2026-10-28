@@ -1,3 +1,10 @@
+import { platformCarpoolOrderResource } from "@/iam/request/platform-carpool-order-resource-resolvers";
+import {
+  platformCarpoolTemplateWriteResource,
+  platformCarpoolTemplateCreateResources,
+  platformCarpoolTemplateUpdateResources,
+  platformCarpoolTemplateDuplicateResources,
+} from "@/iam/request/platform-carpool-template-write-resource-resolvers";
 import {
   Body,
   Controller,
@@ -28,8 +35,6 @@ import type {
   UpdateCarpoolPackageTemplateRequest,
 } from "@/api/dto/billing/carpool.dto";
 import { CarpoolService } from "@/services/billing/carpool.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import {
@@ -45,6 +50,16 @@ import {
   updateCarpoolPackageTemplateBodySchema,
 } from "@/api/schema/billing/carpool.schema";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  carpoolOrderResourceResolver,
+  carpoolCreateOrderResourceResolver,
+  carpoolAcceptInviteResourceResolver,
+} from "@/iam/request/carpool-resource-resolvers";
 
 @Route("v1/carpools")
 @Tags("Carpool")
@@ -52,11 +67,27 @@ export class CarpoolController extends Controller {
   private readonly service = CarpoolService.getInstance();
 
   /** Legacy unpaginated published list retained for compatibility. */
-  @Get("packages/published") @Security("jwt") public listPublishedPackages(): Promise<CarpoolPackageTemplateDto[]> {
+  @Get("packages/published")
+  @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:ListPublishedTemplates",
+      resourceKind: "single-resource",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public listPublishedPackages(): Promise<CarpoolPackageTemplateDto[]> {
     return this.service.listPublishedTemplates();
   }
   @Get("packages/catalog")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:ListPackageCatalog",
+      resourceKind: "single-resource",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listPackageCatalog(
     @Query() page?: number,
@@ -67,66 +98,120 @@ export class CarpoolController extends Controller {
   }
   @Get("packages")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listPackages(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
     @Query() publishStatus?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolPackageTemplateListResponse> {
-    return this.service.listTemplates(page, pageSize, keyword, publishStatus);
+    return this.service.listTemplates(page, pageSize, keyword, publishStatus, request);
   }
   @Post("packages")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:CreateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateCreateResources,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolPackageTemplateBodySchema))
-  public createPackage(@Body() body: CreateCarpoolPackageTemplateRequest) {
-    return this.service.createTemplate(body);
+  public createPackage(@Body() body: CreateCarpoolPackageTemplateRequest, @Request() request: TypedRequest) {
+    return this.service.createTemplate(body, request);
   }
   @Put("packages/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:UpdateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateUpdateResources,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
     validateBody(updateCarpoolPackageTemplateBodySchema),
   )
-  public updatePackage(@Path() id: string, @Body() body: UpdateCarpoolPackageTemplateRequest) {
-    return this.service.updateTemplate(id, body);
+  public updatePackage(
+    @Path() id: string,
+    @Body() body: UpdateCarpoolPackageTemplateRequest,
+    @Request() request: TypedRequest,
+  ) {
+    return this.service.updateTemplate(id, body, request);
   }
   @Post("packages/{id}/duplicate")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:DuplicateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateDuplicateResources,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public duplicatePackage(@Path() id: string) {
-    return this.service.duplicateTemplate(id);
+  public duplicatePackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.duplicateTemplate(id, request);
   }
   @Post("packages/{id}/archive")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:ArchiveTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public async archivePackage(@Path() id: string): Promise<{ archived: true }> {
-    await this.service.archiveTemplate(id);
+  public async archivePackage(@Path() id: string, @Request() request: TypedRequest): Promise<{ archived: true }> {
+    await this.service.archiveTemplate(id, request);
     return { archived: true };
   }
   @Post("packages/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public publishPackage(@Path() id: string) {
-    return this.service.publishTemplate(id, true);
+  public publishPackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.publishTemplate(id, true, request);
   }
   @Post("packages/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public unpublishPackage(@Path() id: string) {
-    return this.service.publishTemplate(id, false);
+  public unpublishPackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.publishTemplate(id, false, request);
   }
 
   @Get("me")
   @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListMyOrders",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listMine(
     @Request() request: TypedRequest,
@@ -135,45 +220,72 @@ export class CarpoolController extends Controller {
     @Query() state?: string,
     @Query() keyword?: string,
   ): Promise<CarpoolOrderListResponse> {
-    return this.service.listMine(request.user!.userId, page, pageSize, state, keyword);
+    return this.service.listMine(request.user!.userId, page, pageSize, state, keyword, request);
   }
   @Get("admin")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListAdminOrders",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listAdmin(
     @Query() state?: string,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolOrderListResponse> {
-    return this.service.listAdmin(state, page, pageSize, keyword);
+    return this.service.listAdmin(state, page, pageSize, keyword, request);
   }
   // Static admin paths must precede admin/{id} in the generated Express router.
   @Get("admin/delivery-channels")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListDeliveryChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listDeliveryChannels(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
     @Query() orderId?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolDeliveryChannelListResponse> {
-    return this.service.listDeliveryChannels(page, pageSize, keyword, orderId);
+    return this.service.listDeliveryChannels(page, pageSize, keyword, orderId, request);
   }
 
   /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */
   @Get("admin/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:GetAdminOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(validateParams(carpoolIdParamsSchema))
   public getAdminOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
-    return this.service.getOrder(id, request.user!.userId, true);
+    return this.service.getOrder(id, request.user!.userId, true, request);
   }
 
   @Post()
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:CreateOrder",
+      resourceKind: "batch",
+      resource: carpoolCreateOrderResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolOrderBodySchema))
   public createOrder(
     @Body() body: CreateCarpoolOrderRequest,
@@ -183,12 +295,26 @@ export class CarpoolController extends Controller {
   }
   @Get("{id}")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:GetOrder",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(carpoolIdParamsSchema))
   public getOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.getOrder(id, request.user!.userId);
   }
   @Post("{id}/invites")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:CreateInvite",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -199,6 +325,13 @@ export class CarpoolController extends Controller {
   }
   @Post("invites/accept")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:AcceptInvite",
+      resourceKind: "batch",
+      resource: carpoolAcceptInviteResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(acceptCarpoolInviteBodySchema))
   public acceptInvite(
     @Body() body: AcceptCarpoolInviteRequest,
@@ -208,6 +341,13 @@ export class CarpoolController extends Controller {
   }
   @Post("{id}/ratios")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:AllocateRatios",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -222,24 +362,52 @@ export class CarpoolController extends Controller {
   }
   @Post("{id}/confirm")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:ConfirmMember",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public confirm(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.confirm(id, request.user!.userId);
   }
   @Post("{id}/leave")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:LeaveOrder",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public leave(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.leave(id, request.user!.userId);
   }
   @Post("{id}/cancel")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:CancelOrder",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public cancel(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.cancel(id, request.user!.userId);
   }
   @Post("{id}/submit")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:SubmitOrder",
+      resourceKind: "single-resource",
+      resource: carpoolOrderResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public submit(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.submit(id, request.user!.userId);
@@ -247,14 +415,26 @@ export class CarpoolController extends Controller {
 
   @Post("admin/{id}/accept")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:AcceptOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public accept(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
-    return this.service.accept(id, request.user!.userId);
+    return this.service.accept(id, request.user!.userId, request);
   }
   @Post("admin/{id}/fulfill")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:FulfillOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -265,11 +445,17 @@ export class CarpoolController extends Controller {
     @Body() body: FulfillCarpoolOrderRequest,
     @Request() request: TypedRequest,
   ): Promise<CarpoolOrderDto> {
-    return this.service.fulfill(id, body.relayChannelId, request.user!.userId);
+    return this.service.fulfill(id, body.relayChannelId, request.user!.userId, request);
   }
   @Post("admin/{id}/fail")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:FailOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -280,6 +466,6 @@ export class CarpoolController extends Controller {
     @Body() body: FailCarpoolOrderRequest,
     @Request() request: TypedRequest,
   ): Promise<CarpoolOrderDto> {
-    return this.service.fail(id, body.reason, request.user!.userId);
+    return this.service.fail(id, body.reason, request.user!.userId, request);
   }
 }

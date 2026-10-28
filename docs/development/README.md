@@ -1,6 +1,8 @@
 # AppServerMonorepo — 开发文档
 
-本目录包含 AppServerMonorepo 的完整开发文档。文档按主题组织，从高层架构概览到具体开发流程。
+本目录包含 AppServerMonorepo 的开发文档，按主题说明架构、接口语义和可复用的开发操作。
+
+代理工作日志、交接摘要、逐批提交和测试记录、临时问题清单应放在仓库根目录中被 Git 忽略的 `.tmp/`，不加入正式文档或索引。
 
 ## 文档索引
 
@@ -12,7 +14,7 @@
 | [04-shared-package.md](./04-shared-package.md)             | 共享包：百余项 Permission 枚举、CustomCode、通知事件          |
 | [05-database.md](./05-database.md)                         | 数据库：71 个 Prisma 模型、关系、软删除模式                   |
 | [06-api-development.md](./06-api-development.md)           | API 开发流程：添加 Controller、DTO、Service、Repository       |
-| [07-authentication.md](./07-authentication.md)             | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护           |
+| [07-authentication.md](./07-authentication.md)             | 认证与授权：JWT、OAuth 2.0、RAM/IAM、2FA、重放保护            |
 | [08-openapi-pipeline.md](./08-openapi-pipeline.md)         | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK      |
 | [09-deployment.md](./09-deployment.md)                     | 构建与部署：域名、SPA 回退、Cookie、CORS、反向代理与 PM2      |
 | [10-pr-management.md](./10-pr-management.md)               | GitHub PR 读取、风格对齐、编辑与标签流程                      |
@@ -47,6 +49,7 @@
 - **如何配置多域名与认证 Cookie** → [14-domain-deployment.md](./14-domain-deployment.md)
 - **如何开发和验证 CLI** → [15-cli.md](./15-cli.md)
 - **如何本地启动与排查** → [16-local-development.md](./16-local-development.md)
+- **如何接入 IAM 与迁移旧策略** → [认证与授权](./07-authentication.md#iam-策略授权)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查

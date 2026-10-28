@@ -183,12 +183,14 @@
                 <span class="label">{{ i18ns.t('relay.token') }}</span>
                 <div class="token-mobile-token-content">
                   <el-link
+                    v-if="row.token"
                     type="primary"
                     class="token-link token-link-mobile"
                     @click="state.copyToken(row.token)"
                   >
                     {{ maskSecret(row.token) }}
                   </el-link>
+                  <span v-else>{{ i18ns.t('relay.tokenCredentialUnavailable') }}</span>
                 </div>
               </div>
               <div class="token-mobile-field">

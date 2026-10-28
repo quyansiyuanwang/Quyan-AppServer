@@ -1,3 +1,4 @@
+import { IP_MONITORING_DASHBOARD_LIMITS } from "@/constant/ip-monitoring-dashboard";
 import { IPBlackListRepository, IPBlackList } from "@/store/security/ipblacklist";
 import { ConfigService } from "./config.service";
 import BusinessLogService from "./businesslog.service";
@@ -246,19 +247,7 @@ export class IPBlackListService {
       logger.info(`IP ${ip} manually banned by user ${actorUserId}`);
 
       // 记录业务日志
-      await this.businessLogService.logOperation({
-        operationType: OperationType.IP_BAN,
-        operationCategory: OperationCategory.SECURITY,
-        actorUserId,
-        targetResourceType: "IP_ADDRESS",
-        targetResourceId: ip,
-        description: `手动封禁 IP ${ip}`,
-        changes: { ip, duration, reason },
-        success: true,
-        ipAddress: extractClientIp(request!),
-        userAgent: request?.headers["user-agent"],
-        requestId: request?.headers["x-request-id"] as string | undefined,
-      });
+      await this.logManualBan(ip, duration, reason, actorUserId, request);
 
       return blacklist;
     } catch (error) {
@@ -282,18 +271,7 @@ export class IPBlackListService {
         logger.info(`IP ${ip} unbanned by user ${actorUserId}`);
 
         // 记录业务日志
-        await this.businessLogService.logOperation({
-          operationType: OperationType.IP_UNBAN,
-          operationCategory: OperationCategory.SECURITY,
-          actorUserId,
-          targetResourceType: "IP_ADDRESS",
-          targetResourceId: ip,
-          description: `解除 IP ${ip} 封禁`,
-          success: true,
-          ipAddress: extractClientIp(request!),
-          userAgent: request?.headers["user-agent"],
-          requestId: request?.headers["x-request-id"] as string | undefined,
-        });
+        await this.logManualUnban(ip, actorUserId, request);
       }
 
       return result;
@@ -301,6 +279,44 @@ export class IPBlackListService {
       logger.error("Failed to unban IP", { error, ip, actorUserId });
       throw error;
     }
+  }
+
+  /** Business audit for a successfully committed manual ban, shared with legacy writes. */
+  public async logManualBan(
+    ip: string,
+    duration: number,
+    reason: string,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<void> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.IP_BAN,
+      operationCategory: OperationCategory.SECURITY,
+      actorUserId,
+      targetResourceType: "IP_ADDRESS",
+      targetResourceId: ip,
+      description: `手动封禁 IP ${ip}`,
+      changes: { ip, duration, reason },
+      success: true,
+      ipAddress: extractClientIp(request!),
+      userAgent: request?.headers["user-agent"],
+      requestId: request?.headers["x-request-id"] as string | undefined,
+    });
+  }
+  /** Business audit for a successfully committed manual unban. */
+  public async logManualUnban(ip: string, actorUserId: string, request?: Request): Promise<void> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.IP_UNBAN,
+      operationCategory: OperationCategory.SECURITY,
+      actorUserId,
+      targetResourceType: "IP_ADDRESS",
+      targetResourceId: ip,
+      description: `解除 IP ${ip} 封禁`,
+      success: true,
+      ipAddress: extractClientIp(request!),
+      userAgent: request?.headers["user-agent"],
+      requestId: request?.headers["x-request-id"] as string | undefined,
+    });
   }
 
   /**
@@ -489,19 +505,19 @@ export class IPBlackListService {
       });
 
       // 获取最近封禁记录（最多20条）
-      const recentBans = activeBans.slice(0, 20);
+      const recentBans = activeBans.slice(0, IP_MONITORING_DASHBOARD_LIMITS.recentBans);
 
       // 查询最近24小时和7天的封禁活动
       const [bans24h, bans7d] = await Promise.all([
         this.businessLogRepository.query({
           page: 1,
-          pageSize: 1000,
+          pageSize: IP_MONITORING_DASHBOARD_LIMITS.sampledEvents,
           operationType: OperationType.IP_BAN,
           startDate: last24Hours,
         }),
         this.businessLogRepository.query({
           page: 1,
-          pageSize: 1000,
+          pageSize: IP_MONITORING_DASHBOARD_LIMITS.sampledEvents,
           operationType: OperationType.IP_BAN,
           startDate: last7Days,
         }),
@@ -540,7 +556,7 @@ export class IPBlackListService {
           currentStatus: activeBans.some((b) => b.ipAddress === ip) ? ("banned" as const) : ("unbanned" as const),
         }))
         .sort((a, b) => b.banCount - a.banCount)
-        .slice(0, 10);
+        .slice(0, IP_MONITORING_DASHBOARD_LIMITS.topIPs);
 
       return {
         activeBans: {

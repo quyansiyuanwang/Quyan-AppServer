@@ -90,7 +90,8 @@ export interface SetGroupPermissionsDto {
  */
 export interface GetAllGroupsData {
   groups: GroupDto[];
-  total: number;
+  /** Exact legacy count; omitted for IAM-filtered candidate pages. Use hasMore to advance. */
+  total?: number;
   page: number;
   pageSize: number;
   hasMore: boolean;

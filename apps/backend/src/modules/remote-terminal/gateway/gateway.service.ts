@@ -1,3 +1,4 @@
+import type { TypedRequest } from "@/types/express";
 import type {
   RemoteTerminalAgentPreferencesData,
   RemoteTerminalDirectoryBrowseResultMessage,
@@ -28,8 +29,9 @@ export class RemoteTerminalGatewayService {
 
   public async registerAgent(
     payload: RemoteTerminalAgentRegistrationRequest,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalAgentRegistrationResponse> {
-    return this.deviceRegistry.register(payload);
+    return this.deviceRegistry.register(payload, request);
   }
 
   public async heartbeatAgent(
@@ -46,6 +48,10 @@ export class RemoteTerminalGatewayService {
     return this.sessionGateway.probeDevices(userId);
   }
 
+  public async probeAuthorizedDevice(deviceId: string, authorize: () => Promise<void>): Promise<Date | null> {
+    return this.sessionGateway.probeAuthorizedDevice(deviceId, authorize);
+  }
+
   public async listSessions(userId: string): Promise<RemoteTerminalSessionSummary[]> {
     return this.sessionGateway.listSessions(userId);
   }
@@ -58,28 +64,37 @@ export class RemoteTerminalGatewayService {
     userId: string,
     body: RemoteTerminalSessionCreateRequest,
     browserWebSocketBaseUrl: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalSessionCreateResponse> {
-    return this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl);
+    return authorize
+      ? this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl, authorize)
+      : this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl);
   }
 
   public async browseDirectories(
     userId: string,
     deviceId: string,
     targetPath?: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalDirectoryBrowseResultMessage> {
-    return this.sessionGateway.browseDirectories(userId, deviceId, targetPath);
+    return this.sessionGateway.browseDirectories(userId, deviceId, targetPath, authorize);
   }
 
-  public async getAgentPreferences(userId: string, deviceId: string): Promise<RemoteTerminalAgentPreferencesData> {
-    return this.sessionGateway.getAgentPreferences(userId, deviceId);
+  public async getAgentPreferences(
+    userId: string,
+    deviceId: string,
+    authorize?: () => Promise<void>,
+  ): Promise<RemoteTerminalAgentPreferencesData> {
+    return this.sessionGateway.getAgentPreferences(userId, deviceId, authorize);
   }
 
   public async updateAgentPreferences(
     userId: string,
     deviceId: string,
     preferences: RemoteTerminalAgentPreferencesData,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalAgentPreferencesData> {
-    return this.sessionGateway.updateAgentPreferences(userId, deviceId, preferences);
+    return this.sessionGateway.updateAgentPreferences(userId, deviceId, preferences, authorize);
   }
 
   public getDeviceRegistry(): RemoteTerminalDeviceRegistry {

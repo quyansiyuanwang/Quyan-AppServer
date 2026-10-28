@@ -1,0 +1,307 @@
+import { describe, expect, it } from "vitest";
+import type { IamCondition } from "@quyan/shared";
+import { evaluateIamCondition } from "../../../src/iam/condition/condition-evaluator";
+import { iamConditionSchema } from "../../../src/iam/condition/condition-schema";
+import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
+import { evaluatePolicies } from "../../../src/iam/evaluator/policy-evaluator";
+import { requestConditionContext } from "../../../src/iam/request/condition-context";
+import { matchesIpCondition } from "../../../src/iam/condition/ip-condition";
+const condition = (
+  operator: string,
+  key: string,
+  values: string | number | boolean | (string | number | boolean)[],
+): IamCondition => ({ [operator]: { [key]: values } });
+const strings = [
+  ["StringEquals", "alice", "alice", true],
+  ["StringNotEquals", "alice", "bob", true],
+  ["StringEqualsIgnoreCase", "Alice", "alice", true],
+  ["StringNotEqualsIgnoreCase", "Alice", "alice", false],
+  ["StringLike", "agent-v1", "agent-?*", true],
+  ["StringNotLike", "agent-v1", "agent-*", false],
+  ["StringLike", "abc", "a.c", false],
+  ["StringLike", "abc", "a?c", true],
+] as const;
+describe("IAM typed Condition evaluation", () => {
+  it.each(strings)("%s compares strings without regex interpretation", (operator, actual, expected, result) => {
+    expect(evaluateIamCondition(condition(operator, "acs:UserAgent", expected), { "acs:UserAgent": actual })).toBe(
+      result,
+    );
+  });
+  it.each([
+    ["NumericEquals", 5, "5", true],
+    ["NumericNotEquals", 5, 5, false],
+    ["NumericLessThan", 5, 6, true],
+    ["NumericLessThanEquals", 5, 5, true],
+    ["NumericGreaterThan", 5, 5, false],
+    ["NumericGreaterThanEquals", 5, 5, true],
+  ] as const)("%s performs finite numeric comparison", (operator, actual, expected, result) => {
+    expect(evaluateIamCondition(condition(operator, "quyan:EpochTime", expected), { "quyan:EpochTime": actual })).toBe(
+      result,
+    );
+  });
+  it.each([
+    ["DateEquals", true],
+    ["DateNotEquals", false],
+    ["DateLessThan", false],
+    ["DateLessThanEquals", true],
+    ["DateGreaterThan", false],
+    ["DateGreaterThanEquals", true],
+  ] as const)("%s compares instants with timezone offsets", (operator, result) => {
+    expect(
+      evaluateIamCondition(condition(operator, "acs:CurrentTime", "2026-10-09T08:00:00+08:00"), {
+        "acs:CurrentTime": "2026-10-09T00:00:00Z",
+      }),
+    ).toBe(result);
+  });
+  it("ANDs keys/operators, ORs positive values and treats absent keys explicitly with Null", () => {
+    const clause = {
+      StringEquals: { "quyan:PrincipalId": ["alice", "bob"], "quyan:PrincipalType": "sub_user" },
+      Bool: { "acs:SecureTransport": "true" },
+    };
+    const context = { "quyan:PrincipalId": "bob", "quyan:PrincipalType": "sub_user", "acs:SecureTransport": true };
+    expect(evaluateIamCondition(clause, context)).toBe(true);
+    expect(evaluateIamCondition(clause, { ...context, "quyan:PrincipalType": "root" })).toBe(false);
+    expect(evaluateIamCondition(condition("Null", "acs:SourceIp", true), {})).toBe(true);
+    expect(evaluateIamCondition(condition("Null", "acs:SourceIp", false), { "acs:SourceIp": "127.0.0.1" })).toBe(true);
+    expect(() => evaluateIamCondition(condition("StringNotEquals", "quyan:PrincipalId", "blocked"), {})).toThrow();
+  });
+  it.each([
+    {
+      operator: "StringNotEquals",
+      key: "quyan:PrincipalId",
+      values: ["blocked-a", "blocked-b"],
+      blocked: "blocked-a",
+      allowed: "other",
+    },
+    {
+      operator: "StringNotEqualsIgnoreCase",
+      key: "quyan:PrincipalId",
+      values: ["BLOCKED-A", "blocked-b"],
+      blocked: "blocked-a",
+      allowed: "other",
+    },
+    {
+      operator: "StringNotLike",
+      key: "acs:UserAgent",
+      values: ["blocked-*", "unsafe-?"],
+      blocked: "blocked-client",
+      allowed: "safe-client",
+    },
+    { operator: "NumericNotEquals", key: "quyan:EpochTime", values: [1, "2"], blocked: 1, allowed: 3 },
+    {
+      operator: "DateNotEquals",
+      key: "acs:CurrentTime",
+      values: ["2026-10-29T00:00:00Z", "2026-10-30T00:00:00Z"],
+      blocked: "2026-10-29T08:00:00+08:00",
+      allowed: "2026-10-31T00:00:00Z",
+    },
+    {
+      operator: "NotIpAddress",
+      key: "acs:SourceIp",
+      values: ["10.0.0.0/8", "192.168.0.0/16"],
+      blocked: "10.1.2.3",
+      allowed: "198.51.100.1",
+    },
+    {
+      operator: "NotIpAddressIncludeBorder",
+      key: "acs:SourceIp",
+      values: ["10.0.0.0/8", "2001:db8::/32"],
+      blocked: "2001:db8::",
+      allowed: "2001:db9::1",
+    },
+  ])(
+    "$operator excludes all listed values in Allow and Deny statements",
+    ({ operator, key, values, blocked, allowed }) => {
+      const clause = condition(operator, key, values);
+      expect(evaluateIamCondition(clause, { [key]: blocked })).toBe(false);
+      expect(evaluateIamCondition(clause, { [key]: allowed })).toBe(true);
+      expect(() => evaluateIamCondition(clause, {})).toThrow();
+      const policy = (Effect: "Allow" | "Deny", Condition?: IamCondition) => ({
+        policyId: Effect,
+        document: parseIamPolicy({
+          Version: "1",
+          Statement: { Effect, Action: "quyan:ram:ReadUser", Resource: "*", ...(Condition ? { Condition } : {}) },
+        }).document,
+      });
+      const request = { action: "quyan:ram:ReadUser", resource: "*" };
+      expect(evaluatePolicies([policy("Allow", clause)], { ...request, context: { [key]: blocked } }).decision).toBe(
+        "ImplicitDeny",
+      );
+      expect(evaluatePolicies([policy("Allow", clause)], { ...request, context: { [key]: allowed } }).decision).toBe(
+        "Allow",
+      );
+      expect(
+        evaluatePolicies([policy("Allow"), policy("Deny", clause)], { ...request, context: { [key]: blocked } })
+          .decision,
+      ).toBe("Allow");
+      expect(
+        evaluatePolicies([policy("Allow"), policy("Deny", clause)], { ...request, context: { [key]: allowed } })
+          .decision,
+      ).toBe("ExplicitDeny");
+    },
+  );
+  it("supports IPv4/IPv6 CIDR and makes network borders explicit", () => {
+    expect(matchesIpCondition("192.0.2.1", "192.0.2.0/24", false)).toBe(true);
+    expect(matchesIpCondition("192.0.2.0", "192.0.2.0/24", false)).toBe(false);
+    expect(matchesIpCondition("192.0.2.255", "192.0.2.0/24", true)).toBe(true);
+    expect(matchesIpCondition("192.0.2.1", "192.0.2.1", false)).toBe(true);
+    expect(matchesIpCondition("2001:db8::1", "2001:db8::/32", false)).toBe(true);
+    expect(matchesIpCondition("2001:db9::1", "2001:db8::/32", true)).toBe(false);
+    expect(
+      evaluateIamCondition(condition("NotIpAddressIncludeBorder", "acs:SourceIp", "192.0.2.0/24"), {
+        "acs:SourceIp": "198.51.100.1",
+      }),
+    ).toBe(true);
+    expect(() =>
+      evaluateIamCondition(condition("NotIpAddress", "acs:SourceIp", "192.0.2.0/24"), { "acs:SourceIp": "invalid" }),
+    ).toThrow();
+  });
+  it.each([
+    {},
+    { Unknown: { "quyan:PrincipalId": "x" } },
+    { Bool: { "quyan:PrincipalId": true } },
+    { StringEquals: { "quyan:ResourceTag/team": "x" } },
+    { StringNotEquals: { "quyan:ResourceGroupId": "x" } },
+    { NumericEquals: { "quyan:EpochTime": "" } },
+    { Bool: { "acs:SecureTransport": "yes" } },
+    { DateEquals: { "acs:CurrentTime": "2026-10-09" } },
+    { IpAddress: { "acs:SourceIp": "127.0.0.1/33" } },
+    { StringEquals: { "quyan:PrincipalId": [] } },
+    { StringEquals: {} },
+  ])("rejects unknown/unavailable keys, operators and malformed typed values %#", (input) => {
+    expect(iamConditionSchema.safeParse(input).success).toBe(false);
+  });
+  it("canonicalizes condition key/value order and duplicates without changing policy hashes for unconditional documents", () => {
+    const base = { Version: "1", Statement: { Effect: "Allow", Action: "quyan:ram:ReadUser", Resource: "*" } };
+    const a = parseIamPolicy({
+      ...base,
+      Statement: {
+        ...base.Statement,
+        Condition: { StringEquals: { "quyan:PrincipalId": ["a", "b", "a"] }, Bool: { "acs:SecureTransport": true } },
+      },
+    });
+    const b = parseIamPolicy({
+      ...base,
+      Statement: {
+        ...base.Statement,
+        Condition: { Bool: { "acs:SecureTransport": [true] }, StringEquals: { "quyan:PrincipalId": ["b", "a"] } },
+      },
+    });
+    expect(a.documentHash).toBe(b.documentHash);
+    expect(parseIamPolicy(base).canonicalJson).toBe(
+      '{"Version":"1","Statement":[{"Effect":"Allow","Action":["quyan:ram:ReadUser"],"Resource":["*"]}]}',
+    );
+  });
+  it("does not bypass a conditional Deny when context is missing or malformed", () => {
+    const allow = parseIamPolicy({ Version: "1", Statement: { Effect: "Allow", Action: "*", Resource: "*" } }).document;
+    const deny = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Deny", Action: "*", Resource: "*", Condition: { Bool: { "acs:SecureTransport": false } } },
+    }).document;
+    const policies = [
+      { policyId: "allow", document: allow },
+      { policyId: "deny", document: deny },
+    ];
+    const request = { action: "quyan:ram:ReadUser", resource: "*" };
+    expect(evaluatePolicies(policies, request)).toMatchObject({
+      decision: "ImplicitDeny",
+      reason: "missing-condition-context",
+    });
+    expect(evaluatePolicies(policies, { ...request, context: { "acs:SecureTransport": true } }).decision).toBe("Allow");
+    expect(evaluatePolicies(policies, { ...request, context: { "acs:SecureTransport": false } }).decision).toBe(
+      "ExplicitDeny",
+    );
+  });
+  it("omits unavailable headers when evaluating a minimal authenticated request", () => {
+    const context = requestConditionContext({ secure: false } as never, {
+      subjectUserId: "child",
+      principalUserId: "child",
+      accountOwnerId: "owner",
+      subjectType: "sub_user",
+    });
+    expect(context["acs:UserAgent"]).toBeUndefined();
+    expect(context["acs:SecureTransport"]).toBe(false);
+  });
+  it("uses trusted authentication and Express proxy resolution, ignoring client condition maps", () => {
+    const principal = {
+      subjectUserId: "child",
+      principalUserId: "child",
+      accountOwnerId: "owner",
+      subjectType: "sub_user" as const,
+    };
+    const request = {
+      headers: { "x-forwarded-for": "attacker", "user-agent": "test-agent" },
+      ip: "192.0.2.1",
+      secure: true,
+      body: { context: { "quyan:PrincipalId": "owner", "acs:SourceIp": "attacker", "acs:SecureTransport": false } },
+    } as never;
+    expect(requestConditionContext(request, principal)).toMatchObject({
+      "quyan:PrincipalId": "child",
+      "quyan:PrincipalAccount": "owner",
+      "acs:SourceIp": "192.0.2.1",
+      "acs:SecureTransport": true,
+    });
+  });
+});
+
+describe("multi-valued resource group conditions", () => {
+  it("matches any actual membership and any expected value, retaining AND across keys", () => {
+    expect(
+      evaluateIamCondition(
+        { StringEquals: { "quyan:ResourceGroupId": ["team-a", "team-b"], "quyan:PrincipalId": "actor" } },
+        { "quyan:ResourceGroupId": ["team-c", "team-b"], "quyan:PrincipalId": "actor" },
+      ),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": ["team-b"],
+      }),
+    ).toBe(false);
+    expect(
+      evaluateIamCondition(condition("StringEqualsIgnoreCase", "quyan:ResourceGroupId", "TEAM-A"), {
+        "quyan:ResourceGroupId": ["team-a"],
+      }),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("StringLike", "quyan:ResourceGroupId", "team-*"), {
+        "quyan:ResourceGroupId": ["team-a"],
+      }),
+    ).toBe(true);
+  });
+  it("distinguishes empty membership from unavailable context", () => {
+    expect(
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": [],
+      }),
+    ).toBe(false);
+    expect(
+      evaluateIamCondition(condition("Null", "quyan:ResourceGroupId", true), { "quyan:ResourceGroupId": [] }),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("Null", "quyan:ResourceGroupId", false), { "quyan:ResourceGroupId": ["team-a"] }),
+    ).toBe(true);
+    expect(() => evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {})).toThrow();
+  });
+  it.each(["StringNotEquals", "StringNotEqualsIgnoreCase", "StringNotLike"])(
+    "rejects ambiguous negative membership operator %s",
+    (operator) => {
+      expect(iamConditionSchema.safeParse(condition(operator, "quyan:ResourceGroupId", "team-a")).success).toBe(false);
+    },
+  );
+  it.each(
+    [[true], [""], ["invalid\u0000"], ["a".repeat(513)], Array.from({ length: 51 }, () => "team-a")].map((actual) => ({
+      actual,
+    })),
+  )("rejects malformed or excessive membership context %#", ({ actual }) => {
+    expect(() =>
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": actual,
+      }),
+    ).toThrow();
+  });
+  it("does not admit array context for scalar keys even for Null", () => {
+    expect(() =>
+      evaluateIamCondition(condition("Null", "quyan:PrincipalId", false), { "quyan:PrincipalId": ["actor"] }),
+    ).toThrow();
+  });
+});

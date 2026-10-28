@@ -8,6 +8,7 @@ import { getLogger, LogCategory } from "@/util/logger";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
   SENSITIVE_FIELDS,
+  IAM_LOG_REDACTED_FIELDS,
   EXCLUDE_RESPONSE_PATHS,
   INTERNAL_LOG_METADATA_KEY,
   ALWAYS_SKIP_LOGGING_PATHS,
@@ -120,24 +121,29 @@ export class LogService {
     }
   }
 
-  private filterSensitiveData(data: any, isTopLevel: boolean = true): any {
+  private filterSensitiveData(data: any, isTopLevel: boolean = true, iam = false): any {
+    if (iam && typeof data === "string") return "***FILTERED***";
     if (!data || typeof data !== "object") return data;
 
     if (Buffer.isBuffer(data)) return { _buffer: true, _size: data.length };
 
-    if (Array.isArray(data)) return data.map((item) => this.filterSensitiveData(item, false));
+    if (Array.isArray(data)) return data.map((item) => this.filterSensitiveData(item, false, iam));
 
     const filtered: any = {};
     for (const [key, value] of Object.entries(data)) {
       const lowerKey = key.toLowerCase();
 
-      if (SENSITIVE_FIELDS.some((field) => lowerKey.includes(field.toLowerCase()))) filtered[key] = "***FILTERED***";
+      if (
+        SENSITIVE_FIELDS.some((field) => lowerKey.includes(field.toLowerCase())) ||
+        (iam && IAM_LOG_REDACTED_FIELDS.some((field) => field.toLowerCase() === lowerKey))
+      )
+        filtered[key] = "***FILTERED***";
       else if (!isTopLevel && key === "response" && typeof value === "object")
         filtered[key] = {
           _simplified: true,
           _note: "Response content simplified to prevent nesting",
         };
-      else if (typeof value === "object" && value !== null) filtered[key] = this.filterSensitiveData(value, false);
+      else if (typeof value === "object" && value !== null) filtered[key] = this.filterSensitiveData(value, false, iam);
       else filtered[key] = value;
     }
     return filtered;
@@ -272,6 +278,7 @@ export class LogService {
 
       const requestPath = req.originalUrl || req.url;
       const requestPathname = requestPath.split("?")[0] || requestPath;
+      const iam = this.matchesAnyConfiguredPath(requestPathname, [ApiRoutePathPrefix.V1Ram]);
 
       const shouldAlwaysSkipPath = this.matchesAnyConfiguredPath(requestPathname, ALWAYS_SKIP_LOGGING_PATHS);
       if (shouldAlwaysSkipPath) return;
@@ -321,7 +328,7 @@ export class LogService {
             parsedResponse = responseBody;
           }
 
-        filteredResponse = this.filterSensitiveData(parsedResponse);
+        filteredResponse = this.filterSensitiveData(parsedResponse, true, iam);
         filteredResponse = this.limitDepth(filteredResponse, MAX_DEPTH);
 
         if (filteredResponse) {
@@ -352,11 +359,11 @@ export class LogService {
         method: req.method,
         queryParams:
           Object.keys(req.query || {}).length > 0
-            ? this.truncateRequestParams(this.filterSensitiveData(req.query), MAX_REQUEST_PARAMS_SIZE)
+            ? this.truncateRequestParams(this.filterSensitiveData(req.query, true, iam), MAX_REQUEST_PARAMS_SIZE)
             : null,
         bodyParams:
           Object.keys(requestBody || {}).length > 0
-            ? this.truncateRequestParams(this.filterSensitiveData(requestBody), MAX_REQUEST_PARAMS_SIZE)
+            ? this.truncateRequestParams(this.filterSensitiveData(requestBody, true, iam), MAX_REQUEST_PARAMS_SIZE)
             : null,
         requestHeaders: filteredRequestHeaders,
         ipAddress: this.getClientIP(req),

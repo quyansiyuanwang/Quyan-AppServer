@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Body,
   Controller,
@@ -47,6 +49,13 @@ export class OAuthController extends Controller {
 
   @Get("scopes")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:oauth:ListScopes",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "OAuth scope catalog loaded")
   public async scopes(@Request() request: TypedRequest): Promise<OAuthScopeCatalogResponseDto> {
     return {
@@ -59,6 +68,13 @@ export class OAuthController extends Controller {
 
   @Get("authorize")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:oauth:GetAuthorizationPreview",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "OAuth authorization preview loaded")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "Invalid authorization request")
   public async authorize(
@@ -88,6 +104,13 @@ export class OAuthController extends Controller {
 
   @Post("authorize")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:oauth:DecideAuthorization",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "OAuth authorization decision accepted")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "Invalid authorization request")
   @Middlewares(validateBody(oauthAuthorizeDecisionBodySchema))
