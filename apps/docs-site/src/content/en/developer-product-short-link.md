@@ -6,11 +6,11 @@ Short Link maps a controlled destination URL to a compact code. It is suited to 
 
 Provide a complete HTTP(S) target URL. You may use a platform-generated code or a custom 3-80 character lowercase letter, digit, and hyphen alias. An optional expiry automatically disables campaign links. Links can be paused, resumed, retargeted, or permanently removed.
 
-The public address is `GET /s/{code}`. It returns a native `302` redirect without an API key or JSON response wrapper. Paused, expired, and missing codes do not redirect.
+The public address is `GET /s/{code}`. It returns a native `302` redirect without an API key or JSON response wrapper. Paused, expired, and missing codes do not redirect. Public redirects count toward the product instance’s usage. Available quota, overage prices, and balance requirements depend on the current product configuration; a disabled instance or product, insufficient quota, and other restrictions can also prevent redirects.
 
 ## Analytics and privacy
 
-Each redirect asynchronously aggregates the click time, referrer host, a User-Agent summary, and country/region. The Console provides date, source, and region summaries; details are cleaned according to the product retention policy. Analytics responses may include visitor IP addresses, referrer hosts, and User-Agent details. Grant analytics access only to identities that need it.
+Successfully processed redirects record the click time, visitor IP, referrer host, User-Agent, and country/region supplied by the request. The analytics page shows total clicks, trends for the latest 30 calendar days, IP and source rankings, and paginated visit details. Dates use UTC+8. Click details are cleaned up after 90 days, so total clicks can differ from the number of recent records. Analytics contains visitor information; grant access only to identities that need it.
 
 Short Link read, write, and delete operations are controlled by separate RAM actions.
 
