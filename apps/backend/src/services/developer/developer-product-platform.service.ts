@@ -17,7 +17,7 @@ import { DeveloperProjectService } from "@/services/developer/developer-project.
 import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
 import { DEVELOPER_PRODUCT_CALL_LOG_LIMIT } from "@/constant/developer-product-read";
-import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
+import { toDatabaseDate, toLegacyDatabaseDate, localDayStartForDatabaseDate } from "@/util/database-date";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 import { getLogger, LogCategory } from "@/util/logger";
 import type {
@@ -870,8 +870,12 @@ export class DeveloperProductPlatformService {
     });
     const legacyUsageDate = toLegacyDatabaseDate();
     if (!usage && legacyUsageDate.getTime() !== usageDate.getTime())
-      usage = await prisma.developerProductQuotaUsage.findUnique({
-        where: { entitlementId_usageDate: { entitlementId, usageDate: legacyUsageDate } },
+      usage = await prisma.developerProductQuotaUsage.findFirst({
+        where: {
+          entitlementId,
+          usageDate: legacyUsageDate,
+          updateTime: { gte: localDayStartForDatabaseDate(usageDate) },
+        },
       });
     const dailyFreeQuota = entitlement.dailyFreeQuota ?? config?.defaultDailyQuota ?? 0;
     const requestCount = usage?.requestCount ?? 0;
@@ -1048,7 +1052,11 @@ export class DeveloperProductPlatformService {
 
     if (legacyUsageDate.getTime() !== usageDate.getTime()) {
       const migrated = await tx.developerProductQuotaUsage.updateMany({
-        where: { entitlementId, usageDate: legacyUsageDate },
+        where: {
+          entitlementId,
+          usageDate: legacyUsageDate,
+          updateTime: { gte: localDayStartForDatabaseDate(usageDate) },
+        },
         data: { usageDate, requestCount: { increment: 1 } },
       });
       if (migrated.count) {
