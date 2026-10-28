@@ -13,7 +13,7 @@ Access control is split into overview, identity management, and permission manag
 ### User list
 
 - Username and group.
-- A paginated list filtered by keyword, group, and the RAM-user toggle.
+- A paginated list filtered by keyword, group, and the **Show RAM Users** toggle. Here the toggle filters for RAM permissions in user additions or group permissions; the user-management page instead filters by RAM subuser type.
 - The current operator is excluded; refresh clears the filters and returns to the first page.
 
 ### Authorizations

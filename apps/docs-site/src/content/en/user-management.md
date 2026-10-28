@@ -15,7 +15,9 @@ Use this page to maintain platform user accounts, status, and core profile data.
 
 - Username, display name, and email.
 - Status, group, and created-at fields.
-- Paginated table with keyword, user ID, and group filters.
+- A paginated table or mobile cards with keyword and group filters. The keyword can match a username, email, name, or user ID; there is no separate user-ID field.
+- The **Show RAM Users** switch filters for RAM subusers when enabled; RAM subusers are excluded by default when it is off. The current operator is excluded from the list.
+- Refresh clears filters and returns to the first page.
 
 ### Management actions
 
