@@ -67,7 +67,7 @@
 
 设备 ARN 格式为 `acs:remote-terminal:*:<accountId>:device/<userId>/<deviceId>`。账号 ID、绑定用户和设备 ID 以服务端确认的归属为准。授权不会让你访问其他用户的设备，也不会延长套餐有效期。
 
-以下策略仅允许查看一个设备及读取其目录和偏好。将示例占位符替换为实际 ID 后，可在 [RAM 管理](/docs/ram-management) 中校验、模拟并绑定；这份策略不授予修改偏好或创建终端会话的权限。
+以下策略仅允许查看一个设备及读取其目录和偏好。将示例占位符替换为实际 ID 后，可在 [RAM 管理]({{DOCS_BASE_URL}}/zh-CN/ram-management) 中校验、模拟并绑定；这份策略不授予修改偏好或创建终端会话的权限。
 
 ```json
 {

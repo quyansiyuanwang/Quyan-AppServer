@@ -34,7 +34,7 @@ This section explains how to use conversations on desktop and mobile.
 
 - Pick a relay token first; the available model list is automatically filtered to that token's "allowed models" configuration — different tokens can be scoped to different models.
 - Switching tokens automatically switches to the first model allowed by the new token if the currently selected model is not in its allowed list.
-- Usage from sent messages is billed against the selected token's pricing rules and counted toward that token's quota — this is the same usage data shown on the `relay-token-management` page.
+- Usage from sent messages is billed against the selected token's pricing rules and counted toward that token's quota — this is the same usage data shown on the [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) page.
 - Your last-selected token and model are saved locally in the browser and restored automatically next time you open the chat page.
 
 ## Mobile notes

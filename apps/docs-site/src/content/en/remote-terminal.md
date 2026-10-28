@@ -67,7 +67,7 @@ When IAM enforcement is enabled, device listing, probing, directory browsing, an
 
 Device ARNs use `acs:remote-terminal:*:<accountId>:device/<userId>/<deviceId>`. The server verifies the account, bound user, and device IDs. A grant does not give access to another user's devices or extend an entitlement.
 
-The policy below permits listing one device and reading its directories and preferences. Replace the placeholder IDs, then validate, simulate, and bind the policy in [RAM management](/docs/ram-management). This policy does not grant preference updates or terminal session creation.
+The policy below permits listing one device and reading its directories and preferences. Replace the placeholder IDs, then validate, simulate, and bind the policy in [RAM management]({{DOCS_BASE_URL}}/en/ram-management). This policy does not grant preference updates or terminal session creation.
 
 ```json
 {
