@@ -1,3 +1,4 @@
+import { platformSqlRowNumber } from "../system/platform-sql-row-number";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -52,8 +53,8 @@ export class PlatformMonthlyPassAssignmentReadRepository implements PlatformMont
       ...platformScalarColumns("User", "u", ["id", "username", "status", "updateTime"]),
     ];
     columns.push(
-      Prisma.sql`COALESCE((SELECT CAST(JSON_ARRAYAGG(JSON_ARRAY(${Prisma.join(platformScalarColumns("UserMonthlyPassQuotaWindow", "q"))})) OVER (ORDER BY q.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS CHAR) FROM user_monthly_pass_quota_windows q WHERE BINARY q.userMonthlyPassId=BINARY p.id LIMIT 1),'[]')`,
-      Prisma.sql`COALESCE((SELECT CAST(JSON_ARRAYAGG(JSON_ARRAY(${Prisma.join(platformScalarColumns("MonthlyPassUsage", "s"))})) OVER (ORDER BY s.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS CHAR) FROM monthly_pass_usages s WHERE BINARY s.userMonthlyPassId=BINARY p.id AND s.status=1 LIMIT 1),'[]')`,
+      Prisma.sql`COALESCE((SELECT CAST(JSON_OBJECTAGG(q.id,JSON_ARRAY(${Prisma.join(platformScalarColumns("UserMonthlyPassQuotaWindow", "q"))})) AS CHAR) FROM user_monthly_pass_quota_windows q WHERE BINARY q.userMonthlyPassId=BINARY p.id ),'{}')`,
+      Prisma.sql`COALESCE((SELECT CAST(JSON_OBJECTAGG(s.id,JSON_ARRAY(${Prisma.join(platformScalarColumns("MonthlyPassUsage", "s"))})) AS CHAR) FROM monthly_pass_usages s WHERE BINARY s.userMonthlyPassId=BINARY p.id AND s.status=1 ),'{}')`,
     );
     return Prisma.sql`SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256)`;
   }
@@ -70,15 +71,20 @@ export class PlatformMonthlyPassAssignmentReadRepository implements PlatformMont
           !Number.isFinite(cursor.createTime.getTime()))
       )
         throw iamAccountDenied();
+    const from = Prisma.sql`FROM user_monthly_passes p JOIN monthly_pass_templates t ON BINARY t.id=BINARY p.templateId JOIN users u ON BINARY u.id=BINARY p.userId
+      WHERE p.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`=${filters.status}`}
+      ${filters.userId ? Prisma.sql`AND BINARY p.userId=BINARY ${filters.userId}` : Prisma.empty}
+      ${filters.templateId ? Prisma.sql`AND BINARY p.templateId=BINARY ${filters.templateId}` : Prisma.empty}`;
+    const rank = platformSqlRowNumber(Prisma.sql`SELECT p.id,p.endAt,p.createTime ${from}`, [
+      { column: "endAt", current: Prisma.sql`p.endAt`, direction: "asc" },
+      { column: "createTime", current: Prisma.sql`p.createTime`, direction: "desc" },
+      { column: "id", current: Prisma.sql`p.id`, direction: "desc" },
+    ]);
     const rows = await prisma.$queryRaw<
       (Omit<MonthlyPassAssignmentReadTarget, "displayOrder"> & { displayOrder: bigint })[]
     >(Prisma.sql`
    SELECT * FROM (SELECT p.id,p.userId,p.templateId,p.status,p.createTime,p.updateTime,${this.revision()} AS revision,
-    ROW_NUMBER() OVER(ORDER BY p.endAt ASC,p.createTime DESC,p.id DESC) AS displayOrder
-    FROM user_monthly_passes p JOIN monthly_pass_templates t ON BINARY t.id=BINARY p.templateId JOIN users u ON BINARY u.id=BINARY p.userId
-    WHERE p.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`=${filters.status}`}
-    ${filters.userId ? Prisma.sql`AND BINARY p.userId=BINARY ${filters.userId}` : Prisma.empty}
-    ${filters.templateId ? Prisma.sql`AND BINARY p.templateId=BINARY ${filters.templateId}` : Prisma.empty}
+    ${rank} AS displayOrder ${from}
    ) metadata WHERE 1=1
    ${after ? Prisma.sql`AND (createTime<${after.createTime} OR (createTime=${after.createTime} AND id<${after.id}))` : Prisma.empty}
    ${boundary ? Prisma.sql`AND (createTime<${boundary.createTime} OR (createTime=${boundary.createTime} AND id<=${boundary.id}))` : Prisma.empty}
