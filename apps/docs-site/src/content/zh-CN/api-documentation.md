@@ -105,14 +105,14 @@ export function unwrapApi<T>(response: ApiResponse<T>): T {
 | 服务端脚本 / 定时任务 | Access Key  | 适合无交互程序调用 |
 | 网关 / 代理转发       | Relay Token | 适合中继与统一出口 |
 
-如果你的目标是“给外部开发者一套真正可跑的接入说明”，建议每种鉴权都至少提供 1 段 curl 和 1 段 SDK 示例。
+调用前请确认令牌具有目标接口所需的权限；OAuth 令牌还需相应 scope。
 
 ## OpenAI 图片编辑中转
 
-通过 Relay Token 调用 OpenAI 兼容的 `/relay/proxy/v1/images/edits` 时，多张参考图应使用重复的 `image[]` 字段。中转也会兼容多个旧式 `image` 字段，并在转发前将其规范为 `image[]`，保留图片顺序、mask 和其他表单字段。
+将下方示例域名替换为控制台显示的 Relay Base URL。通过 Relay Token 调用 OpenAI 兼容的 `/v1/images/edits` 时，多张参考图应使用重复的 `image[]` 字段。中转也会兼容多个旧式 `image` 字段，并在转发前将其规范为 `image[]`，保留图片顺序、mask 和其他表单字段。
 
 ```bash
-curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
+curl -X POST "https://relay.example.com/v1/images/edits" \
 	-H "Authorization: Bearer <relay_token>" \
 	-F "model=gpt-image-2" \
 	-F "image[]=@first.png" \
@@ -126,8 +126,8 @@ curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
 
 Relay 将 OpenAI 的两种 v1 文本接口作为独立格式管理：
 
-- **OpenAI Chat Completions**：`/relay/proxy/v1/chat/completions`，请求体使用 `messages`。
-- **OpenAI Responses**：`/relay/proxy/v1/responses`，请求体使用 `input`。
+- **OpenAI Chat Completions**：`/v1/chat/completions`，请求体使用 `messages`。
+- **OpenAI Responses**：`/v1/responses`，请求体使用 `input`。
 
 使用任一接口前，Relay Token 所属渠道和所选模型都必须显式启用对应格式。旧 OpenAI 配置仅兼容为 Chat Completions；Responses 不会自动启用。
 
@@ -150,14 +150,14 @@ curl "https://relay.example.com/v1/responses" \
 ### 1. JWT 用户态请求
 
 ```bash
-curl -X GET "https://api.qysyw.cn/users/profile" \
+curl -X GET "https://api.qysyw.cn/v1/users/me" \
 	-H "Authorization: Bearer <access_token>"
 ```
 
 ### 2. Access Key 请求
 
 ```bash
-curl -X GET "https://api.qysyw.cn/system/config" \
+curl -X GET "https://api.qysyw.cn/v1/users/me" \
 	-H "Authorization: Bearer <access_key>"
 ```
 
@@ -165,8 +165,10 @@ curl -X GET "https://api.qysyw.cn/system/config" \
 
 ### 3. 带分页查询的列表示例
 
+此接口用于审核 OAuth 应用，需要相应的审核权限。
+
 ```bash
-curl -G "https://api.qysyw.cn/oauth-clients/review" \
+curl -G "https://api.qysyw.cn/v1/oauth-clients/review" \
 	-H "Authorization: Bearer <access_token>" \
 	--data-urlencode "page=1" \
 	--data-urlencode "pageSize=20" \
@@ -202,7 +204,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   })
 
   const json = await response.json()
-  if (json.code !== 0) throw new Error(json.message || 'Request failed')
+  if (!response.ok || json.code !== 0)
+    throw new Error(json.message || `Request failed: ${response.status}`)
   return json.data as T
 }
 ```
@@ -226,7 +229,7 @@ export interface OAuthReviewListResponse {
 }
 
 export async function listOAuthAppsForReview(token: string) {
-  return apiRequest<OAuthReviewListResponse>('/oauth-clients/review?page=1&pageSize=20', {
+  return apiRequest<OAuthReviewListResponse>('/v1/oauth-clients/review?page=1&pageSize=20', {
     token,
   })
 }
@@ -241,7 +244,7 @@ export async function reviewOAuthApp(
   reviewStatus: 'approved' | 'rejected',
   reviewComment?: string,
 ) {
-  return apiRequest(`/oauth-clients/${id}/review`, {
+  return apiRequest(`/v1/oauth-clients/${encodeURIComponent(id)}/review`, {
     method: 'POST',
     token,
     body: {
@@ -263,7 +266,7 @@ API_BASE_URL = "https://api.qysyw.cn"
 ACCESS_TOKEN = "<access_token>"
 
 response = requests.get(
-		f"{API_BASE_URL}/oauth-clients/review",
+		f"{API_BASE_URL}/v1/oauth-clients/review",
 		headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
 		params={"page": 1, "pageSize": 20, "reviewStatus": "pending"},
 		timeout=15,
@@ -280,7 +283,7 @@ for item in payload["data"]["items"]:
 
 ## OAuth 授权码流程 Demo
 
-如果文档站要更像“开放平台文档”，建议至少给出完整授权码流程示例。
+使用授权码流程前，请先创建应用并登记回调地址；应用需要通过审核。完整流程见 [OAuth 示例](/zh-CN/oauth-demo)。
 
 ### 第一步：跳转到授权页
 

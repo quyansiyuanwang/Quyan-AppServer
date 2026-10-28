@@ -105,14 +105,14 @@ export function unwrapApi<T>(response: ApiResponse<T>): T {
 | Backend script / cron / server app | Access Key         | Best for non-interactive programmatic access |
 | Gateway / relay forwarding         | Relay Token        | Best for proxy and relay topologies          |
 
-If this page is intended for external integrators, each authentication mode should ideally include at least one curl sample and one SDK example.
+Before making a request, confirm that the token has the required permissions. OAuth tokens also need the appropriate scopes.
 
 ## OpenAI image-edit relay
 
-When calling the OpenAI-compatible `/relay/proxy/v1/images/edits` endpoint with a Relay Token, send multiple reference images as repeated `image[]` fields. The relay also accepts repeated legacy `image` fields and normalizes them to `image[]` before forwarding, while preserving image order, masks, and other form fields.
+When calling the OpenAI-compatible `/v1/images/edits` endpoint with a Relay Token, send multiple reference images as repeated `image[]` fields. The relay also accepts repeated legacy `image` fields and normalizes them to `image[]` before forwarding, while preserving image order, masks, and other form fields.
 
 ```bash
-curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
+curl -X POST "https://relay.example.com/v1/images/edits" \
 	-H "Authorization: Bearer <relay_token>" \
 	-F "model=gpt-image-2" \
 	-F "image[]=@first.png" \
@@ -126,8 +126,8 @@ New integrations should always use `image[]`. Whether a selected model actually 
 
 Relay manages the two OpenAI v1 text APIs as separate formats:
 
-- **OpenAI Chat Completions**: `/relay/proxy/v1/chat/completions`, with a `messages` request body.
-- **OpenAI Responses**: `/relay/proxy/v1/responses`, with an `input` request body.
+- **OpenAI Chat Completions**: `/v1/chat/completions`, with a `messages` request body.
+- **OpenAI Responses**: `/v1/responses`, with an `input` request body.
 
 Before calling either API, both the Relay Token's channel and the selected model must explicitly enable that format. Legacy OpenAI entries remain compatible as Chat Completions only; Responses are never enabled automatically.
 
@@ -150,14 +150,14 @@ Other compatible formats (Anthropic or Gemini) are available only when explicitl
 ### 1. JWT-authenticated request
 
 ```bash
-curl -X GET "https://api.qysyw.cn/users/profile" \
+curl -X GET "https://api.qysyw.cn/v1/users/me" \
 	-H "Authorization: Bearer <access_token>"
 ```
 
 ### 2. Access Key request
 
 ```bash
-curl -X GET "https://api.qysyw.cn/system/config" \
+curl -X GET "https://api.qysyw.cn/v1/users/me" \
 	-H "Authorization: Bearer <access_key>"
 ```
 
@@ -165,8 +165,10 @@ curl -X GET "https://api.qysyw.cn/system/config" \
 
 ### 3. Paginated list example
 
+This endpoint lists OAuth applications for review and requires the appropriate review permission.
+
 ```bash
-curl -G "https://api.qysyw.cn/oauth-clients/review" \
+curl -G "https://api.qysyw.cn/v1/oauth-clients/review" \
 	-H "Authorization: Bearer <access_token>" \
 	--data-urlencode "page=1" \
 	--data-urlencode "pageSize=20" \
@@ -202,7 +204,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   })
 
   const json = await response.json()
-  if (json.code !== 0) throw new Error(json.message || 'Request failed')
+  if (!response.ok || json.code !== 0)
+    throw new Error(json.message || `Request failed: ${response.status}`)
   return json.data as T
 }
 ```
@@ -226,7 +229,7 @@ export interface OAuthReviewListResponse {
 }
 
 export async function listOAuthAppsForReview(token: string) {
-  return apiRequest<OAuthReviewListResponse>('/oauth-clients/review?page=1&pageSize=20', {
+  return apiRequest<OAuthReviewListResponse>('/v1/oauth-clients/review?page=1&pageSize=20', {
     token,
   })
 }
@@ -241,7 +244,7 @@ export async function reviewOAuthApp(
   reviewStatus: 'approved' | 'rejected',
   reviewComment?: string,
 ) {
-  return apiRequest(`/oauth-clients/${id}/review`, {
+  return apiRequest(`/v1/oauth-clients/${encodeURIComponent(id)}/review`, {
     method: 'POST',
     token,
     body: {
@@ -263,7 +266,7 @@ API_BASE_URL = "https://api.qysyw.cn"
 ACCESS_TOKEN = "<access_token>"
 
 response = requests.get(
-		f"{API_BASE_URL}/oauth-clients/review",
+		f"{API_BASE_URL}/v1/oauth-clients/review",
 		headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
 		params={"page": 1, "pageSize": 20, "reviewStatus": "pending"},
 		timeout=15,
@@ -280,7 +283,7 @@ for item in payload["data"]["items"]:
 
 ## OAuth authorization-code demo
 
-If the docs site is meant to feel like a real open-platform documentation center, it should include at least one full authorization-code flow example.
+Before using this flow, create an application, register its callback URI, and obtain approval. See the [OAuth example](/en/oauth-demo) for the complete flow.
 
 ### Step 1: Redirect to the authorization page
 
