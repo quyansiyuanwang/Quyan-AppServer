@@ -4,12 +4,12 @@ The JSON Endpoints product gives each product instance one editable JSON documen
 
 ## Create and edit
 
-Create a JSON Endpoint instance in the Developer Products console, then edit and save its JSON content from the instance page. Product permissions, instance limits, and daily quotas follow the current server configuration.
+Create a JSON Endpoint instance in the Developer Products console, then edit and save its JSON content from the instance page. A new instance starts with `{}` and is public by default: anyone with its address can read it, so check that content contains no secrets before saving. Product permissions, instance limits, and daily quotas follow the current server configuration.
 
 ## Access methods
 
-- Use a product API key with `/v1/products/json-endpoints` for programmatic reads and updates.
-- A public URL can be shared; when public access is disabled, use the existing password or signature access policy.
+- Use a product API key with `GET /v1/products/json-endpoints` to read and `PUT /v1/products/json-endpoints` to update. The update body is `{ "jsonContent": <JSON value> }`. `DELETE` clears the content to `{}` without deleting the instance. Writes also require replay protection.
+- The public URL shown on the instance page can be shared. See [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management) for password and signature protection and the required request format.
 - Administrators can continue using `/content/json-endpoints` to manage legacy endpoints and see product association status.
 
 API keys expose only the required prefix and permissions after creation; the full key is returned once and must be stored securely. Read, write, and manage permissions can be granted separately, and calls count toward product quota and call logs.
