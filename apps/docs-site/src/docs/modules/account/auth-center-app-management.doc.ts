@@ -4,14 +4,14 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'auth-center-app-management',
-  updatedAt: '2026-10-04',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Account',
     'zh-CN': '账号',
   },
   title: {
-    en: 'Auth Center app management',
-    'zh-CN': '认证中心应用管理',
+    en: 'Auth Center integration',
+    'zh-CN': '认证中心应用接入',
   },
   summary: {
     en: 'Register external applications that use this platform as an authentication center with JWT, JWKS, and dual-token refresh behavior.',

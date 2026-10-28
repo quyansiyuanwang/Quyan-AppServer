@@ -1,15 +1,8 @@
 # 认证中心应用管理
 
-此页面用于维护站内“认证中心应用”后台资料。它面向平台管理员或应用所有者，重点是创建、编辑、提交审核、轮换密钥和删除应用。
+在认证中心应用页面创建和维护应用，包括编辑配置、提交审核、轮换密钥和删除应用。
 
-## 页面定位说明
-
-这一页和 `auth-center-app-management` 不是同一类文档：
-
-- [`auth-center-client-management`](/zh-CN/auth-center-client-management)：后台操作手册，说明站内管理页面怎么用。
-- [`auth-center-app-management`](/zh-CN/auth-center-app-management)：外部接入说明，面向第三方系统开发者。
-
-如果你当前是在管理后台里维护应用资料，请看本页；如果你是在给第三方系统做接入，请看 `auth-center-app-management`。
+有关授权流程和令牌使用，请参阅[认证中心应用接入](/zh-CN/auth-center-app-management)。
 
 ## 页面用途
 
@@ -210,9 +203,9 @@
 ## 相关页面
 
 - [`auth-center-app-management`](/zh-CN/auth-center-app-management)
-- [`auth-center-client-review-management`](/zh-CN/auth-center-client-review-management)
+- [认证中心应用审核](/zh-CN/auth-center-client-review-management)
 - [`oauth-app-management`](/zh-CN/oauth-app-management)
-- [`api-documentation`](/zh-CN/api-documentation)
+- [API 文档](/zh-CN/api-documentation)
 
 ## IAM 资源范围
 

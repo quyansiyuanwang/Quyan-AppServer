@@ -4,13 +4,14 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'auth-center-client-management',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
   },
   title: {
-    en: 'Auth Center client management',
-    'zh-CN': '认证中心应用管理',
+    en: 'Manage Auth Center applications',
+    'zh-CN': '认证中心应用管理（操作指南）',
   },
   summary: {
     en: 'Maintain Auth Center apps in the admin console, including review submission, secret rotation, and deletion.',

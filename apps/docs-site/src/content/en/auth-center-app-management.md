@@ -1,4 +1,4 @@
-# Auth Center app management
+# Auth Center integration
 
 Use this page to register external applications that treat this platform as an authentication center.
 
@@ -12,14 +12,9 @@ Use this page to register external applications that treat this platform as an a
 
 The Auth Center management page shows the same checklist; submission is blocked while the scope catalog is unavailable.
 
-## Page positioning
+## Application management and review
 
-This page is the integration guide for third-party systems. Its focus is on flow design, JWT, JWKS, and refresh-token behavior.
-
-If you need the admin-page manual for maintaining these app records, use:
-
-- [`auth-center-client-management`](/en/auth-center-client-management)
-- [`auth-center-client-review-management`](/en/auth-center-client-review-management)
+To create or maintain an application, see [Manage Auth Center applications](/en/auth-center-client-management). Reviewers can refer to [Auth Center application review](/en/auth-center-client-review-management).
 
 ## What this feature is
 
@@ -283,8 +278,8 @@ Common endpoints used by integrators:
 
 ## Recommended follow-up reading
 
-- [`auth-center-client-management`](/en/auth-center-client-management)
-- [`auth-center-node-sdk`](/en/auth-center-node-sdk)
-- [`auth-center-python-sdk`](/en/auth-center-python-sdk)
-- [`auth-center-browser-spa-example`](/en/auth-center-browser-spa-example)
-- [`api-documentation`](/en/api-documentation)
+- [Manage Auth Center applications](/en/auth-center-client-management)
+- [Node.js SDK](/en/auth-center-node-sdk)
+- [Python SDK](/en/auth-center-python-sdk)
+- [Browser SPA example](/en/auth-center-browser-spa-example)
+- [API documentation](/en/api-documentation)

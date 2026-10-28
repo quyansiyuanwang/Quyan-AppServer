@@ -1,4 +1,4 @@
-# 认证中心应用管理
+# 认证中心应用接入
 
 此页面用于注册把本平台当作统一认证中心使用的外部应用。
 
@@ -12,14 +12,9 @@
 
 认证中心管理页面顶部提供同样的清单；Scope 目录不可用时不能提交配置。
 
-## 页面定位说明
+## 应用管理与审核
 
-本页是“第三方系统如何接入认证中心”的说明文档，重点在于授权模式、JWT、JWKS 和刷新令牌机制。
-
-如果你要查看后台管理页面本身怎么操作，请改看：
-
-- [`auth-center-client-management`](/zh-CN/auth-center-client-management)
-- [`auth-center-client-review-management`](/zh-CN/auth-center-client-review-management)
+要创建或维护应用，请参阅[认证中心应用管理](/zh-CN/auth-center-client-management)。审核人员可参阅[认证中心应用审核](/zh-CN/auth-center-client-review-management)。
 
 ## 这项能力是什么
 
@@ -283,8 +278,8 @@ Auth Center -> 仅返回 access_token
 
 ## 推荐继续阅读
 
-- [`auth-center-client-management`](/zh-CN/auth-center-client-management)
-- [`auth-center-node-sdk`](/zh-CN/auth-center-node-sdk)
-- [`auth-center-python-sdk`](/zh-CN/auth-center-python-sdk)
-- [`auth-center-browser-spa-example`](/zh-CN/auth-center-browser-spa-example)
-- [`api-documentation`](/zh-CN/api-documentation)
+- [认证中心应用管理](/zh-CN/auth-center-client-management)
+- [Node.js SDK](/zh-CN/auth-center-node-sdk)
+- [Python SDK](/zh-CN/auth-center-python-sdk)
+- [浏览器单页应用示例](/zh-CN/auth-center-browser-spa-example)
+- [API 文档](/zh-CN/api-documentation)

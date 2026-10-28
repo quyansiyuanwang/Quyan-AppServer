@@ -1,15 +1,8 @@
 # Auth Center client management
 
-Use this page to maintain Auth Center application records inside the admin console. It is for platform operators or app owners who need to create, edit, submit, rotate secrets, and delete apps.
+Create and maintain Auth Center applications, including editing configuration, submitting for review, rotating secrets, and deleting applications.
 
-## Page positioning
-
-This page is different from `auth-center-app-management`:
-
-- [`auth-center-client-management`](/en/auth-center-client-management): admin-page manual for the internal management screen.
-- [`auth-center-app-management`](/en/auth-center-app-management): external integration guide for third-party developers.
-
-If you are working inside the admin UI, use this page. If you are integrating an outside system, use `auth-center-app-management`.
+For authorization flows and token use, see [Auth Center integration](/en/auth-center-app-management).
 
 ## Page purpose
 
@@ -210,9 +203,9 @@ Submitting for review belongs to the app maintenance flow. The final approve/rej
 ## Related pages
 
 - [`auth-center-app-management`](/en/auth-center-app-management)
-- [`auth-center-client-review-management`](/en/auth-center-client-review-management)
+- [Auth Center application review](/en/auth-center-client-review-management)
 - [`oauth-app-management`](/en/oauth-app-management)
-- [`api-documentation`](/en/api-documentation)
+- [API documentation](/en/api-documentation)
 
 ## IAM resource scope
 
