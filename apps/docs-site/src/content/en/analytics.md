@@ -1,75 +1,26 @@
 # Analytics
 
-Analytics helps you understand user behavior across your application with three complementary views: Overview, Funnel, and Heatmap. You must configure analytics tracking before data appears.
-
-## Page purpose
-
-- **Overview** — Aggregate event metrics: total events, unique users, event type breakdown, and trends over time.
-- **Funnel** — Define multi-step conversion funnels to measure drop-off between stages.
-- **Heatmap** — Visual click and interaction heatmaps overlaid on your page screenshots.
+Analytics provides overview, funnel, and heatmap views of collected site events. Results depend on tracking being enabled and users producing matching events.
 
 ## Overview
 
-The overview dashboard shows aggregate analytics data.
-
-### What you will see
-
-- Total event count and unique user count for the selected time range.
-- Event type distribution (page views, clicks, form submissions, custom events).
-- Daily trend chart showing event volume over time.
-- Top pages by event count.
-- Top events by type.
-
-### Filters
-
-- Date range picker (preset ranges: last 7 days, 30 days, 90 days, custom).
-- Event type filter.
-- Page path filter.
+Choose a time range and refresh to see page event totals, distinct sessions (labeled UV on the page), active pages, daily trends, popular events, and page rankings. UV is deduplicated by session ID, not by account. The page offers today, 7-, 30-, and 90-day shortcuts and custom dates; it has no event-type or page-path filter controls.
 
 ## Funnel
 
-Funnels measure conversion through a sequence of steps. Each step is a tracked event.
+1. Enter at least two event names, adding, removing, or reordering steps as needed.
+2. Choose a time range and select **Analyze**.
+3. Review the session count and conversion rate for each step. The system matches events in sequence within each session; each rate is relative to the previous step, with the first shown as 100%.
 
-### Creating a funnel
-
-1. Name the funnel and select a date range.
-2. Define steps: each step has a name and an event filter (event type + optional page path).
-3. The funnel computes how many users completed each step and the conversion rate between steps.
-4. Save funnels for later reuse.
-
-### Reading the funnel chart
-
-- Each step shows the user count and percentage relative to step 1.
-- The drop-off percentage between consecutive steps is highlighted.
-- Hover over any step for detailed numbers.
+The page labels the counts as users, but they are sessions rather than distinct accounts. Funnel definitions cannot be saved on this page and must be entered again after leaving.
 
 ## Heatmap
 
-Heatmaps show where users click and interact on a given page.
-
-### Endpoint configuration
-
-The heatmap endpoint is configurable. Contact your administrator if the heatmap is not collecting data.
-
-### Viewing a heatmap
-
-1. Select a page URL from the tracked pages.
-2. Choose the date range.
-3. The heatmap renders click density overlaid on the page screenshot.
-4. Hotter colors (red) indicate higher click density; cooler colors (blue) indicate lower density.
-
-### Data collection
-
-Heatmap data is only collected when the heatmap endpoint is configured and the tracking script is loaded on the target page.
+Select or enter a page path, a time range, and either clicks or scroll stops, then select **Query**. The page loads the target in an embedded frame and overlays heat points; stronger red indicates greater relative density. The background may not appear if the target cannot be embedded or loaded, and no points appear without matching collected data.
 
 ## Permission requirements
 
-| Action                     | Required permission |
-| -------------------------- | ------------------- |
-| View analytics overview    | `ANALYTICS_READ`    |
-| View analytics funnel      | `ANALYTICS_READ`    |
-| View analytics heatmap     | `ANALYTICS_READ`    |
-| Configure heatmap endpoint | `SYSTEM_CONFIG`     |
+Viewing these reports requires `ANALYTICS_READ`; IAM enforcement also requires the separate grants below.
 
 ## IAM report authorization
 
@@ -85,10 +36,8 @@ These are deployment-level aggregate reports. Date, page and event filters selec
 
 ## Notes
 
-- Analytics data depends on the client-side tracking script. Ensure it is properly installed on all pages you want to track.
-- Event data may have a short processing delay (typically under 5 minutes).
-- Funnel definitions are saved per user and are not shared across accounts.
-- Heatmap screenshots require the target page to be accessible for capture.
+- Results depend on collected events and can be empty when tracking is disabled or there is no matching data.
+- Page paths, time ranges, and event names select report data; they do not change the authorization scope.
 
 ## Related pages
 
