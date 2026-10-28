@@ -1,47 +1,16 @@
 # Home / Articles
 
-This page is the main reading area for public or internal articles and knowledge content.
+The article reader lets you browse published site content. When signed out, it shows publicly accessible articles; when signed in, visibility depends on your account permissions and each article’s access conditions.
 
-## Page purpose
+## Read an article
 
-- Open the latest or default article quickly.
-- Browse a searchable knowledge list.
-- Read structured article content with headings and metadata.
+1. Open the article reader. It tries to show the default article; if no default is available, it tries the first item in the list.
+2. Enter a keyword in the article list to filter the loaded items by title, category, or summary.
+3. Select a title to read its content, author, date, and view count. Categories appear as tags.
+4. Use the table of contents to jump to a section.
 
-## What you will see
-
-### Summary area
-
-- Dashboard-style cards or introduction blocks.
-- Highlighted article information.
-- Empty-state guidance when no article is selected.
-
-### Article area
-
-- Full article content.
-- Publish time, tags, and other article metadata.
-- A table of contents for long pages.
-
-### List area
-
-- Searchable article list.
-- Article titles and short descriptions.
-- Selection state for the active article.
-
-## Common actions
-
-1. Search for an article by keyword.
-2. Select a title from the list.
-3. Use the table of contents to jump within the article.
-4. Return later to the same content from a direct link.
-
-## Notes
-
-- This page is designed for reading rather than editing.
-- Long articles are easier to navigate from the built-in table of contents.
-- If no article is visible, start by selecting one from the list.
+If the list is empty, check your search, sign-in state, and article access permissions. If an article fails to load, retry or ask an administrator whether it remains available. Selecting an article in the list does not generate a direct link to that article.
 
 ## Related pages
 
 - [Article management]({{DOCS_BASE_URL}}/en/article-management)
-- [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management)
