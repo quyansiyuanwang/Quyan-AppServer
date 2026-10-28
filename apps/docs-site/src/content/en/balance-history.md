@@ -16,7 +16,9 @@ Enter a valid code to add its balance to your account. Administrator codes and b
 
 ## Create a balance gift code
 
-The amount entered is what the recipient receives. The sender pays the fee in addition to that amount. Before submission, the dialog shows the current fee rate, fee amount, total debit, and the estimated fee and total refund available after cancellation.
+The amount entered is what the recipient receives. The sender pays the fee in addition to that amount. Before submission, the dialog shows the current fee rate, fee amount, total debit, and the estimated fee and total refund available after cancellation. On successful creation, the recipient amount and fee are deducted from your balance immediately; creation fails if your balance is insufficient.
+
+After creation, select the masked code in **My gift codes** to copy the full code. Share the full code only with the intended recipient; someone else who obtains it may also be able to redeem it.
 
 - You can set an optional expiry time. The creator can still cancel an expired code if it has not been redeemed.
 - Only an active user other than the creator can redeem the code.
