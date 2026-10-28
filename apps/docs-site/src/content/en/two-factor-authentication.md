@@ -32,14 +32,14 @@ Passkeys let you sign in without a password using your device's biometric sensor
 
 ### Passkey requirements
 
-- **2FA required**: If you have 2FA enabled, signing in with a passkey may still require a TOTP code depending on your account's passkey policy.
+- **2FA required**: If you have 2FA enabled, signing in with a passkey may still require a second verification depending on your account's passkey policy.
 - **Device support**: Passkeys require a compatible browser and device (most modern browsers on Windows, macOS, iOS, and Android).
 - **Synced passkeys**: Passkeys can sync across devices via your platform's credential manager (iCloud Keychain, Google Password Manager).
 
 ### Managing passkeys
 
 1. Go to Account Settings → Security → Passkeys.
-2. View all registered passkeys with creation dates and last-used timestamps.
+2. View registered passkeys and their creation dates.
 3. Add a new passkey by following the browser prompt.
 4. Remove passkeys you no longer use.
 5. Optionally toggle "require 2FA even for passkey login" for stricter security.
