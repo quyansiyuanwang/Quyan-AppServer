@@ -27,24 +27,25 @@ Sign-in, registration, password recovery, social-login callbacks, two-factor ver
 
 ## Common actions
 
-1. Choose **Login** if you already have an account.
-2. Choose **Register** if you are creating a new account.
-3. Fill in the required fields shown for the current mode.
-4. Read the policy links before accepting them.
-5. Submit the form and continue to the next step if verification is required.
+### Sign in
+
+1. Choose **Login** and enter your username and password.
+2. Read and accept the policies shown on the page, then submit.
+3. If a CAPTCHA or two-factor verification is required, follow the prompts.
+
+### Register
+
+1. Choose **Register**. If registration is unavailable, ask an administrator whether it is enabled.
+2. Enter your username, nickname, and email address. Request a verification code and enter the six-digit code from the email.
+3. Enter and confirm your password, read and accept the policies shown on the page, and submit.
+4. On a normal successful registration, the page switches back to login. If additional verification is requested, follow the prompts first.
 
 ## Notes
 
-- Registration normally needs a valid email address and verification code.
+- Registration requires access to an email address and a valid email verification code. Request another code if it expires or does not arrive; check your spam folder or contact an administrator if email still does not arrive.
 - If passkey sign-in is available, it can reduce repeated password entry.
 - If you cannot remember your password, use the dedicated recovery page instead of creating a duplicate account.
 - After authentication, each product site restores its own protected session. Do not treat browser storage as a cross-site sign-in mechanism.
-
-## Related pages
-
-- [Forgot password]({{DOCS_BASE_URL}}/en/forgot-password)
-- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)
-- [Settings]({{DOCS_BASE_URL}}/en/account-settings)
 
 ## Trouble signing in: check and repair
 
@@ -61,3 +62,9 @@ Use **Unable to sign in? Check and repair** on the sign-in page. If the main app
 - Close other tabs for this site if database deletion is blocked. Unsupported database enumeration is reported as incomplete coverage.
 - If storage is restricted or automatic cleanup fails, search browser settings for “site data,” select only this site, clear its data and reopen sign-in. Do not accidentally clear data for every website.
 - Resetting does not fix incorrect passwords, account permissions, network outages or server faults. Follow the corresponding sign-in error instructions instead.
+
+## Related pages
+
+- [Forgot password]({{DOCS_BASE_URL}}/en/forgot-password)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)
