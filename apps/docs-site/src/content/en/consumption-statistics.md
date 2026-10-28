@@ -53,6 +53,8 @@ Time, user, model, and channel filters only change the report contents; they do 
 
 ## Notes
 
+- Leaving a dimension with no selected options does not restrict results by that dimension. To narrow the report, select the desired options and click **Apply filters**.
+- After searching within a filter, the select-all, invert-selection, and clear controls affect only the current search results; other selections remain. Clear the search to operate on all available options.
 - Too many active filters can hide the broader trend, so widen them when totals look suspicious.
 - This page is useful for both performance analysis and cost investigation.
 - For single-user financial correction, continue into balance management or business logs.
