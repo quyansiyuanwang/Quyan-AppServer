@@ -1,6 +1,6 @@
 # Server configuration
 
-Use this page to maintain global server-side settings. All write operations require a step-up 2FA challenge.
+Use this page to maintain global server-side settings. Operators with 2FA enabled may need a step-up challenge when saving settings.
 
 ## Page purpose
 
@@ -32,13 +32,13 @@ Use this page to maintain global server-side settings. All write operations requ
 
 ### Public read-only endpoints
 
-- `GET /config/public/registration` — used by the frontend to decide whether to show the register button.
-- `GET /config/public/captcha` — used by the frontend to load the active captcha provider and enabled state.
+- `GET /v1/config/public/registration` — used by the frontend to decide whether to show the register button.
+- `GET /v1/config/public/captcha` — used by the frontend to load the active captcha provider and enabled state.
 
 ### Editing tools
 
 - Collapsible per-section layout with an independent save button per section.
-- All writes require a **step-up 2FA challenge**.
+- When the operator has 2FA enabled, saving may trigger a step-up challenge; a valid trusted window can satisfy the current security rules.
 - Requires `SYSTEM_CONFIG` permission.
 
 ## Resource-level configuration permissions
@@ -55,7 +55,7 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 
 1. Expand the section you need to adjust.
 2. Edit only the values relevant to the current task.
-3. Save and complete the step-up 2FA challenge.
+3. Save and complete the step-up challenge if prompted.
 4. Re-check related monitoring after major rule changes.
 
 ## Notes

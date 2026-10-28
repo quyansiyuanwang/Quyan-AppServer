@@ -26,13 +26,13 @@
 
 - 已封禁 IP 列表，含封禁原因、添加人和到期时间。
 - 搜索、新增、编辑和删除（解封）操作。
-- 所有写入操作需通过 **二次验证步骤（step-up）**。
+- 操作者启用 2FA 时，写入可能触发二次验证；有效的受信任窗口可按当前安全规则通过。
 
 ### 白名单管理
 
 - 已豁免 IP 列表（白名单 IP 不会被自动封禁）。
 - 新增和移除操作。
-- 所有写入操作需通过 **二次验证步骤（step-up）**。
+- 操作者启用 2FA 时，写入可能触发二次验证；有效的受信任窗口可按当前安全规则通过。
 
 ## 白名单读取权限
 
@@ -42,7 +42,7 @@
 
 ## 白名单写入权限
 
-IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREATE` 资格，以及 `quyan:ip_whitelist:CreateEntry` 对 `acs:platform:*:platform:ip-whitelist-control/default` 的授权。事务提交前还会检查实际记录 `acs:platform:*:platform:ip-whitelist/<record-id>`。移除记录需要真实全局组中的 `IP_WHITELIST_DELETE` 资格，以及 `quyan:ip_whitelist:DeleteEntry` 对该记录 ARN 的授权。账户所有者和账户内自建组不能授予平台资格。写入仍要求二次认证与重放保护。
+IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREATE` 资格，以及 `quyan:ip_whitelist:CreateEntry` 对 `acs:platform:*:platform:ip-whitelist-control/default` 的授权。事务提交前还会检查实际记录 `acs:platform:*:platform:ip-whitelist/<record-id>`。移除记录需要真实全局组中的 `IP_WHITELIST_DELETE` 资格，以及 `quyan:ip_whitelist:DeleteEntry` 对该记录 ARN 的授权。账户所有者和账户内自建组不能授予平台资格。写入仍受二次验证和重放保护规则约束。
 
 输入必须为有效 IPv4 或 IPv6 地址。已存在的有效记录返回 409；重新加入已删除地址会恢复原记录 ID，保留资源级 Deny 的约束。强制模式下，目标不存在或没有移除权限时返回 403。事务内会再次校验身份、用户组、记录和策略，校验失败时整批回滚。自动封禁使用的白名单查询会用数据库确认缓存中的允许结果，过期或删除的记录不会因旧缓存继续豁免。
 
@@ -55,7 +55,7 @@ IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREA
 - **错误衰减**会随时间自动降低权重。衰减速率、最小阈值和衰减间隔均可在**服务端配置 → IP 封禁**区块中调整。
 - 详情页的衰减估计显示在无新错误的情况下，该 IP 何时可以自然解封。
 
-如需查看或调整单个 IP 的错误权重明细，可使用当前页面的权重编辑器，或调用 `GET /ip-blacklist/error-status/{ip}`；重置权重用 `DELETE /ip-blacklist/error-status/{ip}`。
+可在页面查看单个 IP 的错误状态并调整累计权重。API 使用 `GET /v1/ip-blacklist/error-status/{ip}` 查询、`PUT /v1/ip-blacklist/error-status/{ip}` 设置累计权重，或 `DELETE /v1/ip-blacklist/error-status/{ip}` 重置。设置与重置的影响不同，详见下文。
 
 ## 常见操作
 

@@ -26,13 +26,13 @@ Use this page to review IP risk data, blacklist state, and whitelist controls.
 
 - List of blacklisted IPs with reason, added-by, and expiry.
 - Search, add, edit, and delete (unban) entries.
-- All writes require **step-up 2FA**.
+- When the operator has 2FA enabled, writes may trigger a step-up challenge; a valid trusted window can satisfy the current security rules.
 
 ### Whitelist management
 
 - List of whitelisted IPs exempt from ban logic.
 - Add and remove entries.
-- All writes require **step-up 2FA**.
+- When the operator has 2FA enabled, writes may trigger a step-up challenge; a valid trusted window can satisfy the current security rules.
 
 ## Whitelist read permissions
 
@@ -42,7 +42,7 @@ Authorization is applied per record before pagination, and `total` counts only a
 
 ## Whitelist write permissions
 
-With IAM enforcement, creating entries requires deployment-wide `IP_WHITELIST_CREATE` eligibility and `quyan:ip_whitelist:CreateEntry` on `acs:platform:*:platform:ip-whitelist-control/default`. The transaction also authorizes the actual `acs:platform:*:platform:ip-whitelist/<record-id>` before committing. Removing an entry requires deployment-wide `IP_WHITELIST_DELETE` eligibility and `quyan:ip_whitelist:DeleteEntry` on that entry's actual ARN. Account ownership and account-created groups cannot grant deployment-wide eligibility. Step-up 2FA and replay protection remain required.
+With IAM enforcement, creating entries requires deployment-wide `IP_WHITELIST_CREATE` eligibility and `quyan:ip_whitelist:CreateEntry` on `acs:platform:*:platform:ip-whitelist-control/default`. The transaction also authorizes the actual `acs:platform:*:platform:ip-whitelist/<record-id>` before committing. Removing an entry requires deployment-wide `IP_WHITELIST_DELETE` eligibility and `quyan:ip_whitelist:DeleteEntry` on that entry's actual ARN. Account ownership and account-created groups cannot grant deployment-wide eligibility. Two-factor verification and replay protection rules still apply.
 
 IPv4 and IPv6 inputs must be valid addresses. An active duplicate returns 409. Re-adding a deleted address restores its original record ID, preserving resource-scoped Deny rules. Missing or unauthorized removal targets return 403 in enforce mode. Identity, group, record and policy checks run again inside the transaction; a failed check rolls back the entire change. Cached positive whitelist status is checked against the database, so expiry or deletion cannot leave an automatic ban exemption active.
 
@@ -55,7 +55,7 @@ Error weights are the core of the IP ban system:
 - **Error decay** gradually reduces the weight over time. The decay rate, minimum threshold, and interval are all configurable in **server configuration → IP ban section**.
 - The decay estimate on the detail page shows when the IP is expected to drop below each threshold if no new errors occur.
 
-To view or change the per-error-type weights, use `GET /ip-blacklist/error-status/{ip}` or the weight editor on this page. Weights can also be reset to zero (`DELETE /ip-blacklist/error-status/{ip}`).
+Use the page to review an IP’s error status and adjust its accumulated weight. The API uses `GET /v1/ip-blacklist/error-status/{ip}` to query, `PUT /v1/ip-blacklist/error-status/{ip}` to set the accumulated weight, and `DELETE /v1/ip-blacklist/error-status/{ip}` to reset it. Setting and resetting have different effects, described below.
 
 ## Common actions
 
