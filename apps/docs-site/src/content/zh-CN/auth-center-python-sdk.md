@@ -34,9 +34,12 @@ import requests
 
 
 def fetch_jwks(base_url: str) -> dict:
-    response = requests.get(f"{base_url}/auth-center/.well-known/jwks.json", timeout=15)
+    response = requests.get(f"{base_url}/v1/auth-center/.well-known/jwks.json", timeout=15)
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if payload.get("code") != 0 or not isinstance(payload.get("data", {}).get("keys"), list):
+        raise RuntimeError("Invalid JWKS response")
+    return payload["data"]
 ```
 
 ## 2. 本地校验 JWT 访问令牌
@@ -68,13 +71,17 @@ def verify_access_token(
 
     signing_key = PyJWK.from_dict(jwk_payload)
 
-    return jwt.decode(
+    claims = jwt.decode(
         token,
         signing_key.key,
-        algorithms=[jwk_payload.get("alg", "RS256")],
+        algorithms=["RS256"],
         issuer=issuer,
         audience=audience,
+        options={"require": ["exp", "iss", "aud"]},
     )
+    if claims.get("token_use") != "access_token":
+        raise RuntimeError("Invalid access token claims")
+    return claims
 ```
 
 ## 3. 使用授权码换取令牌
@@ -93,14 +100,14 @@ def exchange_authorization_code(
     code_verifier: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "authorization_code",
             "client_id": client_id,
             "client_secret": client_secret,
             "code": code,
             "redirect_uri": redirect_uri,
-            "code_verifier": code_verifier,
+            **({"code_verifier": code_verifier} if code_verifier else {}),
         },
         timeout=15,
     )
@@ -133,7 +140,7 @@ def refresh_access_token(
     refresh_token: str,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "refresh_token",
             "client_id": client_id,
@@ -159,12 +166,12 @@ def get_machine_token(
     scope: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "client_credentials",
             "client_id": client_id,
             "client_secret": client_secret,
-            "scope": scope,
+            **({"scope": scope} if scope else {}),
         },
         timeout=15,
     )
@@ -210,7 +217,7 @@ claims = verify_access_token(
     issuer=issuer,
     audience=client_id,
 )
-print("verified claims =>", claims)
+print("Token verified")
 
 if token_set.get("refresh_token"):
     refreshed = refresh_access_token(
@@ -219,8 +226,10 @@ if token_set.get("refresh_token"):
         client_secret=client_secret,
         refresh_token=token_set["refresh_token"],
     )
-    print("refreshed access token =>", refreshed["access_token"])
+    # Persist refreshed["refresh_token"] securely; the previous refresh token has been rotated.
 ```
+
+请求 JWKS 返回 `{ code, message, data }`，示例取出 `data.keys`。令牌签发者以部署配置为准；`AUTH_CENTER_ISSUER` 必须与令牌中的 `iss` 完全一致，不要从接口路径推断。
 
 ## 推荐做法
 
@@ -232,7 +241,7 @@ if token_set.get("refresh_token"):
 
 ## 重试建议
 
-令牌换取、刷新、机器令牌请求（`/auth-center/token`）在遇到网络故障或 `5xx` 响应时可以安全重试，因为它们不会产生资源变更——但重试次数应限制在 1-2 次并加入短暂等待。**不要**对 `4xx` 响应重试（无效的 code、已过期的刷新令牌、错误的客户端密钥）：相同请求会再次失败，而且授权码 `code` 是一次性的，收到 `4xx` 后重复提交同一个 code 无论如何都不会成功。
+授权码只能使用一次，刷新令牌在成功刷新时会轮换。网络中断或超时后，请勿假定服务端没有处理请求；如果无法恢复返回的新令牌，需要重新发起授权。机器令牌请求可根据具体错误和应用策略有限重试，避免无界重复请求。
 
 ## 推荐继续阅读
 

@@ -37,7 +37,8 @@ AUTH_CENTER_ISSUER=http://localhost:10001/auth-center
   "private": true,
   "type": "module",
   "dependencies": {
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.4.5"
   }
 }
 ```
@@ -48,11 +49,15 @@ AUTH_CENTER_ISSUER=http://localhost:10001/auth-center
 
 ```js
 export async function fetchJwks(baseUrl) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
+  const response = await fetch(`${baseUrl}/v1/auth-center/.well-known/jwks.json`)
   if (!response.ok) {
     throw new Error(`加载 JWKS 失败: ${response.status}`)
   }
-  return response.json()
+  const payload = await response.json()
+  if (payload.code !== 0 || !Array.isArray(payload.data?.keys)) {
+    throw new Error('Invalid JWKS response')
+  }
+  return payload.data
 }
 ```
 
@@ -87,11 +92,19 @@ export async function verifyAccessToken({ token, jwks, issuer, audience }) {
 
   const publicKey = jwkToPublicKey(jwk)
 
-  return jwt.verify(token, publicKey, {
-    algorithms: [jwk.alg || 'RS256'],
+  const claims = jwt.verify(token, publicKey, {
+    algorithms: ['RS256'],
     issuer,
     audience,
   })
+  if (
+    typeof claims === 'string' ||
+    typeof claims.exp !== 'number' ||
+    claims.token_use !== 'access_token'
+  ) {
+    throw new Error('Invalid access token claims')
+  }
+  return claims
 }
 ```
 
@@ -106,7 +119,7 @@ export async function exchangeAuthorizationCode({
   redirectUri,
   codeVerifier,
 }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -146,7 +159,7 @@ export async function exchangeAuthorizationCode({
 
 ```js
 export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refreshToken }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -172,7 +185,7 @@ export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refr
 
 ```js
 export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -235,7 +248,7 @@ const claims = await verifyAccessToken({
   audience: clientId,
 })
 
-console.log('verified claims =>', claims)
+console.log('Token verified')
 
 if (tokenSet.refresh_token) {
   const refreshed = await refreshAccessToken({
@@ -245,9 +258,11 @@ if (tokenSet.refresh_token) {
     refreshToken: tokenSet.refresh_token,
   })
 
-  console.log('refreshed access token =>', refreshed.access_token)
+  // Persist refreshed.refresh_token securely; the previous refresh token has been rotated.
 }
 ```
+
+请求 JWKS 返回 `{ code, message, data }`，示例取出 `data.keys`。令牌签发者以部署配置为准；`AUTH_CENTER_ISSUER` 必须与令牌中的 `iss` 完全一致，不要从接口路径推断。
 
 ## 推荐做法
 
@@ -256,6 +271,8 @@ if (tokenSet.refresh_token) {
 - 刷新令牌和客户端密钥只保存在服务端
 - 怀疑泄露时立即轮换客户端密钥
 - 不要编写依赖 `client_credentials` 返回刷新令牌的逻辑
+
+授权码只能使用一次，成功刷新会轮换刷新令牌。网络中断或超时后，不要假定请求未被处理；如果无法恢复新令牌，需要重新授权。
 
 ## 推荐继续阅读
 

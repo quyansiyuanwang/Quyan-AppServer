@@ -34,9 +34,12 @@ import requests
 
 
 def fetch_jwks(base_url: str) -> dict:
-    response = requests.get(f"{base_url}/auth-center/.well-known/jwks.json", timeout=15)
+    response = requests.get(f"{base_url}/v1/auth-center/.well-known/jwks.json", timeout=15)
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if payload.get("code") != 0 or not isinstance(payload.get("data", {}).get("keys"), list):
+        raise RuntimeError("Invalid JWKS response")
+    return payload["data"]
 ```
 
 ## 2. Verify JWT access tokens locally
@@ -68,13 +71,17 @@ def verify_access_token(
 
     signing_key = PyJWK.from_dict(jwk_payload)
 
-    return jwt.decode(
+    claims = jwt.decode(
         token,
         signing_key.key,
-        algorithms=[jwk_payload.get("alg", "RS256")],
+        algorithms=["RS256"],
         issuer=issuer,
         audience=audience,
+        options={"require": ["exp", "iss", "aud"]},
     )
+    if claims.get("token_use") != "access_token":
+        raise RuntimeError("Invalid access token claims")
+    return claims
 ```
 
 ## 3. Exchange authorization code for tokens
@@ -93,14 +100,14 @@ def exchange_authorization_code(
     code_verifier: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "authorization_code",
             "client_id": client_id,
             "client_secret": client_secret,
             "code": code,
             "redirect_uri": redirect_uri,
-            "code_verifier": code_verifier,
+            **({"code_verifier": code_verifier} if code_verifier else {}),
         },
         timeout=15,
     )
@@ -133,7 +140,7 @@ def refresh_access_token(
     refresh_token: str,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "refresh_token",
             "client_id": client_id,
@@ -159,12 +166,12 @@ def get_machine_token(
     scope: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/auth-center/token",
+        f"{base_url}/v1/auth-center/token",
         json={
             "grant_type": "client_credentials",
             "client_id": client_id,
             "client_secret": client_secret,
-            "scope": scope,
+            **({"scope": scope} if scope else {}),
         },
         timeout=15,
     )
@@ -210,7 +217,7 @@ claims = verify_access_token(
     issuer=issuer,
     audience=client_id,
 )
-print("verified claims =>", claims)
+print("Token verified")
 
 if token_set.get("refresh_token"):
     refreshed = refresh_access_token(
@@ -219,8 +226,10 @@ if token_set.get("refresh_token"):
         client_secret=client_secret,
         refresh_token=token_set["refresh_token"],
     )
-    print("refreshed access token =>", refreshed["access_token"])
+    # Persist refreshed["refresh_token"] securely; the previous refresh token has been rotated.
 ```
+
+The JWKS response uses `{ code, message, data }`; the example reads `data.keys`. Set `AUTH_CENTER_ISSUER` to the exact configured token issuer (`iss`); do not infer it from the endpoint path.
 
 ## Recommended practices
 
@@ -232,7 +241,7 @@ if token_set.get("refresh_token"):
 
 ## Retry guidance
 
-Token exchange, refresh, and machine-token requests (`/auth-center/token`) are all safe to retry on network failures or `5xx` responses, since they don't mutate resources — but limit retries to 1-2 attempts with a short backoff. Do **not** retry on a `4xx` response (invalid code, expired refresh token, wrong client secret): the same request will fail again, and repeatedly submitting an authorization `code` after a `4xx` will fail anyway since codes are single-use.
+Authorization codes are single-use and a successful refresh rotates the refresh token. After a network failure or timeout, do not assume the server did not process the request; if the new token cannot be recovered, start authorization again. Retry machine-token requests only in a bounded way according to the error and your application policy.
 
 ## Recommended follow-up reading
 

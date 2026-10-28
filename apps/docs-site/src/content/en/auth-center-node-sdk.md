@@ -35,7 +35,8 @@ AUTH_CENTER_ISSUER=http://localhost:10001/auth-center
   "private": true,
   "type": "module",
   "dependencies": {
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.4.5"
   }
 }
 ```
@@ -46,11 +47,15 @@ The examples below use native `fetch` from modern Node.js. If your runtime is ol
 
 ```js
 export async function fetchJwks(baseUrl) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
+  const response = await fetch(`${baseUrl}/v1/auth-center/.well-known/jwks.json`)
   if (!response.ok) {
     throw new Error(`Failed to load JWKS: ${response.status}`)
   }
-  return response.json()
+  const payload = await response.json()
+  if (payload.code !== 0 || !Array.isArray(payload.data?.keys)) {
+    throw new Error('Invalid JWKS response')
+  }
+  return payload.data
 }
 ```
 
@@ -91,11 +96,19 @@ export async function verifyAccessToken({ token, jwks, issuer, audience }) {
 
   const publicKey = jwkToPublicKey(jwk)
 
-  return jwt.verify(token, publicKey, {
-    algorithms: [jwk.alg || 'RS256'],
+  const claims = jwt.verify(token, publicKey, {
+    algorithms: ['RS256'],
     issuer,
     audience,
   })
+  if (
+    typeof claims === 'string' ||
+    typeof claims.exp !== 'number' ||
+    claims.token_use !== 'access_token'
+  ) {
+    throw new Error('Invalid access token claims')
+  }
+  return claims
 }
 ```
 
@@ -110,7 +123,7 @@ export async function exchangeAuthorizationCode({
   redirectUri,
   codeVerifier,
 }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -150,7 +163,7 @@ Expected result:
 
 ```js
 export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refreshToken }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -176,7 +189,7 @@ export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refr
 
 ```js
 export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }) {
-  const response = await fetch(`${baseUrl}/auth-center/token`, {
+  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -239,7 +252,7 @@ const claims = await verifyAccessToken({
   audience: clientId,
 })
 
-console.log('verified claims =>', claims)
+console.log('Token verified')
 
 if (tokenSet.refresh_token) {
   const refreshed = await refreshAccessToken({
@@ -249,9 +262,11 @@ if (tokenSet.refresh_token) {
     refreshToken: tokenSet.refresh_token,
   })
 
-  console.log('refreshed access token =>', refreshed.access_token)
+  // Persist refreshed.refresh_token securely; the previous refresh token has been rotated.
 }
 ```
+
+The JWKS response uses `{ code, message, data }`; the example reads `data.keys`. Set `AUTH_CENTER_ISSUER` to the exact configured token issuer (`iss`); do not infer it from the endpoint path.
 
 ## Recommended practices
 
@@ -260,6 +275,8 @@ if (tokenSet.refresh_token) {
 - treat refresh tokens as secrets and store them server-side only
 - rotate client secrets if exposure is suspected
 - never expect a refresh token from `client_credentials`
+
+Authorization codes are single-use and a successful refresh rotates the refresh token. After a timeout or network failure, do not assume the request was not processed; if the new token cannot be recovered, start authorization again.
 
 ## Recommended follow-up reading
 
