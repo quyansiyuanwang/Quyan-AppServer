@@ -15,62 +15,6 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Create standalone channels, pooled channels, or automatic proxy pools.
 - Set visibility, routing, upstream credentials, and pricing multipliers per channel.
 
-## IAM global channel topology audit
-
-Before enabling strict two-tier topology, the audit requires `quyan:relay:AuditChannelTopology` on both `acs:platform:*:platform:relay-configuration/default` and `acs:platform:*:platform:relay-channel/<channelId>` for every non-deleted channel. The caller also needs `RELAY_CHANNEL_READ` eligibility from a deployment-managed global group, and existing channel visibility rules continue to apply. If any participating channel or configuration is inaccessible, the entire request returns 403; a partially visible graph never produces a global `canEnableStrict` conclusion.
-
-The audit includes disabled, non-deleted channels and checks legacy pool membership, missing or invalid pooled parents, a non-member incorrectly assigned to a pooled parent, and automatic pools referencing physical channels. Readiness is reported only for a complete, valid graph. Authority, configuration, or topology changes during the read cause rejection. The operation reads only topology fields, not upstream credentials or model prices, and does not create default configuration. Switching modes still requires separate global-configuration write permission.
-
-## IAM channel change request lists
-
-In IAM enforce mode, “My change requests” uses `quyan:relay:ListMyChannelChangeRequests` on `acs:relay:*:<accountId>:channel-change-request/<submitterId>/<requestId>`. Only the current submitter's requests are included. Wildcard grants do not expose another user's personal requests, whether in the same account or a different account.
-
-The review list uses `quyan:relay:ListChannelChangeRequests` on `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>`. Reviewers still require `RELAY_CHANNEL_REVIEW` eligibility from a deployment-managed global group; an account-owned group or policy cannot create that eligibility. Qualified reviewers may review different submitters' requests, but each request must be individually allowed.
-
-Both lists authorize each request before computing pagination and totals, excluding deleted requests or channels. Configuration includes only documented public fields and credential-presence flags, never plaintext or encrypted credentials. Role sessions use only role policies. Refresh and retry if identity, eligibility, policy, or session authority changes during the read.
-
-## IAM channel management list
-
-With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
-
-## IAM channel health access
-
-In IAM enforce mode, the standalone overview uses `quyan:relay:ListChannelHealth`, detail uses `quyan:relay:GetChannelHealth`, and the automatic-pool list uses `quyan:relay:ListAutomaticPoolHealth`. All target `acs:platform:*:platform:relay-channel/<channelId>`. Detail and automatic-pool reads additionally require `quyan:relay:ReadChannelPoolHealthMetadata` on each returned channel and participating member. Health access does not grant channel configuration or upstream credential access.
-
-The overview requires deployment-managed `RELAY_CHANNEL_HEALTH_READ` eligibility. Detail and automatic-pool reads also require `RELAY_CHANNEL_POOL_METADATA_READ` eligibility. Account-owned groups, user-added permissions and wildcard policies cannot create those platform qualifications. Existing visibility rules still apply; a policy grant cannot make a hidden member visible.
-
-Lists and automatic-pool members contain only individually allowed, visible resources. Member health, names, scores and displayed ranks are based on this authorized subset, not proof of the pool's complete global topology. Disabled and provider-paused non-deleted channels remain visible for diagnosis, with their existing disabled/eligibility indicators. Manual health overrides and ranking thresholds retain their configured behavior. Missing and denied detail both return 403; authority or relevant configuration changes during loading reject the result. These unscoped endpoints do not accept OAuth tokens. Legacy/shadow retain the existing business read, without a second health/configuration read during shadow observation.
-
-### Updating health tracking settings
-
-In IAM enforce mode, both `PATCH /v1/relay-channels/{id}/health-config` and `PATCH /v1/relay-channels/health/batch-config` require `quyan:relay:UpdateChannelHealthConfig` on **every** target channel ARN. Deployment-managed `RELAY_CHANNEL_UPDATE` eligibility and existing visibility rules still apply. These endpoints accept standalone channels only, including disabled channels; they do not accept OAuth tokens. Two-factor verification and replay protection remain required.
-
-A denied, missing, deleted or invalid target rejects the entire batch without partial writes. Existing non-health routing settings and credentials are preserved. Manual mode requires availability and latency; automatic/disabled modes clear those manual overrides. The single-channel response contains health statistics, not channel configuration or credentials; it does not additionally require a health-read Action. Changes to authority or relevant configuration detected before commit roll back the write. Legacy/shadow keep the existing write behavior; shadow observation does not perform a second write.
-
-### Clearing collected health statistics
-
-In IAM enforce mode, single and batch clearing require `quyan:relay:ClearChannelHealth` on **every** target `acs:platform:*:platform:relay-channel/<channelId>`, plus deployment-managed `RELAY_CHANNEL_UPDATE` eligibility. Clear authority is distinct from changing health settings or reading health. Existing visibility rules, two-factor verification and replay protection still apply. Only non-deleted standalone channels are accepted, including disabled channels; these unscoped endpoints reject OAuth tokens. A missing, deleted, denied or pool target prevents the entire batch from reaching Redis.
-
-Authorization is checked immediately before the irreversible operation and again before accepting the response. A final authorization failure can reject the response **after** statistics have been cleared. The audit distinguishes confirmed clearing from an uncertain storage outcome, and records whether the request was ultimately accepted; it does not claim the old data was restored. Legacy/shadow retain the existing business clear, with no extra clearing during shadow observation.
-
-Clearing statistics does not change the configured tracking mode or manual overrides. A batch clears retained time buckets for all selected channels with one Redis operation, rather than independent per-channel deletions. Unrelated channels and request-sample deduplication records are not cleared; later traffic can immediately create new statistics.
-
-Redis clearing is irreversible and is not rolled back by a database transaction. If the storage connection fails before confirmation, the request reports an error but the operation may already have completed. Refresh the health view to verify the current state; do not assume an error restored the previous statistics.
-
-## IAM channel configuration access
-
-In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.
-
-Only individually allowed, business-visible channels appear. Denied parents and members are omitted, and denied or invisible leaves cannot contribute model capabilities to a pool. Disabled or provider-paused channels are excluded from the default list; `includeDisabled=true` includes their configuration. A detail read may show disabled metadata without advertising active capabilities. Credential fields are presence booleans only, never secret values. Nested routing, visibility and multiplier configuration includes only registered fields. Unknown legacy JSON fields are omitted without changing the saved configuration; invalid registered values cause the read or mutation response to be rejected instead of returning malformed private data. Administrator configuration retains valid retry expressions and model mappings.
-
-OAuth retains the channel-read scope for the list; the unscoped detail endpoint does not accept OAuth tokens. AccessKeys and role sessions use their existing authority, rechecked before return. A missing or denied detail returns the same 403. Refresh and retry if identity, policy, visibility, membership, or session authority changes during loading. Legacy/shadow retain the original business read; shadow does not fetch a second configuration payload.
-
-## Batch channel enable/disable
-
-In IAM enforce mode, single channel toggles and batch enable/disable use `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.
-
-Submit 1–200 distinct, existing, undeleted channel IDs and a JSON boolean `enabled` (`true` or `false`, not the string `"false"`). Every selected resource must be allowed. A denied or missing channel, or a change to resource, identity, policy, AccessKey, OAuth, or role-session authority before commit, prevents the whole batch from taking effect. OAuth clients and access tokens must retain the channel-update scope. The endpoint returns only counts: it does not read credentials, require channel-read permission, detach tokens, change pool membership, or change provider-service eligibility. Replay protection and step-up verification remain required. Legacy/shadow keep their original authorization behavior; shadow does not issue a second status write.
-
 ## Global settings
 
 ### Global multiplier
@@ -447,6 +391,62 @@ Administrators can review channel status, add multiple providers in the channel 
 4. Before publishing pricing changes, check global multiplier, channel multiplier, and time-based multipliers together to avoid unintended stacking.
 5. After changing pooled routing, review switch logs and status views to confirm failover behaves as intended.
 
+## IAM global channel topology audit
+
+Before enabling strict two-tier topology, the audit requires `quyan:relay:AuditChannelTopology` on both `acs:platform:*:platform:relay-configuration/default` and `acs:platform:*:platform:relay-channel/<channelId>` for every non-deleted channel. The caller also needs `RELAY_CHANNEL_READ` eligibility from a deployment-managed global group, and existing channel visibility rules continue to apply. If any participating channel or configuration is inaccessible, the entire request returns 403; a partially visible graph never produces a global `canEnableStrict` conclusion.
+
+The audit includes disabled, non-deleted channels and checks legacy pool membership, missing or invalid pooled parents, a non-member incorrectly assigned to a pooled parent, and automatic pools referencing physical channels. Readiness is reported only for a complete, valid graph. Authority, configuration, or topology changes during the read cause rejection. The operation reads only topology fields, not upstream credentials or model prices, and does not create default configuration. Switching modes still requires separate global-configuration write permission.
+
+## IAM channel change request lists
+
+In IAM enforce mode, “My change requests” uses `quyan:relay:ListMyChannelChangeRequests` on `acs:relay:*:<accountId>:channel-change-request/<submitterId>/<requestId>`. Only the current submitter's requests are included. Wildcard grants do not expose another user's personal requests, whether in the same account or a different account.
+
+The review list uses `quyan:relay:ListChannelChangeRequests` on `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>`. Reviewers still require `RELAY_CHANNEL_REVIEW` eligibility from a deployment-managed global group; an account-owned group or policy cannot create that eligibility. Qualified reviewers may review different submitters' requests, but each request must be individually allowed.
+
+Both lists authorize each request before computing pagination and totals, excluding deleted requests or channels. Configuration includes only documented public fields and credential-presence flags, never plaintext or encrypted credentials. Role sessions use only role policies. Refresh and retry if identity, eligibility, policy, or session authority changes during the read.
+
+## IAM channel management list
+
+With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
+
+## IAM channel health access
+
+In IAM enforce mode, the standalone overview uses `quyan:relay:ListChannelHealth`, detail uses `quyan:relay:GetChannelHealth`, and the automatic-pool list uses `quyan:relay:ListAutomaticPoolHealth`. All target `acs:platform:*:platform:relay-channel/<channelId>`. Detail and automatic-pool reads additionally require `quyan:relay:ReadChannelPoolHealthMetadata` on each returned channel and participating member. Health access does not grant channel configuration or upstream credential access.
+
+The overview requires deployment-managed `RELAY_CHANNEL_HEALTH_READ` eligibility. Detail and automatic-pool reads also require `RELAY_CHANNEL_POOL_METADATA_READ` eligibility. Account-owned groups, user-added permissions and wildcard policies cannot create those platform qualifications. Existing visibility rules still apply; a policy grant cannot make a hidden member visible.
+
+Lists and automatic-pool members contain only individually allowed, visible resources. Member health, names, scores and displayed ranks are based on this authorized subset, not proof of the pool's complete global topology. Disabled and provider-paused non-deleted channels remain visible for diagnosis, with their existing disabled/eligibility indicators. Manual health overrides and ranking thresholds retain their configured behavior. Missing and denied detail both return 403; authority or relevant configuration changes during loading reject the result. These unscoped endpoints do not accept OAuth tokens. Legacy/shadow retain the existing business read, without a second health/configuration read during shadow observation.
+
+### Updating health tracking settings
+
+In IAM enforce mode, both `PATCH /v1/relay-channels/{id}/health-config` and `PATCH /v1/relay-channels/health/batch-config` require `quyan:relay:UpdateChannelHealthConfig` on **every** target channel ARN. Deployment-managed `RELAY_CHANNEL_UPDATE` eligibility and existing visibility rules still apply. These endpoints accept standalone channels only, including disabled channels; they do not accept OAuth tokens. Two-factor verification and replay protection remain required.
+
+A denied, missing, deleted or invalid target rejects the entire batch without partial writes. Existing non-health routing settings and credentials are preserved. Manual mode requires availability and latency; automatic/disabled modes clear those manual overrides. The single-channel response contains health statistics, not channel configuration or credentials; it does not additionally require a health-read Action. Changes to authority or relevant configuration detected before commit roll back the write. Legacy/shadow keep the existing write behavior; shadow observation does not perform a second write.
+
+### Clearing collected health statistics
+
+In IAM enforce mode, single and batch clearing require `quyan:relay:ClearChannelHealth` on **every** target `acs:platform:*:platform:relay-channel/<channelId>`, plus deployment-managed `RELAY_CHANNEL_UPDATE` eligibility. Clear authority is distinct from changing health settings or reading health. Existing visibility rules, two-factor verification and replay protection still apply. Only non-deleted standalone channels are accepted, including disabled channels; these unscoped endpoints reject OAuth tokens. A missing, deleted, denied or pool target prevents the entire batch from reaching Redis.
+
+Authorization is checked immediately before the irreversible operation and again before accepting the response. A final authorization failure can reject the response **after** statistics have been cleared. The audit distinguishes confirmed clearing from an uncertain storage outcome, and records whether the request was ultimately accepted; it does not claim the old data was restored. Legacy/shadow retain the existing business clear, with no extra clearing during shadow observation.
+
+Clearing statistics does not change the configured tracking mode or manual overrides. A batch clears retained time buckets for all selected channels with one Redis operation, rather than independent per-channel deletions. Unrelated channels and request-sample deduplication records are not cleared; later traffic can immediately create new statistics.
+
+Redis clearing is irreversible and is not rolled back by a database transaction. If the storage connection fails before confirmation, the request reports an error but the operation may already have completed. Refresh the health view to verify the current state; do not assume an error restored the previous statistics.
+
+## IAM channel configuration access
+
+In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.
+
+Only individually allowed, business-visible channels appear. Denied parents and members are omitted, and denied or invisible leaves cannot contribute model capabilities to a pool. Disabled or provider-paused channels are excluded from the default list; `includeDisabled=true` includes their configuration. A detail read may show disabled metadata without advertising active capabilities. Credential fields are presence booleans only, never secret values. Nested routing, visibility and multiplier configuration includes only registered fields. Unknown legacy JSON fields are omitted without changing the saved configuration; invalid registered values cause the read or mutation response to be rejected instead of returning malformed private data. Administrator configuration retains valid retry expressions and model mappings.
+
+OAuth retains the channel-read scope for the list; the unscoped detail endpoint does not accept OAuth tokens. AccessKeys and role sessions use their existing authority, rechecked before return. A missing or denied detail returns the same 403. Refresh and retry if identity, policy, visibility, membership, or session authority changes during loading. Legacy/shadow retain the original business read; shadow does not fetch a second configuration payload.
+
+## Batch channel enable/disable
+
+In IAM enforce mode, single channel toggles and batch enable/disable use `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.
+
+Submit 1–200 distinct, existing, undeleted channel IDs and a JSON boolean `enabled` (`true` or `false`, not the string `"false"`). Every selected resource must be allowed. A denied or missing channel, or a change to resource, identity, policy, AccessKey, OAuth, or role-session authority before commit, prevents the whole batch from taking effect. OAuth clients and access tokens must retain the channel-update scope. The endpoint returns only counts: it does not read credentials, require channel-read permission, detach tokens, change pool membership, or change provider-service eligibility. Replay protection and step-up verification remain required. Legacy/shadow keep their original authorization behavior; shadow does not issue a second status write.
+
 ## Resource-scoped channel availability
 
 Single toggles and batch enable/disable share `quyan:relay:SetChannelStatus` on the platform channel ARN. A single toggle reads the current status and flips it in one authorized transaction; it does not accept a client-supplied status or Action. The resulting safe configuration is checked within the same transaction. It never returns upstream credential values, and pooled capabilities only include separately authorized related channels. Counts-only batches do not need permission to disclose channel configurations.
@@ -489,12 +489,6 @@ With IAM enforcement enabled, a single query uses `quyan:relay:ListUpstreamModel
 When a channel ID is supplied, saved credentials always take precedence; extra URL/key fields cannot override the target, and a missing or denied channel never falls back to preview. Missing configuration for the selected protocol fails instead of borrowing another protocol's key.
 
 Before reading saved keys, before sending and before disclosing results, the server checks current authority and the original resource branch. Revoking a role session or AccessKey, changing ownership, policy, selected configuration or model catalog cancels the result. Already-sent upstream requests cannot be recalled. Responses never include keys, private upstream error bodies or other channel configuration. Legacy/shadow modes run the original operation once; shadow does not send a second probe.
-
-## Related pages
-
-- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
-- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
-- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
 
 ## Server resource protection and audit bodies
 
@@ -589,3 +583,9 @@ In IAM enforcement mode, importing up to 200 configurations requires `quyan:rela
 All source IDs must be present and unique, or all must be omitted. Source IDs are used only to remap references; destination IDs are always generated by the server. Parents are created before physical children, forward pool references are supported, and the response preserves input order. Existing-name collisions receive a copy suffix; disabled entries remain disabled. Recognized export timestamps are ignored for destination creation, and unknown fields are rejected.
 
 The batch is all-or-nothing: invalid references, unsupported topology, missing resource permissions, concurrent authorization changes, or failed audit persistence roll back **every** destination and relation. Returned configuration summaries never contain upstream API keys. Import and its audit share a transaction; importing does not transfer submission ownership or settlement history. Legacy and shadow modes retain the existing compatibility path and are not a claim of atomic IAM enforcement.
+
+## Related pages
+
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)

@@ -7,56 +7,6 @@
 
 如果你要解决“某个用户能否看到某个渠道”“某个模型走哪个上游”“多个上游如何故障转移”这一类问题，核心都在这里完成。
 
-## IAM 全局渠道拓扑审计
-
-启用严格双层拓扑前，审计需要 `quyan:relay:AuditChannelTopology` 同时允许 `acs:platform:*:platform:relay-configuration/default` 和每一个未删除渠道的 `acs:platform:*:platform:relay-channel/<渠道ID>`。操作者还须具有部署全局组中的 `RELAY_CHANNEL_READ` 资格，且原有渠道可见性规则继续生效。任一参与审计的渠道或配置无权访问时，整个请求返回 403；不会把部分可见渠道的结果当成全局 `canEnableStrict` 结论。
-
-审计包含停用但未删除的渠道，检查旧池成员、缺失或错误的父池、非成员渠道误设父池，以及自动池引用物理渠道等问题。只有完整拓扑无问题时才报告可以启用严格模式；读取期间授权、配置或拓扑变化会拒绝返回结果。此操作只读取拓扑字段，不读取上游凭据或模型价格，也不会创建默认配置。切换模式仍需另行具备全局设置修改权限。
-
-## IAM 渠道修改申请列表
-
-IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelChangeRequests`，资源为 `acs:relay:*:<账户ID>:channel-change-request/<提交者ID>/<申请ID>`。结果仅包含当前提交者自己的申请；即使授权策略包含通配符，也不能读取同账户其他用户或其他账户的个人申请。
-
-审核列表使用 `quyan:relay:ListChannelChangeRequests`，资源为 `acs:platform:*:platform:relay-channel-change-request/<渠道ID>/<申请ID>`。审核员仍须具有部署管理员设置的全局组 `RELAY_CHANNEL_REVIEW` 资格，账户自建组或策略不能自行赋予审核员资格。合格审核员可处理不同提交者的申请，但每条申请仍须获准访问。
-
-两种列表都先按申请逐资源授权，再计算分页和总数；删除的申请或渠道不出现在结果中。配置只返回约定的公开字段和“是否已设置凭据”标志，不返回原始或加密凭据。角色会话只使用角色策略。读取期间身份、资格、策略或会话变化时，请刷新重试。
-
-## IAM 渠道管理列表
-
-启用 IAM 强制授权后，管理表格使用 `quyan:relay:ListManagementChannels` 检查每个 `acs:platform:*:platform:relay-channel/<channelId>`。记录、分页和总数只包含既有可见性与筛选规则下获准查看的渠道；被拒绝的父渠道名称和成员引用会被隐藏。模型筛选只使用获准的渠道池路径，并保留严格子渠道设置覆盖重复旧成员关系的规则；被拒绝的叶渠道不能贡献模型能力。此 Action 授予列表访问权限，渠道修改和交付需要各自的 Action；仍需部署管理员设置的管理资格。加载过程中权限变化时需要刷新重试。
-
-## IAM 渠道健康访问
-
-启用 IAM 强制授权后，独立渠道健康概览使用 `quyan:relay:ListChannelHealth`，详情使用 `quyan:relay:GetChannelHealth`，自动池健康列表使用 `quyan:relay:ListAutomaticPoolHealth`。资源均为 `acs:platform:*:platform:relay-channel/<channelId>`。详情和自动池读取还要求对返回渠道及参与展示的每个成员具有 `quyan:relay:ReadChannelPoolHealthMetadata`。健康访问权限不授予渠道配置或上游密钥访问权限。
-
-概览要求部署全局组中的 `RELAY_CHANNEL_HEALTH_READ` 资格；详情和自动池读取还要求 `RELAY_CHANNEL_POOL_METADATA_READ` 资格。账号所属组、用户附加权限及通配符策略不能自行创建这些平台资格。既有可见性规则仍然有效，策略授权不能让隐藏成员变得可见。
-
-列表和自动池成员只包含逐资源获准且可见的资源。成员健康、名称、分数和展示排名基于这个授权子集，不能作为自动池全局完整拓扑的证明。已停用或供应商暂停服务但尚未删除的渠道仍可用于诊断，并保留原有停用及可选性标记。手动健康覆盖值和排名阈值维持原有配置语义。详情不存在或被拒绝均返回 403；加载期间权限或相关配置变化时拒绝返回结果。这些无 scope 接口不接受 OAuth Token。legacy/shadow 保留原有业务读取，shadow 观察不会再次读取健康或配置内容。
-
-### 修改健康追踪设置
-
-启用 IAM 强制授权后，`PATCH /v1/relay-channels/{id}/health-config` 与 `PATCH /v1/relay-channels/health/batch-config` 都要求对**每个**目标渠道 ARN 具有 `quyan:relay:UpdateChannelHealthConfig`。部署全局组中的 `RELAY_CHANNEL_UPDATE` 资格与既有可见性规则仍然有效。仅支持独立渠道，包括已停用的渠道；不接受 OAuth 令牌。二次验证与重放保护保持不变。
-
-任一目标被拒绝、不存在、已删除或不合法时，整批失败，不会部分写入。非健康相关的路由配置及凭据保留不变。手动模式必须提供可用率和延迟，自动或禁用模式会清除手动覆盖值。单项写入仅返回健康统计，不返回渠道配置或凭据，也不额外要求健康读取 Action。提交前检测到授权或相关配置变化时回滚写入。legacy/shadow 保持原有写入行为，shadow 观察不会重复写入。
-
-### 清空采集的健康统计
-
-启用 IAM 强制授权后，单项和批量清除都要求对**每个**目标 `acs:platform:*:platform:relay-channel/<channelId>` 具有 `quyan:relay:ClearChannelHealth`，并具备部署全局组中的 `RELAY_CHANNEL_UPDATE` 资格。清除权限独立于健康配置修改和健康读取权限。既有可见性规则、二次验证及重放保护保持不变。仅接受未删除的独立渠道，包括已停用渠道；这些无 OAuth scope 的接口不接受 OAuth 令牌。任一目标不存在、已删除、被拒绝或属于池类型时，整批都不会调用 Redis。
-
-不可撤回的操作执行前及接受响应前都会复核授权。最终授权复核失败时，可能在统计**已经清除后**拒绝响应。审计区分“已确认清除”和“存储结果不确定”，并记录请求是否最终被接受，不会声称旧统计已恢复。legacy/shadow 保留原有业务清除，shadow 观察不会额外清除一次。
-
-清空统计不会修改追踪模式或手动覆盖值。批量操作通过一次 Redis 操作清除所有选中渠道保留的时间桶，不再逐渠道独立删除。不影响其他渠道及请求样本去重记录；后续流量可能立即产生新的统计。
-
-Redis 清除不可撤回，数据库事务不能将其回滚。存储连接在确认前失败时，请求会返回错误，但操作可能已完成。请刷新健康视图确认当前状态，不要将错误理解为旧统计已被恢复。
-
-## IAM 渠道配置访问
-
-启用 IAM 强制授权后，`GET /v1/relay-channels` 使用 `quyan:relay:ListChannels`；`GET /v1/relay-channels/{id}` 使用独立的 `quyan:relay:GetChannel`。两者均针对 `acs:platform:*:platform:relay-channel/<channelId>`，并要求操作者具有部署全局组中的 READ 或 REVIEW 资格。仅绑定账号策略不能获得该资格。列表授权不自动授予详情、修改、导出或密钥访问权限。
-
-列表只返回逐项获准且符合业务可见性规则的渠道。被拒绝的父渠道和成员引用会被隐藏；被拒绝或不可见的叶渠道不能贡献池的模型能力。默认列表排除已停用渠道和供应商暂停服务的渠道；`includeDisabled=true` 可包含其配置。详情可显示停用渠道的元数据，但不会宣称其具有活跃能力。密钥字段只返回是否已配置的布尔值，不返回密钥内容。嵌套路由、可见性和倍率配置仅返回已注册字段。旧 JSON 中的未知字段会被忽略，不会因读取而修改保存的配置；已注册字段的值无效时拒绝读取或更新响应，不返回异常的私有数据。管理员配置仍保留合法的重试表达式和模型映射。
-
-列表保留 OAuth 渠道读取 scope 要求；无 scope 的详情接口不接受 OAuth Token。AccessKey 和角色会话使用其原有授权，并在返回前复核。详情不存在或无权访问均返回相同的 403。加载期间身份、策略、可见性、成员关系或会话权限变化时，需要刷新重试。legacy/shadow 保留原有业务读取；shadow 不会额外读取第二份配置内容。
-
 ## 页面用途
 
 - 调整全局转发策略和基础限流行为。
@@ -64,12 +14,6 @@ Redis 清除不可撤回，数据库事务不能将其回滚。存储连接在�
 - 配置模型价格与支持格式。
 - 创建独立渠道、混池渠道或自动代理池。
 - 为渠道设置可见性、路由策略、上游凭据和计费倍率。
-
-## 批量启用与停用渠道
-
-在 IAM enforce 模式下，单渠道切换和批量启停对每个选中的 `acs:platform:*:platform:relay-channel/<渠道ID>` 检查 `quyan:relay:SetChannelStatus`。操作者必须通过启用中的部署级全局组具备 `RELAY_CHANNEL_UPDATE` 管理资格；账户自建组、用户附加权限或通配符策略不能自行赋予此资格。角色会话仅使用角色自身授权，并受相同管理资格上限约束。
-
-请求需包含 1–200 个互不重复、存在且未删除的渠道 ID，以及 JSON 布尔值 `enabled`（`true` 或 `false`，不能使用字符串 `"false"`）。全部选中资源都必须获准；任一渠道被拒绝或不存在，或提交前资源、身份、策略、AccessKey、OAuth、角色会话权限发生变化时，整个批次不生效。OAuth 应用与访问令牌必须保留渠道更新 scope。此接口只返回数量，不读取凭据，也不要求渠道读取权限；不会解绑 Token、改变混池成员或服务提供资格。重放保护和二次验证继续有效。legacy/shadow 保留原有授权行为，shadow 不会额外执行第二次状态写入。
 
 ## 全局设置
 
@@ -447,6 +391,62 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 4. 先确定计费策略，再同时检查全局倍率、渠道倍率和分时倍率，避免叠加过高。
 5. 每次修改混池路由后，都应观察切换日志和状态页，确认故障切换符合预期。
 
+## IAM 全局渠道拓扑审计
+
+启用严格双层拓扑前，审计需要 `quyan:relay:AuditChannelTopology` 同时允许 `acs:platform:*:platform:relay-configuration/default` 和每一个未删除渠道的 `acs:platform:*:platform:relay-channel/<渠道ID>`。操作者还须具有部署全局组中的 `RELAY_CHANNEL_READ` 资格，且原有渠道可见性规则继续生效。任一参与审计的渠道或配置无权访问时，整个请求返回 403；不会把部分可见渠道的结果当成全局 `canEnableStrict` 结论。
+
+审计包含停用但未删除的渠道，检查旧池成员、缺失或错误的父池、非成员渠道误设父池，以及自动池引用物理渠道等问题。只有完整拓扑无问题时才报告可以启用严格模式；读取期间授权、配置或拓扑变化会拒绝返回结果。此操作只读取拓扑字段，不读取上游凭据或模型价格，也不会创建默认配置。切换模式仍需另行具备全局设置修改权限。
+
+## IAM 渠道修改申请列表
+
+IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelChangeRequests`，资源为 `acs:relay:*:<账户ID>:channel-change-request/<提交者ID>/<申请ID>`。结果仅包含当前提交者自己的申请；即使授权策略包含通配符，也不能读取同账户其他用户或其他账户的个人申请。
+
+审核列表使用 `quyan:relay:ListChannelChangeRequests`，资源为 `acs:platform:*:platform:relay-channel-change-request/<渠道ID>/<申请ID>`。审核员仍须具有部署管理员设置的全局组 `RELAY_CHANNEL_REVIEW` 资格，账户自建组或策略不能自行赋予审核员资格。合格审核员可处理不同提交者的申请，但每条申请仍须获准访问。
+
+两种列表都先按申请逐资源授权，再计算分页和总数；删除的申请或渠道不出现在结果中。配置只返回约定的公开字段和“是否已设置凭据”标志，不返回原始或加密凭据。角色会话只使用角色策略。读取期间身份、资格、策略或会话变化时，请刷新重试。
+
+## IAM 渠道管理列表
+
+启用 IAM 强制授权后，管理表格使用 `quyan:relay:ListManagementChannels` 检查每个 `acs:platform:*:platform:relay-channel/<channelId>`。记录、分页和总数只包含既有可见性与筛选规则下获准查看的渠道；被拒绝的父渠道名称和成员引用会被隐藏。模型筛选只使用获准的渠道池路径，并保留严格子渠道设置覆盖重复旧成员关系的规则；被拒绝的叶渠道不能贡献模型能力。此 Action 授予列表访问权限，渠道修改和交付需要各自的 Action；仍需部署管理员设置的管理资格。加载过程中权限变化时需要刷新重试。
+
+## IAM 渠道健康访问
+
+启用 IAM 强制授权后，独立渠道健康概览使用 `quyan:relay:ListChannelHealth`，详情使用 `quyan:relay:GetChannelHealth`，自动池健康列表使用 `quyan:relay:ListAutomaticPoolHealth`。资源均为 `acs:platform:*:platform:relay-channel/<channelId>`。详情和自动池读取还要求对返回渠道及参与展示的每个成员具有 `quyan:relay:ReadChannelPoolHealthMetadata`。健康访问权限不授予渠道配置或上游密钥访问权限。
+
+概览要求部署全局组中的 `RELAY_CHANNEL_HEALTH_READ` 资格；详情和自动池读取还要求 `RELAY_CHANNEL_POOL_METADATA_READ` 资格。账号所属组、用户附加权限及通配符策略不能自行创建这些平台资格。既有可见性规则仍然有效，策略授权不能让隐藏成员变得可见。
+
+列表和自动池成员只包含逐资源获准且可见的资源。成员健康、名称、分数和展示排名基于这个授权子集，不能作为自动池全局完整拓扑的证明。已停用或供应商暂停服务但尚未删除的渠道仍可用于诊断，并保留原有停用及可选性标记。手动健康覆盖值和排名阈值维持原有配置语义。详情不存在或被拒绝均返回 403；加载期间权限或相关配置变化时拒绝返回结果。这些无 scope 接口不接受 OAuth Token。legacy/shadow 保留原有业务读取，shadow 观察不会再次读取健康或配置内容。
+
+### 修改健康追踪设置
+
+启用 IAM 强制授权后，`PATCH /v1/relay-channels/{id}/health-config` 与 `PATCH /v1/relay-channels/health/batch-config` 都要求对**每个**目标渠道 ARN 具有 `quyan:relay:UpdateChannelHealthConfig`。部署全局组中的 `RELAY_CHANNEL_UPDATE` 资格与既有可见性规则仍然有效。仅支持独立渠道，包括已停用的渠道；不接受 OAuth 令牌。二次验证与重放保护保持不变。
+
+任一目标被拒绝、不存在、已删除或不合法时，整批失败，不会部分写入。非健康相关的路由配置及凭据保留不变。手动模式必须提供可用率和延迟，自动或禁用模式会清除手动覆盖值。单项写入仅返回健康统计，不返回渠道配置或凭据，也不额外要求健康读取 Action。提交前检测到授权或相关配置变化时回滚写入。legacy/shadow 保持原有写入行为，shadow 观察不会重复写入。
+
+### 清空采集的健康统计
+
+启用 IAM 强制授权后，单项和批量清除都要求对**每个**目标 `acs:platform:*:platform:relay-channel/<channelId>` 具有 `quyan:relay:ClearChannelHealth`，并具备部署全局组中的 `RELAY_CHANNEL_UPDATE` 资格。清除权限独立于健康配置修改和健康读取权限。既有可见性规则、二次验证及重放保护保持不变。仅接受未删除的独立渠道，包括已停用渠道；这些无 OAuth scope 的接口不接受 OAuth 令牌。任一目标不存在、已删除、被拒绝或属于池类型时，整批都不会调用 Redis。
+
+不可撤回的操作执行前及接受响应前都会复核授权。最终授权复核失败时，可能在统计**已经清除后**拒绝响应。审计区分“已确认清除”和“存储结果不确定”，并记录请求是否最终被接受，不会声称旧统计已恢复。legacy/shadow 保留原有业务清除，shadow 观察不会额外清除一次。
+
+清空统计不会修改追踪模式或手动覆盖值。批量操作通过一次 Redis 操作清除所有选中渠道保留的时间桶，不再逐渠道独立删除。不影响其他渠道及请求样本去重记录；后续流量可能立即产生新的统计。
+
+Redis 清除不可撤回，数据库事务不能将其回滚。存储连接在确认前失败时，请求会返回错误，但操作可能已完成。请刷新健康视图确认当前状态，不要将错误理解为旧统计已被恢复。
+
+## IAM 渠道配置访问
+
+启用 IAM 强制授权后，`GET /v1/relay-channels` 使用 `quyan:relay:ListChannels`；`GET /v1/relay-channels/{id}` 使用独立的 `quyan:relay:GetChannel`。两者均针对 `acs:platform:*:platform:relay-channel/<channelId>`，并要求操作者具有部署全局组中的 READ 或 REVIEW 资格。仅绑定账号策略不能获得该资格。列表授权不自动授予详情、修改、导出或密钥访问权限。
+
+列表只返回逐项获准且符合业务可见性规则的渠道。被拒绝的父渠道和成员引用会被隐藏；被拒绝或不可见的叶渠道不能贡献池的模型能力。默认列表排除已停用渠道和供应商暂停服务的渠道；`includeDisabled=true` 可包含其配置。详情可显示停用渠道的元数据，但不会宣称其具有活跃能力。密钥字段只返回是否已配置的布尔值，不返回密钥内容。嵌套路由、可见性和倍率配置仅返回已注册字段。旧 JSON 中的未知字段会被忽略，不会因读取而修改保存的配置；已注册字段的值无效时拒绝读取或更新响应，不返回异常的私有数据。管理员配置仍保留合法的重试表达式和模型映射。
+
+列表保留 OAuth 渠道读取 scope 要求；无 scope 的详情接口不接受 OAuth Token。AccessKey 和角色会话使用其原有授权，并在返回前复核。详情不存在或无权访问均返回相同的 403。加载期间身份、策略、可见性、成员关系或会话权限变化时，需要刷新重试。legacy/shadow 保留原有业务读取；shadow 不会额外读取第二份配置内容。
+
+## 批量启用与停用渠道
+
+在 IAM enforce 模式下，单渠道切换和批量启停对每个选中的 `acs:platform:*:platform:relay-channel/<渠道ID>` 检查 `quyan:relay:SetChannelStatus`。操作者必须通过启用中的部署级全局组具备 `RELAY_CHANNEL_UPDATE` 管理资格；账户自建组、用户附加权限或通配符策略不能自行赋予此资格。角色会话仅使用角色自身授权，并受相同管理资格上限约束。
+
+请求需包含 1–200 个互不重复、存在且未删除的渠道 ID，以及 JSON 布尔值 `enabled`（`true` 或 `false`，不能使用字符串 `"false"`）。全部选中资源都必须获准；任一渠道被拒绝或不存在，或提交前资源、身份、策略、AccessKey、OAuth、角色会话权限发生变化时，整个批次不生效。OAuth 应用与访问令牌必须保留渠道更新 scope。此接口只返回数量，不读取凭据，也不要求渠道读取权限；不会解绑 Token、改变混池成员或服务提供资格。重放保护和二次验证继续有效。legacy/shadow 保留原有授权行为，shadow 不会额外执行第二次状态写入。
+
 ## 资源级渠道启停
 
 单渠道切换和批量启停使用相同的 `quyan:relay:SetChannelStatus` 及平台渠道 ARN。单渠道切换在一个已授权事务内读取当前状态并反转，不接受客户端指定状态或 Action；返回的安全配置也在同一事务内复核。响应不包含上游凭据值，混池能力仅包含另行获准的关联渠道。只返回数量的批量操作不要求披露渠道配置的权限。
@@ -489,12 +489,6 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 带有渠道 ID 时始终使用该渠道的已保存配置；附加的 URL/密钥字段不能覆盖目标，渠道不存在或被拒绝时也不会退回临时预览。所选协议配置不完整时直接失败，不会借用其他协议的密钥。
 
 读取保存的密钥前、实际发送前和返回结果前，服务端检查当前权限及最初选择的资源分支。角色会话或 AccessKey 撤销、归属变化、策略变化、所选配置或模型目录变化都会取消结果。已经发送的上游请求无法撤回。响应不包含密钥、私有上游错误体或其他渠道配置。legacy/shadow 模式只执行一次原有操作，shadow 不会重复探测。
-
-## 相关页面
-
-- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
-- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
-- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
 
 ## 服务器资源保护与审计正文
 
@@ -589,3 +583,9 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 来源 ID 必须全部填写且唯一，或全部省略；来源 ID 只用于重映射引用，目标 ID 始终由服务端生成。父渠道先于物理子渠道创建，支持引用同批中尚未创建的成员，响应顺序与输入一致。重名配置自动添加副本后缀，禁用项保持禁用。已知的导出时间字段不会覆盖新资源的创建时间，未知字段会被拒绝。
 
 整批操作全部成功或全部回滚：引用无效、拓扑不支持、资源授权不足、授权在操作中变化或审计保存失败，都不会留下部分目标或关系。返回的配置摘要不包含上游 API Key。导入与审计处于同一事务，也不会转移提交者身份或结算历史。legacy 和 shadow 模式保留旧兼容路径，不代表已经启用原子化 IAM 强制执行。
+
+## 相关页面
+
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
