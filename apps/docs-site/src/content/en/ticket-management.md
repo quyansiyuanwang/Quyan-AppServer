@@ -4,10 +4,10 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 
 ## Page purpose
 
-- Browse all user tickets.
+- Browse user tickets you are authorized to view.
 - Filter by type, workflow status, priority, assignee, and date range.
 - Update status and priority.
-- Add internal review comments.
+- Add public replies or internal review notes.
 - Delete inappropriate entries.
 - Maintain auto-assignment rules for incoming tickets.
 
@@ -39,7 +39,7 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 
 1. Filter by `pending` status to find new unprocessed submissions.
 2. Open the detail view, read the content, then set priority and status.
-3. Add a reviewer note to record the decision or progress.
+3. Add an internal note or a public reply to record the decision or progress.
 4. Assign the item to a responsible team member or adjust auto-assignment rules.
 5. Set status to `completed` when the issue is resolved.
 
@@ -77,7 +77,7 @@ A save can contain at most 100 rules and each rule at most 50 assignee IDs. Dupl
 ## Notes
 
 - Users can only see their own tickets and public status updates; they cannot see internal reviewer notes.
-- Deletion is permanent — use it only for spam or policy violations.
+- Deleted tickets no longer appear in active ticket lists. This page has no restore option, so delete with care.
 
 ## Related pages
 
