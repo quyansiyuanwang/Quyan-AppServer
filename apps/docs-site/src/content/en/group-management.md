@@ -1,6 +1,6 @@
 # Group management
 
-Use this page to maintain user groups and the permission sets assigned to them. All write operations require a step-up 2FA challenge.
+Use this page to maintain user groups and the permission sets assigned to them. Operators with 2FA enabled may need a step-up challenge for write operations.
 
 ## Page purpose
 
@@ -61,7 +61,7 @@ Groups carry a numeric level field. Operations are subject to the following cons
 ## Notes
 
 - Group permissions affect every user assigned to that group. Legacy uses group permissions + individual added permissions − individual removed permissions; enforce also evaluates JSON policies, resources and conditions, with explicit Deny taking precedence.
-- All write operations (create, edit, delete, set permissions) require a **step-up 2FA challenge**.
+- When 2FA is enabled, creating, editing, deleting, and changing permissions may trigger a step-up challenge; a valid trusted window can satisfy the current security rules.
 - If users also have individual overrides, confirm the final result in the permission-management page.
 
 ## Related pages

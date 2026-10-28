@@ -42,12 +42,7 @@ Operations are subject to the following constraints:
 
 ## Deletion behavior
 
-When a user is deleted, the system cleans up related data automatically, including:
-
-- Associated business log entries.
-- Rate-limit counters (prevents leftover counts from affecting new accounts).
-
-All deletions are recorded in the **business log** and can be queried on the business-logs page.
+Deletion marks the account as deleted and releases its original username. Do not treat it as removal of all associated business data. The deletion is recorded in the **business log**. Check the target account and its associated resources before deleting it.
 
 ## Permission requirements
 
@@ -60,7 +55,7 @@ All deletions are recorded in the **business log** and can be queried on the bus
 | Change another user's password | `USER_CHANGE_OTHERS_PASSWORD`                                                   |
 | Impersonate a user             | `USER_IMPERSONATE_VIEW` or `USER_IMPERSONATE_ACT` (either grants impersonation) |
 
-Changing another user's password additionally requires a fresh 2FA step-up challenge.
+When changing another user's password, an operator with 2FA enabled may need to complete a step-up challenge; a trusted window can satisfy the current security rules.
 
 ## Resource permissions for directory reads
 
