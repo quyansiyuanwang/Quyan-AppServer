@@ -5,7 +5,7 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 ## Page purpose
 
 - Browse user tickets you are authorized to view.
-- Filter by type, workflow status, priority, assignee, and date range.
+- Filter by keyword, type, workflow status, priority, and assignee.
 - Update status and priority.
 - Add public replies or internal review notes.
 - Delete inappropriate entries.
@@ -19,7 +19,7 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 - Workflow status: `pending`, `processing`, `accepted`, `rejected`, `completed`.
 - Priority: `low` / `medium` / `high` / `urgent`.
 - Assignee and submission time.
-- Date-range filter (`startTime` / `endTime`).
+- Keyword, type, status, priority, and assignee filters. The page has no time-range control.
 
 ### Ticket detail
 
@@ -31,17 +31,17 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 
 - Rule list with match conditions for ticket type and priority.
 - Assignee pool configuration for round-robin assignment.
-- Validation summary for incomplete rules before saving.
+- Validation summary for incomplete rules before saving. Rules without a type or priority condition, or without an assignee, are excluded if you confirm saving.
 
 In enforcement mode, reading or updating `notification.ticketAssignmentRules` through the general configuration API also requires active global-group eligibility for `TICKET_REVIEW_UPDATE` and the corresponding `quyan:ticket:GetAssignmentRules` or `quyan:ticket:UpdateAssignmentRules` grant. A Deny on the dedicated operation also restricts the general configuration entry point. Without these permissions, the generic list hides the key; reads of the notification section and batch saves containing that key are rejected.
 
 ## Common actions
 
 1. Filter by `pending` status to find new unprocessed submissions.
-2. Open the detail view, read the content, then set priority and status.
-3. Add an internal note or a public reply to record the decision or progress.
+2. Open the detail, review the content, adjust the type, priority, status, or assignee, and save.
+3. Choose public or internal visibility, write a reply, and submit it separately. Public replies are visible to the submitter; internal notes are not.
 4. Assign the item to a responsible team member or adjust auto-assignment rules.
-5. Set status to `completed` when the issue is resolved.
+5. Set status to `completed` when the issue is resolved. API callers can use `startTime` and `endTime` to restrict the time range.
 
 ## Permission requirements
 
