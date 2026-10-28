@@ -18,7 +18,7 @@
 
 权益和设备筛选、权益分配对话框中的用户选择器支持服务端搜索与独立分页。候选用户及其总数由用户列表接口的权限决定，不会因拥有设备或权益管理权限而自动获得用户目录访问。可翻页浏览搜索结果；失败后可刷新重试，切换身份或权限会清空候选。编辑已有权益时，已选用户可保留当前获准记录中的显示名称。设备表格显示主机名、客户端设备 ID 和实际绑定状态；关联用户或权益名称被拒绝时不会从旧候选缓存补回。
 
-启用 IAM 强制模式后，管理写操作也按目标资源限制：`quyan:remote_terminal:RevokeDeviceBinding` 控制 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`；`quyan:remote_terminal:DeleteEntitlement` 和 `quyan:remote_terminal:ResetUnbindCount` 控制 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。资源中的用户 ID 由服务端确认。操作人员仍须属于具有对应管理资格的全局组，并完成二次验证；具体资源被拒绝或操作期间授权发生变化时，操作失败。管理员解绑不受个人解绑次数检查限制，重置次数只影响所选权益。
+启用 IAM 强制模式后，管理写操作也按目标资源限制：`quyan:remote_terminal:RevokeDeviceBinding` 控制 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`；`quyan:remote_terminal:DeleteEntitlement` 和 `quyan:remote_terminal:ResetUnbindCount` 控制 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。资源中的用户 ID 由服务端确认。操作人员仍须属于具有对应管理资格的全局组；已启用 2FA 时可能需要完成二次验证。具体资源被拒绝或操作期间授权发生变化时，操作失败。管理员解绑不受个人解绑次数检查限制，重置次数只影响所选权益。
 
 注册令牌轮换使用 `quyan:remote_terminal:RotateRegistrationToken`。该 Action 同时控制权益资源 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` 和令牌资源 `acs:platform:*:platform:remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`；首次创建可使用当前权益下的令牌通配范围。仅有权益管理权限不足以轮换指定令牌，还须具备全局组配置的注册令牌管理资格。轮换成功后返回新令牌；授权检查失败时保留原令牌，界面不会得到新凭据。
 
@@ -78,8 +78,8 @@ IAM 强制模式下，修改权益使用 `quyan:remote_terminal:UpdateEntitlemen
 
 ## 说明
 
-- 所有写入操作（创建、编辑、发布、删除、分配）均需通过 **二次验证步骤（step-up）**。
-- 套餐发布后对所有用户可见，用户可自行领取（`POST /remote-terminal/products/me/entitlements/claim`）。
+- 已启用 2FA 的操作者执行创建、编辑、发布、删除或分配时可能需要二次验证；有效的受信任窗口可按当前安全规则通过。
+- 已启用且发布的套餐可供获准用户购买或续期（`POST /v1/remote-terminal/products/me/entitlements/claim`）。可见性、购买数量及费用受授权、套餐配置和余额约束。
 - 权益支持续期和升级（调整设备 / 终端数量）。
 - **管理员撤销设备不受解绑频率限制** — 管理员可随时撤销任意设备，不受速率限制约束。
 - **限制上限大幅提高（最高 999999）** — 管理员可根据特殊需求设置远超常规范围的设备和终端上限。
