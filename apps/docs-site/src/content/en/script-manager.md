@@ -1,11 +1,11 @@
 # Script manager
 
-Use this page to run approved user scripts and inspect execution results.
+Use this page to write, save, and run your own JavaScript scripts and inspect the results.
 
 ## Page purpose
 
 - Maintain saved scripts.
-- Run selected scripts safely.
+- Run selected scripts.
 - Review output and history.
 - Stop active scripts when needed.
 
@@ -39,7 +39,7 @@ Use this page to run approved user scripts and inspect execution results.
 
 ## Where scripts come from
 
-Scripts are not provided by admins — any user can write and save their own scripts here. There is no platform-curated script library or pre-approval workflow; "approved" in this context means the scripts you personally saved and chose to keep, not scripts vetted by an administrator.
+Users with the appropriate permissions can write and save their own scripts. Before running, acknowledge the safety notice and confirm execution. The page asks for another confirmation when it detects certain common network APIs, but that detection cannot identify every risk.
 
 ## Permission requirements
 
@@ -51,9 +51,9 @@ Scripts are not provided by admins — any user can write and save their own scr
 
 ## Notes
 
-- Script execution should be limited to content you wrote yourself or fully understand — since scripts are user-authored, "trusted content" means content you trust, not content reviewed by the platform.
+- Scripts execute in a Web Worker in your current browser and may make network requests; they cannot directly manipulate the page DOM. Review the code and request destinations first, avoid scripts of unknown origin, and do not output credentials or sensitive data.
 - Bulk execution is convenient but raises the risk of accidental side effects.
-- Results on this page are often useful when paired with logs or balance-impact checks.
+- After a run finishes, the page attempts to save a code snapshot and output as history. History may be missing if saving fails, the worker errors, or the run is manually terminated. Clearing results terminates active scripts and clears the current page results, but does not delete saved history.
 
 ## Related pages
 
