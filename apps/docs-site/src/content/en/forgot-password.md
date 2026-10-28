@@ -26,14 +26,16 @@ Use this page when you can identify your account but can no longer sign in with 
 
 1. Enter the username and the correct email address.
 2. Request a verification code.
-3. Check your mailbox and enter the full code.
-4. Set the new password twice.
-5. Submit the reset request, then return to login.
+3. Check your mailbox and enter the six-digit code.
+4. Enter a new password of 6–50 characters, then enter it again to confirm.
+5. Submit the reset request. On success, the page redirects you to sign in.
 
 ## Notes
 
-- Code sending can be protected by verification challenges or cooldown limits.
+- The code validity period follows the email and server configuration. If the code is invalid or expired, request another one. The page displays a 60-second cooldown after sending; the server may also impose additional limits or require a verification challenge.
+- If the email does not arrive, check your spam folder and confirm you entered the bound address. If it still does not arrive, ask an administrator to check the email service. Contact an administrator if you cannot access the bound mailbox.
 - The username and email must belong to the same account.
+- The **Reset** button clears the form. Use the submit button to change the password.
 - After a successful reset, sign in again with the new password.
 
 ## Related pages
