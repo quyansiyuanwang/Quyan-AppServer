@@ -35,6 +35,7 @@ Use this page to review request volume, token usage, and cost details for the si
 
 ## Notes
 
+- Initially there is no date limit; select **Reset** to clear date filters. On desktop, the query uses the times returned by the date-range picker, with the end date normally at 00:00. On mobile, the end date extends to 23:59:59.999 that day. To include a full day on desktop, select the following day as the end date; records at midnight on that following day may also be included.
 - Detailed views may contain sensitive prompt or answer content.
 - Sudden cost changes are easier to interpret when compared with pricing settings.
 - Details do not identify the API key, so this page cannot attribute an individual request to a key. The key-management page shows cumulative request and token counts per key.
