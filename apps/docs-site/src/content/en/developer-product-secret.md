@@ -4,11 +4,11 @@ Secret Vault stores deployment-time credentials such as third-party API keys and
 
 ## How it is used
 
-Aliases must start with an uppercase letter and then contain only uppercase letters, digits, and underscores, for example `OPENAI_KEY`. When configuring a channel in [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push), select a Secret Vault instance and alias belonging to the same storage owner. During delivery, the platform reads the secret and sends it to the channel endpoint as a Bearer credential; bind it only to an endpoint you trust. Configuring the reference may also require separate permission to use the secret; see the Push Aggregation guide.
+Aliases must be 1–100 characters, start with an uppercase letter, and then contain only uppercase letters, digits, and underscores, for example `OPENAI_KEY`. Secret values must be 1–20,000 characters. When configuring a channel in [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push), select a Secret Vault instance and alias belonging to the same storage owner. During delivery, the platform reads the secret and sends it to the channel endpoint as a Bearer credential; bind it only to an endpoint you trust. Configuring the reference may also require separate permission to use the secret; see the Push Aggregation guide.
 
 ## Lifecycle and permissions
 
-Creating or rotating needs Secret write, deletion needs Secret manage, and metadata listing needs Secret read. Deletion is permanent; subsequent deliveries fail if a push channel still references the alias. The platform encrypts ciphertext, IV, and authentication tag with a dedicated master key.
+Creating or rotating needs Secret write, deletion needs Secret manage, and metadata listing needs Secret read. Deletion is permanent; subsequent deliveries fail if a push channel still references the alias. The platform encrypts the secret using a dedicated master key and stores the ciphertext, IV, and authentication tag.
 
 ## JWT project management
 
