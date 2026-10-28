@@ -23,7 +23,11 @@ Content-Type: application/json
 }
 ```
 
-The response reports success, a safe failure classification, attempt count, and next retry time for each channel. One failed channel does not block the others. Reuse a stable `idempotencyKey` for retries of the same business event to avoid duplicate notifications. Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
+The response reports delivery status, failure classification, attempt count, and next retry time for each channel. Only selected channels that are enabled and active produce records; the request fails if none are available. Check that the returned channels match your intended recipients. One failed channel does not block the others.
+
+Reuse a stable `idempotencyKey` for the same business event: a duplicate request returns existing delivery records rather than sending its new content. Those records may still be incomplete while the first request is processing. Failed deliveries are retried by a background job for up to three attempts, including the first. A successful delivery means the channel HTTP request succeeded; it does not guarantee that the recipient displayed the message. Product API calls count toward usage; quota and charges depend on current product configuration.
+
+Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
 
 ## Project Channel resource authorization
 
