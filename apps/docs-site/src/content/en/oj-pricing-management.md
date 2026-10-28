@@ -30,7 +30,7 @@ Use this page to maintain provider and model pricing used by OJ submitter workfl
 1. Add a pricing entry for a new provider or model.
 2. Review all rate fields carefully before saving.
 3. Update multipliers when billing logic changes.
-4. Delete obsolete entries only after confirming they are no longer referenced.
+4. Before deleting an entry, confirm it is no longer needed. A deleted pricing record cannot be directly recreated for the same model; edit the existing record if you only need to change its rates.
 
 ## What the multipliers mean
 
