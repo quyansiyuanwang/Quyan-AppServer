@@ -1,8 +1,6 @@
 # 我的月卡
 
-此页面用于查看已分配到你账号上的月卡权益。
-
-启用 IAM 强制授权后，“我的月卡”按 `quyan:monthly_pass:ListMyPasses` 逐条授权 `acs:monthly-pass:*:<accountId>:assignment/<userId>/<passId>`，不会读取其他用户的月卡。自己的月卡、模板和用量子资源默认可读，但显式 Deny 仍优先。模板详情使用 `acs:monthly-pass:*:<accountId>:template/<userId>/<templateId>`；额度窗口用量需要允许所有相关的 `acs:monthly-pass:*:<accountId>:usage/<userId>/<passId>/<usageId>`。模板或用量被拒绝时，相应的详情或窗口统计会留空，已授权月卡自身的额度仍可显示。
+在“我的月卡”查看已分配的权益，也可切换到 **月卡购买中心** 购买已发布方案。
 
 ## 页面用途
 
@@ -28,8 +26,8 @@
 
 ## 常见操作
 
-1. 新月卡应该出现时先刷新列表。
-2. 通过状态筛选区分可用和已过期月卡。
+1. 新月卡未显示时重新加载页面；页内的刷新按钮更新购买方案和余额，不刷新已分配月卡列表。
+2. 通过状态筛选区分生效中、待生效、已过期和已禁用的月卡。
 3. 大量使用前先确认剩余额度。
 4. 遇到请求受限时，检查可用渠道和模型范围。
 
@@ -39,7 +37,14 @@
 - 限额既可能覆盖整段周期，也可能覆盖每日窗口。
 - 如果展示异常，可对照余额记录与后台分配记录一起排查。
 
+- 页面当前只加载月卡列表的前 100 条；状态筛选仅作用于已加载的记录。
+
+## IAM 权限
+
+启用 IAM 强制授权后，“我的月卡”按 `quyan:monthly_pass:ListMyPasses` 逐条授权 `acs:monthly-pass:*:<accountId>:assignment/<userId>/<passId>`，不会读取其他用户的月卡。自己的月卡、模板和用量子资源默认可读，但显式 Deny 仍优先。模板详情使用 `acs:monthly-pass:*:<accountId>:template/<userId>/<templateId>`；额度窗口用量需要允许所有相关的 `acs:monthly-pass:*:<accountId>:usage/<userId>/<passId>/<usageId>`。模板或用量被拒绝时，相应的详情或窗口统计会留空，已授权月卡自身的额度仍可显示。
+
 ## 相关页面
 
+- [月卡购买]({{DOCS_BASE_URL}}/zh-CN/monthly-pass-purchase)
 - [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
 - [月卡管理]({{DOCS_BASE_URL}}/zh-CN/monthly-pass-management)

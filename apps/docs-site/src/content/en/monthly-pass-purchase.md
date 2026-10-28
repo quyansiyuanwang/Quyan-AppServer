@@ -1,6 +1,6 @@
 # Purchase a monthly pass
 
-Choose a published plan on the monthly pass purchase page and redeem it with your balance. After purchase, use “My monthly passes” to review its validity, quota and supported usage.
+Choose a published plan in the **Monthly Pass Purchase Center** tab on My Monthly Passes and redeem it with your balance. After purchase, use the **View My Monthly Passes** tab to review its validity, quota, and supported usage.
 
 ## Before purchasing
 
@@ -11,10 +11,10 @@ Choose a published plan on the monthly pass purchase page and redeem it with you
 
 ## Purchase steps
 
-1. Open the monthly pass purchase page and select a plan.
+1. Open My Monthly Passes, select **Monthly Pass Purchase Center**, and choose a plan.
 2. Review the debit information in the confirmation dialog and confirm.
 3. Check the actual debit amount after success.
-4. Review the new pass under “My monthly passes” and its ledger entry under balance history.
+4. Reload the page, review the new pass under **View My Monthly Passes**, and check its ledger entry under balance history.
 
 The debit, ledger entry and new pass succeed together. Failed authorization, changed quotes or purchase-limit refusal leave no debit or new pass from that attempt. Free plans remain subject to purchase limits.
 
