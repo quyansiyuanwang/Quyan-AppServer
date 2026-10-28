@@ -1,7 +1,9 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 import { prisma } from "../../../src/config/database";
 import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repository";
+import { RelayTokenCreateRepository } from "../../../src/store/relay/relay-token-create.repository";
+import { RelayTokenUpdateRepository } from "../../../src/store/relay/relay-token-update.repository";
 import { hashPassword } from "../../../src/util/crypto";
 
 describe("RelayTokenRepository", () => {
@@ -194,5 +196,479 @@ describe("RelayTokenRepository", () => {
     const changed = (await repository.findByIdWithRelations(root.id))!;
     expect(changed.token).toBe(root.token);
     expect(changed.memberTokenConfigs).toHaveLength(0);
+  });
+
+  describe("caller-owned token create transactions", () => {
+    const writer = RelayTokenCreateRepository.getInstance();
+    const reserve = () => {
+      const id = randomUUID().replace(/-/g, "");
+      createdTokenIds.push(id);
+      return id;
+    };
+    const input = () => ({
+      userId,
+      name: "create-writer-fixture",
+      token: `test_${randomUUID()}`,
+      legacyToken: `test_alias_${randomUUID()}`,
+      isCustomKey: true,
+      channelId: primaryChannelId,
+      quotaLimit: 0,
+      channelConfigs: [
+        { channelId: primaryChannelId, priority: 0 },
+        { channelId: secondaryChannelId, priority: 1 },
+      ],
+      quotaWindows: [{ quotaLimit: 3, quotaUnit: "request" as const, quotaWindowHours: 1 }],
+      failoverConfig: { enabled: false, maxRetries: 0, retryStatusCodes: ["503"] },
+      streamConfig: { preflightBufferLimitBytes: 512 * 1024 },
+      modelMapping: { "public-model": "upstream-model" },
+    });
+    const absent = async (id: string) => {
+      expect(await prisma.relayToken.count({ where: { id } })).toBe(0);
+      expect(await prisma.relayTokenChannelConfig.count({ where: { relayTokenId: id } })).toBe(0);
+      expect(await prisma.relayTokenFailoverConfig.count({ where: { relayTokenId: id } })).toBe(0);
+      expect(await prisma.relayTokenQuotaWindow.count({ where: { relayTokenId: id } })).toBe(0);
+      expect(await prisma.relayTokenMemberConfig.count({ where: { parentTokenId: id } })).toBe(0);
+    };
+    it("returns only the reserved resource ID and commits all relations in the caller transaction", async () => {
+      const id = reserve(),
+        data = input();
+      const transactions = vi.spyOn(prisma, "$transaction");
+      try {
+        await prisma.$transaction(async (tx) => {
+          const inserts = vi.spyOn(tx.relayToken, "create");
+          try {
+            expect(await writer.apply(tx, data, id)).toBe(id);
+            expect(inserts).toHaveBeenCalledOnce();
+            expect(inserts.mock.calls[0]![0].select).toEqual({ id: true });
+            expect(inserts.mock.calls[0]![0]).not.toHaveProperty("include");
+          } finally {
+            inserts.mockRestore();
+          }
+        });
+        expect(transactions).toHaveBeenCalledTimes(1);
+      } finally {
+        transactions.mockRestore();
+      }
+      const result = await repository.findByIdWithRelations(id);
+      expect(result).toMatchObject({
+        id,
+        userId,
+        token: data.token,
+        legacyToken: data.legacyToken,
+        isCustomKey: true,
+        routingMode: "ordered",
+        channelId: primaryChannelId,
+        modelMapping: data.modelMapping,
+        streamConfig: data.streamConfig,
+        status: 1,
+        failoverConfig: { enabled: false, maxRetries: 0, retryStatusCodes: ["503"] },
+      });
+      expect(Number(result!.quotaLimit)).toBe(0);
+      expect(result!.channelConfigs.map(({ channelId, priority }) => ({ channelId, priority }))).toEqual(
+        data.channelConfigs,
+      );
+      expect(result!.quotaWindows).toHaveLength(1);
+      expect(Number(result!.quotaWindows[0]!.quotaLimit)).toBe(3);
+    });
+    it("rolls back a created token and every nested relation after a final authority or response denial", async () => {
+      const id = reserve(),
+        denied = new Error("fixture final create authority denied");
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await writer.apply(tx, input(), id);
+          expect(await tx.relayTokenChannelConfig.count({ where: { relayTokenId: id } })).toBe(2);
+          throw denied;
+        }),
+      ).rejects.toBe(denied);
+      await absent(id);
+    });
+    it("rolls back the whole creation when a nested channel constraint fails", async () => {
+      const id = reserve();
+      await expect(
+        prisma.$transaction((tx) =>
+          writer.apply(
+            tx,
+            {
+              ...input(),
+              channelConfigs: [
+                { channelId: primaryChannelId, priority: 0 },
+                { channelId: primaryChannelId, priority: 1 },
+              ],
+            },
+            id,
+          ),
+        ),
+      ).rejects.toThrow();
+      await absent(id);
+    });
+    it("does not commit the first item when a later batch creation fails", async () => {
+      const first = reserve(),
+        second = reserve(),
+        data = input();
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await writer.apply(tx, data, first);
+          // A duplicate credential must roll back prior inserts, not only the conflicting item.
+          await writer.apply(tx, { ...data, legacyToken: null }, second);
+        }),
+      ).rejects.toThrow();
+      await absent(first);
+      await absent(second);
+    });
+    it("keeps Prisma-generated IDs and rich legacy responses inside the supplied transaction", async () => {
+      const transactions = vi.spyOn(prisma, "$transaction");
+      try {
+        const result = await prisma.$transaction((tx) => repository.create(input(), tx));
+        createdTokenIds.push(result.id);
+        expect(result.id).toBeTruthy();
+        expect(result).toMatchObject({ user: { id: userId }, channel: { id: primaryChannelId } });
+        expect(result.token).toBeTruthy();
+        expect(result.channelConfigs).toHaveLength(2);
+        expect(transactions).toHaveBeenCalledTimes(1);
+      } finally {
+        transactions.mockRestore();
+      }
+    });
+    it("rolls back legacy creation if its rich response cannot be read", async () => {
+      const data = input(),
+        denied = new Error("fixture response projection failed");
+      await expect(
+        prisma.$transaction(async (tx) => {
+          const read = vi.spyOn(tx.relayToken, "findUniqueOrThrow").mockRejectedValueOnce(denied);
+          try {
+            await repository.create(data, tx);
+          } finally {
+            read.mockRestore();
+          }
+        }),
+      ).rejects.toBe(denied);
+      expect(await prisma.relayToken.count({ where: { token: data.token } })).toBe(0);
+    });
+    it("preserves omitted create defaults and explicit nullable fields", async () => {
+      const id = reserve();
+      await prisma.$transaction((tx) =>
+        writer.apply(
+          tx,
+          {
+            userId,
+            token: `test_${randomUUID()}`,
+            name: null,
+            expiresAt: null,
+            quotaLimit: null,
+            requestFormatTransforms: null,
+            normalizerConfig: null,
+            streamConfig: null,
+            contentSafetyConfig: null,
+            modelMapping: null,
+            channelConfigs: [],
+            quotaWindows: [],
+          },
+          id,
+        ),
+      );
+      expect(await repository.findByIdWithRelations(id)).toMatchObject({
+        id,
+        name: null,
+        expiresAt: null,
+        quotaLimit: null,
+        routingMode: "ordered",
+        status: 1,
+        isCustomKey: false,
+        channelId: null,
+        automaticProxyPoolChannelId: null,
+        requestFormatTransforms: null,
+        normalizerConfig: null,
+        streamConfig: null,
+        contentSafetyConfig: null,
+        modelMapping: null,
+        channelConfigs: [],
+        quotaWindows: [],
+        failoverConfig: null,
+      });
+    });
+    it("persists automatic pool bindings and blocked members without adding ordered bindings", async () => {
+      const id = reserve();
+      await prisma.$transaction((tx) =>
+        writer.apply(
+          tx,
+          {
+            userId,
+            token: `test_${randomUUID()}`,
+            routingMode: "automatic-pool",
+            automaticProxyPoolChannelId: primaryChannelId,
+            blockedAutomaticProxyPoolChannelIds: [secondaryChannelId],
+          },
+          id,
+        ),
+      );
+      expect(await repository.findByIdWithRelations(id)).toMatchObject({
+        id,
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: primaryChannelId,
+        blockedAutomaticProxyPoolChannelIds: [secondaryChannelId],
+        channelId: null,
+        channelConfigs: [],
+      });
+    });
+    it("validates reserved composite IDs, including disabled self references", async () => {
+      const id = reserve();
+      await expect(
+        prisma.$transaction((tx) =>
+          writer.apply(
+            tx,
+            {
+              userId,
+              token: `test_${randomUUID()}`,
+              routingMode: "composite",
+              memberTokenConfigs: [{ tokenId: id, priority: 0, enabled: false }],
+            },
+            id,
+          ),
+        ),
+      ).rejects.toThrow("cycle");
+      await absent(id);
+    });
+    it("commits composite members atomically and rolls them back with their parent", async () => {
+      const leaf = await repository.create({ userId, token: `test_${randomUUID()}`, channelId: primaryChannelId });
+      createdTokenIds.push(leaf.id);
+      const id = reserve(),
+        rollbackId = reserve();
+      const data = {
+        userId,
+        token: `test_${randomUUID()}`,
+        routingMode: "composite" as const,
+        memberTokenConfigs: [{ tokenId: leaf.id, priority: 0, enabled: false }],
+      };
+      await prisma.$transaction((tx) => writer.apply(tx, data, id));
+      expect(await repository.findByIdWithRelations(id)).toMatchObject({
+        id,
+        routingMode: "composite",
+        memberTokenConfigs: [{ tokenId: leaf.id, enabled: false }],
+      });
+      const denied = new Error("fixture final composite authority denied");
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await writer.apply(tx, { ...data, token: `test_${randomUUID()}` }, rollbackId);
+          throw denied;
+        }),
+      ).rejects.toBe(denied);
+      await absent(rollbackId);
+    });
+    it("rejects mixed routing modes and member edges on an ordered token without inserting", async () => {
+      const id = reserve();
+      await expect(
+        prisma.$transaction((tx) =>
+          writer.apply(
+            tx,
+            {
+              userId,
+              token: `test_${randomUUID()}`,
+              routingMode: "composite",
+              channelId: primaryChannelId,
+            },
+            id,
+          ),
+        ),
+      ).rejects.toThrow("mode");
+      await absent(id);
+      await expect(
+        prisma.$transaction((tx) =>
+          writer.apply(
+            tx,
+            {
+              userId,
+              token: `test_${randomUUID()}`,
+              memberTokenConfigs: [{ tokenId: id, priority: 0, enabled: true }],
+            },
+            id,
+          ),
+        ),
+      ).rejects.toThrow("mode");
+      await absent(id);
+    });
+  });
+
+  describe("caller-owned token update transactions", () => {
+    const writer = RelayTokenUpdateRepository.getInstance();
+    const state = (id: string) =>
+      prisma.relayToken.findUniqueOrThrow({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          channelId: true,
+          routingMode: true,
+          updateTime: true,
+          token: true,
+          legacyToken: true,
+          isCustomKey: true,
+          expiresAt: true,
+          quotaLimit: true,
+          allowedModels: true,
+          modelMapping: true,
+          requestFormatTransforms: true,
+          normalizerConfig: true,
+          streamConfig: true,
+          contentSafetyConfig: true,
+          automaticProxyPoolChannelId: true,
+          blockedAutomaticProxyPoolChannelIds: true,
+          channelConfigs: { orderBy: { priority: "asc" }, select: { channelId: true, priority: true } },
+          quotaWindows: {
+            orderBy: { quotaWindowHours: "asc" },
+            select: { quotaLimit: true, quotaUnit: true, quotaWindowHours: true },
+          },
+          memberTokenConfigs: {
+            orderBy: { priority: "asc" },
+            select: { tokenId: true, priority: true, enabled: true },
+          },
+          failoverConfig: { select: { enabled: true, maxRetries: true, retryStatusCodes: true } },
+        },
+      });
+    const create = async (name: string) => {
+      const token = await repository.create({
+        userId,
+        name,
+        token: `test_${randomUUID()}`,
+        channelId: primaryChannelId,
+        channelConfigs: [{ channelId: primaryChannelId, priority: 0 }],
+        quotaWindows: [{ quotaLimit: 10, quotaUnit: "request", quotaWindowHours: 1 }],
+        failoverConfig: { enabled: false, maxRetries: 2, retryStatusCodes: ["503"] },
+      });
+      createdTokenIds.push(token.id);
+      return token;
+    };
+    it("does not commit nested writes before caller response and authority checks finish", async () => {
+      const token = await create("rollback-main-and-relations");
+      const member = await create("rollback-member");
+      const original = await state(token.id);
+      const denied = new Error("simulated final authority or response denial");
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await writer.apply(tx, token.id, {
+            name: "must-roll-back",
+            token: `test_${randomUUID()}`,
+            legacyToken: "fixture-alias",
+            isCustomKey: true,
+            routingMode: "composite",
+            channelId: null,
+            channelConfigs: [],
+            memberTokenConfigs: [{ tokenId: member.id, priority: 0, enabled: true }],
+            expiresAt: new Date("2030-01-01T00:00:00Z"),
+            quotaLimit: 7,
+            quotaWindows: [{ quotaLimit: 3, quotaUnit: "request", quotaWindowHours: 2 }],
+            modelMapping: { from: "to" },
+            requestFormatTransforms: [],
+            automaticProxyPoolChannelId: null,
+            blockedAutomaticProxyPoolChannelIds: [],
+            failoverConfig: { enabled: true, maxRetries: 3, retryStatusCodes: ["429"] },
+          });
+          expect(await tx.relayTokenMemberConfig.count({ where: { parentTokenId: token.id } })).toBe(1);
+          expect(await tx.relayTokenChannelConfig.count({ where: { relayTokenId: token.id } })).toBe(0);
+          expect(
+            Number((await tx.relayTokenQuotaWindow.findFirstOrThrow({ where: { relayTokenId: token.id } })).quotaLimit),
+          ).toBe(3);
+          throw denied;
+        }),
+      ).rejects.toBe(denied);
+      expect(await state(token.id)).toEqual(original);
+    });
+    it("applies all relations in the supplied transaction without hydrating a credential-bearing result", async () => {
+      const token = await create("commit-main-and-relations");
+      const member = await create("commit-member");
+      const transactions = vi.spyOn(prisma, "$transaction");
+      try {
+        await prisma.$transaction(async (tx) => {
+          const updates = vi.spyOn(tx.relayToken, "update");
+          try {
+            expect(
+              await writer.apply(tx, token.id, {
+                name: "committed",
+                routingMode: "composite",
+                channelId: null,
+                channelConfigs: [],
+                memberTokenConfigs: [{ tokenId: member.id, priority: 0, enabled: true }],
+                quotaWindows: [],
+                failoverConfig: { enabled: true, maxRetries: 4 },
+              }),
+            ).toBeUndefined();
+            expect(updates.mock.calls.length).toBeGreaterThan(0);
+            for (const [args] of updates.mock.calls) {
+              expect(args.select).toBeDefined();
+              expect(args.select).not.toHaveProperty("token");
+              expect(args.select).not.toHaveProperty("legacyToken");
+            }
+          } finally {
+            updates.mockRestore();
+          }
+        });
+        expect(transactions).toHaveBeenCalledTimes(1);
+      } finally {
+        transactions.mockRestore();
+      }
+      const updated = await state(token.id);
+      expect(updated).toMatchObject({
+        name: "committed",
+        routingMode: "composite",
+        channelId: null,
+        memberTokenConfigs: [{ tokenId: member.id, priority: 0, enabled: true }],
+        channelConfigs: [],
+        quotaWindows: [],
+        failoverConfig: { enabled: true, maxRetries: 4 },
+      });
+      expect(updated.token).toBe(token.token);
+      expect(updated.legacyToken).toBe(token.legacyToken);
+    });
+    it("rolls back scalar and failover writes when a later relation write fails", async () => {
+      const token = await create("rollback-on-channel-constraint");
+      const original = await state(token.id);
+      await expect(
+        repository.update(token.id, {
+          name: "invalid-write",
+          channelId: secondaryChannelId,
+          channelConfigs: [
+            { channelId: secondaryChannelId, priority: 0 },
+            { channelId: secondaryChannelId, priority: 1 },
+          ],
+          failoverConfig: { enabled: true, maxRetries: 7 },
+        }),
+      ).rejects.toThrow();
+      expect(await state(token.id)).toEqual(original);
+    });
+    it("preserves omitted relations and supports explicit JSON and quota clearing", async () => {
+      const token = await create("clear-json-preserve-relations");
+      const original = await state(token.id);
+      const updated = await repository.update(token.id, {
+        modelMapping: { a: "b" },
+        requestFormatTransforms: [],
+        quotaLimit: 9,
+      });
+      expect(updated.token).toBe(token.token);
+      expect(updated.modelMapping).toEqual({ a: "b" });
+      const written = await state(token.id);
+      expect(written.channelConfigs).toEqual(original.channelConfigs);
+      expect(written.quotaWindows).toEqual(original.quotaWindows);
+      expect(written.failoverConfig).toEqual(original.failoverConfig);
+      await prisma.$transaction((tx) =>
+        writer.apply(tx, token.id, {
+          modelMapping: null,
+          requestFormatTransforms: null,
+          normalizerConfig: null,
+          contentSafetyConfig: null,
+          streamConfig: null,
+          quotaWindows: [],
+          quotaLimit: null,
+        }),
+      );
+      expect(await state(token.id)).toMatchObject({
+        modelMapping: null,
+        requestFormatTransforms: null,
+        normalizerConfig: null,
+        contentSafetyConfig: null,
+        streamConfig: null,
+        quotaWindows: [],
+        quotaLimit: null,
+        channelConfigs: original.channelConfigs,
+      });
+    });
   });
 });

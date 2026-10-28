@@ -1,5 +1,10 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
 
+export type RelayChannelSelectionMetadata = Pick<
+  RelayChannel,
+  "id" | "name" | "status" | "updateTime" | "visibilityMode" | "visibilityConfig" | "channelType"
+>;
+
 export interface RelayChannelManagementQuery {
   where: Prisma.RelayChannelWhereInput;
   page: number;
@@ -45,6 +50,7 @@ export interface RelayChannelQueryStore {
   listVisible(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   findActiveById(id: string): Promise<RelayChannel | null>;
   findVisibleById(id: string): Promise<RelayChannel | null>;
+  findVisibleSelectionMetadataById(id: string): Promise<RelayChannelSelectionMetadata | null>;
   listActiveByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   listVisibleByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   listActiveDirectPooledParentsByMemberChannelId(memberChannelId: string): Promise<RelayChannel[]>;
@@ -69,7 +75,7 @@ export interface RelayChannelMutationStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<RelayChannel>;
   updateStatusByIds(ids: string[], status: number): Promise<number>;
-  countDirectBusinessReferences(id: string): Promise<number>;
+  countDirectBusinessReferences(id: string, tx?: Prisma.TransactionClient): Promise<number>;
   softDeleteAndUnassignTokens(id: string): Promise<void>;
   softDeleteAndUnassignTokensByIds(ids: string[]): Promise<number>;
   replaceMembersByChannelId(

@@ -6,6 +6,7 @@ import { UserRepository } from "../../../src/store/users/user.repository";
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent } from "../../../src/constant/notification-event";
 
 vi.mock("../../../src/store/notification/notification-preference.repository");
+vi.mock("../../../src/store/notification/notification-preference-management.repository");
 vi.mock("../../../src/services/system/config.service");
 vi.mock("../../../src/store/users/user.repository");
 

@@ -23,6 +23,26 @@
 - 一段时间内的心跳条。
 - 上游延迟与用户到服务端延迟的提示信息。
 
+## 访问条件与资源范围
+
+IAM 强制模式下，页面使用 `quyan:relay:GetUptimeStatus`。认证主体必须属于有效的部署管理全局组，且该组具有 `UPSTREAM_STATUS_READ`；个人附加权限、私有组或账号所有者身份不能替代该资格。读取集合需要允许 `acs:platform:*:platform:relay-uptime-control/default`。
+
+各监控项使用 `acs:platform:*:platform:relay-uptime-monitor/<监控 ID>`，返回结果只包含获准的监控项及其分类。匹配的 Deny 优先于 Allow，因此总览指示器描述的是你可见的监控项，不代表所有上游服务。空列表可能表示尚未配置监控，也可能表示没有获准的监控记录。
+
+上游监控 ID 保持不变。没有 ID 的旧静态监控根据分类名和监控名生成确定的 `static_<SHA-256>` ID；修改任一名称会改变资源 ID。显式 ID 仅允许字母、数字、点、下划线和连字符，必须以字母或数字开头，长度不得超过 200 个字符；重复或不安全的 ID 会被拒绝。编写指定监控策略时使用接口返回的 ID。
+
+读取状态不会创建配置。优先使用已配置上游，上游不可用时可使用已配置的静态分类作为备用，心跳历史最多返回最近 100 条。请求期间资格、策略、角色会话或配置快照发生变化，或此前获准的条件过期时，请求会失败，不返回过期数据。存储故障不会显示为成功的空结果。状态 Action 不包含配置编辑或模型价格访问权限。
+
+## 并发状态 API
+
+`GET /v1/relay-config/concurrency-status` 在 IAM 强制模式下使用 `quyan:relay:GetConcurrencyStatus`，同样要求有效部署管理全局组的 `UPSTREAM_STATUS_READ` 资格。集合资源是 `acs:platform:*:platform:relay-concurrency-control/default`。
+
+用户并发记录使用 `acs:platform:*:platform:relay-concurrency-user/<用户 ID>`；全局图片池使用 `acs:platform:*:platform:relay-concurrency-scope/image`。接口只返回获准的记录。指定 `userId` 必须对应有效用户，并且需要该用户资源的 Allow；它不会隐式授予全局图片池读取权限。显式 Deny 始终优先。
+
+强制模式支持 `page`、`pageSize`：页码从 1 开始，最大 10000；默认每页 50 条，最大 100 条。`items` 是当前获准分页，`total` 是所有获准聚合记录的数量，`totals` 汇总所有获准记录，`hasNext` 表示是否还有下一页。旧权限及影子模式保留原响应行为。
+
+并发数据是实时采样，采样期间过期的租约不会计为活动记录。后端不可用时返回 503，不以成功的零值替代。读取不会创建配置；请求期间资格、策略、会话、资源归属或配置发生变化时，请求会失败。
+
 ## 常见操作
 
 1. 排查当前故障时先刷新页面。

@@ -64,7 +64,37 @@ export interface TicketCommentWithAuthor extends TicketComment {
   };
 }
 
+/** Metadata contains no title, body, contact details or comments. */
+export type OwnTicketTarget = Pick<
+  Ticket,
+  "id" | "userId" | "createTime" | "updateTime" | "lastReplyAt" | "workflowStatus"
+>;
+export interface OwnTicketDetail {
+  ticket: TicketWithRelations;
+  comments: TicketCommentWithAuthor[];
+}
+
 export interface TicketStore {
+  findOwnTarget(id: string, userId: string, accountOwnerId: string): Promise<OwnTicketTarget | null>;
+  scanOwnTargets(
+    userId: string,
+    accountOwnerId: string,
+    filters: TicketListFilters,
+    after?: OwnTicketTarget,
+  ): Promise<OwnTicketTarget[]>;
+  readOwnTargets(
+    userId: string,
+    accountOwnerId: string,
+    targets: readonly OwnTicketTarget[],
+  ): Promise<TicketWithRelations[]>;
+  readOwnDetail(userId: string, accountOwnerId: string, target: OwnTicketTarget): Promise<OwnTicketDetail>;
+  createInAccount(data: TicketCreateInput, accountOwnerId: string): Promise<Ticket>;
+  updateOwnTarget(target: OwnTicketTarget, accountOwnerId: string, data: TicketUpdateInput): Promise<Ticket>;
+  commentOwnTarget(
+    target: OwnTicketTarget,
+    accountOwnerId: string,
+    data: TicketCommentCreateInput,
+  ): Promise<TicketComment>;
   create(data: TicketCreateInput): Promise<Ticket>;
   findById(id: string): Promise<Ticket | null>;
   findByIdWithRelations(id: string): Promise<TicketWithRelations | null>;

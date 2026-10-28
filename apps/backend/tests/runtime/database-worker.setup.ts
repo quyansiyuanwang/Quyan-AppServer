@@ -1,4 +1,4 @@
-import { beforeAll } from "vitest";
+import { afterEach, beforeAll } from "vitest";
 import { createConnection, type RowDataPacket } from "mysql2/promise";
 import Redis from "ioredis";
 import {
@@ -8,6 +8,7 @@ import {
   getVitestWorkerIndex,
   workerDatabaseUrl,
 } from "./test-worker-environment";
+import { clearRequestContext } from "@/util/request-context";
 
 const workerIndex = getVitestWorkerIndex();
 const baseDatabaseUrl = process.env.DATABASE_URL;
@@ -15,6 +16,10 @@ const workerUrl = workerDatabaseUrl(baseDatabaseUrl || "", workerIndex);
 
 process.env[TEST_DATABASE_URL_ENV] = workerUrl;
 process.env[TEST_REDIS_DB_ENV] = String(getRedisDatabaseBase() + workerIndex - 1);
+
+afterEach(() => {
+  clearRequestContext();
+});
 
 function mysqlOptions(databaseUrl: string) {
   const url = new URL(databaseUrl);

@@ -57,6 +57,24 @@
 | 删除版本            | `LEGAL_POLICY_DELETE`  |
 | 发布 / 取消发布版本 | `LEGAL_POLICY_PUBLISH` |
 
+## IAM 版本读取权限
+
+IAM 强制模式下，管理列表和详情 API 需要真实部署全局组中的 `LEGAL_POLICY_READ` 资格。列表使用 `quyan:legal_policy:ListVersions`，详情使用 `quyan:legal_policy:GetVersion`，两者均按实际版本资源 `acs:platform:*:platform:legal-policy/<版本 ID>` 授权。创建人仅为审计操作者，不表示协议所属账户。
+
+版本列表只包含已授权版本，读取摘要时不加载草稿正文。详情需要单独通过 Allow 检查后才加载正文，匹配的 Deny 优先。强制模式下，不存在、已删除或未获授权的详情资源返回 403。读取期间版本、资格、策略或角色会话发生变化时，结果不会返回。AssumeRole 使用角色自身授权。公开已发布协议与同意流程保持原有访问规则。
+
+## IAM 草稿变更
+
+强制模式下，创建草稿使用 `quyan:legal_policy:CreateVersion`，先检查 `acs:platform:*:platform:legal-policy-control/<协议类型>`，提交前再检查新版本的真实 ARN。支持的协议类型为 `terms_of_service` 和 `privacy_policy`。更新、删除分别使用 `quyan:legal_policy:UpdateVersion` 与 `quyan:legal_policy:DeleteVersion`，资源为 `acs:platform:*:platform:legal-policy/<版本 ID>`。每项操作还需要真实部署全局组中的对应管理权限。
+
+匹配的 Deny，或身份、用户组、角色会话、版本校验失效，会导致整个变更回滚。已发布版本仍不可编辑或删除。删除草稿会保留其版本号，后续草稿使用新版本号。同类型已有有效未发布草稿时，必须先编辑、发布或删除该草稿。写入继续要求重放保护。
+
+## IAM 发布变更
+
+发布使用 `quyan:legal_policy:PublishVersion`，撤销发布使用 `quyan:legal_policy:UnpublishVersion`。操作需要真实部署全局组中的 `LEGAL_POLICY_PUBLISH` 资格，还必须对每个受影响版本 ARN 获得授权。
+
+发布会检查目标版本和被替换的当前版本。撤销当前版本时，会检查目标版本以及剩余已发布版本中最新的回退版本。若回退版本被 Deny，整个操作失败，不会改选更旧版本绕过 Deny。没有回退版本时仍禁止撤销。事务内重新核对受影响集合和权限；Deny、撤权或并发变化会让所有发布状态变更回滚。公开生效协议查询继续返回已提交的当前版本。
+
 ## 说明
 
 - 同一类型同时只能有一个发布版本；发布新版本时旧版本自动变为历史记录。

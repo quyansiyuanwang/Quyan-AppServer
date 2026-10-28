@@ -2,6 +2,12 @@
 
 Use this page to monitor runtime health, resource usage, and service summary information.
 
+## Management permissions
+
+System statistics are a deployment-wide report. With IAM enforcement, you need `SYSTEM_STATS_READ` in an actual deployment administrator group and `quyan:system:GetStatistics` on `acs:platform:*:platform:system/stats`. Build information separately requires `DEBUG_ACCESS` and `quyan:system:GetBuildInfo` on `acs:platform:*:platform:system/build-info`. Ordinary account owners and account policies cannot grant deployment administrator eligibility.
+
+Authorization is checked before loading data and before returning it. Explicit Deny, removal of the deployment grant, disabled accounts, or revoked role sessions prevent the report from being returned.
+
 ## Page purpose
 
 - Review current server status.

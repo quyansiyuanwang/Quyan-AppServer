@@ -8,7 +8,7 @@ import type {
   RelayChannelTransactionClient,
 } from "./relay-channel.store";
 
-const relayChannelManagementSelect = {
+export const relayChannelManagementSelect = {
   id: true,
   name: true,
   submittedByUserId: true,
@@ -108,6 +108,20 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
+  async findVisibleSelectionMetadataById(id: string) {
+    return prisma.relayChannel.findFirst({
+      where: { id, status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        updateTime: true,
+        visibilityMode: true,
+        visibilityConfig: true,
+        channelType: true,
+      },
+    });
+  }
   async findVisibleById(id: string): Promise<RelayChannel | null> {
     return prisma.relayChannel.findFirst({
       where: {
@@ -262,12 +276,12 @@ export class RelayChannelRepository implements RelayChannelStore {
     return result.count;
   }
 
-  async countDirectBusinessReferences(id: string): Promise<number> {
+  async countDirectBusinessReferences(id: string, tx: Prisma.TransactionClient = prisma): Promise<number> {
     const [primaryTokenCount, channelConfigTokenCount, ojApiKeyCount, monthlyPassTemplates] = await Promise.all([
-      prisma.relayToken.count({ where: { channelId: id } }),
-      prisma.relayTokenChannelConfig.count({ where: { channelId: id } }),
-      prisma.oJAPIKey.count({ where: { channelId: id, status: 1 } }),
-      prisma.monthlyPassTemplate.findMany({
+      tx.relayToken.count({ where: { channelId: id } }),
+      tx.relayTokenChannelConfig.count({ where: { channelId: id } }),
+      tx.oJAPIKey.count({ where: { channelId: id, status: 1 } }),
+      tx.monthlyPassTemplate.findMany({
         where: { status: { not: -1 }, allowedChannels: { not: null } },
         select: { allowedChannels: true },
       }),

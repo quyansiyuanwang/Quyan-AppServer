@@ -44,7 +44,11 @@ export class OAuthScopeService {
     }));
   }
 
-  async normalizeAndAssertGrantable(userId: string, scopes: string[]): Promise<string[]> {
+  async normalizeAndAssertGrantable(
+    userId: string,
+    scopes: string[],
+    options: { assumedRoleSessionId?: string } = {},
+  ): Promise<string[]> {
     const normalized = [...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))];
     const definitions = normalized.map((scope) => getOAuthScopeDefinition(scope));
     const unknown = normalized.filter((_, index) => !definitions[index]);
@@ -54,7 +58,7 @@ export class OAuthScopeService {
         messageParams: { scopes: unknown.join(", ") },
       });
 
-    const permissions = await permissionService.getUserFullPermissions(userId);
+    const permissions = await permissionService.getUserFullPermissions(userId, options);
     const effectivePermissions = permissions?.effectivePermissions ?? [];
     const forbidden = normalized.filter((_, index) => {
       const definition = definitions[index];

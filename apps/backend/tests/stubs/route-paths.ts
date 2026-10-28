@@ -21,6 +21,7 @@ export const ApiRoutePath = new Proxy(routePaths, {
 }) as Record<string, string>;
 
 export const ApiRoutePathPrefix = {
+  V1Ram: "/v1/ram",
   RelayProxy: "/relay/proxy",
 } as Record<string, string>;
 

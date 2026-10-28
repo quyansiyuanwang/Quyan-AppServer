@@ -74,6 +74,10 @@ export function clearAuthSessionIdCookie(req: Request): void {
   req.res?.clearCookie(AUTH_SESSION_COOKIE_NAME, resolveCookieOptions());
 }
 
+export function buildForceOfflineUserKey(userId: string): string {
+  return `user:force_offline:${userId}`;
+}
+
 export function buildForceOfflineAuthSessionKey(sessionId: string): string {
   return `auth:session:force_offline:${sessionId}`;
 }

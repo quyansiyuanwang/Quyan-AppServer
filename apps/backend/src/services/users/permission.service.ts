@@ -1,6 +1,16 @@
+import { checkIamDelegation } from "@/iam/delegation/delegation-check";
+import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
+import { principalConditionContext } from "@/iam/request/condition-context";
+import { accountEntityResourceResolver } from "@/iam/request/resource-resolvers";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { getRequestContext } from "@/util/request-context";
+import { actionForPermission, buildAcsResource } from "@quyan/shared";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { Permission } from "@/constant/permission";
 import { PermissionList, UserPermissionConfig, UserFullPermissions, PermissionCheckResult } from "@/models/permission";
-import { BadRequestError, ForbiddenError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, ConflictError, UnauthorizedError } from "@/util/errors";
 import { isValidPermission } from "@/util/permission/validation";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -9,8 +19,8 @@ import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
 import { env } from "@/config/env";
-import type { UserStore, UserWithGroup } from "@/store/users/user.store";
-import type { GroupStore } from "@/store/users/group.store";
+import type { UserStore, UserWithGroup, UserPermissionSnapshot } from "@/store/users/user.store";
+import type { GroupStore, GroupPermissionSnapshot } from "@/store/users/group.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
 import type { RamPolicyStore } from "@/store/users/ram-policy.store";
 import type { Request } from "express";
@@ -77,6 +87,33 @@ export class PermissionService {
     const operatorUser = await this.userRepository.findById(operatorUserId);
     if (!operatorUser)
       throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const owner = operatorUser.accountOwnerId || operatorUser.id;
+      const request = getRequestContext();
+      const principal = request
+        ? getIamPrincipal(request)
+        : {
+            subjectUserId: operatorUser.id,
+            principalUserId: operatorUser.id,
+            accountOwnerId: owner,
+            subjectType: operatorUser.id === owner ? ("root" as const) : ("sub_user" as const),
+          };
+      if (!principal || principal.principalUserId !== operatorUser.id || principal.accountOwnerId !== owner)
+        throw new ForbiddenError("Invalid legacy delegation context", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+      if (principal.subjectType === "root" && operatorUser.userType === "root" && operatorUser.id === owner) return;
+      const candidate = legacyPermissionsToPolicy(permissions, owner);
+      if (!candidate) return;
+      const grants = await IamAuthorizationService.getInstance().loadDelegatablePolicies(principal);
+      const result = checkIamDelegation(candidate, grants);
+      if (!result.allowed)
+        throw new ForbiddenError("Legacy permission exceeds current IAM scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+      return;
+    }
 
     if (operatorUser.groupId) {
       const operatorGroup = await this.groupRepository.findById(operatorUser.groupId);
@@ -162,13 +199,14 @@ export class PermissionService {
     options: PermissionCalculationOptions = {},
   ): Promise<UserFullPermissions> {
     const basePermissions = this.calculateUserPermissions(user, group);
+    const accountOwnerId = user.accountOwnerId || user.id;
     const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(user.id, user.groupId ?? null);
     const rolePermissions = roleBindings.flatMap((binding) =>
       binding.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
     );
 
     // RamPolicy 权限: 用户级 + 用户组级策略
-    const userPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id);
+    const userPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id, accountOwnerId);
     const policyPermissions: Permission[] = [
       ...new Set(
         userPolicyBindings.flatMap((b) =>
@@ -177,7 +215,11 @@ export class PermissionService {
       ),
     ];
     if (user.groupId) {
-      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("group", user.groupId);
+      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget(
+        "group",
+        user.groupId,
+        accountOwnerId,
+      );
       policyPermissions.push(
         ...groupPolicyBindings.flatMap((b) =>
           b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
@@ -189,13 +231,24 @@ export class PermissionService {
     let assumedRole: UserFullPermissions["assumedRole"];
     if (options.assumedRoleSessionId) {
       const session = await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId);
-      if (session && session.subjectUserId === user.id) {
-        const rolePolicies = await this.ramPolicyRepository.listPoliciesForTarget("role", session.roleId);
-        assumedRolePermissions = rolePolicies.flatMap((b) =>
-          b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
-        );
-        assumedRole = { id: session.roleId, name: session.role.name, sessionId: session.id };
-      }
+      if (
+        !session ||
+        session.subjectUserId !== user.id ||
+        session.accountOwnerId !== accountOwnerId ||
+        session.role.accountOwnerId !== accountOwnerId ||
+        session.role.status !== 1 ||
+        session.status !== 1 ||
+        session.revokedAt ||
+        session.expiresAt.getTime() <= Date.now()
+      )
+        throw new ForbiddenError("Invalid role session for permission projection", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rolePolicies = await this.ramPolicyRepository.listPoliciesForTarget("role", session.roleId, accountOwnerId);
+      assumedRolePermissions = rolePolicies.flatMap((b) =>
+        b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
+      );
+      assumedRole = { id: session.roleId, name: session.role.name, sessionId: session.id };
     }
 
     const effectivePermissionsSet = new Set<Permission>([
@@ -217,6 +270,31 @@ export class PermissionService {
     };
   }
 
+  /** Self inspection is a baseline; inspecting another identity requires its exact IAM resource. */
+  async canReadUserPermissionQuery(request: TypedRequest, userId: string): Promise<boolean> {
+    const currentUserId = request.user?.userId;
+    if (!currentUserId)
+      throw new UnauthorizedError("Permission query identity missing", undefined, {
+        messageKey: "permission.loginRequired",
+      });
+    if (env.security.iamAuthorizationMode !== "enforce")
+      return currentUserId === userId || this.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
+    const principal = getIamPrincipal(request);
+    if (!principal)
+      throw new UnauthorizedError("Permission query principal missing", undefined, {
+        messageKey: "permission.loginRequired",
+      });
+    const target = await this.userRepository.findById(userId);
+    if (!target || target.status !== 1 || (target.accountOwnerId || target.id) !== principal.accountOwnerId)
+      return false;
+    const { authorizeLegacyPermissions } = await import("@/iam/middleware/legacy-permission-bridge");
+    return authorizeLegacyPermissions(request, [Permission.PERMISSION_VIEW], false, {
+      action: actionForPermission(Permission.PERMISSION_VIEW),
+      resourceKind: "single-resource",
+      resource: accountEntityResourceResolver("user", () => userId),
+    });
+  }
+
   /**
    * 获取用户的完整权限信息
    * @param userId 用户ID
@@ -230,7 +308,43 @@ export class PermissionService {
 
     if (!user) return null;
 
-    return this.calculateUserPermissionsWithRoles(user, user.group, options);
+    const request = getRequestContext();
+    const currentPrincipal =
+      env.security.iamAuthorizationMode === "enforce" && request?.user?.userId === user.id
+        ? getIamPrincipal(request)
+        : undefined;
+    if (currentPrincipal?.roleSessionId && !options.assumedRoleSessionId)
+      options = { ...options, assumedRoleSessionId: currentPrincipal.roleSessionId };
+    const legacy = await this.calculateUserPermissionsWithRoles(user, user.group, options);
+    if (env.security.iamAuthorizationMode !== "enforce") return legacy;
+    const session = options.assumedRoleSessionId
+      ? await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId)
+      : undefined;
+    const accountOwnerId = user.accountOwnerId || user.id;
+    const principal = currentPrincipal ?? {
+      subjectUserId: user.id,
+      principalUserId: user.id,
+      accountOwnerId,
+      subjectType: session
+        ? ("assumed_role" as const)
+        : user.id === accountOwnerId
+          ? ("root" as const)
+          : ("sub_user" as const),
+      assumedRoleId: session?.roleId,
+      roleSessionId: options.assumedRoleSessionId,
+    };
+    if (options.assumedRoleSessionId && principal.roleSessionId !== options.assumedRoleSessionId)
+      throw new ForbiddenError("IAM projection session mismatch", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const policies = await IamAuthorizationService.getInstance().loadPolicies(principal);
+    const context = principalConditionContext(principal);
+    const resource = buildAcsResource({ service: "quyan", region: "*", accountId: accountOwnerId, path: "account" });
+    const effectivePermissions = Object.values(Permission).filter(
+      (permission) =>
+        evaluatePolicies(policies, { action: actionForPermission(permission), resource, context }).decision === "Allow",
+    );
+    return { ...legacy, effectivePermissions };
   }
 
   /**
@@ -310,7 +424,10 @@ export class PermissionService {
    * @param targetUserId 目标用户ID
    * @throws ForbiddenError 如果不允许修改
    */
-  async canModifyUserPermissions(operatorUserId: string, targetUserId: string): Promise<void> {
+  async canModifyUserPermissions(
+    operatorUserId: string,
+    targetUserId: string,
+  ): Promise<{ operator: UserWithGroup; user: UserWithGroup }> {
     // 检查是否修改自己的权限
     if (operatorUserId === targetUserId)
       throw new ForbiddenError("不允许修改自己的权限", undefined, { messageKey: "permission.cannotModifySelf" });
@@ -326,11 +443,20 @@ export class PermissionService {
     if (!target)
       throw new BadRequestError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
 
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const owner = operator.accountOwnerId || operator.id;
+      if ((target.accountOwnerId || target.id) !== owner || (target.id === owner && operator.id !== owner))
+        throw new ForbiddenError("Legacy permission target crosses account or recovery scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+    }
+
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
     if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1))
       throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限", undefined, {
         messageKey: "permission.cannotModifyPeer",
       });
+    return { operator, user: target };
   }
 
   /**
@@ -350,21 +476,12 @@ export class PermissionService {
     await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const currentAdds = this.parsePermissionJson(user.permissionAdds);
     const updatedAdds = Array.from(new Set([...currentAdds, ...permissions]));
 
-    await this.userRepository.updateById(userId, {
+    await this.commitUserPermissionSnapshot(user, {
       permissionAdds: updatedAdds,
     });
 
@@ -403,21 +520,12 @@ export class PermissionService {
     this.validatePermissions(permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const currentRemoves = this.parsePermissionJson(user.permissionRemoves);
     const updatedRemoves = Array.from(new Set([...currentRemoves, ...permissions]));
 
-    await this.userRepository.updateById(userId, {
+    await this.commitUserPermissionSnapshot(user, {
       permissionRemoves: updatedRemoves,
     });
 
@@ -454,16 +562,7 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
@@ -482,10 +581,61 @@ export class PermissionService {
     if (hasPermissionRemoves) {
       const permissionRemoves = config.permissionRemoves ?? [];
       this.validatePermissions(permissionRemoves);
+      if (env.security.iamAuthorizationMode === "enforce") {
+        const retainedDenies = new Set(permissionRemoves);
+        await this.assertCanGrantPermissions(
+          operatorUserId,
+          beforeRemoves.filter((permission) => !retainedDenies.has(permission)),
+        );
+      }
       updateData.permissionRemoves = Array.from(new Set(permissionRemoves));
     }
 
-    await this.userRepository.updateById(userId, updateData);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const authenticatedRequest = (request ?? getRequestContext()) as TypedRequest | undefined;
+      if (authenticatedRequest) {
+        const principal = getIamPrincipal(authenticatedRequest);
+        if (!principal || principal.principalUserId !== operatorUserId || principal.subjectUserId !== operatorUserId)
+          throw new ForbiddenError("Permission configuration actor does not match authentication", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        const afterAdds = new Set<Permission>(updateData.permissionAdds ?? beforeAdds);
+        const afterRemoves = new Set<Permission>(updateData.permissionRemoves ?? beforeRemoves);
+        const previousAdds = new Set(beforeAdds),
+          previousRemoves = new Set(beforeRemoves);
+        const restoresAccess =
+          [...afterAdds].some((permission) => !previousAdds.has(permission)) ||
+          beforeRemoves.some((permission) => !afterRemoves.has(permission));
+        const reducesAccess =
+          beforeAdds.some((permission) => !afterAdds.has(permission)) ||
+          [...afterRemoves].some((permission) => !previousRemoves.has(permission));
+        const required = [
+          ...(restoresAccess ? [Permission.PERMISSION_ADD] : []),
+          ...(reducesAccess ? [Permission.PERMISSION_REMOVE] : []),
+        ];
+        if (required.length) {
+          const { authorizeLegacyPermissions } = await import("@/iam/middleware/legacy-permission-bridge");
+          const resource = accountEntityResourceResolver("user", () => userId);
+          if (
+            !(await authorizeLegacyPermissions(
+              authenticatedRequest,
+              required,
+              false,
+              required.map((permission) => ({
+                action: actionForPermission(permission),
+                resourceKind: "single-resource" as const,
+                resource,
+              })),
+            ))
+          )
+            throw new ForbiddenError("Permission configuration mutation action denied", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+        }
+      }
+    }
+
+    await this.commitUserPermissionSnapshot(user, updateData);
 
     // 记录业务日志
     const changes: any = { before: {}, after: {} };
@@ -521,21 +671,14 @@ export class PermissionService {
    */
   async clearUserPermissionConfig(operatorUserId: string, userId: string, request?: Request): Promise<void> {
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
 
-    await this.userRepository.updateById(userId, {
+    if (env.security.iamAuthorizationMode === "enforce")
+      await this.assertCanGrantPermissions(operatorUserId, beforeRemoves);
+    await this.commitUserPermissionSnapshot(user, {
       permissionAdds: [],
       permissionRemoves: [],
     });
@@ -559,15 +702,52 @@ export class PermissionService {
     });
   }
 
+  private async commitUserPermissionSnapshot(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<void> {
+    if (!(await this.userRepository.compareAndSetPermissions(expected, data)))
+      throw new ConflictError("Permission state changed after authorization", undefined, {
+        messageKey: "iam.versionConflict",
+      });
+  }
+
+  /** Legacy unowned recovery groups are visible only to their real account owner. */
+  private async assertGroupPermissionAccountScope(
+    group: { id: string; username: string; accountOwnerId: string | null },
+    operatorUserId: string,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    const operator = await this.userRepository.findById(operatorUserId);
+    const owner = operator?.accountOwnerId || operator?.id;
+    const request = getRequestContext();
+    const principal = request ? getIamPrincipal(request) : undefined;
+    const recovery =
+      operator?.userType === "root" &&
+      operator.id === owner &&
+      (!request ||
+        (principal?.subjectType === "root" &&
+          principal.principalUserId === operator.id &&
+          principal.accountOwnerId === owner)) &&
+      operator.groupId === group.id &&
+      group.accountOwnerId === null &&
+      group.username === env.security.superAdminGroupUsername;
+    if (!owner || (!recovery && group.accountOwnerId !== owner))
+      throw new ForbiddenError("Legacy group permission target crosses account scope", undefined, {
+        messageKey: "iam.delegationDenied",
+      });
+  }
+
   /**
    * 获取用户组的权限列表
    * @param groupId 用户组ID
    * @returns 权限列表
    */
-  async getGroupPermissions(groupId: string): Promise<PermissionList> {
+  async getGroupPermissions(groupId: string, operatorUserId?: string): Promise<PermissionList> {
     const group = await this.groupRepository.findById(groupId);
 
     if (!group) return [];
+    if (operatorUserId) await this.assertGroupPermissionAccountScope(group, operatorUserId);
 
     return this.parsePermissionJson(group.permissions);
   }
@@ -584,19 +764,28 @@ export class PermissionService {
     permissions: Permission[],
     operatorUserId?: string,
     request?: Request,
+    expected?: GroupPermissionSnapshot,
   ): Promise<void> {
     this.validatePermissions(permissions);
     if (operatorUserId) await this.assertCanGrantPermissions(operatorUserId, permissions);
 
-    const group = await this.groupRepository.findById(groupId);
+    // Controllers pass the exact snapshot used for their hierarchy and Add/Remove checks.
+    const group = expected ?? (await this.groupRepository.findById(groupId));
+    if (group && group.id !== groupId)
+      throw new ConflictError("Group permission snapshot does not match target", undefined, {
+        messageKey: "iam.versionConflict",
+      });
     if (!group) throw new BadRequestError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
+
+    if (operatorUserId) await this.assertGroupPermissionAccountScope(group, operatorUserId);
 
     const beforePermissions = this.parsePermissionJson(group.permissions);
     const afterPermissions = Array.from(new Set(permissions));
 
-    await this.groupRepository.updateById(groupId, {
-      permissions: afterPermissions,
-    });
+    if (!(await this.groupRepository.compareAndSetPermissions(group, afterPermissions)))
+      throw new ConflictError("Group permission state changed after authorization", undefined, {
+        messageKey: "iam.versionConflict",
+      });
 
     // 记录业务日志（如果提供了操作者ID）
     if (operatorUserId) {

@@ -16,11 +16,38 @@ import type {
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OAuthClientRepository } from "@/store/users/oauth-client.repository";
-import type { OAuthClientStore, OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
+import type {
+  OAuthClientCreateInput,
+  OAuthClientStore,
+  OAuthClientUpdateInput,
+} from "@/store/users/oauth-client.store";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { CustomCode, maskSecret } from "@quyan/shared";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { OAuthClientIamService } from "./oauth-client-iam.service";
+import { PlatformOAuthClientMutationIamService } from "./platform-oauth-client-mutation-iam.service";
+import { PlatformOAuthReviewMutationIamService } from "./platform-oauth-review-mutation-iam.service";
+import type { PlatformOAuthReviewMutationAction } from "@/store/users/platform-oauth-review-mutation.store";
+import { PlatformOAuthReviewIamService } from "./platform-oauth-review-iam.service";
+import { PlatformOAuthClientIamService } from "./platform-oauth-client-iam.service";
+import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
+import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
+import {
+  createOAuthClientBodySchema,
+  updateOAuthClientBodySchema,
+  updateSystemOAuthClientBodySchema,
+  createSystemOAuthClientBodySchema,
+  reviewOAuthClientBodySchema,
+} from "@/api/schema/users/oauth-client.schema";
+import { PermissionService } from "./permission.service";
+import { Permission } from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import type { OAuthClientView } from "@/store/users/oauth-client-management.store";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const DEFAULT_GRANT_TYPES = ["authorization_code", "refresh_token"];
 const DEFAULT_SCOPES = ["profile"];
@@ -37,6 +64,13 @@ export class OAuthClientService {
   private constructor(
     private readonly repository: OAuthClientStore = OAuthClientRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iam = OAuthClientIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = OAuthClientMutationIamService.getInstance(),
+    private readonly platform = PlatformOAuthClientIamService.getInstance(),
+    private readonly platformMutations = PlatformOAuthClientMutationIamService.getInstance(),
+    private readonly platformReviews = PlatformOAuthReviewIamService.getInstance(),
+    private readonly reviewMutations = PlatformOAuthReviewMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -45,12 +79,44 @@ export class OAuthClientService {
   }
 
   async createClient(userId: string, data: CreateOAuthClientDto, request?: Request): Promise<OAuthClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth application creation", undefined, { messageKey: "errors.badRequest" });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.mutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_CREATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+    );
     const clientId = this.generateClientId();
     const rawClientSecret = data.clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
 
-    const created = await this.repository.create({
+    const createData: OAuthClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -73,7 +139,17 @@ export class OAuthClientService {
       isPkceRequired: true,
       accessTokenLifetime: 3600,
       refreshTokenLifetime: 60 * 60 * 24 * 30,
-    });
+    };
+    const created = guard
+      ? await this.mutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.identity.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_CREATE,
@@ -98,12 +174,58 @@ export class OAuthClientService {
     };
   }
 
-  async listClients(userId: string): Promise<OAuthClientDto[]> {
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== userId ||
+      principal.principalUserId !== userId ||
+      !(
+        await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OAuthClientIamBridge", LogCategory.SECURITY).warn("OAuth client IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async listClients(userId: string, request?: TypedRequest): Promise<OAuthClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.iam.list(userId, request)).map((item) => this.toDto(item));
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.diagnoseList(userId, request));
     const clients = await this.repository.findByUserId(userId);
     return clients.map((item) => this.toDto(item));
   }
 
-  async listSystemClients(): Promise<OAuthClientDto[]> {
+  async listSystemClients(request?: TypedRequest): Promise<OAuthClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.platform.list(request)).map((item) => this.toDto(item));
+    if (request) {
+      const principal = getIamPrincipal(request);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(
+            principal.subjectUserId,
+            [Permission.OAUTH_CLIENT_SYSTEM_MANAGE],
+            { assumedRoleSessionId: principal.roleSessionId },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.platform.diagnose(request);
+    }
     const clients = await this.repository.findSystemClients();
     return clients.map((item) => this.toDto(item));
   }
@@ -113,7 +235,41 @@ export class OAuthClientService {
     data: CreateSystemOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createSystemOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid system OAuth application creation", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.platformMutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformMutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.users.principal.roleSessionId } : undefined,
+    );
     const clientId = data.clientId.trim();
     const existing = await this.repository.findByClientId(clientId);
     if (existing)
@@ -122,7 +278,7 @@ export class OAuthClientService {
     const clientType = data.clientType ?? "public";
     const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
-    const created = await this.repository.create({
+    const createData: OAuthClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -146,7 +302,17 @@ export class OAuthClientService {
       accessTokenLifetime: data.accessTokenLifetime ?? 3600,
       refreshTokenLifetime: data.refreshTokenLifetime ?? 60 * 60 * 24 * 7,
       isSystemClient: true,
-    });
+    };
+    const created = guard
+      ? await this.platformMutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.users.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_CREATE,
@@ -179,7 +345,32 @@ export class OAuthClientService {
     data: UpdateSystemOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.repository.findById(id);
+    let prepared;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateSystemOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid system OAuth application update", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = parsed.data;
+      prepared = await this.platformMutations.prepareUpdate(userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformMutations.prepareUpdate(userId, id, request as TypedRequest, false));
+    }
+    const existing = prepared ? prepared.existing : await this.repository.findById(id);
     if (!existing || !existing.isSystemClient)
       throw new NotFoundError("System OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -188,7 +379,11 @@ export class OAuthClientService {
 
     const updateData: OAuthClientUpdateInput = {};
     if (data.scopes !== undefined)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        prepared ? { assumedRoleSessionId: prepared.guard.users.principal.roleSessionId } : undefined,
+      );
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.description !== undefined) updateData.description = this.normalizeNullableText(data.description);
     if (data.homepageUrl !== undefined) updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
@@ -198,7 +393,16 @@ export class OAuthClientService {
     if (data.accessTokenLifetime !== undefined) updateData.accessTokenLifetime = data.accessTokenLifetime;
     if (data.refreshTokenLifetime !== undefined) updateData.refreshTokenLifetime = data.refreshTokenLifetime;
 
-    const updated = await this.repository.update(id, updateData);
+    if (prepared && updateData.scopes) {
+      const scopes = [...updateData.scopes],
+        roleSessionId = prepared.guard.users.principal.roleSessionId;
+      prepared.guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, { assumedRoleSessionId: roleSessionId });
+      };
+    }
+    const updated = prepared
+      ? await this.platformMutations.update(updateData, prepared.guard)
+      : await this.repository.update(id, updateData);
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_UPDATE,
       operationCategory: OperationCategory.AUTH,
@@ -215,9 +419,44 @@ export class OAuthClientService {
     return this.toDto(updated);
   }
 
-  async getClient(id: string, userId: string): Promise<OAuthClientDto> {
+  async getClient(id: string, userId: string, request?: TypedRequest): Promise<OAuthClientDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const client = await this.iam.get(userId, id, request);
+      if (!client) throw iamAccountDenied();
+      return this.toDto(client);
+    }
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.get(userId, id, request, false));
     const client = await this.requireOwnedClient(id, userId);
     return this.toDto(client);
+  }
+
+  private async prepareWrite(action: OAuthClientMutationAction, userId: string, id: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.mutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(
+            userId,
+            [action === "quyan:oauth:DeleteClient" ? Permission.OAUTH_CLIENT_DELETE : Permission.OAUTH_CLIENT_UPDATE],
+            {
+              assumedRoleSessionId: principal.roleSessionId,
+            },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return { existing: await this.requireOwnedClient(id, userId), guard: undefined };
   }
 
   async updateClient(
@@ -226,7 +465,13 @@ export class OAuthClientService {
     data: UpdateOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth application update", undefined, { messageKey: "errors.badRequest" });
+      data = parsed.data;
+    }
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:UpdateClient", userId, id, request);
 
     // 系统客户端限制关键字段修改
     if (existing.isSystemClient) {
@@ -255,7 +500,11 @@ export class OAuthClientService {
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris") && data.redirectUris)
       updateData.redirectUris = this.normalizeStringArray(data.redirectUris);
     if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))
@@ -278,7 +527,17 @@ export class OAuthClientService {
       updateData.reviewedByUserId = null;
     }
 
-    const updated = await this.repository.update(id, updateData);
+    if (guard && updateData.scopes) {
+      const scopes = [...updateData.scopes];
+      guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+          assumedRoleSessionId: guard.identity.principal.roleSessionId,
+        });
+      };
+    }
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_UPDATE,
@@ -300,7 +559,7 @@ export class OAuthClientService {
   }
 
   async deleteClient(id: string, userId: string, request?: Request): Promise<void> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:DeleteClient", userId, id, request);
 
     // 保护系统客户端不被删除
     if (existing.isSystemClient) {
@@ -309,7 +568,8 @@ export class OAuthClientService {
       });
     }
 
-    await this.repository.delete(id);
+    if (guard) await this.mutations.revoke(guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_DELETE,
@@ -325,7 +585,8 @@ export class OAuthClientService {
   }
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const existing = await this.repository.findById(id);
+    const prepared = await this.prepareReviewMutation("quyan:oauth:DeleteReviewedClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -339,7 +600,8 @@ export class OAuthClientService {
       });
     }
 
-    await this.repository.delete(id);
+    if (prepared) await this.reviewMutations.mutate(prepared.guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_DELETE,
@@ -358,7 +620,7 @@ export class OAuthClientService {
   }
 
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<OAuthClientWithSecretDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:RotateClientSecret", userId, id, request);
     if (existing.clientType === "public")
       throw new BadRequestError("Public OAuth client does not use client secret", undefined, {
         messageKey: "oauth.publicClientNoSecret",
@@ -366,10 +628,13 @@ export class OAuthClientService {
       });
 
     const rawClientSecret = this.generateClientSecret();
-    const updated = await this.repository.update(id, {
+    const updateData: OAuthClientUpdateInput = {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
       clientSecretPreview: maskSecret(rawClientSecret),
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_SECRET_ROTATE,
@@ -390,7 +655,7 @@ export class OAuthClientService {
   }
 
   async submitForReview(id: string, userId: string, request?: Request): Promise<OAuthClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:SubmitClientReview", userId, id, request);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
       throw new BadRequestError("OAuth client is already pending review", undefined, {
@@ -398,13 +663,16 @@ export class OAuthClientService {
         messageParams: { client: "OAuth" },
       });
 
-    const updated = await this.repository.update(id, {
+    const updateData: OAuthClientUpdateInput = {
       reviewStatus: REVIEW_STATUS.PENDING,
       submittedAt: new Date(),
       reviewComment: null,
       reviewedAt: null,
       reviewedByUserId: null,
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_SUBMIT_REVIEW,
@@ -425,7 +693,34 @@ export class OAuthClientService {
     return this.toDto(updated);
   }
 
-  async listClientsForReview(query: OAuthClientReviewListQueryDto): Promise<OAuthClientReviewListResponseDto> {
+  async listClientsForReview(
+    query: OAuthClientReviewListQueryDto,
+    request?: Request,
+  ): Promise<OAuthClientReviewListResponseDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.platformReviews.list(query, request as TypedRequest | undefined);
+      return {
+        ...result,
+        items: result.items.map((item) => ({
+          ...this.toDto(item),
+          ownerUsername: item.user.username,
+          reviewerUsername: item.reviewedBy?.username ?? undefined,
+        })),
+      };
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.OAUTH_CLIENT_REVIEW_READ], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformReviews.diagnose(query, request as TypedRequest));
+    }
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.repository.findReviewList({
@@ -453,7 +748,14 @@ export class OAuthClientService {
     data: ReviewOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.repository.findById(id);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = reviewOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth review decision", undefined, { messageKey: "errors.badRequest" });
+      data = { ...parsed.data, reviewComment: parsed.data.reviewComment ?? undefined };
+    }
+    const prepared = await this.prepareReviewMutation("quyan:oauth:ReviewClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -465,12 +767,11 @@ export class OAuthClientService {
         messageParams: { client: "OAuth" },
       });
 
-    const updated = await this.repository.update(id, {
-      reviewStatus: data.reviewStatus,
-      reviewComment: this.normalizeNullableText(data.reviewComment),
-      reviewedAt: new Date(),
-      reviewedByUserId: reviewerUserId,
-    });
+    const decision = { reviewStatus: data.reviewStatus, reviewComment: this.normalizeNullableText(data.reviewComment) };
+    const updated = prepared
+      ? await this.reviewMutations.mutate(prepared.guard, decision)
+      : await this.repository.update(id, { ...decision, reviewedAt: new Date(), reviewedByUserId: reviewerUserId });
+    if (!updated) throw iamAccountDenied();
 
     await this.businessLogService.logOperation({
       operationType:
@@ -493,6 +794,35 @@ export class OAuthClientService {
     });
 
     return this.toDto(updated);
+  }
+
+  private async prepareReviewMutation(
+    action: PlatformOAuthReviewMutationAction,
+    userId: string,
+    id: string,
+    request?: Request,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.reviewMutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_REVIEW_UPDATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.reviewMutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return undefined;
   }
 
   private async requireOwnedClient(id: string, userId: string): Promise<OAuthClient> {
@@ -535,7 +865,7 @@ export class OAuthClientService {
     return value.filter((item): item is string => typeof item === "string");
   }
 
-  private toDto(client: OAuthClient): OAuthClientDto {
+  private toDto(client: OAuthClient | OAuthClientView): OAuthClientDto {
     return {
       id: client.id,
       userId: client.userId,
@@ -562,7 +892,7 @@ export class OAuthClientService {
       lastUsedAt: client.lastUsedAt?.toISOString(),
       createTime: client.createTime.toISOString(),
       updateTime: client.updateTime.toISOString(),
-      hasClientSecret: !!client.clientSecretHash,
+      hasClientSecret: "hasClientSecret" in client ? client.hasClientSecret : !!client.clientSecretHash,
       isSystemClient: client.isSystemClient,
     };
   }

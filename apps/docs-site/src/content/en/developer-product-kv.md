@@ -20,3 +20,9 @@ Content-Type: application/json
 `GET /v1/products/kv/entries` lists keys, `GET /v1/products/kv/entries/{key}` reads one value, and `DELETE /v1/products/kv/entries/{key}` removes it. Writes are upserts and return `version`, `updateTime`, and an optional `expiresAt` for client-side display or conflict handling.
 
 Do not put API keys or other credentials in KV. Use the Secret Vault product for credentials managed by the platform.
+
+## JWT project management
+
+Project KV management uses `quyan:developer:ListKv`, `GetKv`, `SetKv`, and `DeleteKv`, supporting per-key delegation within an account. The ARN is `acs:developer:*:<accountId>:kv-item/<projectId>/<encodedKey>`; its final segment is the key's UTF-8 base64url encoding without padding. Copy resourceArn from a response to avoid encoding mistakes.
+
+`GET /v1/developer/projects/{projectId}/kv/entries/page` returns filtered metadata (items, page, pageSize, hasNext), without values or a total. Empty pages may have a next page. In enforce, the array list returns only the default first page, and expired reads/lists do not delete entries. `GET .../kv/page` still reads a key named page. Project authorization does not automatically grant access to every key. See [RAM management](./ram-management) for policies and resource-group rules.

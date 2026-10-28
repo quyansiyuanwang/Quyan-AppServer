@@ -1,3 +1,11 @@
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { env } from "@/config/env";
+import { PlatformRedemptionCodeWriteIamService } from "./platform-redemption-code-write-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
 import type { CreateRedemptionCodeDto, RedemptionCodeDto } from "@/api/dto/billing/redemption-code.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
@@ -33,18 +41,40 @@ export class RedemptionCodeService {
 
     this.validateCreateRules(body, count);
 
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode !== "enforce") await this.requireLegacyManagement(Permission.REDEMPTION_CODE_CREATE, createdBy, request);
+    const native = PlatformRedemptionCodeWriteIamService.getInstance();
     const codes: RedemptionCodeDto[] = [];
-    for (let i = 0; i < count; i++) {
-      const code = crypto.randomBytes(16).toString("hex");
-      const record = await this.repository.create({
-        code,
-        amount: body.amount,
-        createdBy,
-        expiresAt: body.expiresAt || null,
-      });
-
-      codes.push(this.toDto(record));
+    if (mode === "enforce") {
+      const records = await native.create(body, createdBy, request as TypedRequest);
+      if (!records) throw iamAccountDenied();
+      codes.push(...records.map((record) => this.toDto(record)));
+    } else {
+      for (let i = 0; i < count; i++) {
+        const record = await this.repository.create({
+          code: crypto.randomBytes(16).toString("hex"),
+          amount: body.amount,
+          createdBy,
+          expiresAt: body.expiresAt || null,
+        });
+        codes.push(this.toDto(record));
+      }
     }
+
+    if (mode === "shadow")
+      try {
+        await native.simulateIssued(
+          codes.map((code) => code.id),
+          createdBy,
+          request as TypedRequest,
+        );
+      } catch {
+        getLogger("RedemptionCodeIam", LogCategory.SECURITY).warn("Redemption issuance shadow evaluation failed", {
+          action: "quyan:redemption_code:CreateCodes",
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REDEMPTION_CODE_CREATE,
@@ -135,7 +165,24 @@ export class RedemptionCodeService {
   }
 
   public async deleteCode(id: string, actorUserId: string, request?: Request): Promise<void> {
-    const record = await this.repository.deleteById(id);
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode !== "enforce") await this.requireLegacyManagement(Permission.REDEMPTION_CODE_DELETE, actorUserId, request);
+    const native = PlatformRedemptionCodeWriteIamService.getInstance();
+    if (mode === "shadow")
+      try {
+        await native.remove(id, actorUserId, request as TypedRequest, false);
+      } catch {
+        getLogger("RedemptionCodeIam", LogCategory.SECURITY).warn("Redemption delete shadow evaluation failed", {
+          action: "quyan:redemption_code:DeleteCode",
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    const record =
+      mode === "enforce"
+        ? await native.remove(id, actorUserId, request as TypedRequest)
+        : await this.repository.deleteById(id);
+    if (!record) throw iamAccountDenied();
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REDEMPTION_CODE_DELETE,
@@ -151,6 +198,22 @@ export class RedemptionCodeService {
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
+  }
+
+  private async requireLegacyManagement(permission: Permission, userId: string, request?: Request) {
+    const principal = request && getIamPrincipal(request as TypedRequest);
+    if (
+      !principal ||
+      (request as TypedRequest).oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      principal.subjectUserId !== userId ||
+      !(
+        await PermissionService.getInstance().checkUserPermissions(userId, [permission], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
   }
 
   private validateCreateRules(body: CreateRedemptionCodeDto, count: number): void {

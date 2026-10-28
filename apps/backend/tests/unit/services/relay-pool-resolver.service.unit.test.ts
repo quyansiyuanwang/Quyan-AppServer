@@ -1,7 +1,11 @@
+import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "../../../src/constant/relay-capability";
 import { filterBlockedAutomaticPoolCandidates } from "../../../src/services/relay/relay-candidate-exclusions";
 import { describe, expect, it, vi } from "vitest";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
-import { RelayPoolResolverService } from "../../../src/services/relay/relay-pool-resolver.service";
+import {
+  RelayPoolResolverService,
+  type RelayCapabilityGraphNode,
+} from "../../../src/services/relay/relay-pool-resolver.service";
 import { BadRequestError } from "../../../src/util/errors";
 
 const createChannel = (id: string, overrides: Record<string, unknown> = {}) =>
@@ -28,6 +32,105 @@ const createResolver = (channels: any[]) => {
 };
 
 describe("RelayPoolResolverService", () => {
+  it("discovers capabilities from a credential-free graph without loading routing records", async () => {
+    const { resolver, relayChannelRepository } = createResolver([]);
+    const graph = new Map<string, RelayCapabilityGraphNode>([
+      [
+        "root",
+        {
+          id: "root",
+          name: "Root",
+          status: 1,
+          providerServiceEnabled: true,
+          channelType: "pooled",
+          allowedFormats: null,
+          allowedModels: '["allowed-model"]',
+          modelMapping: null,
+          routingConfig: { allowedModelsMode: "manual" },
+          poolMembers: [
+            { memberChannelId: "leaf", priority: 0, weight: 1, enabled: true },
+            { memberChannelId: "denied", priority: 1, weight: 1, enabled: true },
+          ],
+        },
+      ],
+      [
+        "leaf",
+        {
+          id: "leaf",
+          name: "Leaf",
+          status: 1,
+          providerServiceEnabled: true,
+          channelType: "pooled-member",
+          allowedFormats: "openai",
+          allowedModels: '["allowed-model", "other-model"]',
+          modelMapping: { request: "upstream-model" },
+          routingConfig: { allowedModelsMode: "manual" },
+          poolMembers: [],
+        },
+      ],
+    ]);
+    const capabilities = await resolver.resolveChannelCapabilities("root", {
+      graph,
+      modelCatalog: [
+        { model: "allowed-model", provider: "model-id", supportedFormats: "openai" },
+        { model: "other-model", supportedFormats: "openai" },
+      ],
+    });
+    expect(capabilities).toEqual([
+      {
+        leafChannelId: "leaf",
+        catalogModelName: "allowed-model",
+        requestModelId: "model-id",
+        supportedRequestFormats: ["openai-chat-completions"],
+        modelMapping: { request: "upstream-model" },
+      },
+    ]);
+    expect(relayChannelRepository.listActive).not.toHaveBeenCalled();
+    expect(relayChannelRepository.listVisible).not.toHaveBeenCalled();
+  });
+  it("keeps constraints on a single admitted path through nested credential-free pools", async () => {
+    const { resolver } = createResolver([]);
+    const node = (id: string, overrides: Partial<RelayCapabilityGraphNode> = {}): RelayCapabilityGraphNode => ({
+      id,
+      name: id,
+      status: 1,
+      providerServiceEnabled: true,
+      channelType: "standalone",
+      allowedFormats: "openai",
+      allowedModels: null,
+      modelMapping: null,
+      routingConfig: null,
+      poolMembers: [],
+      ...overrides,
+    });
+    const member = (memberChannelId: string) => ({ memberChannelId, priority: 0, weight: 1, enabled: true });
+    const graph = new Map([
+      [
+        "root",
+        node("root", { channelType: "automatic-proxy-pool", poolMembers: [member("branch-a"), member("branch-b")] }),
+      ],
+      [
+        "branch-a",
+        node("branch-a", { channelType: "pooled", allowedModels: '["a"]', poolMembers: [member("leaf-a")] }),
+      ],
+      [
+        "branch-b",
+        node("branch-b", { channelType: "pooled", allowedModels: '["b"]', poolMembers: [member("leaf-b")] }),
+      ],
+      ["leaf-a", node("leaf-a", { allowedModels: '["b"]' })],
+      ["leaf-b", node("leaf-b", { allowedModels: '["a"]' })],
+    ]);
+    expect(
+      await resolver.resolveChannelCapabilities("root", {
+        graph,
+        modelCatalog: [
+          { model: "a", supportedFormats: "openai" },
+          { model: "b", supportedFormats: "openai" },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
   it("excludes standalone automatic members by leaf ID without changing billing", async () => {
     const direct = createChannel("direct");
     const keep = createChannel("keep");
@@ -475,5 +578,24 @@ describe("RelayPoolResolverService", () => {
     await resolver.resolveChannelCapabilities(second.id, context);
 
     expect(relayChannelRepository.listActive).toHaveBeenCalledTimes(1);
+  });
+  it("bounds deeply nested capability graphs even when no cycle exists", async () => {
+    const nodes = Array.from({ length: RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth + 3 }, (_, i) =>
+      createChannel("deep-" + i, {
+        channelType: "pooled",
+        providerServiceEnabled: true,
+        poolMembers:
+          i < RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth + 2
+            ? [{ memberChannelId: "deep-" + (i + 1), priority: 0, weight: 1, enabled: true }]
+            : [],
+      }),
+    );
+    const { resolver } = createResolver([]);
+    await expect(
+      resolver.resolveChannelCapabilities(nodes[0].id, {
+        graph: new Map(nodes.map((node) => [node.id, node])),
+        modelCatalog: [],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 });

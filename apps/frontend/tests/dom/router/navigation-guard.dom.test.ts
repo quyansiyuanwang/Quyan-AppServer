@@ -117,6 +117,15 @@ describe('protected navigation guard', () => {
     expect(routeAccessState.status.value).toBe('idle')
   })
 
+  it('allows an authenticated resource workspace with no global permission projection', async () => {
+    restoreProtectedSessionMock.mockResolvedValue('access-token')
+    hasPermissionMock.mockReturnValue(false)
+    const guard = createProtectedNavigationGuard(router, profile)
+    await expect(guard(createTo({ requiresAuth: true }))).resolves.toBe(true)
+    expect(hasPermissionMock).not.toHaveBeenCalled()
+    expect(restoreProtectedSessionMock).toHaveBeenCalledOnce()
+  })
+
   it('keeps the URL and marks access denied when permission is missing', async () => {
     restoreProtectedSessionMock.mockResolvedValue('access-token')
     hasPermissionMock.mockReturnValue(false)

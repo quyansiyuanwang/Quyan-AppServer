@@ -1,3 +1,8 @@
+import { PlatformBusinessLogStatsIamService } from "@/services/system/platform-business-log-stats-iam.service";
+import { PlatformBusinessLogListIamService } from "@/services/system/platform-business-log-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { platformBusinessLogOptionsResource } from "@/iam/request/platform-system-resource-resolvers";
 import {
   Get,
   Route,
@@ -18,8 +23,6 @@ import type {
   BusinessLogListResponse,
   BusinessLogStatsResponse,
 } from "@/api/dto/system/businesslog.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import type { ErrorResponse } from "@/api/response";
@@ -41,9 +44,17 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  public async getBusinessLogFilterOptions(): Promise<BusinessLogFilterOptionsResponse> {
-    return this.service.getFilterOptions();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:GetFilterOptions",
+      resourceKind: "single-resource",
+      resource: platformBusinessLogOptionsResource,
+    }),
+  )
+  public async getBusinessLogFilterOptions(
+    @Request() request: TypedRequest,
+  ): Promise<BusinessLogFilterOptionsResponse> {
+    return this.service.getAuthorizedFilterOptions(request);
   }
 
   @Get("/stats")
@@ -51,9 +62,16 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  @Middlewares(validateQuery(businessLogStatsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:GetLogStatistics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(businessLogStatsQuerySchema),
+  )
   public async getBusinessLogStats(
+    @Request() request: TypedRequest,
     @Query() operationType?: OperationType,
     @Query() operationCategory?: OperationCategory,
     @Query() actorUserId?: string,
@@ -65,18 +83,21 @@ export class BusinessLogController extends Controller {
     @Query() success?: boolean,
     @Query() ip?: string,
   ): Promise<BusinessLogStatsResponse> {
-    return this.service.getStats({
-      operationType,
-      operationCategory,
-      actorUserId,
-      actor,
-      targetUserId,
-      target,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      success,
-      ip,
-    });
+    return PlatformBusinessLogStatsIamService.getInstance().statistics(
+      {
+        operationType,
+        operationCategory,
+        actorUserId,
+        actor,
+        targetUserId,
+        target,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        success,
+        ip,
+      },
+      request,
+    );
   }
 
   /**
@@ -99,8 +120,14 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  @Middlewares(validateQuery(businessLogsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:ListLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(businessLogsQuerySchema),
+  )
   public async getBusinessLogs(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -116,18 +143,23 @@ export class BusinessLogController extends Controller {
     @Query() success?: boolean,
     @Query() ip?: string,
   ): Promise<BusinessLogListResponse> {
-    const result = await this.service.getLogs(page, pageSize, {
-      operationType,
-      operationCategory,
-      actorUserId,
-      actor,
-      targetUserId,
-      target,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      success,
-      ip,
-    });
+    const result = await PlatformBusinessLogListIamService.getInstance().list(
+      page,
+      pageSize,
+      {
+        operationType,
+        operationCategory,
+        actorUserId,
+        actor,
+        targetUserId,
+        target,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        success,
+        ip,
+      },
+      request,
+    );
 
     return {
       logs: result.logs.map((log) => ({

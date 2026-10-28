@@ -14,6 +14,13 @@ import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { PasskeyCredentialItem } from "@/api/dto/users/passkey.dto";
 import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { PasskeyIamService } from "./passkey-iam.service";
+import { PasskeyManagementRepository, passkeyDenied } from "@/store/auth/passkey-management.repository";
+import type { PasskeyManagementStore } from "@/store/auth/passkey-management.store";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getIamPrincipal } from "@/iam/request/principal-context";
 
 const logger = getLogger("PasskeyService", LogCategory.APPLICATION);
 
@@ -29,6 +36,8 @@ export class PasskeyService {
     private readonly redis: RedisService = RedisService.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly passkeyCredentialRepository: PasskeyCredentialStore = PasskeyCredentialRepository.getInstance(),
+    private readonly iam = PasskeyIamService.getInstance(),
+    private readonly management: PasskeyManagementStore = PasskeyManagementRepository.getInstance(),
   ) {}
 
   public static getInstance(): PasskeyService {
@@ -44,32 +53,57 @@ export class PasskeyService {
     return `passkey:challenge:auth:${sessionId}`;
   }
 
-  async generateRegistrationOptions(userId: string) {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
+  private async legacyGuard(userId: string, request?: TypedRequest) {
+    const principal = request && getIamPrincipal(request);
+    if (request && (!principal || principal.subjectUserId !== userId)) throw passkeyDenied();
+    const result = await PermissionService.getInstance().checkUserPermissions(userId, [Permission.PASSKEY_MANAGE], {
+      assumedRoleSessionId: principal?.roleSessionId,
+    });
+    if (!result.hasPermission) throw passkeyDenied();
+  }
 
-    const existingCredentials = await this.passkeyCredentialRepository.findRegistrationViewByUserId(userId);
+  private async registrationIdentity(
+    userId: string,
+    action: "quyan:auth:GetPasskeyRegistrationOptions" | "quyan:auth:RegisterPasskey",
+    request?: TypedRequest,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.authorizeRegistration(userId, action, request);
+    await this.legacyGuard(userId, request);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await this.iam.authorizeRegistration(userId, action, request);
+      } catch {
+        logger.warn("Passkey IAM shadow evaluation denied", { action, reason: "iam-evaluation-denied-or-unavailable" });
+      }
+    }
+    return undefined;
+  }
+
+  async generateRegistrationOptions(userId: string, request?: TypedRequest) {
+    const identity = await this.registrationIdentity(userId, "quyan:auth:GetPasskeyRegistrationOptions", request);
+    const user = identity?.snapshot ?? (await this.userRepository.findById(userId));
+    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
 
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
       rpID: RP_ID,
       userName: user.username,
       userDisplayName: user.name ?? user.username,
-      excludeCredentials: existingCredentials.map((c) => ({
-        id: c.credentialId,
-        transports: c.transports ? JSON.parse(c.transports) : undefined,
-      })),
+      // Do not disclose IDs for existing credentials outside the caller's ListPasskeys scope.
+      // The unique credential constraint still prevents registering an existing credential twice.
       authenticatorSelection: {
         residentKey: "preferred",
         userVerification: "preferred",
       },
     });
 
+    if (identity) await this.registrationIdentity(userId, "quyan:auth:GetPasskeyRegistrationOptions", request);
     await this.redis.set(this.challengeKey(userId), options.challenge, CHALLENGE_TTL);
     return options;
   }
 
-  async verifyRegistration(userId: string, response: RegistrationResponseJSON, name?: string) {
+  async verifyRegistration(userId: string, response: RegistrationResponseJSON, name?: string, request?: TypedRequest) {
+    const identity = await this.registrationIdentity(userId, "quyan:auth:RegisterPasskey", request);
     const challenge = await this.redis.get(this.challengeKey(userId));
     if (!challenge)
       throw new BadRequestError("Challenge expired or not found", undefined, {
@@ -84,8 +118,8 @@ export class PasskeyService {
         expectedOrigin: ORIGINS,
         expectedRPID: RP_ID,
       });
-    } catch (err) {
-      logger.warn("Passkey registration verification failed:", err);
+    } catch {
+      logger.warn("Passkey registration verification failed", { reason: "webauthn-verification-failed" });
       throw new BadRequestError("Registration verification failed", undefined, {
         messageKey: "auth.passkeyRegistrationFailed",
       });
@@ -98,7 +132,7 @@ export class PasskeyService {
 
     const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
-    await this.passkeyCredentialRepository.create({
+    const data = {
       userId,
       credentialId: credential.id,
       publicKey: Buffer.from(credential.publicKey),
@@ -107,9 +141,16 @@ export class PasskeyService {
       backedUp: credentialBackedUp,
       transports: credential.transports ? JSON.stringify(credential.transports) : null,
       name: name ?? null,
-    });
-
-    await this.redis.delete(this.challengeKey(userId));
+    };
+    // Consume exactly the verified challenge; concurrent verifies and Redis failures fail closed.
+    if ((await this.redis.deleteIfValueMatches(this.challengeKey(userId), challenge)) !== true)
+      throw new BadRequestError("Registration challenge already consumed", undefined, {
+        messageKey: "auth.passkeyChallengeExpired",
+      });
+    if (identity) {
+      await this.registrationIdentity(userId, "quyan:auth:RegisterPasskey", request);
+      await this.management.create(identity.principal, identity.snapshot, data);
+    } else await this.passkeyCredentialRepository.create(data);
     return { success: true, credentialId: credential.id };
   }
 
@@ -154,8 +195,8 @@ export class PasskeyService {
           transports: credential.transports ? JSON.parse(credential.transports) : undefined,
         },
       });
-    } catch (err) {
-      logger.warn("Passkey authentication verification failed:", err);
+    } catch {
+      logger.warn("Passkey authentication verification failed", { reason: "webauthn-verification-failed" });
       throw new BadRequestError("Authentication verification failed", undefined, {
         messageKey: "auth.passkeyAuthenticationFailed",
       });
@@ -175,7 +216,19 @@ export class PasskeyService {
     return credential.userId;
   }
 
-  async listCredentials(userId: string): Promise<PasskeyCredentialItem[]> {
+  async listCredentials(userId: string, request?: TypedRequest): Promise<PasskeyCredentialItem[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.list(userId, request);
+    await this.legacyGuard(userId, request);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await this.iam.list(userId, request);
+      } catch {
+        logger.warn("Passkey IAM shadow evaluation denied", {
+          action: "quyan:auth:ListPasskeys",
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
     const creds = await this.passkeyCredentialRepository.listByUserId(userId);
     return creds.map((c) => ({
       id: c.id,
@@ -187,7 +240,20 @@ export class PasskeyService {
     }));
   }
 
-  async deleteCredential(userId: string, credentialId: string) {
+  async deleteCredential(userId: string, credentialId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.revoke(userId, credentialId, request);
+    await this.legacyGuard(userId, request);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        // Shadow evaluates without performing the mutation.
+        await this.iam.authorizeDeletion(userId, credentialId, request);
+      } catch {
+        logger.warn("Passkey IAM shadow evaluation denied", {
+          action: "quyan:auth:DeletePasskey",
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
     const cred = await this.passkeyCredentialRepository.findByCredentialId(credentialId);
     if (!cred || cred.userId !== userId)
       throw new NotFoundError("Credential not found", undefined, { messageKey: "auth.passkeyCredentialNotFound" });

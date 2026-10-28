@@ -17,7 +17,7 @@
 - 各状态码（2xx / 4xx / 5xx）的请求量分布。
 - 按日期统计的请求趋势图。
 - 错误率走势，用于快速发现异常时段。
-- 权限要求：`SYSTEM_LOGS_READ` 或 `SYSTEM_LOGS_STATS_READ`。
+- 权限要求：`API_LOG_READ` 或 `SYSTEM_LOG_READ`。
 
 ### API 日志标签页
 
@@ -57,3 +57,39 @@
 - `business-logs`
 - `upstream-status`
 - `ip-monitoring-dashboard`
+
+## 服务端日志的资源权限
+
+在 IAM `enforce` 模式下，服务端日志使用文件级资源：
+
+```text
+acs:platform:*:platform:server-log-file/combined-2026-10-14.log
+acs:platform:*:platform:server-log-file/error-2026-10-14.log.gz
+```
+
+- `quyan:system:server_log:ListFiles` 决定哪些文件元数据出现在列表中；未授权文件不会出现在结果中。
+- `quyan:system:server_log:GetFileContent` 控制指定文件的内容读取、行数限制和搜索；列表权限不会自动授予内容读取。
+- 两种操作都要求当前用户在有效的全局用户组中具备 `SYSTEM_SERVER_LOG_READ` 运维资格。账户策略、用户附加权限、私有组或角色策略不能替代这项资格；角色会话也不会继承全局组的 Allow。
+- ARN 必须使用完整文件名，压缩文件与未压缩文件分别授权。匹配的显式 Deny 始终优先，没有匹配 Allow 时拒绝。读取期间撤销权限、变更策略或失去运维资格时，不返回已读取的内容。
+
+`legacy` 与 `shadow` 模式仍执行原有权限检查并保留原返回结果；`shadow` 同时记录 IAM 评估用于切换前验证。
+
+## API 日志详情的资源权限
+
+IAM `enforce` 模式使用 `quyan:system:log:GetLogDetail` 读取指定日志，资源格式为 `acs:platform:*:platform:api-request-log/<logId>`。日志属于部署级诊断资源。当前用户必须在有效全局组中持有 `API_LOG_READ` 或 `SYSTEM_LOG_READ` 任一运维资格；账户策略和私有组不能替代它。角色会话须有自己的日志策略，不继承组的 Allow。
+
+请求详情、请求头、响应头和载荷只在该条日志授权通过后读取。匹配的 Deny 始终优先，不能通过另一旧权限别名绕过。权限、绑定、角色会话或日志状态在读取期间发生变化时，已读取结果不会返回。未授权或不可安全解析的日志返回权限拒绝，不泄露日志是否存在。
+
+`legacy` 与 `shadow` 继续使用原来的任一权限检查和响应；`shadow` 额外记录新 IAM 决策。日志详情、列表和统计分别受各自接口的权限控制，详情授权不代表对整个日志集合的授权。
+
+## API 日志列表的资源权限
+
+在 IAM `enforce` 模式下，`quyan:system:log:ListLogs` 按每条日志的 `acs:platform:*:platform:api-request-log/<logId>` 评估。匹配 Deny 或没有 Allow 的日志不会出现在列表、分页或总数中。后端只读取允许页的完整列表字段；它保留原有用户名、关键词、方法、状态码和日期筛选，以及请求和响应大小、用户名展示。列表授权不会授予 `GetLogDetail`。
+
+列表同样要求全局组中的 `API_LOG_READ` 或 `SYSTEM_LOG_READ` 任一资格。一次请求使用固定的筛选和时间边界；新增的较新日志会在下一次请求出现。查询期间的撤权、策略变化或影响已授权总数的日志变更会导致拒绝，避免返回失效的结果。`legacy` 和 `shadow` 保留原分页与总数，后者同时记录资源级评估。
+
+## API 日志统计的资源权限
+
+IAM `enforce` 模式使用独立的 `quyan:system:log:GetLogStatistics` Action，逐条评估 API 日志 ARN。只有授权通过的记录参与总数、用户与 IP 去重、每日趋势、状态码与方法分布，以及热门路径统计。仅有列表或详情权限不能读取统计。没有匹配的已授权记录时，报表请求数为零。
+
+读取统计同样要求当前用户在有效全局组中具备 `API_LOG_READ` 或 `SYSTEM_LOG_READ`。现有筛选与日期范围规则保留。统计请求固定时间边界，并在返回前复核参与计算的记录及授权；更新的日志在下次请求出现，已有统计记录或授权发生变化时返回权限拒绝。`legacy` 和 `shadow` 保留原统计结果，`shadow` 同时记录 IAM 资源决策。

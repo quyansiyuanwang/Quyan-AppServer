@@ -813,7 +813,7 @@ const balanceScriptCurrentRangeLabel = computed(() => {
 })
 
 const balanceScriptPreview = computed(() => {
-  if (!props.token) return ''
+  if (!props.token?.token) return ''
   return buildCcswitchBalanceScript(
     getUsageEndpointUrl(),
     props.token.token,

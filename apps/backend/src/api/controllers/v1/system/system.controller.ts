@@ -14,6 +14,14 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import { SystemService } from "@/services/system/system.service";
+import { PlatformApiLogStatsIamService } from "@/services/system/platform-api-log-stats-iam.service";
+import { PlatformApiLogListIamService } from "@/services/system/platform-api-log-list-iam.service";
+import { PlatformApiLogReadIamService } from "@/services/system/platform-api-log-read-iam.service";
+import { platformApiLogResourceResolver } from "@/iam/request/platform-api-log-resource-resolvers";
+import { PlatformServerLogReadIamService } from "@/services/system/platform-server-log-read-iam.service";
+import { platformServerLogFileResourceResolver } from "@/iam/request/platform-server-log-resource-resolvers";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver, iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import type {
   BuildInfoDTO,
   ConsumptionStatsDTO,
@@ -25,12 +33,15 @@ import type {
   SystemLogStatsDTO,
   SystemStatsDTO,
 } from "@/api/dto/system/system.dto";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
-import { NotFoundError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
-import { BUILD_INFO } from "@/generated/buildInfo";
+import {
+  platformBuildInfoResource,
+  platformSystemStatisticsResource,
+  platformConsumptionStatisticsResource,
+} from "@/iam/request/platform-system-resource-resolvers";
 import { LogRoute } from "@/util/logger-decorator";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
@@ -55,9 +66,13 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.DEBUG_ACCESS)
-  public async getBuildInfo(): Promise<BuildInfoDTO> {
-    return BUILD_INFO;
+  @CheckPermission(Permission.DEBUG_ACCESS, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetBuildInfo",
+    resourceKind: "single-resource",
+    resource: platformBuildInfoResource,
+  })
+  public async getBuildInfo(@Request() request: TypedRequest): Promise<BuildInfoDTO> {
+    return this.systemService.getManagedBuildInfo(request);
   }
 
   @Get("stats")
@@ -65,10 +80,14 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_STATS_READ)
+  @CheckPermission(Permission.SYSTEM_STATS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetStatistics",
+    resourceKind: "single-resource",
+    resource: platformSystemStatisticsResource,
+  })
   @LogRoute({ message: "获取系统统计信息", logResponse: true })
   public async getSystemStats(@Request() _request: TypedRequest): Promise<SystemStatsDTO> {
-    const stats = await this.systemService.getSystemStats();
+    const stats = await this.systemService.getManagedSystemStats(_request);
     return stats;
   }
 
@@ -77,10 +96,15 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_CONSUMPTION_STATS_READ)
+  @CheckPermission(Permission.SYSTEM_CONSUMPTION_STATS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetConsumptionStatistics",
+    resourceKind: "single-resource",
+    resource: platformConsumptionStatisticsResource,
+  })
   @Middlewares(validateQuery(consumptionStatsQuerySchema))
   @LogRoute({ message: "获取消费统计信息", logResponse: true })
   public async getConsumptionStats(
+    @Request() request: TypedRequest,
     @Query() startDate?: string,
     @Query() endDate?: string,
     @Query() userIds?: string[],
@@ -88,14 +112,17 @@ export class SystemController extends Controller {
     @Query() channels?: string[],
     @Query() relayTokenIds?: string[],
   ): Promise<ConsumptionStatsDTO> {
-    return this.systemService.getConsumptionStats({
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      userIds,
-      models,
-      channels,
-      relayTokenIds,
-    });
+    return this.systemService.getManagedConsumptionStats(
+      {
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        userIds,
+        models,
+        channels,
+        relayTokenIds,
+      },
+      request,
+    );
   }
 
   @Get("logs")
@@ -103,8 +130,14 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateQuery(systemLogsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:ListLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(systemLogsQuerySchema),
+  )
   public async getSystemLogs(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -131,8 +164,7 @@ export class SystemController extends Controller {
       search,
     };
 
-    const result = await this.systemService.getLogs(page, pageSize, filters);
-    return result;
+    return PlatformApiLogListIamService.getInstance().list(page, pageSize, filters, request);
   }
 
   @Get("logs/stats")
@@ -140,9 +172,16 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateQuery(systemLogStatsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:GetLogStatistics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(systemLogStatsQuerySchema),
+  )
   public async getSystemLogStats(
+    @Request() request: TypedRequest,
     @Query() user?: string,
     @Query() requestID?: string,
     @Query() path?: string,
@@ -153,22 +192,32 @@ export class SystemController extends Controller {
     @Query() endDate?: string,
     @Query() search?: string,
   ): Promise<SystemLogStatsDTO> {
-    return this.systemService.getLogStats({
-      user,
-      requestID,
-      path,
-      ip,
-      method,
-      statusCode,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      search,
-    });
+    return PlatformApiLogStatsIamService.getInstance().statistics(
+      {
+        user,
+        requestID,
+        path,
+        ip,
+        method,
+        statusCode,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        search,
+      },
+      request,
+    );
   }
 
   @Get("client-ip")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:GetClientIp",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getClientIp(@Request() request: TypedRequest): Promise<{ ip: string }> {
     return { ip: extractClientIp(request) };
   }
@@ -179,15 +228,21 @@ export class SystemController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "日志不存在")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateParams(systemLogDetailParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:GetLogDetail",
+      resourceKind: "single-resource",
+      resource: platformApiLogResourceResolver,
+    }),
+    validateParams(systemLogDetailParamsSchema),
+  )
   public async getSystemLogDetail(
     @Request() request: TypedRequest,
     @Path() logId: string,
   ): Promise<SystemLogDetailDTO> {
-    const detail = await this.systemService.getLogDetail(logId);
-    if (!detail) throw new NotFoundError("Log not found", undefined, { messageKey: "system.logNotFound" });
-    return detail;
+    return PlatformApiLogReadIamService.getInstance().read(logId, request, () =>
+      this.systemService.getLogDetail(logId),
+    );
   }
 
   @Get("server-log-files")
@@ -195,10 +250,21 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_SERVER_LOG_READ)
-  @Middlewares(validateQuery(serverLogFilesQuerySchema))
-  public async getServerLogFiles(@Query() type?: ServerLogType): Promise<ServerLogFilesDTO> {
-    return this.systemService.getServerLogFiles(type);
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:server_log:ListFiles",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(serverLogFilesQuerySchema),
+  )
+  public async getServerLogFiles(
+    @Request() request: TypedRequest,
+    @Query() type?: ServerLogType,
+  ): Promise<ServerLogFilesDTO> {
+    return PlatformServerLogReadIamService.getInstance().list(request, () =>
+      this.systemService.getServerLogFiles(type),
+    );
   }
 
   @Get("server-log-files/{fileName}")
@@ -207,15 +273,23 @@ export class SystemController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "日志文件不存在")
-  @RequirePermission(Permission.SYSTEM_SERVER_LOG_READ)
-  @Middlewares(validateParams(serverLogFileParamsSchema), validateQuery(serverLogContentQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:server_log:GetFileContent",
+      resourceKind: "single-resource",
+      resource: platformServerLogFileResourceResolver,
+    }),
+    validateParams(serverLogFileParamsSchema),
+    validateQuery(serverLogContentQuerySchema),
+  )
   public async getServerLogContent(
     @Path() fileName: string,
+    @Request() request: TypedRequest,
     @Query() lines: number = 200,
     @Query() search?: string,
   ): Promise<ServerLogContentDTO> {
-    const content = await this.systemService.getServerLogContent(fileName, lines, search);
-    if (!content) throw new NotFoundError("Log file not found", undefined, { messageKey: "system.logFileNotFound" });
-    return content;
+    return PlatformServerLogReadIamService.getInstance().content(fileName, request, () =>
+      this.systemService.getServerLogContent(fileName, lines, search),
+    );
   }
 }

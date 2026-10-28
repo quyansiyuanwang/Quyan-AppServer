@@ -41,7 +41,10 @@ export const notificationLogsQuerySchema = z.object({
 export const notificationInboxQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
-  unreadOnly: z.coerce.boolean().optional().default(false),
+  unreadOnly: z.preprocess(
+    (value) => (value === "true" ? true : value === "false" ? false : value),
+    z.boolean().optional().default(false),
+  ),
 });
 
 export const markNotificationInboxReadBodySchema = z

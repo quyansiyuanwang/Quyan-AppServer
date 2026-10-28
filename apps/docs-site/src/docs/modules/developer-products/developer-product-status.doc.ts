@@ -9,6 +9,7 @@ export default defineDocsPage({
     en: 'Run monitored HTTP checks and publish status.',
     'zh-CN': '执行 HTTP 监控并发布状态。',
   },
-  tags: ['status'],
+  tags: ['status', 'iam', 'resource'],
+  updatedAt: '2026-10-09',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

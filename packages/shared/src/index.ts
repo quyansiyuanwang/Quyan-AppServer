@@ -1,3 +1,4 @@
+export * from './iam'
 export { Permission, ALL_PERMISSIONS, getPermissionCategory } from './permission'
 export {
   OAUTH_SCOPE_CATALOG,
@@ -110,5 +111,28 @@ export type { RelayTokenStreamConfig } from './relay-stream-config'
 export { maskSecret, maskEmail, truncateMiddle } from './mask'
 export type { MaskOptions } from './mask'
 
-export { CREDENTIAL_PREFIXES, classifyCredential, getCredentialPrefix, isCanonicalCredential, isCredentialOfType, isLegacyCredential, isValidCredential, toCanonicalCredential, toLegacyCredential } from './credential'
+export {
+  CREDENTIAL_PREFIXES,
+  classifyCredential,
+  getCredentialPrefix,
+  isCanonicalCredential,
+  isCredentialOfType,
+  isLegacyCredential,
+  isValidCredential,
+  toCanonicalCredential,
+  toLegacyCredential,
+} from './credential'
 export type { CredentialClassification, CredentialType } from './credential'
+
+export {
+  SERVER_CONFIG_SECRET_PLACEHOLDER,
+  isSensitiveServerConfigKey,
+  isSensitiveServerConfigValue,
+  writableServerConfigs,
+} from './server-config'
+
+export * from './user-group'
+
+export * from './relay-upstream-headers'
+
+export * from './support-knowledge'

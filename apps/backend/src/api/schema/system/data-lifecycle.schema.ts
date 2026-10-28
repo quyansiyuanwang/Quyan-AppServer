@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DATA_LIFECYCLE_DATASETS } from "@/store/system/observability.repository";
+import { DATA_LIFECYCLE_DATASETS } from "@/constant/data-maintenance-datasets";
 
 const dataset = z.enum(DATA_LIFECYCLE_DATASETS);
 

@@ -14,7 +14,7 @@ describe("RemoteTerminalGatewayBootstrap graceful close", () => {
 
   it("closes connected websocket clients with the server shutdown close code", async () => {
     const bootstrap = new RemoteTerminalGatewayBootstrap({
-      getSessionGateway: () => ({ attachBrowser: () => undefined }),
+      getSessionGateway: () => ({ attachAuthorizedBrowser: async () => undefined }),
     } as any);
     server = createServer();
     server.on("upgrade", (request, socket, head) => {

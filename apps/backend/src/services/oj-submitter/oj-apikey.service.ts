@@ -1,3 +1,12 @@
+import { OjApiKeyMutationIamService } from "./oj-apikey-mutation-iam.service";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { OjApiKeyIamService } from "./oj-apikey-iam.service";
+import { ojApiKeyDenied } from "@/store/oj-submitter/oj-apikey-management.repository";
+import { getLogger, LogCategory } from "@/util/logger";
 import { NotFoundError } from "@/util/errors";
 import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
 import { randomBytes } from "crypto";
@@ -24,6 +33,9 @@ export class OJAPIKeyService {
     private readonly ojApiKeyRepository: OJAPIKeyStore = OJAPIKeyRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
+    private readonly iam = OjApiKeyIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = OjApiKeyMutationIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -43,19 +55,37 @@ export class OJAPIKeyService {
    * 创建API密钥
    */
   async createAPIKey(userId: string, name?: string, expiresAt?: Date, channelId?: string, request?: Request) {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
-    if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
-
-    const key = this.generateAPIKey();
-
-    const apiKey = await this.ojApiKeyRepository.create({
-      userId,
-      name,
-      key,
-      expiresAt,
-      channelId,
-    });
+    let apiKey;
+    if (env.security.iamAuthorizationMode === "enforce")
+      apiKey = await this.mutations.create(
+        userId,
+        { name, expiresAt, channelId },
+        this.generateAPIKey(),
+        request as TypedRequest,
+      );
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+          throw ojApiKeyDenied();
+        if (
+          !(
+            await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_CREATE], {
+              assumedRoleSessionId: principal.roleSessionId,
+            })
+          ).hasPermission
+        )
+          throw ojApiKeyDenied();
+        await this.shadowRead(
+          () => this.mutations.prepareCreate(userId, { name, expiresAt, channelId }, request as TypedRequest),
+          request as TypedRequest,
+        );
+      }
+      const user = await this.userRepository.findById(userId);
+      if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
+      if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
+      apiKey = await this.ojApiKeyRepository.create({ userId, name, key: this.generateAPIKey(), expiresAt, channelId });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_CREATE,
@@ -77,17 +107,43 @@ export class OJAPIKeyService {
     return canonicalizeOjApiKey(apiKey);
   }
 
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+      throw ojApiKeyDenied();
+    const result = await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_READ], {
+      assumedRoleSessionId: principal.roleSessionId,
+    });
+    if (!result.hasPermission) throw ojApiKeyDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "shadow" || !request) return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OjApiKeyIamBridge", LogCategory.SECURITY).warn("OJ API Key IAM shadow read denied", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
   /**
    * 获取用户的所有API密钥
    */
-  async listAPIKeys(userId: string) {
+  async listAPIKeys(userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.list(userId, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.list(userId, request), request);
     return (await this.ojApiKeyRepository.listActiveByUserId(userId)).map(canonicalizeOjApiKey);
   }
 
   /**
    * 获取单个API密钥详情
    */
-  async getAPIKey(id: string, userId: string) {
+  async getAPIKey(id: string, userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.get(userId, id, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.get(userId, id, request), request);
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
     if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
@@ -99,11 +155,34 @@ export class OJAPIKeyService {
    * 删除API密钥
    */
   async deleteAPIKey(id: string, userId: string, request?: Request) {
-    const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
-
-    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
-
-    await this.ojApiKeyRepository.softDeleteById(id);
+    let key: { id: string; userId: string; name: string | null };
+    if (env.security.iamAuthorizationMode === "enforce")
+      key = await this.iam.revoke(userId, id, request as TypedRequest | undefined);
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId) throw ojApiKeyDenied();
+        const result = await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_DELETE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        });
+        if (!result.hasPermission) throw ojApiKeyDenied();
+      }
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await this.iam.authorizeDeletion(userId, id, request as TypedRequest);
+        } catch {
+          getLogger("OjApiKeyIamBridge", LogCategory.SECURITY).warn("OJ API Key IAM shadow evaluation denied", {
+            action: "quyan:oj:DeleteApiKey",
+            reason: "iam-evaluation-denied-or-unavailable",
+          });
+        }
+      }
+      const record = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
+      if (!record || record.userId !== userId)
+        throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
+      key = record;
+      await this.ojApiKeyRepository.softDeleteById(id);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_DELETE,
@@ -129,12 +208,32 @@ export class OJAPIKeyService {
     data: { name?: string; expiresAt?: Date | null; channelId?: string | null },
     request?: Request,
   ) {
-    const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
-
-    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
-    if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
-
-    const updated = await this.ojApiKeyRepository.updateById(id, data);
+    let updated;
+    if (env.security.iamAuthorizationMode === "enforce")
+      updated = await this.mutations.update(id, userId, data, request as TypedRequest);
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+          throw ojApiKeyDenied();
+        if (
+          !(
+            await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_UPDATE], {
+              assumedRoleSessionId: principal.roleSessionId,
+            })
+          ).hasPermission
+        )
+          throw ojApiKeyDenied();
+        await this.shadowRead(
+          () => this.mutations.prepareUpdate(id, userId, data, request as TypedRequest),
+          request as TypedRequest,
+        );
+      }
+      const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
+      if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
+      if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
+      updated = await this.ojApiKeyRepository.updateById(id, data);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_UPDATE,
@@ -155,7 +254,10 @@ export class OJAPIKeyService {
   /**
    * 获取API密钥统计信息
    */
-  async getAPIKeyStats(userId: string) {
+  async getAPIKeyStats(userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.stats(userId, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.stats(userId, request), request);
     const [totalKeys, activeKeys, usage] = await Promise.all([
       this.ojApiKeyRepository.countActiveByUserId(userId),
       this.ojApiKeyRepository.countActiveUnexpiredByUserId(userId),

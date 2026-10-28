@@ -9,7 +9,7 @@
     "production": "pnpm run support:knowledge:generate && vite --mode production",
     "preview": "vite preview",
     "--- b_build_atomic ----------------": "",
-    "support:knowledge:generate": "node ./scripts/generate-support-knowledge.mjs",
+    "support:knowledge:generate": "tsx ./scripts/generate-support-knowledge.ts",
     "compile": "pnpm run support:knowledge:generate && vite build",
     "compile:production": "pnpm run support:knowledge:generate && vite build --mode production",
     "--- c_build_meta ------------------": "",

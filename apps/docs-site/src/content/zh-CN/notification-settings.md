@@ -10,6 +10,50 @@
 - 查看投递历史。
 - （管理员）修改全局默认订阅事件和默认余额阈值。
 
+## 权限与可用范围
+
+- 旧权限模式下，通知偏好仍要求通知管理权限，不是登录后自动获得的能力。
+- IAM 强制模式下，读取偏好使用 `quyan:notification:GetPreferences`，保存偏好使用 `quyan:notification:UpdatePreferences`。两种操作可以分别授权。
+- 偏好资源是执行用户本人：`acs:quyan:*:<accountId>:user/<userId>`。账号与用户由服务端认证上下文确定；不能指定其他用户或通过提交 ARN 切换目标。
+- 针对本人资源的显式 Deny 优先于 Allow。用户组和角色策略可参与授权；假定角色使用该角色的有效会话权限，不继承调用用户的直接策略。
+- 首次获准读取时，系统可能创建默认偏好；后续读取会同步新增事件。你主动取消的已知事件不会因此重新订阅。失效或禁用的身份、角色会话及偏好记录不能继续读取或修改。
+- 以上操作用于通知偏好的读取和保存；Webhook、投递日志与事件目录的权限见下文。测试投递权限见下文。
+
+## 站内消息的权限范围
+
+登录用户可以查看自己的站内消息并标记已读。IAM 强制模式下，这些操作仍具有本人范围的默认授权，显式 Deny 可以进一步限制具体消息。
+
+- 查看消息使用 `quyan:notification:ListInbox`。
+- 手动标记已读使用 `quyan:notification:MarkInboxRead`。
+- 确认邮件已打开的消息为已读使用 `quyan:notification:ConfirmPixelOpenedInboxRead`。
+- 每条消息的资源为 `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`。账号和用户由服务端确定；指定其他用户的消息 ID 不会获得访问权。
+- 列表先按消息权限过滤，再分页；总数、未读数和邮件已打开但未确认的数量只统计可见消息。
+- 指定多条消息标记已读时，全部目标都必须获准；任何目标不存在、已失效或被拒绝，整批都不会更新。重复 ID 只计一次，已读消息不重复计数。
+- “全部已读”和邮件打开确认仅处理获准的本人消息；被 Deny 限制的消息保持原状态。邮件图片被获取本身不会绕过确认权限。
+
+## Webhook 的权限范围
+
+- IAM 强制模式下，查看、新增、修改和删除分别使用 `quyan:notification:ListWebhooks`、`quyan:notification:CreateWebhook`、`quyan:notification:UpdateWebhook` 和 `quyan:notification:DeleteWebhook`，需要明确授权，登录本身不授予这些能力。旧通知管理权限兼容这些操作；JSON 策略中的其他 Action 不会自动扩展为这些操作。
+- 新增 Webhook 的资源为执行用户本人：`acs:quyan:*:<accountId>:user/<userId>`。获准创建时，系统可以同时初始化缺少的通知偏好；已有偏好和订阅保持原样。创建 Webhook 不授予读取或修改通知偏好的能力。
+- 已有 Webhook 的资源为 `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>`，可单独授权或通过资源组限定范围。只能管理执行用户本人的目标；通配符授权也不会切换到其他用户。
+- 列表只返回获准的 Webhook，显式 Deny 优先。签名 Secret 不会返回，`hasSecret` 仅表示是否已配置；显式设为 `null` 可清除 Secret，未提交该字段则保留原值。
+- 身份、通知偏好或角色会话失效时不能继续管理；目标在授权后发生变化时，请刷新后重试。删除会停用该目标。测试投递需要独立授权，见下文。
+
+## 测试投递的权限
+
+- 测试 Webhook 使用 `quyan:notification:TestWebhook`，资源为具体 Webhook 的 `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>`。查看或修改 Webhook 的权限不包含测试投递。
+- 测试邮件使用 `quyan:notification:TestEmail`，资源为执行用户的 `acs:quyan:*:<accountId>:user/<userId>`。读取或修改偏好的权限不包含发送测试邮件。
+- 两种操作需要明确授权，并受显式 Deny、条件、资源组范围和有效角色会话约束。旧通知管理权限兼容这些操作；可以单独禁止测试投递而保留编辑能力。
+- 测试仅发送到本人的已保存目标，提交邮箱、用户 ID 或 Action 不会改变目标。获准测试邮件时，缺少的偏好可以初始化；邮箱已清空时不发送。测试邮件会创建本人站内消息。
+- 测试会实际发送通知。目标、身份或偏好在发送前发生变化时可能要求刷新重试；投递失败显示通用提示，不展示签名 Secret、SMTP 凭据或上游响应。
+
+## 投递历史与事件目录的权限
+
+- IAM 强制模式下，投递日志使用 `quyan:notification:ListDeliveryLogs`。日志可能包含通知内容，需要单独授权，不因登录自动获得。旧通知管理权限会兼容为此操作。
+- 每条日志资源是 `acs:notification:*:<accountId>:delivery-log/<userId>/<logId>`。只查询当前执行用户的记录；即使策略使用通配符，也不能通过传入其他用户切换目标。
+- 日志先逐条授权再分页，总数只统计获准记录。显式 Deny 可限制具体日志或资源组内日志；没有可见记录时列表为空。
+- 事件目录使用 `quyan:notification:ListEvents`，目标为执行用户本人的 `acs:quyan:*:<accountId>:user/<userId>`。登录身份默认可以查看事件类型，显式 Deny 可限制此操作；它不授予修改订阅、查看日志或发送测试通知的权限。
+
 ## 你会看到什么
 
 ### 邮件设置

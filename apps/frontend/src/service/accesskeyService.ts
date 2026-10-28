@@ -1,4 +1,6 @@
 import { useRequestStore } from '@/stores/request'
+import { CustomCode } from '@/constant/custom-code'
+import { toServiceError } from '@/utils/error-utils'
 import { checkApiResult } from '@/utils/service-utils'
 import { cache } from '@/utils/common'
 import type { CreateAccessKeyDto } from '@/client/types.gen'
@@ -25,6 +27,12 @@ export class AccessKeyService {
   async getAccessKeys() {
     const result = await getAccessKeyControllerApi().listAccessKeys({})
     return checkApiResult(result, true)
+  }
+
+  async getAccessKeysPage(query: { page: number; pageSize: number }) {
+    const result = await getAccessKeyControllerApi().listAccessKeysPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
   }
 
   async createAccessKey(data: CreateAccessKeyPayload) {

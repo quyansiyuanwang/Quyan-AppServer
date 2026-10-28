@@ -24,6 +24,12 @@
 
 用户在订单开放阶段自行邀请、分摊和确认。全部条件满足后，车主提交发车；运营再继续处理。
 
+订单管理列表使用 `quyan:carpool:ListAdminOrders`；运营详情使用独立的 `quyan:carpool:GetAdminOrder`。两者检查 `acs:platform:*:platform:carpool-order/<orderId>`，并要求部署全局管理组具有订单读取资格。
+
+列表记录、分页总数和状态计数都只包含获准查看的订单。选择某个状态只筛选表格；状态计数仍基于当前关键字下所有获准订单。被拒绝的订单不会泄露名称、成本、成员或事件，也不计入状态数。列表授权不自动授予详情授权，普通成员的 `quyan:carpool:GetOrder` 也不授予运营详情权限。授权或身份在读取期间变化时，请刷新后重试。
+
+受理订单使用 `quyan:carpool:AcceptOrder`，检查同一个订单 ARN，并要求全局管理组具备订单处理资格。只能受理仍处于已提交状态的订单；读取、详情和受理分别授权。受理时身份、策略、资格或订单内容变化会使操作失败，订单状态和本次事件一起回滚。并发受理同一订单只会成功一次。
+
 ## 交付弹窗与订单变化
 
 运营人员打开交付弹窗时，页面会按订单 ID重新读取最新详情，再加载该订单快照允许的交付渠道。交付确认、交付后刷新都使用同一个订单 ID。若订单已被处理、删除或状态发生变化，弹窗会关闭并刷新列表，提示“订单已变化，请刷新后重试”；服务端仍会再次校验订单存在性、accepted 状态、渠道快照和渠道可用性。
@@ -34,7 +40,13 @@
 2. 在订单上下文中选择可交付的 Relay 渠道并确认交付。渠道选择器只显示服务端判定为当前可用的渠道；交付时服务端会再次校验，不能通过浏览器伪造渠道 ID。
 3. 交付失败时选择“失败退款”，必须填写清晰的失败原因。原因会写入订单事件记录，供用户和运营审计。
 
+启用 IAM 强制授权后，失败退款使用独立的 `quyan:carpool:FailOrder`，同时检查订单 ARN、每个在车成员的 `acs:platform:*:platform:user/<userId>` 和 `acs:platform:*:platform:balance-account/<userId>`，以及实际新增的 `acs:platform:*:platform:balance-transaction/<userId>/<transactionId>`。读取或受理订单的权限不会授予退款权限。
+
+任意退款用户、余额账户或账单被拒绝时，本次所有成员的退款、冻结记录变更、订单状态和事件一起回滚。退款根据已锁定的实际余额执行；成员已经退出的资金不在本次退款范围内。已禁用用户仍可以接收其已扣款退款。并发重复退款只会完成一次。
+
 所有敏感操作均要求确认。不要在备注、事件说明或外部工单中写入 Relay token、上游密钥等凭据。
+
+启用 IAM 强制授权后，渠道选择使用 `quyan:carpool:ListDeliveryChannels`，检查所选订单 ARN 和每个 `acs:platform:*:platform:relay-channel/<channelId>`。分页和总数只包含已受理订单快照范围内允许查看且可交付的渠道。查看渠道不会授予交付权限；授权或管理资格变化时需要刷新重试。
 
 ## 所需权限
 
@@ -44,6 +56,28 @@
 | 创建、编辑、复制、发布、下线、归档套餐 | `CARPOOL_TEMPLATE_WRITE` |
 | 查看拼车订单与详情                     | `CARPOOL_ORDER_READ`     |
 | 受理、交付、失败退款                   | `CARPOOL_ORDER_FULFILL`  |
+
+启用 IAM 强制授权后，交付使用独立的 `quyan:carpool:FulfillOrder`，分别检查订单、渠道、来源套餐、来源月卡模板、每个接收用户以及生成的月卡和 Relay Token。生成资源使用 `acs:platform:*:platform:monthly-pass/<userId>/<passId>` 和 `acs:platform:*:platform:relay-token/<userId>/<tokenId>`。任一资源被拒绝或操作权限失效时，所有成员的权益、状态和交付事件一并回滚；并发请求只交付一次。来源模板后来下线或禁用不改变已受理订单的原有额度与有效期。
+
+## IAM 套餐授权
+
+启用 IAM 强制授权后，套餐管理使用以下独立操作：
+
+| 操作         | Action                            | 检查的资源                         |
+| ------------ | --------------------------------- | ---------------------------------- |
+| 查看管理列表 | `quyan:carpool:ListTemplates`     | 每个套餐模板                       |
+| 创建         | `quyan:carpool:CreateTemplate`    | 创建控制资源、来源月卡模板、新套餐 |
+| 编辑         | `quyan:carpool:UpdateTemplate`    | 目标套餐、来源月卡模板             |
+| 复制         | `quyan:carpool:DuplicateTemplate` | 源套餐、创建控制资源、新套餐       |
+| 发布         | `quyan:carpool:PublishTemplate`   | 目标套餐                           |
+| 下线         | `quyan:carpool:UnpublishTemplate` | 目标套餐                           |
+| 归档         | `quyan:carpool:ArchiveTemplate`   | 目标套餐                           |
+
+套餐 ARN 为 `acs:platform:*:platform:carpool-template/<templateId>`；来源月卡模板为 `acs:platform:*:platform:monthly-pass-template/<templateId>`；创建控制资源为 `acs:platform:*:platform:carpool-template-control`。复制保留源套餐的交付快照，创建和编辑使用当前获准引用的月卡模板。
+
+分页记录和总数只包含获准查看的套餐，拒绝访问的套餐不会返回名称、成本或交付快照。查看权限不授予编辑权限；更新权限也不授予发布或归档权限。显式 Deny 优先；新资源被拒绝时创建或复制一起回滚。
+
+这些模板属于部署共享资源。IAM 授权还需要部署管理员配置的全局管理组资格；账号自己的策略或用户组不能自行获得该资格。授权、资格或来源模板在操作期间发生变化时，请刷新后重新操作。已创建订单继续使用其原有快照。
 
 ## 注意事项
 

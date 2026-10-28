@@ -1,6 +1,11 @@
 // Locale bundle: management-terminal/en.
 const en = {
   remoteTerminal: {
+    devicesUnavailable: 'Devices are unavailable. Check access to your device resources or retry.',
+    sessionsUnavailable:
+      'Session history is unavailable. Other permitted workspace features remain available.',
+    usageUnavailable:
+      'Quota information is unavailable. The server will check permission and quota when connecting.',
     overview: 'Product Overview',
     overviewDescription: 'Review Cloud Terminal devices, session capacity, and subscriptions.',
     subscriptions: 'Active subscriptions',

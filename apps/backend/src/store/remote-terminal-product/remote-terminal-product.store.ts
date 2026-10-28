@@ -52,6 +52,8 @@ export interface RemoteTerminalPurchaseEntitlementParams {
 }
 
 export interface RemoteTerminalPurchaseAndUpdateEntitlementParams {
+  /** Debit for this operation; the entitlement retains its cumulative purchase amount. */
+  chargeAmount: number;
   userId: string;
   templateName: string;
   description?: string;
@@ -76,7 +78,11 @@ export interface RemoteTerminalProductStore {
     page: number,
     pageSize: number,
   ): Promise<{ total: number; records: RemoteTerminalProductTemplateRecord[] }>;
-  listTemplateFilterOptions(): Promise<RemoteTerminalProductTemplateFilterOption[]>;
+  listTemplateFilterOptions(
+    page: number,
+    pageSize: number,
+    keyword?: string,
+  ): Promise<{ total: number; records: RemoteTerminalProductTemplateFilterOption[] }>;
 
   findEntitlementById(id: string): Promise<RemoteTerminalEntitlementWithRelations | null>;
   createEntitlement(

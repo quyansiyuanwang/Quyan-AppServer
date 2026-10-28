@@ -16,5 +16,10 @@ export const createAccessKeyBodySchema = z.object({
 });
 
 export const accesskeyIdParamsSchema = z.object({
-  id: z.string().trim().min(1),
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/),
 });

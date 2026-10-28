@@ -1,3 +1,4 @@
+import { RELAY_PROBE_APPLY_POLICY, RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
 import { z } from "zod";
 import { RELAY_PROBE_FORMATS } from "@quyan/shared";
 
@@ -142,13 +143,13 @@ export const createRelayChannelProbeRunsBodySchema = z
     channelIds: z
       .array(z.string().trim().min(1))
       .min(1)
-      .max(100)
+      .max(RELAY_PROBE_BATCH_POLICY.channels)
       .refine((ids) => new Set(ids).size === ids.length)
       .optional(),
     targets: z
       .array(probeTargetSchema)
       .min(1)
-      .max(200)
+      .max(RELAY_PROBE_BATCH_POLICY.targets)
       .refine(
         (targets) =>
           new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===
@@ -191,7 +192,11 @@ export const applyRelayChannelProbeRunsBodySchema = z
       .array(
         z.object({
           runId: z.string().trim().min(1),
-          multiplier: z.coerce.number().finite().min(0.000001).max(1000),
+          multiplier: z.coerce
+            .number()
+            .finite()
+            .min(RELAY_PROBE_APPLY_POLICY.minimumMultiplier)
+            .max(RELAY_PROBE_APPLY_POLICY.maximumMultiplier),
         }),
       )
       .max(100)
@@ -237,12 +242,19 @@ export const configureRelayChannelProbeTargetsBodySchema = z
       value.targets.length,
     "Duplicate probe targets are not allowed",
   );
-export const bindRelayChannelProbeAccountsBodySchema = z.object({
-  targets: z
-    .array(probeTargetSchema.extend({ accountId: z.string().trim().min(1).nullable() }))
-    .min(1)
-    .max(100),
-});
+export const bindRelayChannelProbeAccountsBodySchema = z
+  .object({
+    targets: z
+      .array(probeTargetSchema.extend({ accountId: z.string().trim().min(1).nullable() }))
+      .min(1)
+      .max(100),
+  })
+  .refine(
+    (value) =>
+      new Set(value.targets.map((target) => JSON.stringify([target.channelId, target.memberChannelId ?? null])))
+        .size === value.targets.length,
+    "Duplicate binding targets are not allowed",
+  );
 export const saveRelayChannelProbeAccountBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100),

@@ -45,3 +45,13 @@ export interface SendAccessKeyCreationVerificationCodeResponse {
   /** 响应消息 */
   message: string;
 }
+
+/** Bounded candidate page. IAM filtering may produce an empty page with hasNext=true.
+ * No unfiltered credential count is returned. Existing secrets remain masked.
+ */
+export interface AccessKeyPageDto {
+  items: AccessKeyDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}

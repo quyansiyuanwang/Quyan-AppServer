@@ -1,3 +1,24 @@
+import { MonthlyPassPublishedTemplateReadIamService } from "./monthly-pass-published-template-read-iam.service";
+import type { IamMonthlyPassAssignOperation } from "@quyan/shared";
+import { MonthlyPassPurchaseIamService } from "./monthly-pass-purchase-iam.service";
+import { bindMonthlyPassPurchaseQuote, type MonthlyPassPurchaseCharge } from "@/store/billing/monthly-pass-purchase";
+import { MonthlyPassFilterOptionsIamService } from "./monthly-pass-filter-options-iam.service";
+import { PlatformMonthlyPassAssignIamService } from "./platform-monthly-pass-assign-iam.service";
+import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
+import {
+  normalizeMonthlyPassQuotaUnit as normalizeQuotaUnit,
+  normalizeMonthlyPassQuotaWindowHours as normalizeQuotaWindowHours,
+  getUserMonthlyPassQuotaWindows,
+} from "@/util/monthly-pass-quota-windows";
+import { PlatformMonthlyPassAssignmentReadIamService } from "./platform-monthly-pass-assignment-read-iam.service";
+import { PlatformMonthlyPassAssignmentWriteIamService } from "./platform-monthly-pass-assignment-write-iam.service";
+import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
+import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
+import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
+import type { TypedRequest } from "@/types/express";
+import { env } from "@/config/env";
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import {
   AssignUserMonthlyPassRequest,
   AssignBatchUserMonthlyPassRequest,
@@ -35,13 +56,12 @@ import type {
 } from "@/store/billing/monthly-pass.store";
 import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
-import { BadRequestError, NotFoundError } from "@/util/errors";
+import { ApiError, BadRequestError, NotFoundError } from "@/util/errors";
 import {
   MONTHLY_PASS_DEFAULT_PAGE_SIZE,
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
   MONTHLY_PASS_DEFAULT_VALIDITY_DAYS,
   MONTHLY_PASS_MAX_PAGE_SIZE,
-  MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
   MONTHLY_PASS_MAX_VALIDITY_DAYS,
 } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -72,7 +92,6 @@ import {
   getMonthlyPassPositiveIntegerValidationError,
   getMonthlyPassPriceValidationError,
   getMonthlyPassQuotaValidationError,
-  getMonthlyPassQuotaWindowHoursValidationError,
   isMonthlyPassIntegerQuotaUnit,
   MONTHLY_PASS_PURCHASE_LIMIT_MAX,
   MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS,
@@ -108,11 +127,6 @@ const DEFAULT_QUOTA_UNIT_OPTIONS: MonthlyPassStringFilterOptionDto[] = [
   { value: "request", label: "request" },
   { value: "token", label: "token" },
 ];
-
-const normalizeQuotaUnit = (value?: string | null): MonthlyPassQuotaUnit => {
-  if (value === "request" || value === "token") return value;
-  return "amount";
-};
 
 const isIntegerQuotaUnit = (unit: MonthlyPassQuotaUnit): boolean => {
   return isMonthlyPassIntegerQuotaUnit(unit);
@@ -245,25 +259,6 @@ const isPriceFirstTemplateRecord = (record: {
   discountPercent: DecimalLike | null;
 }): boolean => {
   return record.originalPrice != null || record.discountPercent != null;
-};
-
-const normalizeQuotaWindowHours = (value?: number | null, enforceMax = false): number | null => {
-  if (value == null) return null;
-  const error = getMonthlyPassQuotaWindowHoursValidationError(value, { allowExceedMax: !enforceMax });
-  if (error) {
-    if (enforceMax)
-      throw new BadRequestError("monthly pass validation failed", undefined, {
-        messageKey: error.key,
-        messageParams: error.params,
-      });
-    return null;
-  }
-
-  if (value > MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS) {
-    // Clamp legacy overflow values so existing records remain usable while new input is validated.
-    return MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS;
-  }
-  return value;
 };
 
 const getWindowConsumed = (
@@ -407,18 +402,7 @@ export class MonthlyPassService {
   private getUserPassQuotaWindows(
     record: Pick<UserMonthlyPassWithTemplate, "dailyQuota" | "quotaUnit" | "quotaWindowHours" | "quotaWindows">,
   ): MonthlyPassQuotaWindowInput[] {
-    if (Array.isArray(record.quotaWindows) && record.quotaWindows.length > 0)
-      return record.quotaWindows.map((item) => ({
-        quotaLimit: Number(item.quotaLimit),
-        quotaUnit: normalizeQuotaUnit(item.quotaUnit),
-        quotaWindowHours: Number(item.quotaWindowHours),
-      }));
-
-    return this.synthesizeLegacyQuotaWindows(
-      record.dailyQuota == null ? null : Number(record.dailyQuota),
-      normalizeQuotaUnit(record.quotaUnit),
-      record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
-    );
+    return getUserMonthlyPassQuotaWindows(record);
   }
 
   private resolveQuotaWindowsForPersist(options: {
@@ -477,11 +461,11 @@ export class MonthlyPassService {
         const pages = Math.ceil(total / BATCH_ASSIGNMENT_PAGE_SIZE);
 
         for (let page = 0; page < pages; page += 1) {
-          const users = await this.userRepository.listNonDeletedByGroupLevelGtePaginated(visibleLevel, {
-            ...filters,
-            skip: page * BATCH_ASSIGNMENT_PAGE_SIZE,
-            take: BATCH_ASSIGNMENT_PAGE_SIZE,
-          });
+          const params = { ...filters, skip: page * BATCH_ASSIGNMENT_PAGE_SIZE, take: BATCH_ASSIGNMENT_PAGE_SIZE };
+          const users =
+            env.security.iamAuthorizationMode === "enforce"
+              ? await this.userRepository.listNonDeletedIdsByGroupLevelGtePaginated(visibleLevel, params)
+              : await this.userRepository.listNonDeletedByGroupLevelGtePaginated(visibleLevel, params);
           for (const user of users) userIdSet.add(user.id);
         }
       }
@@ -490,6 +474,7 @@ export class MonthlyPassService {
     if (userIdSet.size === 0)
       throw new BadRequestError("No target users found", undefined, { messageKey: "monthlyPass.noTargetUsers" });
 
+    if (env.security.iamAuthorizationMode === "enforce") return [...userIdSet].map((id) => ({ id }));
     const usernames = await this.userRepository.findUsernamesByIds([...userIdSet]);
     const usernameMap = new Map(usernames.map((item) => [item.id, item.username]));
 
@@ -795,6 +780,7 @@ export class MonthlyPassService {
     allowedModels: string[] | null | undefined,
     allowedChannels: string[] | null | undefined,
     actorUserId: string,
+    request?: TypedRequest,
   ): Promise<void> {
     const modelNames = [...new Set((allowedModels ?? []).map((item) => item.trim()).filter(Boolean))];
     const channelIds = [...new Set((allowedChannels ?? []).map((item) => item.trim()).filter(Boolean))];
@@ -802,7 +788,9 @@ export class MonthlyPassService {
 
     const [modelRecords, channelOptions] = await Promise.all([
       this.modelPricingRepository.listActiveOrderedByModel(),
-      channelIds.length > 0 ? this.relayChannelService.listChannelOptions(actorUserId) : Promise.resolve([]),
+      channelIds.length > 0
+        ? this.relayChannelService.listChannelOptions(actorUserId, undefined, {}, request)
+        : Promise.resolve([]),
     ]);
     const activeModelNames = new Set(modelRecords.map((item) => item.model.trim()).filter(Boolean));
     const unknownModels = modelNames.filter((modelName) => !activeModelNames.has(modelName));
@@ -861,11 +849,28 @@ export class MonthlyPassService {
       );
   }
 
-  async getFilterOptions(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
+  async getFilterOptions(actorUserId: string, request?: TypedRequest): Promise<MonthlyPassFilterOptionsDto> {
+    return MonthlyPassFilterOptionsIamService.getInstance().read(
+      actorUserId,
+      request,
+      () => this.getFilterOptionsLegacy(actorUserId, request),
+      {
+        templateStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
+        assignmentStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
+        publishStatusOptions: DEFAULT_PUBLISH_STATUS_OPTIONS,
+        assignmentModeOptions: DEFAULT_ASSIGNMENT_MODE_OPTIONS,
+        quotaUnitOptions: DEFAULT_QUOTA_UNIT_OPTIONS,
+      },
+    );
+  }
+  private async getFilterOptionsLegacy(
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<MonthlyPassFilterOptionsDto> {
     const [templateResult, modelRecords, relayChannels, groups] = await Promise.all([
-      this.listTemplates(1, MONTHLY_PASS_MAX_PAGE_SIZE),
+      this.listTemplatesLegacy(1, MONTHLY_PASS_MAX_PAGE_SIZE),
       this.modelPricingRepository.listActiveOrderedByModel(),
-      this.relayChannelService.listChannelOptions(actorUserId),
+      this.relayChannelService.listChannelOptions(actorUserId, undefined, {}, request),
       this.getVisibleGroupOptions(actorUserId),
     ]);
 
@@ -914,6 +919,11 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<MonthlyPassTemplateDto> {
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+    );
     const name = data.name.trim();
     const existed = await this.monthlyPassRepository.findTemplateByName(name);
     if (existed)
@@ -921,7 +931,12 @@ export class MonthlyPassService {
         messageKey: "monthlyPass.templateNameExists",
       });
 
-    await this.validateTemplateScope(data.allowedModels, data.allowedChannels, actorUserId);
+    await this.validateTemplateScope(
+      data.allowedModels,
+      data.allowedChannels,
+      actorUserId,
+      request as TypedRequest | undefined,
+    );
 
     const hasPricingInput = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const quotaWindowHours = normalizeQuotaWindowHours(data.quotaWindowHours, true);
@@ -978,6 +993,7 @@ export class MonthlyPassService {
               status: MANAGED_STATUS.ENABLED,
             },
             quotaWindows,
+            iam?.guard,
           );
         })()
       : await (async () => {
@@ -1035,6 +1051,7 @@ export class MonthlyPassService {
               status: MANAGED_STATUS.ENABLED,
             },
             quotaWindows,
+            iam?.guard,
           );
         })();
 
@@ -1054,7 +1071,13 @@ export class MonthlyPassService {
   }
 
   async publishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "PublishTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1069,12 +1092,18 @@ export class MonthlyPassService {
       parseAllowedModels(existing.allowedModels),
       parseAllowedChannels(existing.allowedChannels),
       actorUserId,
+      request as TypedRequest | undefined,
     );
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, {
-      publishStatus: "published",
-      publishedAt: new Date(),
-    });
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      {
+        publishStatus: "published",
+        publishedAt: new Date(),
+      },
+      undefined,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_PUBLISH,
@@ -1092,7 +1121,13 @@ export class MonthlyPassService {
   }
 
   async unpublishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "UnpublishTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1103,10 +1138,15 @@ export class MonthlyPassService {
         messageKey: "monthlyPass.templateAlreadyUnpublished",
       });
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, {
-      publishStatus: "draft",
-      publishedAt: null,
-    });
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      {
+        publishStatus: "draft",
+        publishedAt: null,
+      },
+      undefined,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_UNPUBLISH,
@@ -1129,7 +1169,14 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+      data.status === -1,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1147,6 +1194,7 @@ export class MonthlyPassService {
       data.allowedModels === undefined ? parseAllowedModels(existing.allowedModels) : data.allowedModels,
       data.allowedChannels === undefined ? parseAllowedChannels(existing.allowedChannels) : data.allowedChannels,
       actorUserId,
+      request as TypedRequest | undefined,
     );
 
     const hasPricingUpdate = data.originalPrice !== undefined || data.discountPercent !== undefined;
@@ -1356,7 +1404,12 @@ export class MonthlyPassService {
         });
     }
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, updatePayload, quotaWindowsForUpdate);
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      updatePayload,
+      quotaWindowsForUpdate,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_UPDATE,
@@ -1374,13 +1427,19 @@ export class MonthlyPassService {
   }
 
   async deleteTemplate(id: string, actorUserId: string, request?: Request): Promise<void> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "DeleteTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
       });
 
-    await this.monthlyPassRepository.softDeleteTemplate(id);
+    await this.monthlyPassRepository.softDeleteTemplate(id, iam?.guard);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_DELETE,
@@ -1395,6 +1454,25 @@ export class MonthlyPassService {
   }
 
   async listTemplates(
+    page?: number,
+    pageSize?: number,
+    status?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<MonthlyPassTemplateListResponse> {
+    const paging = normalizePagination(page, pageSize);
+    if (request)
+      return PlatformTemplateReadIamService.getInstance("monthly-pass").list(
+        request,
+        paging,
+        { status, keyword },
+        (record) => this.toTemplateDto(record),
+        () => this.listTemplatesLegacy(page, pageSize, status, keyword),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, status, keyword);
+  }
+  private async listTemplatesLegacy(
     page?: number,
     pageSize?: number,
     status?: number,
@@ -1418,9 +1496,15 @@ export class MonthlyPassService {
     };
   }
 
-  async listPublishedTemplates(): Promise<MonthlyPassTemplateDto[]> {
-    const records = await this.monthlyPassRepository.listPublishedTemplates();
-    return records.map((item) => this.toTemplateDto(item));
+  async listPublishedTemplates(request?: TypedRequest): Promise<MonthlyPassTemplateDto[]> {
+    return MonthlyPassPublishedTemplateReadIamService.getInstance().list(
+      request,
+      (row) => this.toTemplateDto(row),
+      async () => {
+        const records = await this.monthlyPassRepository.listPublishedTemplates();
+        return records.map((row) => this.toTemplateDto(row));
+      },
+    );
   }
 
   async claimPublishedTemplate(
@@ -1428,7 +1512,12 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<ClaimMonthlyPassResultDto> {
-    const template = await this.monthlyPassRepository.findTemplateById(data.templateId);
+    const prepared = await MonthlyPassPurchaseIamService.getInstance().prepare(
+      actorUserId,
+      request as TypedRequest | undefined,
+      data.templateId,
+    );
+    const template = prepared?.template ?? (await this.monthlyPassRepository.findTemplateById(data.templateId));
     if (!template || template.status !== MANAGED_STATUS.ENABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1479,36 +1568,44 @@ export class MonthlyPassService {
     const startAt = new Date();
     const endAt = new Date(startAt.getTime() + normalizeValidityDays(template.validityDays) * 24 * 60 * 60 * 1000);
 
+    const passData = {
+      userId: actorUserId,
+      templateId: template.id,
+      startAt,
+      endAt,
+      totalQuota,
+      dailyQuota,
+      quotaUnit,
+      quotaWindowHours,
+      usedQuota: 0,
+      remainingQuota: totalQuota,
+      assignedBy: actorUserId,
+      note: "self-claimed",
+      status: MANAGED_STATUS.ENABLED,
+    };
+    const purchase: MonthlyPassPurchaseCharge = {
+      userId: actorUserId,
+      purchaseAmount,
+      templateName: template.name,
+      templateId: template.id,
+      limit:
+        template.purchaseLimitPerUser != null && template.purchaseLimitWindowDays != null
+          ? {
+              maximum: template.purchaseLimitPerUser,
+              windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
+            }
+          : undefined,
+    };
+    if (prepared)
+      bindMonthlyPassPurchaseQuote(prepared.guard, passData, quotaWindows, purchase, async () => {
+        if (normalizePriceValue(await this.configService.getRechargeRatio()) !== rechargeRatio)
+          throw iamAccountDenied();
+      });
     const record = await this.monthlyPassRepository.purchaseUserPass(
-      {
-        userId: actorUserId,
-        templateId: template.id,
-        startAt,
-        endAt,
-        totalQuota,
-        dailyQuota,
-        quotaUnit,
-        quotaWindowHours,
-        usedQuota: 0,
-        remainingQuota: totalQuota,
-        assignedBy: actorUserId,
-        note: "self-claimed",
-        status: MANAGED_STATUS.ENABLED,
-      },
+      passData,
       quotaWindows,
-      {
-        userId: actorUserId,
-        purchaseAmount,
-        templateName: template.name,
-        templateId: template.id,
-        limit:
-          template.purchaseLimitPerUser != null && template.purchaseLimitWindowDays != null
-            ? {
-                maximum: template.purchaseLimitPerUser,
-                windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
-              }
-            : undefined,
-      },
+      purchase,
+      ...(prepared ? [prepared.guard] : []),
     );
 
     await this.businessLogService.logOperation({
@@ -1534,13 +1631,21 @@ export class MonthlyPassService {
     data: AssignUserMonthlyPassRequest,
     assignedBy: string,
     request?: Request,
+    operation: IamMonthlyPassAssignOperation = "AssignUserPass",
   ): Promise<UserMonthlyPassDto> {
+    const prepared = await PlatformMonthlyPassAssignIamService.getInstance().prepare(
+      assignedBy,
+      request as TypedRequest | undefined,
+      data.userId,
+      data.templateId,
+      operation,
+    );
     const startAt = parseRequiredDateStringOrThrow("startAt", data.startAt);
     const endAt = parseRequiredDateStringOrThrow("endAt", data.endAt);
 
     const [user, template] = await Promise.all([
-      this.userRepository.findById(data.userId),
-      this.monthlyPassRepository.findTemplateById(data.templateId),
+      prepared ? prepared.customer : this.userRepository.findById(data.userId),
+      prepared ? prepared.template : this.monthlyPassRepository.findTemplateById(data.templateId),
     ]);
 
     if (!user || user.status < AccountStatus.DISABLED)
@@ -1611,6 +1716,7 @@ export class MonthlyPassService {
         status: MANAGED_STATUS.ENABLED,
       },
       quotaWindows,
+      prepared?.guard,
     );
 
     await this.businessLogService.logOperation({
@@ -1635,7 +1741,14 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<UserMonthlyPassDto> {
-    const existing = await this.monthlyPassRepository.findUserPassById(id);
+    const prepared = await PlatformMonthlyPassAssignmentWriteIamService.getInstance().prepare(
+      "UpdateUserPass",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+      data.status === -1,
+    );
+    const existing = prepared?.target.record ?? (await this.monthlyPassRepository.findUserPassById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
@@ -1722,6 +1835,7 @@ export class MonthlyPassService {
         status: data.status,
       },
       quotaWindowsForUpdate,
+      prepared?.guard,
     );
 
     await this.businessLogService.logOperation({
@@ -1737,15 +1851,32 @@ export class MonthlyPassService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toUserPassDto(record);
+    const response = prepared?.guard.response;
+    return this.toUserPassDto(
+      response
+        ? {
+            ...record,
+            user: response.username ? record.user : { username: "" },
+            template: response.template
+              ? record.template
+              : { ...record.template, name: "", description: null, allowedModels: null, allowedChannels: null },
+          }
+        : record,
+    );
   }
 
   async deleteUserPass(id: string, actorUserId: string, request?: Request): Promise<void> {
-    const existing = await this.monthlyPassRepository.findUserPassById(id);
+    const prepared = await PlatformMonthlyPassAssignmentWriteIamService.getInstance().prepare(
+      "DeleteUserPass",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = prepared?.target.record ?? (await this.monthlyPassRepository.findUserPassById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
-    await this.monthlyPassRepository.softDeleteUserPass(id);
+    await this.monthlyPassRepository.softDeleteUserPass(id, prepared?.guard);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_ASSIGNMENT_DELETE,
@@ -1760,12 +1891,32 @@ export class MonthlyPassService {
     });
   }
 
+  async listMyPasses(
+    userId: string,
+    request: TypedRequest,
+    page?: number,
+    pageSize?: number,
+    status?: number,
+  ): Promise<UserMonthlyPassListResponse> {
+    const pagination = normalizePagination(page, pageSize);
+    const result = await MonthlyPassPersonalReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toUserPassDto(view.record, undefined, view.usageSummary),
+      () => this.listUserPasses(page, pageSize, userId, undefined, status),
+    );
+    return { ...result, ...pagination };
+  }
+
   async listUserPasses(
     page?: number,
     pageSize?: number,
     userId?: string,
     templateId?: string,
     status?: number,
+    request?: TypedRequest,
   ): Promise<UserMonthlyPassListResponse> {
     const paging = normalizePagination(page, pageSize);
     const where: Prisma.UserMonthlyPassWhereInput = {};
@@ -1776,6 +1927,19 @@ export class MonthlyPassService {
     if (userId) where.userId = userId;
     if (templateId) where.templateId = templateId;
 
+    if (request)
+      return PlatformMonthlyPassAssignmentReadIamService.getInstance().list(
+        request,
+        paging,
+        { userId, templateId, status },
+        async (view) =>
+          this.toUserPassDto(
+            view.record,
+            undefined,
+            view.quotaUsage ? await this.getQuotaWindowUsageSummaryMap([view.record], new Date()) : undefined,
+          ),
+        () => this.listUserPasses(page, pageSize, userId, templateId, status),
+      );
     const result = await this.monthlyPassRepository.listUserPasses(where, paging.page, paging.pageSize);
 
     const allChannelIds = Array.from(
@@ -1800,16 +1964,31 @@ export class MonthlyPassService {
     request?: Request,
   ): Promise<BatchAssignUserMonthlyPassResponse> {
     const assignmentMode = normalizeAssignmentMode(data.assignmentMode);
+    const authority = PlatformMonthlyPassAssignIamService.getInstance();
+    await authority.assertBatchActor(actorUserId, request as TypedRequest | undefined);
+    const native = env.security.iamAuthorizationMode === "enforce";
     const targets = await this.resolveBatchTargetUsers(actorUserId, data);
     const results: BatchAssignUserMonthlyPassItemDto[] = [];
 
-    for (const target of targets)
+    for (const target of targets) {
+      let targetAllowed = false;
       try {
+        const source = await authority.prepare(
+          actorUserId,
+          request as TypedRequest | undefined,
+          target.id,
+          data.templateId,
+          "AssignUserPassBatch",
+        );
+        targetAllowed = Boolean(source);
+        const extension =
+          assignmentMode === "extend_existing" && source
+            ? await authority.prepareBatchExtension(source.guard)
+            : undefined;
         if (assignmentMode === "extend_existing") {
-          const latestPass = await this.monthlyPassRepository.findLatestUserPassByUserAndTemplate(
-            target.id,
-            data.templateId,
-          );
+          const latestPass = source
+            ? extension?.record
+            : await this.monthlyPassRepository.findLatestUserPassByUserAndTemplate(target.id, data.templateId);
 
           if (latestPass && latestPass.endAt.getTime() >= new Date(data.startAt).getTime()) {
             const startAt = parseRequiredDateStringOrThrow("startAt", data.startAt);
@@ -1822,7 +2001,7 @@ export class MonthlyPassService {
               });
 
             const incrementQuota = normalizeQuotaValue(
-              data.totalQuota ?? Number(latestPass.template.defaultQuota),
+              data.totalQuota ?? Number(source ? source.template.defaultQuota : latestPass.template.defaultQuota),
               quotaUnit,
             );
             validateQuotaValue("totalQuota", incrementQuota, quotaUnit);
@@ -1876,11 +2055,12 @@ export class MonthlyPassService {
                 note: data.note ?? latestPass.note,
               },
               quotaWindows,
+              extension?.guard,
             );
 
             results.push({
               userId: target.id,
-              username: target.username,
+              username: native ? updated.user.username : target.username,
               userPassId: updated.id,
               result: "extended",
             });
@@ -1902,22 +2082,37 @@ export class MonthlyPassService {
             note: data.note,
           },
           actorUserId,
+          request,
+          "AssignUserPassBatch",
         );
 
         results.push({
           userId: target.id,
-          username: target.username,
+          username: native ? created.username : target.username,
           userPassId: created.id,
           result: "created",
         });
       } catch (error) {
+        // Discovered, unauthorized identities are not part of the visible result set.
+        if (native && !targetAllowed && !data.userIds?.some((id) => id.trim() === target.id)) continue;
         results.push({
           userId: target.id,
-          username: target.username,
+          username: native ? undefined : target.username,
           result: "failed",
-          message: error instanceof Error ? error.message : "Unknown error",
+          message: native
+            ? translateMessage(
+                error instanceof ApiError && error.statusCode === 400 && error.messageKey
+                  ? error.messageKey
+                  : "permission.insufficientPermission",
+                (request as TypedRequest | undefined)?.locale ?? DEFAULT_BACKEND_LOCALE,
+                error instanceof ApiError && error.statusCode === 400 ? error.messageParams : undefined,
+              )
+            : error instanceof Error
+              ? error.message
+              : "Unknown error",
         });
       }
+    }
 
     const createdCount = results.filter((item) => item.result === "created").length;
     const extendedCount = results.filter((item) => item.result === "extended").length;
@@ -1959,6 +2154,7 @@ export class MonthlyPassService {
     model?: string,
     startTime?: string,
     endTime?: string,
+    request?: TypedRequest,
   ): Promise<MonthlyPassUsageListResponse> {
     const paging = normalizePagination(page, pageSize);
     const parsedStartTime = parseDateStringOrThrow("startTime", startTime);
@@ -1980,14 +2176,21 @@ export class MonthlyPassService {
       if (parsedEndTime) where.createTime.lte = parsedEndTime;
     }
 
-    const result = await this.monthlyPassRepository.listUsageRecords(where, paging.page, paging.pageSize);
-
-    return {
-      total: result.total,
-      records: result.records.map((item) => this.toUsageDto(item)),
-      page: paging.page,
-      pageSize: paging.pageSize,
-    };
+    if (!request) throw iamAccountDenied();
+    return PlatformMonthlyPassUsageReadIamService.getInstance().list(
+      request,
+      paging,
+      { userId, templateId, model, startAt: parsedStartTime, endAt: parsedEndTime },
+      (view) =>
+        this.toUsageDto({
+          ...view.record,
+          userMonthlyPass: { template: { id: view.templateId, name: view.templateName ?? "" } },
+        }),
+      async () => {
+        const result = await this.monthlyPassRepository.listUsageRecords(where, paging.page, paging.pageSize);
+        return { total: result.total, records: result.records.map((item) => this.toUsageDto(item)) };
+      },
+    );
   }
 
   async hasActiveCoverage(

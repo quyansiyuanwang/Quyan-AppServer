@@ -1,0 +1,114 @@
+import { env } from "@/config/env";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
+import { IamAccountUserRepository, iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getIamActionDefinition, type IamPrincipal } from "@quyan/shared";
+import { platformCollectionDecisions } from "@/services/system/platform-collection-decisions";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
+export interface IamPersonalCollectionStore<TView> {
+  list(
+    principal: IamPrincipal,
+    pagination: { page: number; pageSize: number },
+    status: number | undefined,
+    decide: (resources: readonly string[]) => Promise<readonly string[]>,
+    recheck: () => Promise<void>,
+  ): Promise<{ total: number; records: TView[] }>;
+}
+export abstract class IamPersonalCollectionService<TView extends { record: { id: string; userId: string } }> {
+  protected constructor(
+    private readonly action: string,
+    private readonly iam: Pick<IamAuthorizationService, "loadPolicies" | "authorizeMany">,
+    private readonly repository: IamPersonalCollectionStore<TView>,
+    private readonly users: Pick<IamAccountUserRepository, "targets">,
+  ) {
+    const definition = getIamActionDefinition(action);
+    if (
+      definition?.accessLevel !== "List" ||
+      definition.defaultAuthorizationScope !== "self" ||
+      definition.authorizationBoundary === "platform"
+    )
+      throw new Error("Personal collections require a registered self-service List Action");
+  }
+  async list<T>(
+    userId: string,
+    request: TypedRequest | undefined,
+    pagination: { page: number; pageSize: number },
+    status: number | undefined,
+    map: (view: TView) => T,
+    legacy: () => Promise<{ total: number; records: T[] }>,
+  ) {
+    const mode = env.security.iamAuthorizationMode,
+      action = this.action;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (!request) {
+      if (mode !== "legacy") throw iamAccountDenied();
+      return legacy();
+    }
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== userId ||
+      principal.principalUserId !== userId
+    )
+      throw iamAccountDenied();
+    if (mode === "legacy") return legacy();
+    const native = async () => {
+      const recheck = await createIamPersonalReadRecheck(principal, this.iam, this.users);
+      await recheck();
+      const result = await this.repository.list(
+        principal,
+        pagination,
+        status,
+        (resources) => platformCollectionDecisions(this.iam, { action, principal, request, resources }),
+        recheck,
+      );
+      if (
+        !result ||
+        !Number.isSafeInteger(result.total) ||
+        result.total < 0 ||
+        !Array.isArray(result.records) ||
+        result.records.length > pagination.pageSize ||
+        result.records.some((view) => view.record.userId !== userId)
+      )
+        throw iamAccountDenied();
+      await recheck();
+      return { total: result.total, records: result.records.map(map), ...pagination };
+    };
+    if (mode === "enforce") return native();
+    try {
+      await native();
+    } catch {
+      getLogger("IamPersonalCollection", LogCategory.SECURITY).warn("Personal collection shadow evaluation failed", {
+        action,
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+    return legacy();
+  }
+}
+
+/** Freeze account membership and the contributing policy set for a personal read. */
+export async function createIamPersonalReadRecheck(
+  principal: IamPrincipal,
+  iam: Pick<IamAuthorizationService, "loadPolicies">,
+  users: Pick<IamAccountUserRepository, "targets">,
+) {
+  const ids = [...new Set([principal.subjectUserId, principal.accountOwnerId])],
+    snapshot = await users.targets(principal, ids),
+    policies = fingerprintIamPolicies(await iam.loadPolicies(principal));
+  return async () => {
+    const current = await users.targets(principal, ids);
+    if (
+      snapshot.length !== ids.length ||
+      current.length !== ids.length ||
+      current.some(
+        (row) => !snapshot.some((old) => row.id === old.id && row.updateTime.getTime() === old.updateTime.getTime()),
+      ) ||
+      fingerprintIamPolicies(await iam.loadPolicies(principal)) !== policies
+    )
+      throw iamAccountDenied();
+  };
+}

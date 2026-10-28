@@ -1,0 +1,25 @@
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Sid": "ManageDnsRecordsForSelectedDomains",
+      "Effect": "Allow",
+      "Action": [
+        "alidns:AddDomainRecord",
+        "alidns:UpdateDomainRecord",
+        "alidns:DeleteDomainRecord",
+        "alidns:SetDomainRecordStatus",
+        "alidns:DescribeDomainRecords",
+        "alidns:DescribeDomainRecordInfo",
+        "alidns:DescribeSubDomainRecords"
+      ],
+      "Resource": ["acs:alidns:*:*:domain/qrmr.cn", "acs:alidns:*:*:domain/api.taoliya.qysyw.cn"]
+    },
+    {
+      "Sid": "DescribeDnsDomains",
+      "Effect": "Allow",
+      "Action": ["alidns:DescribeDomains", "alidns:DescribeDomainInfo"],
+      "Resource": "*"
+    }
+  ]
+}

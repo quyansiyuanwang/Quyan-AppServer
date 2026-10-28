@@ -2092,6 +2092,16 @@
 							}
 						}
 					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "参数验证失败",
 						"content": {
@@ -2138,6 +2148,16 @@
 							}
 						}
 					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "参数验证失败",
 						"content": {
@@ -2174,6 +2194,16 @@
 					},
 					"401": {
 						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -2631,6 +2661,59 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/ram/users/page": {
+			"get": {
+				"operationId": "RamControllerListUsersPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamUserPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/users": {
 			"get": {
 				"operationId": "RamControllerListUsers",
@@ -2695,6 +2778,59 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/groups/page": {
+			"get": {
+				"operationId": "RamControllerListVisibleGroupPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamVisibleGroupPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/groups": {
@@ -2851,6 +2987,59 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/roles/page": {
+			"get": {
+				"operationId": "RamControllerListRolesPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRolePageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/roles": {
@@ -3020,6 +3209,118 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/roles/{roleId}/trust-policy": {
+			"put": {
+				"operationId": "RamControllerSetRoleTrustPolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "roleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetRamRoleTrustPolicyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/roles/{roleId}/bindings/page": {
+			"get": {
+				"operationId": "RamControllerListRoleBindingsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleBindingPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "roleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/roles/{roleId}/bindings": {
@@ -3354,6 +3655,59 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/ram/sessions/page": {
+			"get": {
+				"operationId": "RamControllerListSessionsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleSessionPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/sessions": {
 			"get": {
 				"operationId": "RamControllerListSessions",
@@ -3441,6 +3795,59 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/policies/page": {
+			"get": {
+				"operationId": "RamControllerListPoliciesPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/policies": {
@@ -3612,6 +4019,59 @@
 				}
 			}
 		},
+		"/v1/ram/policies/{policyId}/attachments/page": {
+			"get": {
+				"operationId": "RamControllerListPolicyAttachmentsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyAttachmentPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/policies/{policyId}/attachments": {
 			"get": {
 				"operationId": "RamControllerListPolicyAttachments",
@@ -3755,6 +4215,849 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/authorizations/page": {
+			"get": {
+				"operationId": "RamControllerListAuthorizationPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamAuthorizationPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "principalType",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/ram/resource-groups/page": {
+			"get": {
+				"operationId": "RamControllerListResourceGroupPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/ram/resource-groups/{groupId}/members": {
+			"get": {
+				"operationId": "RamControllerListResourceGroupMemberPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupMemberPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerAddResourceGroupMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddRamResourceGroupMemberDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/authorizations": {
+			"get": {
+				"operationId": "RamControllerListAuthorizations",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RamAuthorizationDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "principalType",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreateAuthorization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamAuthorizationDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamAuthorizationDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/authorizations/{authorizationId}": {
+			"delete": {
+				"operationId": "RamControllerDeleteAuthorization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "authorizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/resource-groups": {
+			"get": {
+				"operationId": "RamControllerListResourceGroups",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RamResourceGroupDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreateResourceGroup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamResourceGroupDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/resource-groups/{groupId}/members/{memberId}": {
+			"delete": {
+				"operationId": "RamControllerRemoveResourceGroupMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "memberId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/policies/delegation-check": {
+			"post": {
+				"operationId": "RamControllerCheckPolicyDelegation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CheckIamDelegationResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ValidateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/diagnose": {
+			"post": {
+				"operationId": "RamControllerDiagnosePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DiagnoseIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DiagnoseIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/validate": {
+			"post": {
+				"operationId": "RamControllerValidatePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidateIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ValidateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/simulate": {
+			"post": {
+				"operationId": "RamControllerSimulatePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SimulateIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SimulateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/{policyId}/versions": {
+			"get": {
+				"operationId": "RamControllerListPolicyVersions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyVersionPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreatePolicyVersion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamPolicyVersionDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/policies/{policyId}/default-version": {
+			"put": {
+				"operationId": "RamControllerSetDefaultPolicyVersion",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetDefaultRamPolicyVersionDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/iam/actions": {
+			"get": {
+				"operationId": "RamControllerGetIamActions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"type": "string"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/ram/authorization/effective-permissions": {
@@ -6734,6 +8037,49 @@
 				"parameters": []
 			}
 		},
+		"/v1/accesskeys/page": {
+			"get": {
+				"operationId": "AccessKeyControllerListAccessKeysPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccessKeyPageDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Bounded metadata page. Empty IAM-filtered pages can still have hasNext=true.",
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/accesskeys/{id}": {
 			"delete": {
 				"operationId": "AccessKeyControllerDeleteAccessKey",
@@ -9193,6 +10539,7 @@
 				],
 				"parameters": [
 					{
+						"description": "IP 黑名单 ID",
 						"in": "path",
 						"name": "id",
 						"required": true,
@@ -12077,18 +13424,7 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {
-									"properties": {
-										"created": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"created"
-									],
-									"type": "object"
-								}
+								"schema": {}
 							}
 						}
 					}
@@ -12376,141 +13712,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"total": {
-											"type": "number",
-											"format": "double"
-										},
-										"incidents": {
-											"items": {
-												"properties": {
-													"matchText": {
-														"type": "string"
-													},
-													"matchContext": {
-														"type": "string"
-													},
-													"auditDurationMs": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditCost": {
-														"$ref": "#/components/schemas/Decimal"
-													},
-													"auditTotalTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditOutputTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditInputTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditModel": {
-														"type": "string"
-													},
-													"channelId": {
-														"type": "string"
-													},
-													"relayTokenId": {
-														"type": "string"
-													},
-													"requestId": {
-														"type": "string"
-													},
-													"blocked": {
-														"type": "boolean"
-													},
-													"replaced": {
-														"type": "boolean"
-													},
-													"rule": {
-														"properties": {
-															"pattern": {
-																"type": "string"
-															},
-															"type": {
-																"type": "string"
-															},
-															"name": {
-																"type": "string"
-															}
-														},
-														"required": [
-															"pattern",
-															"type",
-															"name"
-														],
-														"type": "object"
-													},
-													"ruleId": {
-														"type": "string"
-													},
-													"action": {
-														"type": "string"
-													},
-													"direction": {
-														"type": "string"
-													},
-													"source": {
-														"type": "string"
-													},
-													"statusCode": {
-														"type": "number",
-														"format": "double"
-													},
-													"userId": {
-														"type": "string"
-													},
-													"createTime": {
-														"type": "string",
-														"format": "date-time"
-													},
-													"id": {
-														"type": "string"
-													},
-													"channelName": {},
-													"relayTokenName": {}
-												},
-												"required": [
-													"matchText",
-													"matchContext",
-													"auditDurationMs",
-													"auditCost",
-													"auditTotalTokens",
-													"auditOutputTokens",
-													"auditInputTokens",
-													"auditModel",
-													"channelId",
-													"relayTokenId",
-													"requestId",
-													"blocked",
-													"replaced",
-													"rule",
-													"ruleId",
-													"action",
-													"direction",
-													"source",
-													"statusCode",
-													"userId",
-													"createTime",
-													"id",
-													"channelName",
-													"relayTokenName"
-												],
-												"type": "object"
-											},
-											"type": "array"
-										}
-									},
-									"required": [
-										"total",
-										"incidents"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/ContentSafetySystemIncidentResponse"
 								}
 							}
 						}
@@ -12677,18 +13879,21 @@
 										"incidents": {
 											"items": {
 												"properties": {
+													"matchContext": {
+														"type": "string"
+													},
 													"matchText": {
 														"type": "string"
 													},
-													"matchContext": {
-														"type": "string"
+													"blocked": {
+														"type": "boolean"
+													},
+													"replaced": {
+														"type": "boolean"
 													},
 													"auditDurationMs": {
 														"type": "number",
 														"format": "double"
-													},
-													"auditCost": {
-														"$ref": "#/components/schemas/Decimal"
 													},
 													"auditTotalTokens": {
 														"type": "number",
@@ -12708,17 +13913,14 @@
 													"channelId": {
 														"type": "string"
 													},
-													"relayTokenId": {
-														"type": "string"
-													},
 													"requestId": {
 														"type": "string"
 													},
-													"blocked": {
-														"type": "boolean"
+													"relayTokenId": {
+														"type": "string"
 													},
-													"replaced": {
-														"type": "boolean"
+													"auditCost": {
+														"$ref": "#/components/schemas/Decimal"
 													},
 													"rule": {
 														"properties": {
@@ -12769,19 +13971,19 @@
 													"relayTokenName": {}
 												},
 												"required": [
-													"matchText",
 													"matchContext",
+													"matchText",
+													"blocked",
+													"replaced",
 													"auditDurationMs",
-													"auditCost",
 													"auditTotalTokens",
 													"auditOutputTokens",
 													"auditInputTokens",
 													"auditModel",
 													"channelId",
-													"relayTokenId",
 													"requestId",
-													"blocked",
-													"replaced",
+													"relayTokenId",
+													"auditCost",
 													"rule",
 													"ruleId",
 													"action",
@@ -14370,6 +15572,12 @@
 							}
 						}
 					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
 				}
 			}
 		},
@@ -15482,7 +16690,34 @@
 						"jwt": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/remote-terminal/products/templates/published": {
@@ -16629,6 +17864,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -16668,6 +17923,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -16726,6 +18001,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -16761,6 +18056,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ImportRelayTokensResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -16808,6 +18123,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -16843,6 +18178,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayCompositionCandidatesDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -16922,6 +18277,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenUsageSummaryBatchDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17055,6 +18430,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17106,6 +18501,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17152,6 +18567,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17264,6 +18699,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17305,6 +18760,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17361,6 +18836,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17401,6 +18896,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17455,6 +18970,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17496,6 +19031,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/BatchRelayTokensResultDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17543,6 +19098,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17584,6 +19159,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayUsageStatsDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17645,6 +19240,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenUsageDetailDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17724,6 +19339,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayRequestDiagnosticsPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17819,6 +19454,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17856,6 +19511,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17881,6 +19556,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenSwitchLogsDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -17938,6 +19633,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -17983,6 +19698,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -18004,6 +19739,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayConfigDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -18049,6 +19804,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"description": "Get upstream availability status from configured monitoring service\nSupports mixed mode: upstream API + transformation rules + static data fallback",
@@ -18076,6 +19851,46 @@
 								}
 							}
 						}
+					},
+					"400": {
+						"description": "分页参数无效",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "并发统计后端不可用",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -18093,6 +19908,24 @@
 						"required": false,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -18114,6 +19947,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18300,6 +20139,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required"
+					},
+					"403": {
+						"description": "IAM authorization denied"
 					}
 				},
 				"tags": [
@@ -18450,6 +20295,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18483,6 +20334,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18528,6 +20385,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18572,6 +20435,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18598,6 +20467,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18649,6 +20524,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18691,6 +20572,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18733,6 +20620,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18770,6 +20663,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18825,6 +20724,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18866,6 +20771,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18917,6 +20828,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -18968,6 +20885,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19019,6 +20942,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19096,6 +21025,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required"
+					},
+					"403": {
+						"description": "IAM authorization denied"
 					}
 				},
 				"tags": [
@@ -19169,6 +21104,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required"
+					},
+					"403": {
+						"description": "IAM authorization denied"
 					}
 				},
 				"tags": [
@@ -19224,6 +21165,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19347,6 +21294,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19463,6 +21416,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19553,6 +21512,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19827,6 +21792,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -19910,6 +21881,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -23632,6 +25609,171 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/iam/catalog/services": {
+			"get": {
+				"operationId": "IamCatalogControllerListServices",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamServiceDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/iam/catalog/services/{service}/actions": {
+			"get": {
+				"operationId": "IamCatalogControllerListActions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamActionDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "service",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/iam/catalog/resources": {
+			"get": {
+				"operationId": "IamCatalogControllerListResources",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamResourceTypeDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/iam/catalog/policy-schema": {
+			"get": {
+				"operationId": "IamCatalogControllerGetPolicySchema",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Record_string.unknown_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "policyKind",
+						"required": false,
+						"schema": {
+							"default": "identity",
+							"type": "string",
+							"enum": [
+								"identity",
+								"trust"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/v1/iam/catalog/condition-keys": {
+			"get": {
+				"operationId": "IamCatalogControllerListConditionKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamConditionKeyDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/products/admin/quota-overrides": {
 			"get": {
 				"operationId": "DeveloperQuotaAdminControllerList",
@@ -23760,6 +25902,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -23781,6 +25943,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -23808,6 +25990,126 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetProject",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/usage": {
 			"get": {
 				"operationId": "DeveloperProjectControllerGetUsageSummary",
@@ -23818,6 +26120,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperQuotaSummaryDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -23856,6 +26178,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -23889,6 +26231,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/keys/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKeysPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperApiKeyPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/keys": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListKeys",
@@ -23902,6 +26317,26 @@
 										"$ref": "#/components/schemas/DeveloperApiKeyDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -23935,6 +26370,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperApiKeyDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -23996,6 +26451,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24027,6 +26502,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/kv/entries/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKvPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/kv": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListKv",
@@ -24040,6 +26588,26 @@
 										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24075,6 +26643,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24116,6 +26704,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24183,6 +26791,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24214,6 +26842,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/short-links/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListShortLinksPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/short-links": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListShortLinks",
@@ -24227,6 +26928,26 @@
 										"$ref": "#/components/schemas/DeveloperShortLinkDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24260,6 +26981,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24306,6 +27047,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24373,6 +27134,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24417,6 +27198,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24447,6 +27248,79 @@
 				]
 			}
 		},
+		"/v1/developer/projects/{projectId}/secrets/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListSecretsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/secrets": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListSecrets",
@@ -24460,6 +27334,26 @@
 										"$ref": "#/components/schemas/DeveloperSecretDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24493,6 +27387,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24554,6 +27468,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24585,6 +27519,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/monitors/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListMonitorsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/monitors": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListMonitors",
@@ -24598,6 +27605,26 @@
 										"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24631,6 +27658,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24677,6 +27724,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24744,6 +27811,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24788,6 +27875,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24819,6 +27926,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/push-channels/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushChannelsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/push-channels": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListPushChannels",
@@ -24832,6 +28012,26 @@
 										"$ref": "#/components/schemas/DeveloperPushChannelDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24868,6 +28068,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -24901,6 +28121,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/push-deliveries/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushDeliveriesPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushDeliveryPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/push-deliveries": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListPushDeliveries",
@@ -24914,6 +28207,26 @@
 										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
 									},
 									"type": "array"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -24939,6 +28252,69 @@
 				]
 			}
 		},
+		"/v1/developer/projects/{projectId}/push-deliveries/{id}": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetPushDelivery",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/push-channels/{id}": {
 			"put": {
 				"operationId": "DeveloperProjectControllerUpdatePushChannel",
@@ -24949,6 +28325,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25013,6 +28409,26 @@
 										"success"
 									],
 									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -34465,6 +37881,88 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"CustomCode": {
+				"description": "业务自定义状态码",
+				"enum": [
+					0,
+					1001,
+					1002,
+					1003,
+					1004,
+					1005,
+					1006,
+					1007,
+					1008,
+					1009,
+					1010,
+					1011,
+					1012,
+					1013,
+					1014,
+					1015,
+					1429,
+					1016,
+					1017,
+					1018,
+					1019,
+					1020,
+					1021,
+					1022,
+					1023,
+					1024,
+					1025,
+					1026,
+					1027,
+					1028,
+					1029,
+					1030,
+					1031,
+					1032,
+					1033,
+					1034,
+					1035,
+					1036,
+					1037,
+					1038,
+					1039,
+					1040,
+					1041,
+					1042,
+					1043,
+					1044,
+					1045,
+					1046,
+					1047,
+					1048
+				],
+				"type": "number"
+			},
+			"Record_string.any_": {
+				"properties": {},
+				"additionalProperties": {},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
+			"ErrorResponse": {
+				"description": "错误响应格式\n用于所有错误情况（4xx, 5xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"fields": {
+						"$ref": "#/components/schemas/Record_string.any_"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenUsageSummaryDto": {
 				"properties": {
 					"relayTokenId": {
@@ -34698,12 +38196,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"Record_string.any_": {
-				"properties": {},
-				"additionalProperties": {},
-				"type": "object",
-				"description": "Construct a type with a set of properties K of type T"
-			},
 			"TwoFactorTrustClearResponse": {
 				"properties": {
 					"message": {
@@ -34812,6 +38304,10 @@
 			"UserDto": {
 				"description": "用户基本信息",
 				"properties": {
+					"accountOwnerId": {
+						"type": "string",
+						"description": "Owning account resolved by the server; clients must not infer ownership from the subject ID."
+					},
 					"id": {
 						"type": "string",
 						"description": "用户ID"
@@ -34903,82 +38399,6 @@
 			"GetAllUsersResponse": {
 				"$ref": "#/components/schemas/GetAllUsersData",
 				"description": "获取用户详情响应"
-			},
-			"CustomCode": {
-				"description": "业务自定义状态码",
-				"enum": [
-					0,
-					1001,
-					1002,
-					1003,
-					1004,
-					1005,
-					1006,
-					1007,
-					1008,
-					1009,
-					1010,
-					1011,
-					1012,
-					1013,
-					1014,
-					1015,
-					1429,
-					1016,
-					1017,
-					1018,
-					1019,
-					1020,
-					1021,
-					1022,
-					1023,
-					1024,
-					1025,
-					1026,
-					1027,
-					1028,
-					1029,
-					1030,
-					1031,
-					1032,
-					1033,
-					1034,
-					1035,
-					1036,
-					1037,
-					1038,
-					1039,
-					1040,
-					1041,
-					1042,
-					1043,
-					1044,
-					1045,
-					1046,
-					1047,
-					1048
-				],
-				"type": "number"
-			},
-			"ErrorResponse": {
-				"description": "错误响应格式\n用于所有错误情况（4xx, 5xx）",
-				"properties": {
-					"code": {
-						"$ref": "#/components/schemas/CustomCode"
-					},
-					"message": {
-						"type": "string"
-					},
-					"fields": {
-						"$ref": "#/components/schemas/Record_string.any_"
-					}
-				},
-				"required": [
-					"code",
-					"message"
-				],
-				"type": "object",
-				"additionalProperties": false
 			},
 			"GetUserByIdResponse": {
 				"$ref": "#/components/schemas/UserDto"
@@ -35829,6 +39249,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamUserDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamUserDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamUserPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamUserDto_"
+			},
 			"GetRamUsersResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamUserDto"
@@ -35882,6 +39334,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamGroupDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamGroupDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamVisibleGroupPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamGroupDto_"
 			},
 			"GetRamGroupsResponse": {
 				"items": {
@@ -35961,6 +39445,9 @@
 			},
 			"RamRoleDto": {
 				"properties": {
+					"trustPolicyHash": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -36016,6 +39503,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamRoleDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRolePageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleDto_"
+			},
 			"GetRamRolesResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamRoleDto"
@@ -36046,6 +39565,9 @@
 			},
 			"UpdateRamRoleDto": {
 				"properties": {
+					"expectedTrustPolicyHash": {
+						"type": "string"
+					},
 					"description": {
 						"type": "string"
 					},
@@ -36066,6 +39588,167 @@
 						"format": "double"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPrincipalSelector": {
+				"description": "First release accepts exact current-account RAM user principals only.",
+				"properties": {
+					"RAM": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"RAM"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamEffect": {
+				"type": "string",
+				"enum": [
+					"Allow",
+					"Deny"
+				],
+				"description": "Strict identity-policy subset. Unsupported IAM fields must be rejected."
+			},
+			"IamConditionScalar": {
+				"anyOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "number",
+						"format": "double"
+					},
+					{
+						"type": "boolean"
+					}
+				]
+			},
+			"IamCondition": {
+				"properties": {},
+				"type": "object",
+				"additionalProperties": {
+					"properties": {},
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamConditionScalar"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamConditionScalar"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"type": "object"
+				}
+			},
+			"IamTrustStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Principal": {
+						"$ref": "#/components/schemas/IamPrincipalSelector"
+					}
+				},
+				"required": [
+					"Effect",
+					"Resource",
+					"Action",
+					"Principal"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamTrustPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamTrustStatement"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamTrustStatement"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetRamRoleTrustPolicyDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamTrustPolicyDocument"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"document"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -36107,6 +39790,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamRoleBindingDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleBindingDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRoleBindingPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleBindingDto_"
 			},
 			"GetRamRoleBindingsResponse": {
 				"items": {
@@ -36222,11 +39937,179 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamRoleSessionDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleSessionDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRoleSessionPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleSessionDto_"
+			},
 			"GetRamRoleSessionsResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamRoleSessionDto"
 				},
 				"type": "array"
+			},
+			"IamActionStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Effect",
+					"Resource",
+					"Action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamNotActionStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"NotAction": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Effect",
+					"Resource",
+					"NotAction"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamStatement": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/IamActionStatement"
+					},
+					{
+						"$ref": "#/components/schemas/IamNotActionStatement"
+					}
+				],
+				"description": "Exactly one selector; NotAction is compiled to a finite catalog snapshot before persistence."
+			},
+			"IamPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamStatement"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamStatement"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPolicyDocumentDto": {
+				"$ref": "#/components/schemas/IamPolicyDocument"
 			},
 			"Permission": {
 				"description": "系统权限枚举\n定义了系统中所有可用的权限\n\n这是唯一的规范数据源。前后端都从这里 re-export。",
@@ -36439,6 +40322,16 @@
 			},
 			"RamPolicyDto": {
 				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"defaultVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"documentHash": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -36484,6 +40377,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamPolicyDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamPolicyDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamPolicyDto_"
+			},
 			"GetRamPoliciesResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamPolicyDto"
@@ -36503,17 +40428,25 @@
 							"$ref": "#/components/schemas/Permission"
 						},
 						"type": "array"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
 					}
 				},
 				"required": [
-					"name",
-					"permissions"
+					"name"
 				],
 				"type": "object",
 				"additionalProperties": false
 			},
 			"UpdateRamPolicyDto": {
 				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					},
 					"description": {
 						"type": "string"
 					},
@@ -36570,6 +40503,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamPolicyAttachmentDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamPolicyAttachmentDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyAttachmentPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamPolicyAttachmentDto_"
+			},
 			"GetRamPolicyAttachmentsResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamPolicyAttachmentDto"
@@ -36601,8 +40566,949 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamAuthorizationPrincipalType": {
+				"type": "string",
+				"enum": [
+					"user",
+					"group",
+					"role"
+				]
+			},
+			"IamAuthorizationScopeType": {
+				"type": "string",
+				"enum": [
+					"account",
+					"resource-group",
+					"resource"
+				]
+			},
+			"IamAuthorizationContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"principalType": {
+						"$ref": "#/components/schemas/IamAuthorizationPrincipalType"
+					},
+					"principalId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"scopeType": {
+						"$ref": "#/components/schemas/IamAuthorizationScopeType"
+					},
+					"scopeResourceId": {
+						"type": "string",
+						"nullable": true
+					},
+					"scopeArn": {
+						"type": "string",
+						"nullable": true
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createdBy": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"principalType",
+					"principalId",
+					"policyId",
+					"scopeType",
+					"status",
+					"createdBy",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamManagementPageResult_IamAuthorizationContract_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamAuthorizationContract"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamAuthorizationPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamAuthorizationContract_"
+			},
+			"Pick_IamResourceGroupContract.Exclude_keyofIamResourceGroupContract.members__": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"status",
+					"createTime",
+					"updateTime",
+					"name",
+					"accountOwnerId"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_IamResourceGroupContract.members_": {
+				"$ref": "#/components/schemas/Pick_IamResourceGroupContract.Exclude_keyofIamResourceGroupContract.members__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"IamResourceGroupSummary": {
+				"$ref": "#/components/schemas/Omit_IamResourceGroupContract.members_"
+			},
+			"IamManagementPageResult_IamResourceGroupSummary_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupSummary"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamResourceGroupPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamResourceGroupSummary_"
+			},
+			"IamResourceGroupMemberContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"resourceGroupId": {
+						"type": "string"
+					},
+					"resourceArn": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"resourceType": {
+						"type": "string"
+					},
+					"resourceId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"resourceGroupId",
+					"resourceArn",
+					"service",
+					"resourceType",
+					"resourceId",
+					"status",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamManagementPageResult_IamResourceGroupMemberContract_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupMemberContract"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamResourceGroupMemberPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamResourceGroupMemberContract_"
+			},
+			"RamAuthorizationDto": {
+				"$ref": "#/components/schemas/IamAuthorizationContract"
+			},
+			"CreateRamAuthorizationDto": {
+				"properties": {
+					"principalType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"group",
+							"role"
+						]
+					},
+					"principalId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"scopeType": {
+						"type": "string",
+						"enum": [
+							"account",
+							"resource-group",
+							"resource"
+						]
+					},
+					"scopeResourceId": {
+						"type": "string"
+					},
+					"scopeArn": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"principalType",
+					"principalId",
+					"policyId",
+					"scopeType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamResourceGroupContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupMemberContract"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"name",
+					"status",
+					"createTime",
+					"updateTime",
+					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamResourceGroupDto": {
+				"$ref": "#/components/schemas/IamResourceGroupContract"
+			},
+			"CreateRamResourceGroupDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AddRamResourceGroupMemberDto": {
+				"properties": {
+					"resourceArn": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"resourceArn"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDelegationIssue": {
+				"properties": {
+					"code": {
+						"type": "string",
+						"enum": [
+							"proof-limit",
+							"unproven-resource-subset",
+							"unproven-condition-subset",
+							"missing-allow-coverage",
+							"explicit-deny-overlap"
+						]
+					},
+					"statementId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"code",
+					"statementId",
+					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDelegationResult": {
+				"properties": {
+					"allowed": {
+						"type": "boolean"
+					},
+					"issues": {
+						"items": {
+							"$ref": "#/components/schemas/IamDelegationIssue"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"allowed",
+					"issues"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CheckIamDelegationResponseDto": {
+				"$ref": "#/components/schemas/IamDelegationResult"
+			},
+			"ValidateIamPolicyDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					}
+				},
+				"required": [
+					"document"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDiagnosticCode": {
+				"type": "string",
+				"enum": [
+					"json-syntax",
+					"document-limit",
+					"duplicate-key",
+					"unsafe-key",
+					"unknown-field",
+					"invalid-version",
+					"invalid-field",
+					"unknown-action",
+					"invalid-action-selector",
+					"invalid-resource",
+					"invalid-condition",
+					"invalid-principal",
+					"cross-account-principal",
+					"broad-action",
+					"not-action-snapshot",
+					"broad-resource",
+					"iam-management",
+					"duplicate-statement",
+					"cross-account-resource",
+					"resource-type-mismatch",
+					"unreachable-deny"
+				]
+			},
+			"IamDiagnostic": {
+				"properties": {
+					"severity": {
+						"type": "string",
+						"enum": [
+							"error",
+							"security-warning",
+							"warning",
+							"suggestion"
+						]
+					},
+					"code": {
+						"$ref": "#/components/schemas/IamDiagnosticCode"
+					},
+					"path": {
+						"type": "string",
+						"description": "RFC 6901 JSON pointer into the original document."
+					},
+					"line": {
+						"type": "number",
+						"format": "double"
+					},
+					"column": {
+						"type": "number",
+						"format": "double"
+					},
+					"messageKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"severity",
+					"code",
+					"path",
+					"line",
+					"column",
+					"messageKey"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Resource": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"items": {
+							"$ref": "#/components/schemas/NormalizedIamStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamTrustStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Resource": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Principal": {
+						"properties": {
+							"RAM": {
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"required": [
+							"RAM"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource",
+					"Principal"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamTrustPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"items": {
+							"$ref": "#/components/schemas/NormalizedIamTrustStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPolicyDiagnosis": {
+				"properties": {
+					"valid": {
+						"type": "boolean"
+					},
+					"diagnostics": {
+						"items": {
+							"$ref": "#/components/schemas/IamDiagnostic"
+						},
+						"type": "array"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						]
+					},
+					"document": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/NormalizedIamPolicyDocument"
+							},
+							{
+								"$ref": "#/components/schemas/NormalizedIamTrustPolicyDocument"
+							}
+						]
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"delegation": {
+						"type": "string",
+						"enum": [
+							"not-evaluated"
+						],
+						"nullable": false,
+						"description": "Diagnosis never proves a caller's right to publish or delegate a policy."
+					}
+				},
+				"required": [
+					"valid",
+					"diagnostics",
+					"riskLevel",
+					"delegation"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DiagnoseIamPolicyResponseDto": {
+				"$ref": "#/components/schemas/IamPolicyDiagnosis"
+			},
+			"DiagnoseIamPolicyDto": {
+				"properties": {
+					"documentText": {
+						"type": "string"
+					},
+					"policyKind": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"trust"
+						]
+					}
+				},
+				"required": [
+					"documentText"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ValidateIamPolicyResponseDto": {
+				"properties": {
+					"valid": {
+						"type": "boolean"
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"broadWildcard": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"valid",
+					"documentHash",
+					"document",
+					"broadWildcard"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDecision": {
+				"type": "string",
+				"enum": [
+					"Allow",
+					"ExplicitDeny",
+					"ImplicitDeny"
+				]
+			},
+			"IamDecisionReason": {
+				"type": "string",
+				"enum": [
+					"matched-allow",
+					"explicit-deny",
+					"no-matching-allow",
+					"invalid-request",
+					"missing-condition-context"
+				]
+			},
+			"IamMatchedStatement": {
+				"properties": {
+					"authorizationId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"versionId": {
+						"type": "string"
+					},
+					"statementId": {
+						"type": "string"
+					},
+					"effect": {
+						"type": "string",
+						"enum": [
+							"Allow",
+							"Deny"
+						]
+					}
+				},
+				"required": [
+					"policyId",
+					"statementId",
+					"effect"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamEvaluationResult": {
+				"properties": {
+					"decision": {
+						"$ref": "#/components/schemas/IamDecision"
+					},
+					"reason": {
+						"$ref": "#/components/schemas/IamDecisionReason"
+					},
+					"matchedStatements": {
+						"items": {
+							"$ref": "#/components/schemas/IamMatchedStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"decision",
+					"reason",
+					"matchedStatements"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SimulateIamPolicyResponseDto": {
+				"$ref": "#/components/schemas/IamEvaluationResult"
+			},
+			"SimulateIamPolicyDto": {
+				"properties": {
+					"principalId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"resource": {
+						"type": "string"
+					},
+					"documentText": {
+						"type": "string",
+						"description": "Optional raw identity draft. When present, evaluate it in isolation, without saved grants."
+					}
+				},
+				"required": [
+					"principalId",
+					"action",
+					"resource"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyVersionDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"isDefault": {
+						"type": "boolean"
+					},
+					"createdBy": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"version",
+					"document",
+					"documentHash",
+					"isDefault",
+					"createdBy",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyVersionPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamPolicyVersionDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultVersionId": {
+						"type": "string"
+					},
+					"defaultDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRamPolicyVersionDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"document"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetDefaultRamPolicyVersionDto": {
+				"properties": {
+					"versionId": {
+						"type": "string"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"versionId",
+					"expectedDocumentHash"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"EffectivePermissionDto": {
 				"properties": {
+					"authorizationMode": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"shadow",
+							"enforce"
+						],
+						"description": "Projection hint only; resource-level authorization remains server-enforced."
+					},
 					"userId": {
 						"type": "string"
 					},
@@ -37899,7 +42805,8 @@
 					},
 					"total": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"description": "Exact legacy count; omitted for IAM-filtered candidate pages. Use hasMore to advance."
 					},
 					"page": {
 						"type": "number",
@@ -37915,7 +42822,6 @@
 				},
 				"required": [
 					"groups",
-					"total",
 					"page",
 					"pageSize",
 					"hasMore"
@@ -38606,6 +43512,36 @@
 						"description": "邮箱验证码（未开启 2FA 时必填）"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AccessKeyPageDto": {
+				"description": "Bounded candidate page. IAM filtering may produce an empty page with hasNext=true.\nNo unfiltered credential count is returned. Existing secrets remain masked.",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AccessKeyDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -42851,6 +47787,257 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"Pick_ContentSafetyIncidentDto.Exclude_keyofContentSafetyIncidentDto.auditCost__": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"source": {
+						"type": "string"
+					},
+					"direction": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"ruleId": {
+						"type": "string"
+					},
+					"rule": {
+						"properties": {
+							"pattern": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"type",
+							"name"
+						],
+						"type": "object"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"relayTokenName": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"auditModel": {
+						"type": "string"
+					},
+					"auditInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditTotalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditDurationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"replaced": {
+						"type": "boolean"
+					},
+					"blocked": {
+						"type": "boolean"
+					},
+					"matchText": {
+						"type": "string"
+					},
+					"matchContext": {
+						"type": "string",
+						"description": "One combined excerpt; the UI highlights the matching portion temporarily."
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"userId",
+					"source",
+					"direction",
+					"action",
+					"auditInputTokens",
+					"auditOutputTokens",
+					"auditTotalTokens",
+					"auditDurationMs",
+					"replaced",
+					"blocked"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"ContentSafetySystemIncidentDto": {
+				"description": "JSON wire representation: Prisma decimal costs have always serialized as strings.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"source": {
+						"type": "string"
+					},
+					"direction": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"ruleId": {
+						"type": "string"
+					},
+					"rule": {
+						"properties": {
+							"pattern": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"type",
+							"name"
+						],
+						"type": "object"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"relayTokenName": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"auditModel": {
+						"type": "string"
+					},
+					"auditInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditTotalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditDurationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"replaced": {
+						"type": "boolean"
+					},
+					"blocked": {
+						"type": "boolean"
+					},
+					"matchText": {
+						"type": "string"
+					},
+					"matchContext": {
+						"type": "string",
+						"description": "One combined excerpt; the UI highlights the matching portion temporarily."
+					},
+					"auditCost": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"userId",
+					"source",
+					"direction",
+					"action",
+					"auditInputTokens",
+					"auditOutputTokens",
+					"auditTotalTokens",
+					"auditDurationMs",
+					"replaced",
+					"blocked",
+					"auditCost"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetySystemIncidentResponse": {
+				"properties": {
+					"incidents": {
+						"items": {
+							"$ref": "#/components/schemas/ContentSafetySystemIncidentDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"incidents",
+					"total"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"Decimal": {
 				"type": "string"
 			},
@@ -44197,6 +49384,10 @@
 					"RELAY_CHANNEL_EXPORT",
 					"RELAY_CHANNEL_IMPORT",
 					"RELAY_CONFIG_UPDATE",
+					"DEVELOPER_PRODUCT_ACCOUNT_UPDATE",
+					"DEVELOPER_PRODUCT_CONFIG_UPDATE",
+					"DEVELOPER_QUOTA_OVERRIDE_UPSERT",
+					"DEVELOPER_QUOTA_OVERRIDE_DELETE",
 					"MODEL_PRICING_CREATE",
 					"MODEL_PRICING_UPDATE",
 					"MODEL_PRICING_DELETE",
@@ -45744,6 +50935,19 @@
 							"$ref": "#/components/schemas/RemoteTerminalProductTemplateFilterOptionDto"
 						},
 						"type": "array"
+					},
+					"templateTotal": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of template options admitted for the current principal and search."
+					},
+					"templatePage": {
+						"type": "number",
+						"format": "double"
+					},
+					"templatePageSize": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -46201,7 +51405,8 @@
 					},
 					"registeredDeviceCount": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"description": "Omitted when any contributing device binding is not readable."
 					},
 					"registrationToken": {
 						"$ref": "#/components/schemas/RemoteTerminalRegistrationTokenDto"
@@ -46233,8 +51438,7 @@
 					"createTime",
 					"updateTime",
 					"isActive",
-					"isExpired",
-					"registeredDeviceCount"
+					"isExpired"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -47095,7 +52299,8 @@
 						"type": "string"
 					},
 					"token": {
-						"type": "string"
+						"type": "string",
+						"description": "List/get omit this without the credential-reveal Action; mutation responses have separate authorization."
 					},
 					"balance": {
 						"type": "number",
@@ -47214,7 +52419,6 @@
 				"required": [
 					"id",
 					"userId",
-					"token",
 					"balance",
 					"totalTokens",
 					"requestCount",
@@ -48698,6 +53902,10 @@
 			},
 			"RelayRequestDiagnosticDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Native IAM identity, independent of the externally visible request label."
+					},
 					"requestId": {
 						"type": "string"
 					},
@@ -48816,6 +54024,10 @@
 			},
 			"RelayRequestRouteTraceDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Native IAM identity of the logical request."
+					},
 					"requestId": {
 						"type": "string"
 					},
@@ -48835,6 +54047,10 @@
 			},
 			"RelayAvailableModelsMapDto": {
 				"properties": {
+					"modelResourceArns": {
+						"$ref": "#/components/schemas/Record_string.string_",
+						"description": "Native IAM discovery-resource ARN keyed by visible model name."
+					},
 					"modelNames": {
 						"items": {
 							"type": "string"
@@ -49403,6 +54619,22 @@
 							"$ref": "#/components/schemas/RelayConcurrencyStatusItemDto"
 						},
 						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double",
+						"description": "IAM enforcement mode returns a bounded authorized page; totals cover all permitted records."
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -49460,6 +54692,13 @@
 			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
+					"forwardedRequestHeaders": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Extra exact request-header names forwarded by this physical channel; reserved names are rejected."
+					},
 					"maxRetries": {
 						"type": "number",
 						"format": "double"
@@ -51782,46 +57021,22 @@
 				"additionalProperties": false
 			},
 			"RelayChannelExportItemDto": {
+				"description": "Portable configuration only. Credentials and upstream URLs are never exported.",
 				"properties": {
+					"id": {
+						"type": "string"
+					},
 					"name": {
-						"type": "string",
-						"description": "渠道名称"
+						"type": "string"
 					},
-					"openaiUpstreamUrl": {
-						"type": "string",
-						"description": "OpenAI 上游 URL"
-					},
-					"openaiUpstreamApiKey": {
-						"type": "string",
-						"description": "OpenAI 上游 API Key"
-					},
-					"useProxy": {
-						"type": "boolean",
-						"description": "Whether requests through this channel use the configured upstream proxy."
-					},
-					"anthropicUpstreamUrl": {
-						"type": "string",
-						"description": "Anthropic 上游 URL"
-					},
-					"anthropicUpstreamApiKey": {
-						"type": "string",
-						"description": "Anthropic 上游 API Key"
-					},
-					"geminiUpstreamUrl": {
-						"type": "string",
-						"description": "Gemini 上游 URL"
-					},
-					"geminiUpstreamApiKey": {
-						"type": "string",
-						"description": "Gemini 上游 API Key"
+					"enabled": {
+						"type": "boolean"
 					},
 					"channelType": {
-						"$ref": "#/components/schemas/RelayChannelType",
-						"description": "渠道类型"
+						"$ref": "#/components/schemas/RelayChannelType"
 					},
 					"routingStrategy": {
-						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
-						"description": "混池路由策略"
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
 					},
 					"routingConfig": {
 						"allOf": [
@@ -51829,12 +57044,10 @@
 								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
 							}
 						],
-						"nullable": true,
-						"description": "路由策略配置"
+						"nullable": true
 					},
 					"visibilityMode": {
-						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
-						"description": "可见性模式"
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
 					},
 					"visibilityConfig": {
 						"allOf": [
@@ -51842,21 +57055,18 @@
 								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
 							}
 						],
-						"nullable": true,
-						"description": "可见性白名单"
+						"nullable": true
 					},
 					"poolMembers": {
 						"items": {
 							"$ref": "#/components/schemas/RelayChannelMemberDto"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "混池成员"
+						"nullable": true
 					},
 					"pooledParentId": {
 						"type": "string",
-						"nullable": true,
-						"description": "Required for pooled-member channels in strict two-tier topology mode."
+						"nullable": true
 					},
 					"pooledPriority": {
 						"type": "number",
@@ -51869,20 +57079,20 @@
 					"pooledMemberEnabled": {
 						"type": "boolean"
 					},
+					"useProxy": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
-						"format": "double",
-						"description": "价格倍率"
+						"format": "double"
 					},
 					"allowedFormats": {
 						"type": "string",
-						"nullable": true,
-						"description": "允许的格式"
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
-						"nullable": true,
-						"description": "允许的模型"
+						"nullable": true
 					},
 					"addUserIdentifier": {
 						"type": "boolean"
@@ -51896,37 +57106,21 @@
 								"$ref": "#/components/schemas/Record_string.string_"
 							}
 						],
-						"nullable": true,
-						"description": "模型映射：请求模型 → 扣费模型"
+						"nullable": true
 					},
 					"timePeriodMultipliers": {
 						"items": {
 							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "时段倍率规则"
+						"nullable": true
 					},
 					"contextLengthMultipliers": {
 						"items": {
 							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "Input-context threshold multiplier rules."
-					},
-					"providers": {
-						"items": {
-							"$ref": "#/components/schemas/RelayChannelProviderConfigRequest"
-						},
-						"type": "array",
-						"description": "Admin-configured providers for revenue sharing."
-					},
-					"id": {
-						"type": "string"
-					},
-					"enabled": {
-						"type": "boolean"
+						"nullable": true
 					},
 					"createTime": {
 						"type": "string",
@@ -51938,8 +57132,8 @@
 					}
 				},
 				"required": [
-					"name",
 					"id",
+					"name",
 					"enabled",
 					"createTime",
 					"updateTime"
@@ -52151,6 +57345,16 @@
 						},
 						"type": "array",
 						"description": "Admin-configured providers for revenue sharing."
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time",
+						"description": "Optional export metadata; validated but ignored when creating destination timestamps."
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time",
+						"description": "Optional export metadata; validated but ignored when creating destination timestamps."
 					},
 					"id": {
 						"type": "string",
@@ -55449,7 +60653,8 @@
 						"type": "string"
 					},
 					"key": {
-						"type": "string"
+						"type": "string",
+						"description": "Returned only when the caller can reveal this credential."
 					},
 					"requestCount": {
 						"type": "number",
@@ -55480,7 +60685,6 @@
 				},
 				"required": [
 					"id",
-					"key",
 					"requestCount",
 					"totalTokens",
 					"createTime"
@@ -56804,6 +62008,315 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamActionResourceDependency": {
+				"description": "Additional runtime checks against different resources; never an implicit grant.",
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"resourceTypes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"resourceRole": {
+						"type": "string",
+						"enum": [
+							"source",
+							"destination",
+							"reference"
+						]
+					},
+					"selection": {
+						"type": "string",
+						"enum": [
+							"server-reserved",
+							"server-resolved"
+						]
+					}
+				},
+				"required": [
+					"action",
+					"resourceTypes",
+					"resourceRole",
+					"selection"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamActionDefinition": {
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"operation": {
+						"type": "string"
+					},
+					"accessLevel": {
+						"type": "string",
+						"enum": [
+							"Read",
+							"Write",
+							"List"
+						]
+					},
+					"resourceTypes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"apiRoutes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"conditionalActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Extra server Actions needed only for documented operation variants, not automatic grants."
+					},
+					"resourceDependencies": {
+						"items": {
+							"$ref": "#/components/schemas/IamActionResourceDependency"
+						},
+						"type": "array",
+						"description": "Additional checks on other resources, distinct from same-resource requiredActions."
+					},
+					"requiredActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Additional server-checked Actions on the same resource required by every variant; this metadata grants nothing."
+					},
+					"conditionKeys": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"sensitive": {
+						"type": "boolean"
+					},
+					"authorizationStage": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"declared"
+						]
+					},
+					"authorizationTransport": {
+						"type": "string",
+						"enum": [
+							"websocket"
+						],
+						"nullable": false,
+						"description": "Native protocol authorization which is served outside TSOA HTTP routes."
+					},
+					"authorizationBoundary": {
+						"type": "string",
+						"enum": [
+							"platform",
+							"resource"
+						],
+						"description": "Platform operations additionally require a persisted global group's existing management ceiling."
+					},
+					"platformPermissions": {
+						"items": {
+							"$ref": "#/components/schemas/Permission"
+						},
+						"type": "array",
+						"description": "Resource-boundary Actions apply this ceiling only to their registered platform resource types."
+					},
+					"defaultAuthorizationScope": {
+						"type": "string",
+						"enum": [
+							"self"
+						],
+						"nullable": false,
+						"description": "Baseline grant restricted to registered authenticated self identity/child ARNs."
+					},
+					"legacyPermission": {
+						"$ref": "#/components/schemas/Permission",
+						"description": "Registered migration alias only; clients cannot choose the endpoint Action."
+					},
+					"legacyPermissions": {
+						"items": {
+							"$ref": "#/components/schemas/Permission"
+						},
+						"type": "array",
+						"description": "Multiple former permissions may converge on one fixed native endpoint Action."
+					}
+				},
+				"required": [
+					"action",
+					"service",
+					"operation",
+					"accessLevel",
+					"resourceTypes",
+					"apiRoutes",
+					"conditionKeys",
+					"sensitive",
+					"authorizationStage"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamServiceDefinition": {
+				"properties": {
+					"code": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"$ref": "#/components/schemas/IamActionDefinition"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"name",
+					"actions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamResourceTypeDefinition": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"arnTemplate": {
+						"type": "string"
+					},
+					"identifierSegments": {
+						"type": "number",
+						"format": "double"
+					},
+					"accountScope": {
+						"type": "string",
+						"enum": [
+							"platform"
+						],
+						"nullable": false
+					},
+					"resourceGroupCondition": {
+						"type": "boolean",
+						"description": "Resource group conditions require a live ownership and membership provider."
+					},
+					"authenticatedSelfScope": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"children"
+						],
+						"description": "Only explicitly registered user identities or their user-parented children receive self-service defaults."
+					}
+				},
+				"required": [
+					"id",
+					"service",
+					"type",
+					"arnTemplate",
+					"identifierSegments"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamConditionOperator": {
+				"type": "string",
+				"enum": [
+					"StringEquals",
+					"StringNotEquals",
+					"StringEqualsIgnoreCase",
+					"StringNotEqualsIgnoreCase",
+					"StringLike",
+					"StringNotLike",
+					"NumericEquals",
+					"NumericNotEquals",
+					"NumericLessThan",
+					"NumericLessThanEquals",
+					"NumericGreaterThan",
+					"NumericGreaterThanEquals",
+					"DateEquals",
+					"DateNotEquals",
+					"DateLessThan",
+					"DateLessThanEquals",
+					"DateGreaterThan",
+					"DateGreaterThanEquals",
+					"Bool",
+					"IpAddress",
+					"NotIpAddress",
+					"IpAddressIncludeBorder",
+					"NotIpAddressIncludeBorder",
+					"Null"
+				]
+			},
+			"IamConditionKeyDefinition": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"valueType": {
+						"type": "string",
+						"enum": [
+							"string",
+							"number",
+							"date",
+							"boolean",
+							"ip"
+						]
+					},
+					"operators": {
+						"items": {
+							"$ref": "#/components/schemas/IamConditionOperator"
+						},
+						"type": "array"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"request",
+							"principal",
+							"resource"
+						]
+					},
+					"supported": {
+						"type": "boolean"
+					},
+					"multivalued": {
+						"type": "boolean",
+						"description": "Only directory-declared keys accept a server-derived collection of context values."
+					}
+				},
+				"required": [
+					"key",
+					"valueType",
+					"operators",
+					"source",
+					"supported"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperQuotaOverrideDto": {
 				"properties": {
 					"id": {
@@ -56933,6 +62446,36 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperProjectPageDto": {
+				"description": "Candidate pagination precedes IAM filtering; no unfiltered total is exposed.",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperProjectDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateDeveloperProjectDto": {
 				"properties": {
 					"name": {
@@ -57022,8 +62565,85 @@
 					"push:send"
 				]
 			},
+			"Pick_DeveloperApiKeyDto.Exclude_keyofDeveloperApiKeyDto.key__": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"resourceArn": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"requestCount",
+					"keyPrefix",
+					"scopes"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperApiKeyDto.key_": {
+				"$ref": "#/components/schemas/Pick_DeveloperApiKeyDto.Exclude_keyofDeveloperApiKeyDto.key__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"DeveloperApiKeyPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/Omit_DeveloperApiKeyDto.key_"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperApiKeyDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57086,7 +62706,30 @@
 				"additionalProperties": false
 			},
 			"Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__": {
-				"properties": {},
+				"properties": {
+					"updateTime": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"key": {
+						"type": "string"
+					},
+					"resourceArn": {
+						"type": "string",
+						"description": "Canonical IAM resource; present on JWT project-management responses."
+					}
+				},
+				"required": [
+					"updateTime",
+					"version",
+					"key"
+				],
 				"type": "object",
 				"description": "From T, pick a set of properties whose keys are in the union K"
 			},
@@ -57094,8 +62737,41 @@
 				"$ref": "#/components/schemas/Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
+			"DeveloperKvPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperKvValueDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Canonical IAM resource; present on JWT project-management responses."
+					},
 					"key": {
 						"type": "string"
 					},
@@ -57136,6 +62812,10 @@
 			},
 			"DeveloperShortLinkDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Canonical resource for JWT project policy authoring."
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57166,6 +62846,35 @@
 					"enabled",
 					"clickCount",
 					"publicUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperShortLinkPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperShortLinkDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -57206,6 +62915,9 @@
 			},
 			"DeveloperShortLinkStatsDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"linkId": {
 						"type": "string"
 					},
@@ -57379,6 +63091,10 @@
 			},
 			"DeveloperSecretDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Metadata only; this field never contains a secret value."
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57409,6 +63125,35 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperSecretPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperSecretDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"UpsertDeveloperSecretDto": {
 				"properties": {
 					"alias": {
@@ -57427,6 +63172,9 @@
 			},
 			"DeveloperStatusMonitorDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57491,6 +63239,35 @@
 					"intervalSec",
 					"alertDelayMinutes",
 					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperStatusMonitorPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -57615,7 +63392,7 @@
 				"additionalProperties": false
 			},
 			"DeveloperPushSecretReferenceDto": {
-				"description": "A write-only credential stored by a selected Secret Management instance.",
+				"description": "Metadata reference to a credential in a selected Secret Management instance; no secret value is returned.",
 				"properties": {
 					"secretInstanceId": {
 						"type": "string"
@@ -57633,6 +63410,9 @@
 			},
 			"DeveloperPushChannelDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57674,8 +63454,40 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperPushChannelPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperPushChannelDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperPushDeliveryDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -57686,7 +63498,15 @@
 						"type": "boolean"
 					},
 					"error": {
-						"type": "string"
+						"type": "string",
+						"deprecated": true
+					},
+					"failureReason": {
+						"type": "string",
+						"enum": [
+							"dispatch_failed"
+						],
+						"nullable": false
 					},
 					"status": {
 						"type": "string"
@@ -57713,6 +63533,35 @@
 					"attemptCount",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushDeliveryPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
 				],
 				"type": "object",
 				"additionalProperties": false

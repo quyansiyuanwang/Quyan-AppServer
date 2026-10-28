@@ -1,3 +1,13 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  platformLegalPolicyDetailResource,
+  platformLegalPolicyCreateResource,
+  platformLegalPolicyUpdateResource,
+  platformLegalPolicyDeleteResource,
+  platformLegalPolicyPublishResources,
+  platformLegalPolicyUnpublishResources,
+} from "@/iam/request/platform-legal-policy-resource-resolvers";
 import {
   Body,
   Controller,
@@ -13,7 +23,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express.d";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
@@ -37,7 +47,11 @@ export class LegalPolicyController extends Controller {
 
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_CREATE)
+  @CheckPermission(Permission.LEGAL_POLICY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:CreateVersion",
+    resourceKind: "collection",
+    resource: platformLegalPolicyCreateResource,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createLegalPolicyBodySchema))
   public async createPolicy(
     @Body() body: CreateLegalPolicyDto,
@@ -48,23 +62,36 @@ export class LegalPolicyController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:legal_policy:ListVersions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listPolicies(@Request() request: TypedRequest): Promise<LegalPolicyListItemDto[]> {
-    void request;
-    return this.service.listPolicies();
+    return this.service.listManagedPolicies(request);
   }
 
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_READ)
+  @CheckPermission(Permission.LEGAL_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:GetVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyDetailResource,
+  })
   @Middlewares(validateParams(legalPolicyIdParamsSchema))
-  public async getPolicy(@Path() id: string): Promise<LegalPolicyDto> {
-    return this.service.getPolicy(id);
+  public async getPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
+    return this.service.getManagedPolicy(id, request);
   }
 
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_UPDATE)
+  @CheckPermission(Permission.LEGAL_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:UpdateVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyUpdateResource,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(legalPolicyIdParamsSchema),
@@ -80,7 +107,11 @@ export class LegalPolicyController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_DELETE)
+  @CheckPermission(Permission.LEGAL_POLICY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:DeleteVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyDeleteResource,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async deletePolicy(@Path() id: string, @Request() request: TypedRequest): Promise<{ success: boolean }> {
     await this.service.deletePolicy(id, request.user!.userId, request);
@@ -89,17 +120,25 @@ export class LegalPolicyController extends Controller {
 
   @Post("{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_PUBLISH)
+  @CheckPermission(Permission.LEGAL_POLICY_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:PublishVersion",
+    resourceKind: "batch",
+    resource: platformLegalPolicyPublishResources,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async publishPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
-    return this.service.publishPolicy(id, request.user!.userId, request);
+    return this.service.changeManagedPublication("PublishVersion", id, request.user!.userId, request);
   }
 
   @Post("{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_PUBLISH)
+  @CheckPermission(Permission.LEGAL_POLICY_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:UnpublishVersion",
+    resourceKind: "batch",
+    resource: platformLegalPolicyUnpublishResources,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async unpublishPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
-    return this.service.unpublishPolicy(id, request.user!.userId, request);
+    return this.service.changeManagedPublication("UnpublishVersion", id, request.user!.userId, request);
   }
 }

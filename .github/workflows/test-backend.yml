@@ -85,6 +85,7 @@ jobs:
       - name: Generate unit test prerequisites
         run: |
           pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend exec bun scripts/iam/generate-action-routes.ts
       - name: Run selected pure backend tests
         env:
           CHANGED_FILES: ${{ needs.changes.outputs.files }}

@@ -1,3 +1,35 @@
+import { TerminalPublishedTemplateReadIamService } from "./terminal-published-template-read-iam.service";
+import { TerminalPersonalDeviceReadIamService } from "./terminal-personal-device-read-iam.service";
+import { TerminalPersonalEntitlementReadIamService } from "./terminal-personal-entitlement-read-iam.service";
+import { TerminalPurchaseIamService } from "./terminal-purchase-iam.service";
+import { TerminalPurchaseRepository } from "@/store/remote-terminal-product/terminal-purchase.repository";
+import { PlatformTerminalEntitlementAssignIamService } from "./platform-terminal-entitlement-assign-iam.service";
+import { PlatformTerminalEntitlementAssignRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-assign.repository";
+import { PlatformTerminalEntitlementUpdateIamService } from "./platform-terminal-entitlement-update-iam.service";
+import { PlatformTerminalEntitlementUpdateRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-update.repository";
+import { TerminalInstallTokenIamService } from "./terminal-install-token-iam.service";
+import { TerminalRegistrationRotationIamService } from "./terminal-registration-rotation-iam.service";
+import { TerminalRegistrationRotationRepository } from "@/store/remote-terminal-product/terminal-registration-rotation.repository";
+import type {
+  TerminalRegistrationRotationTarget,
+  TerminalRegistrationRotationGuard,
+} from "@/store/remote-terminal-product/terminal-registration-rotation.store";
+import { TerminalPersonalUnbindIamService } from "./terminal-personal-unbind-iam.service";
+import { TerminalPersonalUnbindRepository } from "@/store/remote-terminal-product/terminal-personal-unbind.repository";
+import { PlatformTerminalManagementMutationIamService } from "./platform-terminal-management-mutation-iam.service";
+import { PlatformTerminalManagementMutationRepository } from "@/store/remote-terminal-product/platform-terminal-management-mutation.repository";
+import { PlatformTerminalDeviceReadIamService } from "./platform-terminal-device-read-iam.service";
+import type {
+  TerminalDeviceReadView,
+  TerminalDevicePublicRecord,
+} from "@/store/remote-terminal-product/platform-terminal-device-read.store";
+import { PlatformTerminalEntitlementReadIamService } from "./platform-terminal-entitlement-read-iam.service";
+import type { TerminalEntitlementReadView } from "@/store/remote-terminal-product/platform-terminal-entitlement-read.store";
+import type { RemoteTerminalUserEntitlement } from "@prisma/client";
+import { PlatformTerminalTemplateWriteIamService } from "./platform-terminal-template-write-iam.service";
+import { PlatformTerminalTemplateWriteRepository } from "@/store/remote-terminal-product/platform-terminal-template-write.repository";
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { randomBytes } from "node:crypto";
 import type {
   AssignRemoteTerminalEntitlementRequest,
@@ -154,7 +186,22 @@ export class RemoteTerminalProductService {
   public async getCurrentUserDeviceUnbindReminder(
     userId: string,
     deviceBindingId: string,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalUnbindReminderDto> {
+    const native = await TerminalPersonalUnbindIamService.getInstance().prepare(
+      "GetMyUnbindReminder",
+      userId,
+      deviceBindingId,
+      request,
+    );
+    if (native) {
+      const result = await TerminalPersonalUnbindRepository.getInstance().run(native.target, native.guard, false);
+      return {
+        ...native.guard.config,
+        ...result,
+        remainingCount: Math.max(0, native.guard.config.maxCount - result.revokedCount),
+      };
+    }
     const existing = await this.productRepository.findDeviceBindingById(deviceBindingId);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
@@ -594,21 +641,24 @@ export class RemoteTerminalProductService {
     };
   }
 
-  private toRegistrationTokenDto(record: {
-    id: string;
-    entitlementId: string;
-    token: string;
-    label: string | null;
-    expiresAt: Date | null;
-    lastUsedAt: Date | null;
-    status: number;
-    createTime: Date;
-    updateTime: Date;
-  }): RemoteTerminalRegistrationTokenDto {
+  private toRegistrationTokenDto(
+    record: {
+      id: string;
+      entitlementId: string;
+      token: string;
+      label: string | null;
+      expiresAt: Date | null;
+      lastUsedAt: Date | null;
+      status: number;
+      createTime: Date;
+      updateTime: Date;
+    },
+    includeToken = true,
+  ): RemoteTerminalRegistrationTokenDto {
     return {
       id: record.id,
       entitlementId: record.entitlementId,
-      token: record.token,
+      ...(includeToken ? { token: record.token } : {}),
       maskedToken: maskSecret(record.token),
       label: record.label ?? undefined,
       expiresAt: record.expiresAt ?? undefined,
@@ -629,16 +679,49 @@ export class RemoteTerminalProductService {
   private toEntitlementDto(
     record: RemoteTerminalEntitlementWithRelations,
     usernamesById: Map<string, string>,
+    includeRegistrationToken = true,
   ): RemoteTerminalUserEntitlementDto {
+    return {
+      ...this.toEntitlementScalarDto(record),
+      username: record.user.username,
+      templateName: record.template?.name,
+      assignedByUsername: record.assignedBy ? usernamesById.get(record.assignedBy) : undefined,
+      registeredDeviceCount: record.devices.length,
+      registrationToken:
+        this.canIssueRegistrationToken(record.deviceLimit) && record.registrationToken
+          ? this.toRegistrationTokenDto(record.registrationToken, includeRegistrationToken)
+          : undefined,
+    };
+  }
+
+  private toNativeEntitlementDto(view: TerminalEntitlementReadView): RemoteTerminalUserEntitlementDto {
+    return {
+      ...this.toEntitlementScalarDto(view.record),
+      username: view.username,
+      templateName: view.templateName,
+      assignedByUsername: view.assignedByUsername,
+      registeredDeviceCount: view.registeredDeviceCount,
+      registrationToken:
+        this.canIssueRegistrationToken(view.record.deviceLimit) && view.registrationToken
+          ? {
+              ...view.registrationToken,
+              maskedToken: maskSecret(undefined),
+              label: view.registrationToken.label ?? undefined,
+              expiresAt: view.registrationToken.expiresAt ?? undefined,
+              lastUsedAt: view.registrationToken.lastUsedAt ?? undefined,
+            }
+          : undefined,
+    };
+  }
+
+  private toEntitlementScalarDto(record: RemoteTerminalUserEntitlement): RemoteTerminalUserEntitlementDto {
     const now = Date.now();
     const isActive =
       record.status === MANAGED_STATUS.ENABLED && record.startAt.getTime() <= now && record.endAt.getTime() >= now;
     return {
       id: record.id,
       userId: record.userId,
-      username: record.user.username,
       templateId: record.templateId ?? undefined,
-      templateName: record.template?.name,
       name: record.name,
       description: record.description ?? undefined,
       startAt: record.startAt,
@@ -667,18 +750,12 @@ export class RemoteTerminalProductService {
       purchaseAmount: record.purchaseAmount != null ? Number(record.purchaseAmount) : undefined,
       currency: record.currency,
       assignedBy: record.assignedBy ?? undefined,
-      assignedByUsername: record.assignedBy ? usernamesById.get(record.assignedBy) : undefined,
       note: record.note ?? undefined,
       status: record.status,
       createTime: record.createTime,
       updateTime: record.updateTime,
       isActive,
       isExpired: record.endAt.getTime() < now,
-      registeredDeviceCount: record.devices.length,
-      registrationToken:
-        this.canIssueRegistrationToken(record.deviceLimit) && record.registrationToken
-          ? this.toRegistrationTokenDto(record.registrationToken)
-          : undefined,
       maxDeviceCount: record.maxDeviceCount ?? undefined,
       maxTerminalCount: record.maxTerminalCount ?? undefined,
     };
@@ -686,18 +763,36 @@ export class RemoteTerminalProductService {
 
   private toDeviceDto(record: RemoteTerminalDeviceBindingWithRelations): RemoteTerminalBoundDeviceDto {
     return {
+      ...this.toDeviceScalarDto(record, getSnapshotAvailableShells(record.snapshot)),
+      entitlementName: record.entitlement.name,
+      username: record.user.username,
+    };
+  }
+  private toNativeDeviceDto(view: TerminalDeviceReadView): RemoteTerminalBoundDeviceDto {
+    return {
+      ...this.toDeviceScalarDto(
+        view.record,
+        getSnapshotAvailableShells({ diagnostics: { availableShells: view.availableShells } }),
+      ),
+      entitlementName: view.entitlementName,
+      username: view.username,
+    };
+  }
+  private toDeviceScalarDto(
+    record: TerminalDevicePublicRecord,
+    availableShells: RemoteTerminalBoundDeviceDto["availableShells"],
+  ): RemoteTerminalBoundDeviceDto {
+    return {
       id: record.id,
       entitlementId: record.entitlementId,
-      entitlementName: record.entitlement.name,
       userId: record.userId,
-      username: record.user.username,
       registrationTokenId: record.registrationTokenId ?? undefined,
       deviceId: record.deviceId,
       fingerprint: record.fingerprint,
       hostname: record.hostname,
       platform: record.platform as RemoteTerminalBoundDeviceDto["platform"],
       arch: record.arch,
-      availableShells: getSnapshotAvailableShells(record.snapshot),
+      availableShells,
       online: record.online,
       registeredAt: record.registeredAt,
       lastSeenAt: record.lastSeenAt,
@@ -740,23 +835,67 @@ export class RemoteTerminalProductService {
     return this.productRepository.sumActiveDeviceLimitForUser(userId, at);
   }
 
-  public async getFilterOptions(): Promise<RemoteTerminalFilterOptionsDto> {
-    const templates = await this.productRepository.listTemplateFilterOptions();
+  public async getFilterOptions(
+    page?: number,
+    pageSize?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalFilterOptionsDto> {
+    const pagination = normalizePagination(page, pageSize);
+    const legacy = () =>
+      this.productRepository.listTemplateFilterOptions(pagination.page, pagination.pageSize, keyword?.trim());
+    if (!request && env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    const result = request
+      ? await PlatformTemplateReadIamService.getInstance("remote-terminal").listOptions(
+          request,
+          pagination,
+          keyword?.trim(),
+          legacy,
+        )
+      : { ...(await legacy()), ...pagination };
     return {
       templateStatusOptions: DEFAULT_STATUS_OPTIONS,
       assignmentStatusOptions: DEFAULT_STATUS_OPTIONS,
       deviceStatusOptions: DEFAULT_STATUS_OPTIONS,
       publishStatusOptions: DEFAULT_PUBLISH_STATUS_OPTIONS,
-      templates,
+      templates: result.records,
+      templateTotal: result.total,
+      templatePage: result.page,
+      templatePageSize: result.pageSize,
     };
   }
 
-  public async listPublishedTemplates(): Promise<RemoteTerminalProductTemplateDto[]> {
-    const records = await this.productRepository.listPublishedTemplates();
-    return records.map((item) => this.toTemplateDto(item));
+  public async listPublishedTemplates(request?: TypedRequest): Promise<RemoteTerminalProductTemplateDto[]> {
+    return TerminalPublishedTemplateReadIamService.getInstance().list(
+      request,
+      (record) => this.toTemplateDto(record),
+      async () => {
+        const records = await this.productRepository.listPublishedTemplates();
+        return records.map((item) => this.toTemplateDto(item));
+      },
+    );
   }
 
   public async listTemplates(
+    page?: number,
+    pageSize?: number,
+    status?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalProductTemplateListResponse> {
+    const pagination = normalizePagination(page, pageSize);
+    if (request)
+      return PlatformTemplateReadIamService.getInstance("remote-terminal").list(
+        request,
+        pagination,
+        { status, keyword: keyword?.trim() },
+        (record) => this.toTemplateDto(record),
+        () => this.listTemplatesLegacy(page, pageSize, status, keyword),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, status, keyword);
+  }
+  private async listTemplatesLegacy(
     page?: number,
     pageSize?: number,
     status?: number,
@@ -786,6 +925,11 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      actorUserId,
+      request,
+    );
     const name = body.name.trim();
     const existing = await this.productRepository.findTemplateByName(name);
     if (existing)
@@ -812,7 +956,7 @@ export class RemoteTerminalProductService {
 
     this.ensureAtLeastOneOfferedUnit(devicePrice, terminalPrice);
 
-    const created = await this.productRepository.createTemplate({
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedCreateInput = {
       name,
       description: normalizeText(body.description) ?? null,
       billingUnit,
@@ -831,7 +975,10 @@ export class RemoteTerminalProductService {
       maxTerminalCount: body.maxTerminalCount ?? null,
       publishStatus: "draft",
       status: MANAGED_STATUS.ENABLED,
-    });
+    };
+    const created = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().create(data, authority.guard)
+      : await this.productRepository.createTemplate(data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_CREATE,
@@ -854,7 +1001,14 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      actorUserId,
+      request,
+      id,
+      body.status === MANAGED_STATUS.DELETED,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
@@ -940,7 +1094,9 @@ export class RemoteTerminalProductService {
 
     this.ensureAtLeastOneOfferedUnit(nextDevicePrice, nextTerminalPrice);
 
-    const updated = await this.productRepository.updateTemplate(id, data);
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_UPDATE,
@@ -962,7 +1118,13 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "PublishTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
@@ -972,10 +1134,13 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.templateNotEnabledForPublish",
       });
 
-    const updated = await this.productRepository.updateTemplate(id, {
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedUpdateInput = {
       publishStatus: "published",
       publishedAt: new Date(),
-    });
+    };
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_PUBLISH,
@@ -996,16 +1161,25 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "UnpublishTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
 
-    const updated = await this.productRepository.updateTemplate(id, {
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedUpdateInput = {
       publishStatus: "draft",
       publishedAt: null,
-    });
+    };
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_UNPUBLISH,
@@ -1022,13 +1196,25 @@ export class RemoteTerminalProductService {
   }
 
   public async deleteTemplate(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "DeleteTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
 
-    await this.productRepository.softDeleteTemplate(id);
+    if (authority)
+      await PlatformTerminalTemplateWriteRepository.getInstance().mutate(
+        authority.target!,
+        { status: MANAGED_STATUS.DELETED, publishStatus: "draft", publishedAt: null },
+        authority.guard,
+      );
+    else await this.productRepository.softDeleteTemplate(id);
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_DELETE,
       operationCategory: OperationCategory.RELAY,
@@ -1047,6 +1233,27 @@ export class RemoteTerminalProductService {
     userId?: string,
     templateId?: string,
     status?: number,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalUserEntitlementListResponse> {
+    const legacy = () => this.readEntitlements(page, pageSize, userId, templateId, status, false);
+    if (request)
+      return PlatformTerminalEntitlementReadIamService.getInstance().list(
+        request,
+        normalizePagination(page, pageSize),
+        { userId, templateId, status },
+        (view) => this.toNativeEntitlementDto(view),
+        legacy,
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return legacy();
+  }
+  private async readEntitlements(
+    page: number | undefined,
+    pageSize: number | undefined,
+    userId: string | undefined,
+    templateId: string | undefined,
+    status: number | undefined,
+    includeRegistrationToken: boolean,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
     const pagination = normalizePagination(page, pageSize);
     const result = await this.productRepository.listEntitlements(
@@ -1062,7 +1269,7 @@ export class RemoteTerminalProductService {
     const usernamesById = await this.getUsernamesByIds(result.records.map((item) => item.assignedBy));
     return {
       total: result.total,
-      records: result.records.map((item) => this.toEntitlementDto(item, usernamesById)),
+      records: result.records.map((item) => this.toEntitlementDto(item, usernamesById, includeRegistrationToken)),
       page: pagination.page,
       pageSize: pagination.pageSize,
     };
@@ -1073,8 +1280,18 @@ export class RemoteTerminalProductService {
     page?: number,
     pageSize?: number,
     status?: number,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.listEntitlements(page, pageSize, userId, undefined, status);
+    const pagination = normalizePagination(page, pageSize);
+    const result = await TerminalPersonalEntitlementReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toNativeEntitlementDto(view),
+      () => this.readEntitlements(page, pageSize, userId, undefined, status, true),
+    );
+    return { ...result, ...pagination };
   }
 
   public async assignEntitlement(
@@ -1082,14 +1299,24 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    await this.ensureUserExists(body.userId);
+    const native = await PlatformTerminalEntitlementAssignIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      body.userId,
+      body.templateId,
+    );
+    if (!native) await this.ensureUserExists(body.userId);
 
-    const template = body.templateId ? await this.productRepository.findTemplateById(body.templateId) : null;
+    const template = native
+      ? native.template
+      : body.templateId
+        ? await this.productRepository.findTemplateById(body.templateId)
+        : null;
     if (body.templateId && (!template || template.status === MANAGED_STATUS.DELETED))
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
-    if (template) await this.enforceTemplatePurchaseLimit(body.userId, template);
+    if (template && !native) await this.enforceTemplatePurchaseLimit(body.userId, template);
 
     const startAt = parseRequiredDate("startAt", body.startAt);
     const endAt = parseRequiredDate("endAt", body.endAt);
@@ -1123,7 +1350,7 @@ export class RemoteTerminalProductService {
     const deviceDailyPrice = template?.deviceDailyPrice != null ? Number(template.deviceDailyPrice) : null;
     const terminalDailyPrice = template?.terminalDailyPrice != null ? Number(template.terminalDailyPrice) : null;
 
-    const created = await this.productRepository.createEntitlement({
+    const createData: Prisma.RemoteTerminalUserEntitlementUncheckedCreateInput = {
       userId: body.userId,
       templateId: body.templateId ?? null,
       name,
@@ -1146,7 +1373,24 @@ export class RemoteTerminalProductService {
       assignedBy: actorUserId,
       note: normalizeText(body.note) ?? null,
       status: MANAGED_STATUS.ENABLED,
-    });
+    };
+    if (native) {
+      const created = await PlatformTerminalEntitlementAssignRepository.getInstance().create(createData, native.guard);
+      await this.businessLogService.logOperation({
+        operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_CREATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: created.userId,
+        targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+        targetResourceId: created.id,
+        description: "Assigned remote terminal entitlement",
+        changes: body,
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return this.toEntitlementScalarDto(created);
+    }
+    const created = await this.productRepository.createEntitlement(createData);
 
     const token = this.canIssueRegistrationToken(deviceLimit)
       ? await this.ensureRegistrationTokenForEntitlement(created.id)
@@ -1180,9 +1424,15 @@ export class RemoteTerminalProductService {
     userId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    await this.ensureUserExists(userId);
+    const native = await TerminalPurchaseIamService.getInstance().prepare(
+      userId,
+      request,
+      body.templateId,
+      body.targetEntitlementId,
+    );
+    if (!native) await this.ensureUserExists(userId);
 
-    const template = await this.productRepository.findTemplateById(body.templateId);
+    const template = native ? native.template : await this.productRepository.findTemplateById(body.templateId);
     if (!template || template.status !== MANAGED_STATUS.ENABLED || template.publishStatus !== "published")
       throw new NotFoundError("Published template not found", undefined, {
         messageKey: "remoteTerminalProduct.publishedTemplateNotFound",
@@ -1270,7 +1520,7 @@ export class RemoteTerminalProductService {
           },
         );
     }
-    if (!targetEntitlementId) await this.enforceTemplatePurchaseLimit(userId, template);
+    if (!targetEntitlementId && !native) await this.enforceTemplatePurchaseLimit(userId, template);
 
     const purchaseAmount = this.calculatePurchaseAmount({
       durationDays,
@@ -1285,7 +1535,7 @@ export class RemoteTerminalProductService {
     let token: RemoteTerminalRegistrationTokenDto | undefined;
 
     if (targetEntitlementId) {
-      const existing = await this.productRepository.findEntitlementById(targetEntitlementId);
+      const existing = native ? native.target : await this.productRepository.findEntitlementById(targetEntitlementId);
       if (!existing || existing.status === MANAGED_STATUS.DELETED)
         throw new NotFoundError("Target entitlement not found", undefined, {
           messageKey: "remoteTerminalProduct.targetEntitlementNotFound",
@@ -1319,11 +1569,12 @@ export class RemoteTerminalProductService {
       });
       const cumulativePurchaseAmount = Number((Number(existing.purchaseAmount ?? 0) + mergedPurchaseAmount).toFixed(4));
 
-      record = await this.productRepository.purchaseAndUpdateEntitlement({
+      const purchaseData = {
         userId,
         templateName: template.name,
         description: template.description ?? undefined,
         entitlementId: existing.id,
+        chargeAmount: mergedPurchaseAmount,
         entitlement: {
           name: body.name?.trim() || existing.name,
           description: existing.description ?? template.description ?? null,
@@ -1346,7 +1597,18 @@ export class RemoteTerminalProductService {
           note: DEFAULT_SELF_CLAIM_NOTE,
           status: MANAGED_STATUS.ENABLED,
         },
-      });
+      };
+      if (native)
+        return this.completeNativeTerminalPurchase(
+          await TerminalPurchaseRepository.getInstance().purchase(
+            { kind: "renew", entitlement: purchaseData.entitlement, chargeAmount: mergedPurchaseAmount },
+            native.guard,
+          ),
+          body,
+          userId,
+          request,
+        );
+      record = await this.productRepository.purchaseAndUpdateEntitlement(purchaseData);
 
       token =
         this.canIssueRegistrationToken(deviceCount) && !record.registrationToken
@@ -1356,7 +1618,7 @@ export class RemoteTerminalProductService {
             : undefined;
     } else {
       const { startAt, endAt } = this.buildTemplateEntitlementRange(durationDays);
-      record = await this.productRepository.purchaseEntitlement({
+      const purchaseData = {
         userId,
         templateName: template.name,
         description: template.description ?? undefined,
@@ -1384,7 +1646,18 @@ export class RemoteTerminalProductService {
           note: DEFAULT_SELF_CLAIM_NOTE,
           status: MANAGED_STATUS.ENABLED,
         },
-      });
+      };
+      if (native)
+        return this.completeNativeTerminalPurchase(
+          await TerminalPurchaseRepository.getInstance().purchase(
+            { kind: "create", entitlement: purchaseData.entitlement, chargeAmount: purchaseAmount },
+            native.guard,
+          ),
+          body,
+          userId,
+          request,
+        );
+      record = await this.productRepository.purchaseEntitlement(purchaseData);
 
       token = this.canIssueRegistrationToken(deviceCount)
         ? await this.ensureRegistrationTokenForEntitlement(record.id)
@@ -1414,13 +1687,44 @@ export class RemoteTerminalProductService {
     };
   }
 
+  private async completeNativeTerminalPurchase(
+    record: RemoteTerminalUserEntitlement,
+    body: ClaimRemoteTerminalProductTemplateRequest,
+    userId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalUserEntitlementDto> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_SELF_CLAIM,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId: userId,
+      targetUserId: userId,
+      targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+      targetResourceId: record.id,
+      description: body.targetEntitlementId
+        ? "Renewed remote terminal entitlement"
+        : "Purchased remote terminal entitlement",
+      changes: body,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toEntitlementScalarDto(record);
+  }
+
   public async updateEntitlement(
     id: string,
     body: UpdateRemoteTerminalEntitlementRequest,
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    const existing = await this.productRepository.findEntitlementById(id);
+    const native = await PlatformTerminalEntitlementUpdateIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      id,
+      body.status === MANAGED_STATUS.DELETED,
+    );
+    const existing = native
+      ? { ...native.target.record, devices: native.target.deviceIds }
+      : await this.productRepository.findEntitlementById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
@@ -1466,6 +1770,27 @@ export class RemoteTerminalProductService {
     if (body.maxDeviceCount !== undefined) updateData.maxDeviceCount = body.maxDeviceCount;
     if (body.maxTerminalCount !== undefined) updateData.maxTerminalCount = body.maxTerminalCount;
 
+    if (native) {
+      const updated = await PlatformTerminalEntitlementUpdateRepository.getInstance().update(
+        native.target,
+        updateData,
+        native.guard,
+      );
+      await this.businessLogService.logOperation({
+        operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: updated.userId,
+        targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+        targetResourceId: updated.id,
+        description: "Updated remote terminal entitlement",
+        changes: body,
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      // Mutations return their entitlement only; credential issuance and related-resource reads have dedicated actions.
+      return this.toEntitlementScalarDto(updated);
+    }
     const updated = await this.productRepository.updateEntitlement(id, updateData);
 
     const usernamesById = await this.getUsernamesByIds([updated.assignedBy]);
@@ -1497,13 +1822,22 @@ export class RemoteTerminalProductService {
   }
 
   public async deleteEntitlement(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findEntitlementById(id);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "DeleteEntitlement",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = native?.target ?? (await this.productRepository.findEntitlementById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
       });
 
-    await this.productRepository.softDeleteEntitlement(id);
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      await this.productRepository.softDeleteEntitlement(id);
+    }
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_DELETE,
       operationCategory: OperationCategory.RELAY,
@@ -1511,13 +1845,62 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
       targetResourceId: id,
-      description: `Deleted remote terminal entitlement '${existing.name}'`,
+      description: `Deleted remote terminal entitlement '${"label" in existing ? existing.label : existing.name}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
   }
 
   public async rotateRegistrationToken(
+    entitlementId: string,
+    body: RotateRemoteTerminalRegistrationTokenRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const native = await TerminalRegistrationRotationIamService.getInstance().prepare(
+      "RotateRegistrationToken",
+      actorUserId,
+      request,
+      entitlementId,
+    );
+    if (native) return this.rotateRegistrationTokenNative(native.target, native.guard, body, actorUserId, request);
+    return this.rotateRegistrationTokenLegacy(entitlementId, body, actorUserId, request);
+  }
+  private async rotateRegistrationTokenNative(
+    target: TerminalRegistrationRotationTarget,
+    guard: TerminalRegistrationRotationGuard,
+    body: RotateRemoteTerminalRegistrationTokenRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const rotated = await TerminalRegistrationRotationRepository.getInstance().rotate(
+      target,
+      {
+        token: this.buildRandomToken(),
+        label:
+          body.label !== undefined ? (normalizeText(body.label) ?? null) : (target.registrationToken?.label ?? null),
+        expiresAt:
+          body.expiresAt !== undefined
+            ? (parseOptionalDate("expiresAt", body.expiresAt) ?? null)
+            : (target.registrationToken?.expiresAt ?? null),
+      },
+      guard,
+    );
+    await this.businessLogService.logOperation({
+      operationType: OperationType.REMOTE_TERMINAL_REGISTRATION_TOKEN_ROTATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetUserId: target.userId,
+      targetResourceType: "REMOTE_TERMINAL_REGISTRATION_TOKEN",
+      targetResourceId: rotated.id,
+      description: `Rotated remote terminal registration token for entitlement '${target.name}'`,
+      changes: { entitlementId: target.id, label: body.label, expiresAt: body.expiresAt },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toRegistrationTokenDto(rotated);
+  }
+  private async rotateRegistrationTokenLegacy(
     entitlementId: string,
     body: RotateRemoteTerminalRegistrationTokenRequest,
     actorUserId: string,
@@ -1570,6 +1953,13 @@ export class RemoteTerminalProductService {
     body: RotateRemoteTerminalRegistrationTokenRequest,
     request?: TypedRequest,
   ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const native = await TerminalRegistrationRotationIamService.getInstance().prepare(
+      "RotateMyRegistrationToken",
+      userId,
+      request,
+      entitlementId,
+    );
+    if (native) return this.rotateRegistrationTokenNative(native.target, native.guard, body, userId, request);
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
     if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
@@ -1580,10 +1970,19 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.rotateOwnTokenOnly",
       });
 
-    return this.rotateRegistrationToken(entitlementId, body, userId, request);
+    return this.rotateRegistrationTokenLegacy(entitlementId, body, userId, request);
   }
 
-  public async issueInstallToken(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {
+  public issueInstallToken(
+    userId: string,
+    entitlementId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalInstallTokenDto> {
+    return TerminalInstallTokenIamService.getInstance().issue(userId, entitlementId, request, () =>
+      this.issueInstallTokenLegacy(userId, entitlementId),
+    );
+  }
+  private async issueInstallTokenLegacy(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
     if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
@@ -1603,6 +2002,26 @@ export class RemoteTerminalProductService {
   }
 
   public async listDevices(
+    page?: number,
+    pageSize?: number,
+    userId?: string,
+    entitlementId?: string,
+    status?: number,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalBoundDeviceListResponse> {
+    const legacy = () => this.readDevicesLegacy(page, pageSize, userId, entitlementId, status);
+    if (request)
+      return PlatformTerminalDeviceReadIamService.getInstance().list(
+        request,
+        normalizePagination(page, pageSize),
+        { userId, entitlementId, status },
+        (view) => this.toNativeDeviceDto(view),
+        legacy,
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return legacy();
+  }
+  private async readDevicesLegacy(
     page?: number,
     pageSize?: number,
     userId?: string,
@@ -1633,8 +2052,18 @@ export class RemoteTerminalProductService {
     page?: number,
     pageSize?: number,
     status?: number,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.listDevices(page, pageSize, userId, undefined, status);
+    const pagination = normalizePagination(page, pageSize);
+    const result = await TerminalPersonalDeviceReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toNativeDeviceDto(view),
+      () => this.readDevicesLegacy(page, pageSize, userId, undefined, status),
+    );
+    return { ...result, ...pagination };
   }
 
   public async revokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
@@ -1664,7 +2093,13 @@ export class RemoteTerminalProductService {
   }
 
   public async revokeCurrentUserDevice(userId: string, id: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findDeviceBindingById(id);
+    const native = await TerminalPersonalUnbindIamService.getInstance().prepare(
+      "RevokeMyDeviceBinding",
+      userId,
+      id,
+      request,
+    );
+    const existing = native?.target ?? (await this.productRepository.findDeviceBindingById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
         messageKey: "remoteTerminalProduct.deviceBindingNotFound",
@@ -1674,12 +2109,11 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.cannotRevokeDevice",
       });
 
-    await this.assertDeviceUnbindAllowed(existing);
-
-    await this.productRepository.updateDeviceBinding(id, {
-      status: MANAGED_STATUS.DELETED,
-      online: false,
-    });
+    if (native) await TerminalPersonalUnbindRepository.getInstance().run(native.target, native.guard, true);
+    else {
+      await this.assertDeviceUnbindAllowed(existing as RemoteTerminalDeviceBindingWithRelations);
+      await this.productRepository.updateDeviceBinding(id, { status: MANAGED_STATUS.DELETED, online: false });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
@@ -1688,23 +2122,32 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_DEVICE_BINDING",
       targetResourceId: id,
-      description: `User revoked remote terminal device '${existing.hostname}'`,
+      description: `User revoked remote terminal device '${"label" in existing ? existing.label : existing.hostname}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
   }
 
   public async adminRevokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findDeviceBindingById(id);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "RevokeDeviceBinding",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = native?.target ?? (await this.productRepository.findDeviceBindingById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
         messageKey: "remoteTerminalProduct.deviceBindingNotFound",
       });
 
-    await this.productRepository.updateDeviceBinding(id, {
-      status: MANAGED_STATUS.DELETED,
-      online: false,
-    });
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      await this.productRepository.updateDeviceBinding(id, {
+        status: MANAGED_STATUS.DELETED,
+        online: false,
+      });
+    }
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
       operationCategory: OperationCategory.RELAY,
@@ -1712,21 +2155,30 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_DEVICE_BINDING",
       targetResourceId: id,
-      description: `Admin revoked remote terminal device '${existing.hostname}'`,
+      description: `Admin revoked remote terminal device '${"label" in existing ? existing.label : existing.hostname}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
   }
 
   public async resetUnbindCount(entitlementId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findEntitlementById(entitlementId);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "ResetUnbindCount",
+      actorUserId,
+      request,
+      entitlementId,
+    );
+    const existing = native?.target ?? (await this.productRepository.findEntitlementById(entitlementId));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
       });
 
-    const now = new Date();
-    await this.productRepository.updateEntitlement(entitlementId, { unbindResetAt: now });
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      const now = new Date();
+      await this.productRepository.updateEntitlement(entitlementId, { unbindResetAt: now });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
@@ -1735,7 +2187,7 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_USER_ENTITLEMENT",
       targetResourceId: entitlementId,
-      description: `Reset device unbind count for entitlement '${existing.name}'`,
+      description: `Reset device unbind count for entitlement '${"label" in existing ? existing.label : existing.name}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });

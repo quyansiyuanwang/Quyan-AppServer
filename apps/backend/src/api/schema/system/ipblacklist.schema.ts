@@ -1,3 +1,4 @@
+import { IP_ERROR_WEIGHT_LIMITS } from "@/constant/ip-error-weight";
 import { z } from "zod";
 
 const ipLikeSchema = z.string().trim().min(1).max(45);
@@ -40,5 +41,5 @@ export const updateIPBlacklistBodySchema = z.object({
 });
 
 export const setIpErrorWeightBodySchema = z.object({
-  weight: z.coerce.number().int().min(0).max(1000000),
+  weight: z.coerce.number().int().min(0).max(IP_ERROR_WEIGHT_LIMITS.manualMaximum),
 });

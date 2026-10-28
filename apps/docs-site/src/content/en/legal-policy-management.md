@@ -57,6 +57,24 @@ Publishing a new version triggers a **forced re-consent** check:
 | Delete version              | `LEGAL_POLICY_DELETE`  |
 | Publish / unpublish version | `LEGAL_POLICY_PUBLISH` |
 
+## IAM version read access
+
+With IAM enforcement, the management list and detail APIs require `LEGAL_POLICY_READ` eligibility in an actual deployment-wide group. Listing uses `quyan:legal_policy:ListVersions`; details use `quyan:legal_policy:GetVersion`. Both authorize the actual version resource `acs:platform:*:platform:legal-policy/<version-id>`. The creator is an audit actor, not an account owner for the policy.
+
+The version list includes only authorized versions and loads summaries without draft content. Details require a separate Allow before loading content. A matching Deny takes priority. Missing, deleted or unauthorized detail resources return 403 in enforce mode. Results are withheld if a version, qualification, policy or role session changes during the read. AssumeRole uses role grants. Public published-policy and consent flows retain their existing access rules.
+
+## IAM draft changes
+
+In enforce mode, creating a draft uses `quyan:legal_policy:CreateVersion` on `acs:platform:*:platform:legal-policy-control/<policy-type>` and on the generated version's actual ARN before commit. The supported types are `terms_of_service` and `privacy_policy`. Updating and deleting use `quyan:legal_policy:UpdateVersion` and `quyan:legal_policy:DeleteVersion` on `acs:platform:*:platform:legal-policy/<version-id>`. Each operation also requires its existing management permission in a real deployment-wide group.
+
+A matching Deny or invalid identity, group, role session or version rolls back the change. Published versions remain immutable. Deleting a draft retains its version number; later drafts receive a new number. An active unpublished draft must be edited, published or deleted before another draft of that type can be created. Replay protection remains required.
+
+## IAM publication changes
+
+Publishing uses `quyan:legal_policy:PublishVersion`; unpublishing uses `quyan:legal_policy:UnpublishVersion`. The operation requires the existing `LEGAL_POLICY_PUBLISH` eligibility in a real deployment-wide group, plus authorization for every affected version ARN.
+
+Publishing checks the target and the current version it replaces. Unpublishing a current version checks the target and the latest remaining published fallback. If that fallback is denied, the operation fails; it does not choose an older version to bypass Deny. Missing fallback protection remains in place. The affected set and grants are rechecked inside one transaction; Deny, revocation, or concurrent changes roll back all publication changes. Public active-policy reads continue to return the committed current version.
+
 ## Notes
 
 - Only one version per type can be published at a time; publishing a new version automatically archives the previous one.

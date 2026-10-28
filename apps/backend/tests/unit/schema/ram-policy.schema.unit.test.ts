@@ -3,6 +3,34 @@ import { Permission } from "../../../src/constant/permission";
 import { createRamPolicyBodySchema, updateRamPolicyBodySchema } from "../../../src/api/schema/users/ram.schema";
 
 describe("RAM policy permission schemas", () => {
+  const document = {
+    Version: "1",
+    Statement: { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:*:user/qrmr.cn" },
+  };
+  it("rejects external cloud actions instead of registering examples as product permissions", () => {
+    expect(
+      createRamPolicyBodySchema.safeParse({
+        name: "external",
+        document: { ...document, Statement: { ...document.Statement, Action: "alidns:AddDomainRecord" } },
+      }).success,
+    ).toBe(false);
+  });
+  it("accepts IAM documents without legacy permission arrays", () =>
+    expect(createRamPolicyBodySchema.safeParse({ name: "iam-policy", document }).success).toBe(true));
+  it("rejects missing or conflicting policy formats", () => {
+    expect(createRamPolicyBodySchema.safeParse({ name: "missing-policy" }).success).toBe(false);
+    expect(createRamPolicyBodySchema.safeParse({ name: "mixed-policy", document, permissions: [] }).success).toBe(
+      false,
+    );
+    expect(updateRamPolicyBodySchema.safeParse({ document, permissions: [] }).success).toBe(false);
+  });
+  it("rejects unsupported IAM fields at HTTP validation", () =>
+    expect(
+      createRamPolicyBodySchema.safeParse({
+        name: "bad-policy",
+        document: { ...document, Statement: { ...document.Statement, Condition: {} } },
+      }).success,
+    ).toBe(false));
   it("accepts valid permission arrays for policy creation", () => {
     const result = createRamPolicyBodySchema.safeParse({
       name: "valid-policy",

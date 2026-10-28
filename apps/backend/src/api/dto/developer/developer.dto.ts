@@ -30,6 +30,14 @@ export interface DeveloperProjectDto {
   updateTime: string;
 }
 
+/** Candidate pagination precedes IAM filtering; no unfiltered total is exposed. */
+export interface DeveloperProjectPageDto {
+  items: DeveloperProjectDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperQuotaSummaryDto {
   dailyFreeQuota: number;
   overageEnabled: boolean;
@@ -59,7 +67,15 @@ export interface DeveloperQuotaOverrideDto {
   updateTime: string;
 }
 
+export interface DeveloperApiKeyPageDto {
+  items: Array<Omit<DeveloperApiKeyDto, "key">>;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperApiKeyDto {
+  resourceArn?: string;
   id: string;
   name: string;
   keyPrefix: string;
@@ -76,11 +92,26 @@ export interface SetKvValueDto {
 }
 
 export interface DeveloperKvValueDto {
+  /** Canonical IAM resource; present on JWT project-management responses. */
+  resourceArn?: string;
   key: string;
   value: unknown;
   version: number;
   expiresAt?: string;
   updateTime: string;
+}
+
+export interface DeveloperKvPageDto {
+  items: Array<Omit<DeveloperKvValueDto, "value">>;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+export interface DeveloperSecretPageDto {
+  items: DeveloperSecretDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
 }
 
 export interface CreateShortLinkDto {
@@ -95,7 +126,16 @@ export interface UpdateShortLinkDto {
   expiresAt?: string | null;
 }
 
+export interface DeveloperShortLinkPageDto {
+  items: DeveloperShortLinkDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperShortLinkDto {
+  /** Canonical resource for JWT project policy authoring. */
+  resourceArn?: string;
   id: string;
   code: string;
   targetUrl: string;
@@ -106,6 +146,7 @@ export interface DeveloperShortLinkDto {
 }
 
 export interface DeveloperShortLinkStatsDto {
+  resourceArn?: string;
   linkId: string;
   code: string;
   totalClicks: number;
@@ -135,6 +176,8 @@ export interface UpsertDeveloperSecretDto {
 }
 
 export interface DeveloperSecretDto {
+  /** Metadata only; this field never contains a secret value. */
+  resourceArn?: string;
   id: string;
   alias: string;
   keyVersion: number;
@@ -174,7 +217,15 @@ export interface UpdateDeveloperStatusMonitorDto {
   enabled?: boolean;
 }
 
+export interface DeveloperStatusMonitorPageDto {
+  items: DeveloperStatusMonitorDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperStatusMonitorDto {
+  resourceArn?: string;
   id: string;
   name: string;
   targetUrl: string;
@@ -209,13 +260,21 @@ export interface CreateDeveloperPushChannelDto {
   secretReference?: DeveloperPushSecretReferenceDto;
 }
 
-/** A write-only credential stored by a selected Secret Management instance. */
+/** Metadata reference to a credential in a selected Secret Management instance; no secret value is returned. */
 export interface DeveloperPushSecretReferenceDto {
   secretInstanceId: string;
   alias: string;
 }
 
+export interface DeveloperPushChannelPageDto {
+  items: DeveloperPushChannelDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperPushChannelDto {
+  resourceArn?: string;
   id: string;
   name: string;
   type: string;
@@ -242,11 +301,21 @@ export interface SendDeveloperPushDto {
   idempotencyKey?: string;
 }
 
+export interface DeveloperPushDeliveryPageDto {
+  items: DeveloperPushDeliveryDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperPushDeliveryDto {
+  resourceArn?: string;
   id: string;
   channelId: string;
   success: boolean;
+  /** @deprecated Raw provider error text is no longer returned. Use status and failureReason. */
   error?: string;
+  failureReason?: "dispatch_failed";
   status: string;
   attemptCount: number;
   nextRetryAt?: string;

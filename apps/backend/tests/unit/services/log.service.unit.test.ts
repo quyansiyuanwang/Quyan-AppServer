@@ -47,6 +47,75 @@ describe("LogService", () => {
       };
     });
 
+    it.each([200, 400, 403, 500])(
+      "redacts RAM policy and AI content at every response status %s while retaining hashes and identifiers",
+      async (statusCode) => {
+        mockReq.originalUrl = "/v1/ram/policies/fixture?mode=edit";
+        mockReq.body = {
+          document: { Version: "1", Statement: [] },
+          documentText: "private-json-fixture",
+          trustPolicy: { Principal: "fixture" },
+          instruction: "private-request-fixture",
+          expectedDocumentHash: "hash-fixture",
+          policyId: "policy-fixture",
+        };
+        mockRes.statusCode = statusCode;
+        await logService.logRequest(mockReq as Request, mockRes as Response, {
+          code: statusCode,
+          data: [
+            {
+              id: "policy-fixture",
+              document: { Version: "1" },
+              documentHash: "hash-fixture",
+              explanation: ["private-explanation"],
+              missingInformation: ["private-requirement"],
+            },
+          ],
+        });
+        await logService.flushNow();
+        expect(mockRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bodyParams: {
+              document: "***FILTERED***",
+              documentText: "***FILTERED***",
+              trustPolicy: "***FILTERED***",
+              instruction: "***FILTERED***",
+              expectedDocumentHash: "hash-fixture",
+              policyId: "policy-fixture",
+            },
+          }),
+        );
+        const saved = vi.mocked(mockRepo.create).mock.calls[0]![0];
+        expect(JSON.stringify(saved)).not.toContain("private-");
+        expect(saved.response).toEqual(
+          expect.objectContaining({
+            data: [
+              expect.objectContaining({
+                id: "policy-fixture",
+                document: "***FILTERED***",
+                documentHash: "hash-fixture",
+                explanation: "***FILTERED***",
+                missingInformation: "***FILTERED***",
+              }),
+            ],
+          }),
+        );
+      },
+    );
+    it("retains ordinary document fields outside RAM and redacts raw RAM payload strings", async () => {
+      mockReq.originalUrl = "/v1/articles/fixture";
+      mockReq.body = { document: "article-fixture", explanation: "article-description" };
+      await logService.logRequest(mockReq as Request, mockRes as Response, { document: "article-fixture" });
+      await logService.flushNow();
+      expect(mockRepo.create).toHaveBeenCalledWith(expect.objectContaining({ bodyParams: mockReq.body }));
+      vi.mocked(mockRepo.create).mockClear();
+      mockReq.originalUrl = "/v1/ram/policies/diagnose";
+      mockReq.body = "private-raw-input";
+      await logService.logRequest(mockReq as Request, mockRes as Response, "private-raw-output");
+      await logService.flushNow();
+      expect(JSON.stringify(vi.mocked(mockRepo.create).mock.calls)).not.toContain("private-raw");
+    });
+
     it("should buffer log entry without immediate DB write", async () => {
       await logService.logRequest(mockReq as Request, mockRes as Response);
 

@@ -3,6 +3,18 @@ import { gunzipSync } from "zlib";
 import OSS from "ali-oss";
 import { Prisma } from "@prisma/client";
 import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { PlatformMaintenanceRunIamService } from "./platform-maintenance-run-iam.service";
+import { PlatformMaintenancePreviewIamService } from "./platform-maintenance-preview-iam.service";
+import { PlatformMaintenanceOptimizeIamService } from "./platform-maintenance-optimize-iam.service";
+import { PlatformMaintenanceImportIamService } from "./platform-maintenance-import-iam.service";
+import type { MaintenanceImportGuard } from "@/store/system/platform-maintenance-import.store";
+import { optimizeBodySchema } from "@/api/schema/system/data-maintenance.schema";
+import type { OptimizeRequest } from "@/api/dto/system/data-maintenance.dto";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
@@ -146,11 +158,30 @@ export class DataMaintenanceService {
   private static instance: DataMaintenanceService;
   private ossClient: OSS | null = null;
 
-  private constructor(private readonly repository = ObservabilityRepository.getInstance()) {}
+  private constructor(
+    private readonly repository = ObservabilityRepository.getInstance(),
+    private readonly iamReads = PlatformMaintenanceRunIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly previews = PlatformMaintenancePreviewIamService.getInstance(),
+    private readonly optimizeWrites = PlatformMaintenanceOptimizeIamService.getInstance(),
+    private readonly importWrites = PlatformMaintenanceImportIamService.getInstance(),
+  ) {}
 
   public static getInstance(): DataMaintenanceService {
     if (!this.instance) this.instance = new DataMaintenanceService();
     return this.instance;
+  }
+
+  public async previewOptimizeRequest(datasets: string[], request: TypedRequest) {
+    return this.previews.read("quyan:system:data_maintenance:PreviewOptimize", datasets, request, () =>
+      this.optimizePreview(datasets),
+    );
+  }
+  public async previewImportRequest(dataset: string, buffer: Buffer, request: TypedRequest) {
+    return this.previews.read("quyan:system:data_maintenance:PreviewImport", [dataset], request, async () => {
+      const { rows: _rows, ...response } = await this.previewImport(dataset, buffer);
+      return response;
+    });
   }
 
   public async optimizePreview(datasets: string[]) {
@@ -164,6 +195,29 @@ export class DataMaintenanceService {
       totalRows: items.reduce((sum, item) => sum + item.rowCount, 0),
       totalBytes: items.reduce((sum, item) => sum + item.dataBytes + item.indexBytes, 0),
     };
+  }
+
+  public async createOptimizeRequest(input: OptimizeRequest, request: TypedRequest) {
+    const parsed = optimizeBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid maintenance optimization request", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.optimizeWrites.prepare(parsed.data.datasets, request);
+      if (!guard) throw iamAccountDenied();
+      const preview = await this.optimizePreview([...guard.datasets]);
+      return this.optimizeWrites.create(guard, preview, this.maintenanceRequestId(request));
+    }
+    await this.assertLegacyRead(request);
+    await this.shadowRead(() => this.optimizeWrites.prepare(parsed.data.datasets, request, false));
+    return this.createOptimizeRun(parsed.data.datasets, request.user?.userId, this.maintenanceRequestId(request));
+  }
+  private maintenanceRequestId(request: TypedRequest) {
+    const id = request.headers["x-request-id"];
+    if (id !== undefined && (typeof id !== "string" || id.length > 128))
+      throw new BadRequestError("Invalid maintenance request identity", undefined, { messageKey: "errors.badRequest" });
+    return id;
   }
 
   public async createOptimizeRun(datasets: string[], actorUserId?: string, requestId?: string) {
@@ -235,7 +289,36 @@ export class DataMaintenanceService {
     };
   }
 
-  public async createImportRun(dataset: string, buffer: Buffer, actorUserId?: string, requestId?: string) {
+  public async createImportRequest(dataset: string, buffer: Buffer, request: TypedRequest) {
+    if (request.headers["x-maintenance-confirmation"] !== "IMPORT")
+      throw new BadRequestError("Confirmation phrase is invalid", undefined, {
+        messageKey: "system.invalidConfirmationPhrase",
+      });
+    assertDataset(dataset);
+    const requestId = this.maintenanceRequestId(request);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.importWrites.prepare([dataset], request);
+      if (!guard) throw iamAccountDenied();
+      return this.createImportRun(dataset, buffer, guard.users.principal.subjectUserId, requestId, guard);
+    }
+    await this.assertLegacyRead(request);
+    await this.shadowRead(() => this.importWrites.prepare([dataset], request, false));
+    return this.createImportRun(dataset, buffer, request.user?.userId, requestId);
+  }
+  public async createImportRun(
+    dataset: string,
+    buffer: Buffer,
+    actorUserId?: string,
+    requestId?: string,
+    guard?: MaintenanceImportGuard,
+  ) {
+    if (
+      guard &&
+      (guard.datasets.length !== 1 ||
+        guard.datasets[0] !== dataset ||
+        guard.users.principal.subjectUserId !== actorUserId)
+    )
+      throw iamAccountDenied();
     assertDataset(dataset);
     const preview = await this.previewImport(dataset, buffer);
     if (!preview.executable)
@@ -247,25 +330,35 @@ export class DataMaintenanceService {
     const sha256 = createHash("sha256").update(buffer).digest("hex");
     const objectKey = `${env.integrations.objectStorage.staging.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
-    await client.put(objectKey, buffer, {
-      headers: {
-        "Content-Type": "application/gzip",
-        "x-oss-meta-sha256": sha256,
-        "x-oss-storage-class": TEMPORARY_IMPORT_STORAGE_CLASS,
-      },
-    });
-    const metadata = getOssHeaders(await client.head(objectKey));
-    if (
-      metadata["x-oss-meta-sha256"] !== sha256 ||
-      Number(metadata["content-length"] || 0) !== buffer.length ||
-      metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
-    ) {
-      await client.delete(objectKey).catch(() => undefined);
-      throw new BadRequestError("Uploaded archive verification failed", undefined, {
-        messageKey: "dataMaintenance.archiveVerificationFailed",
-      });
-    }
     try {
+      await client.put(objectKey, buffer, {
+        headers: {
+          "Content-Type": "application/gzip",
+          "x-oss-meta-sha256": sha256,
+          "x-oss-storage-class": TEMPORARY_IMPORT_STORAGE_CLASS,
+        },
+      });
+      const metadata = getOssHeaders(await client.head(objectKey));
+      if (
+        metadata["x-oss-meta-sha256"] !== sha256 ||
+        Number(metadata["content-length"] || 0) !== buffer.length ||
+        metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
+      ) {
+        throw new BadRequestError("Uploaded archive verification failed", undefined, {
+          messageKey: "dataMaintenance.archiveVerificationFailed",
+        });
+      }
+      if (guard)
+        return await this.importWrites.create(
+          guard,
+          {
+            objectKey,
+            totalCount: preview.totalCount,
+            invalidCount: preview.invalidCount,
+            duplicateCount: preview.duplicateCount,
+          },
+          requestId,
+        );
       return await this.repository.createMaintenanceRun({
         operation: "import",
         dataset,
@@ -280,25 +373,68 @@ export class DataMaintenanceService {
     } catch (error) {
       try {
         await this.getOssClient().delete(objectKey);
-      } catch (cleanupError) {
+      } catch {
         logger.warn("Failed to cleanup temporary archive after task creation failure", {
-          objectKey,
-          error: String(cleanupError),
+          reason: "maintenance-staging-cleanup-unavailable",
         });
       }
       throw error;
     }
   }
 
-  public listRuns(page: number, pageSize: number, filters?: { operation?: string; runStatus?: string }) {
+  public async listRuns(
+    page: number,
+    pageSize: number,
+    filters?: { operation?: string; runStatus?: string },
+    request?: TypedRequest,
+  ) {
+    const query = { ...filters, page, pageSize };
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamReads.list(query, request);
+    await this.assertLegacyRead(request);
+    if (request) await this.shadowRead(() => this.iamReads.diagnose(query, request));
     return this.repository.listMaintenanceRuns(page, pageSize, filters);
   }
 
-  public async getRun(id: string) {
+  public async getRun(id: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const run = await this.iamReads.get(id, request);
+      if (!run) throw iamAccountDenied();
+      return run;
+    }
+    await this.assertLegacyRead(request);
+    if (request) await this.shadowRead(() => this.iamReads.get(id, request, false));
     const run = await this.repository.getMaintenanceRun(id);
     if (!run)
       throw new NotFoundError("Maintenance run not found", undefined, { messageKey: "dataMaintenance.runNotFound" });
     return run;
+  }
+
+  private async assertLegacyRead(request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.SYSTEM_DATA_MAINTENANCE_MANAGE],
+          {
+            assumedRoleSessionId: principal.roleSessionId,
+          },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(read: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await read();
+    } catch {
+      getLogger("DataMaintenanceIamBridge", LogCategory.SECURITY).warn("Maintenance IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
   }
 
   public async processQueuedRuns(limit = 3): Promise<void> {

@@ -42,7 +42,8 @@ export interface UpdateOJAPIKeyRequest {
 export interface OJAPIKeyDto {
   id: string;
   name?: string;
-  key: string;
+  /** Returned only when the caller can reveal this credential. */
+  key?: string;
   requestCount: number;
   totalTokens: number;
   expiresAt?: Date;

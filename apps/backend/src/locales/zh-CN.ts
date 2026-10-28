@@ -99,6 +99,7 @@ const zhCN = {
   },
   agent: {
     credentialEncryptionNotConfigured: "尚未配置 Agent 凭据加密",
+    workspaceCleanupFailed: "工作区清理失败，已保留工作区供重试",
     workspaceNotFound: "Agent 工作区不存在",
     workspaceProvisioningFailed: "工作区创建失败",
     remoteRuntimeUnavailable: "远程工作区 Agent 未连接",
@@ -106,6 +107,8 @@ const zhCN = {
     modelRequired: "Agent 模型不能为空",
     modelNotConfigured: "Agent 模型未配置",
     modelNotAllowed: "中转令牌不允许使用该模型",
+    taskStateChanged: "Agent 任务状态已变化，请刷新后重试",
+    invalidEventCursor: "Agent 事件游标无效",
     taskNotFound: "Agent 任务不存在",
     approvalUnavailable: "审批已不可用",
     cancelledByUser: "已由用户取消",
@@ -146,6 +149,21 @@ const zhCN = {
     identifierExists: "组标识已存在",
     notDeletable: "该用户组不允许删除",
     hasUsers: "该组下仍有用户，无法删除",
+  },
+  iam: {
+    unknownService: "未知 IAM 服务",
+    resourceResolutionFailed: "无法安全解析请求的资源",
+    invalidPolicy: "IAM 策略文档无效或包含不支持的语法",
+    versionConflict: "策略已发生变化，请重新加载后再更新",
+    delegationDenied: "当前主体无法委派此策略",
+    authorizationNotFound: "授权关系不存在",
+    authorizationInvalid: "授权主体或范围无效",
+    authorizationScopeInvalid: "授权资源范围无效",
+    resourceGroupNameConflict: "资源组名称已被使用",
+    resourceGroupNotFound: "资源组不存在",
+    resourceGroupNameExists: "资源组名称已存在",
+    resourceGroupMemberInvalid: "资源组成员必须是当前账号已注册的具体资源",
+    rolloutRequired: "IAM 文档需要 enforce 授权模式",
   },
   permission: {
     operatorNotFound: "操作者用户不存在",
@@ -325,6 +343,8 @@ const zhCN = {
     socialAuthWechatWebScopeRequired: "启用微信网页时必须填写 scope",
   },
   ipBlacklist: {
+    weightMutationUnavailable: "IP 错误权重修改未确认，请重新查询当前状态后再重试。",
+    recordNotFound: "IP 黑名单记录不存在",
     useCheckEndpoint: "请使用 /check/:ip 端点检查特定 IP",
     userMissing: "无法获取用户信息",
     notFoundByIp: "IP {{ip}} 不在黑名单中",
@@ -592,6 +612,8 @@ const zhCN = {
     targetSelectionRequired: "必须提供 userIds 或 targetFilter",
   },
   relayChannel: {
+    forwardedRequestHeadersInvalid:
+      "额外转发请求头必须是安全的精确头名（最多 64 个，每个最多 128 字符）；禁止凭据、Cookie、内部及连接级请求头。",
     timeRuleSameStartEnd: "非全天规则的开始和结束时间不能相同",
     channelTypeConflict: "channelType 与 channelTypes 不能同时使用",
     optionsNotFound: "中转渠道选项不存在",
@@ -640,6 +662,7 @@ const zhCN = {
     changeRequestStateInvalid: "只有待审核、已通过或已拒绝的渠道可以受理修改申请",
     changeRequestNotFound: "中转渠道修改申请不存在",
     hideBlockedByAssignments: "当中转渠道被令牌、OJ API Key 或月卡直接引用时不能隐藏",
+    modelMigrationTargetInvalid: "计费模型迁移的目标不存在，或其请求模型标识与源模型不一致",
     requestModelNotAllowed: "渠道不允许使用所请求的模型",
     importSourceIdsConsistent: "导入的中转渠道必须全部包含来源 ID 或全部不包含",
     importSourceIdsUnique: "导入的中转渠道来源 ID 不能重复",
@@ -972,11 +995,13 @@ const zhCN = {
     modelRequired: "必须指定模型",
     modelNotConfigured: "模型未配置",
     replaceTargetInvalid: "要替换的消息必须是本会话中的用户消息",
+    generationOutputTooLarge: "生成内容超过允许的大小",
     upstreamNoVisibleResponse: "上游结束但未返回可见响应",
   },
   ojSubmitter: {
     apiKeyNotFound: "API Key 不存在",
     pricingNotFound: "未找到模型 {{model}} 的定价",
+    pricingEntryAlreadyExists: "模型定价已存在",
     pricingAlreadyExists: "模型 {{model}} 的定价已存在",
     invalidApiKey: "API Key 无效",
     apiKeyExpired: "API Key 已过期",
@@ -1006,6 +1031,8 @@ const zhCN = {
     deleteDenied: "无权删除此脚本",
   },
   notification: {
+    testDeliveryFailed: "测试投递失败，请检查目标地址和投递配置。",
+    emailNotConfigured: "未配置通知邮箱",
     webhookNotFound: "Webhook 不存在",
   },
   reurl: {

@@ -44,9 +44,35 @@ import type {
   AutoProxyPoolConfigDto,
   SetAutoProxyPoolConfigDto,
 } from "@/api/dto/system/config.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import {
+  platformConfigurationBatchResolver,
+  registrationConfigurationResources,
+  smtpConfigurationResources,
+  siteConfigurationResources,
+  relayConfigurationResources,
+  relayProxyConfigurationResources,
+  autoProxyPoolConfigurationResources,
+  ipBanConfigurationResources,
+  captchaConfigurationResources,
+  socialAuthConfigurationResources,
+  notificationConfigurationResources,
+  billingConfigurationResources,
+  heartbeatConfigurationResources,
+  remoteTerminalUnbindConfigurationResources,
+} from "@/iam/request/platform-configuration-resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -60,6 +86,7 @@ import {
   setIpBanConfigBodySchema,
   setRegistrationConfigBodySchema,
   setRelayConfigBodySchema,
+  setAutoProxyPoolConfigBodySchema,
   setSocialAuthConfigBodySchema,
   setSmtpConfigBodySchema,
   setSiteConfigBodySchema,
@@ -80,16 +107,29 @@ export class ConfigController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:ListConfigurations",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getAllConfigs(@Request() _request: TypedRequest): Promise<GetConfigResponse> {
-    const configs = await this.configService.getAllConfigs();
-    return { configs, aiResources: AIResourceConfigService.getInstance().describe() };
+    const result = await this.configService.getManagedConfigs(_request);
+    return {
+      configs: result.configs,
+      ...(result.aiResourcesAllowed ? { aiResources: AIResourceConfigService.getInstance().describe() } : {}),
+    };
   }
 
   @Put("")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: platformConfigurationBatchResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "设置失败")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -100,7 +140,7 @@ export class ConfigController extends Controller {
   )
   public async setConfigs(@Body() body: SetConfigDto, @Request() request: TypedRequest): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(body.configs, currentUserId, request);
+    await this.configService.setManagedConfigs(body.configs, currentUserId, request);
     logger.info("服务器配置已更新");
     setResponseMessageKey(request, "system.configUpdated");
     return { message: "配置更新成功" };
@@ -132,93 +172,169 @@ export class ConfigController extends Controller {
 
   @Get("registration")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: registrationConfigurationResources,
+  })
   public async getRegistrationConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getRegistrationConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.REGISTRATION), _request, () =>
+      this.configService.getRegistrationConfig(),
+    );
   }
 
   @Get("relay")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: relayConfigurationResources,
+  })
   public async getRelayConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getRelayConfig();
+    return this.configService.getManagedConfiguration(RELAY_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getRelayConfig(),
+    );
   }
 
   @Get("relay/proxy")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: relayProxyConfigurationResources,
+  })
   public async getRelayProxyConfig(@Request() _request: TypedRequest): Promise<RelayProxyConfigDto> {
-    return await this.configService.getRelayProxyConfig();
+    return this.configService.getManagedConfiguration(RELAY_PROXY_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getRelayProxyConfig(),
+    );
   }
 
   @Get("smtp")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: smtpConfigurationResources,
+  })
   public async getSmtpConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getSmtpConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.SMTP), _request, () =>
+      this.configService.getSmtpConfig(),
+    );
   }
 
   @Get("site")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: siteConfigurationResources,
+  })
   public async getSiteConfig(@Request() _request: TypedRequest): Promise<SiteConfigDto> {
-    return await this.configService.getSiteConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.SITE), _request, () =>
+      this.configService.getSiteConfig(),
+    );
   }
 
   @Get("notification")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: notificationConfigurationResources,
+  })
   public async getNotificationConfig(@Request() _request: TypedRequest): Promise<NotificationConfigDto> {
-    return await this.configService.getNotificationConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.NOTIFICATION), _request, () =>
+      this.configService.getNotificationConfig(),
+    );
   }
 
   @Get("ipban")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: ipBanConfigurationResources,
+  })
   public async getIpBanConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getIpBanConfig();
+    return this.configService.getManagedConfiguration(IP_BAN_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getIpBanConfig(),
+    );
   }
 
   @Get("billing")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: billingConfigurationResources,
+  })
   public async getBillingConfig(@Request() _request: TypedRequest): Promise<BillingConfigDto> {
-    return await this.configService.getBillingConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.BILLING), _request, () =>
+      this.configService.getBillingConfig(),
+    );
   }
 
   @Get("heartbeat")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: heartbeatConfigurationResources,
+  })
   public async getHeartbeatConfig(@Request() _request: TypedRequest): Promise<HeartbeatConfigDto> {
-    return await this.configService.getHeartbeatConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.HEARTBEAT), _request, () =>
+      this.configService.getHeartbeatConfig(),
+    );
   }
 
   @Get("remote-terminal/unbind")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: remoteTerminalUnbindConfigurationResources,
+  })
   public async getRemoteTerminalUnbindConfig(
     @Request() _request: TypedRequest,
   ): Promise<RemoteTerminalUnbindConfigDto> {
-    return await this.configService.getRemoteTerminalUnbindConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.REMOTE_TERMINAL), _request, () =>
+      this.configService.getRemoteTerminalUnbindConfig(),
+    );
   }
 
   @Get("captcha")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: captchaConfigurationResources,
+  })
   public async getCaptchaConfig(@Request() _request: TypedRequest): Promise<CaptchaConfigDto> {
-    return await this.configService.getCaptchaConfig();
+    return this.configService.getManagedConfiguration(CAPTCHA_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getCaptchaConfig(),
+    );
   }
 
   @Get("social-auth")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: socialAuthConfigurationResources,
+  })
   public async getSocialAuthConfig(@Request() _request: TypedRequest): Promise<SocialAuthConfigDto> {
-    return await this.configService.getSocialAuthConfig();
+    return this.configService.getManagedConfiguration(SOCIAL_AUTH_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getSocialAuthConfig(),
+    );
   }
 
   @Put("registration")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: registrationConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -227,7 +343,7 @@ export class ConfigController extends Controller {
   )
   public async setRegistrationConfig(@Body() body: SetRegistrationConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.REGISTRATION.ENABLED]: String(body.enabled),
         [CONFIG_KEYS.REGISTRATION.MAX_ACCOUNTS_PER_EMAIL]: String(body.maxAccountsPerEmail),
@@ -243,7 +359,11 @@ export class ConfigController extends Controller {
 
   @Put("relay")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: relayConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -252,7 +372,7 @@ export class ConfigController extends Controller {
   )
   public async setRelayConfig(@Body() body: SetRelayConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.RELAY.UPSTREAM_URL]: body.upstreamUrl,
         [CONFIG_KEYS.RELAY.UPSTREAM_API_KEY]: body.upstreamApiKey,
@@ -271,7 +391,11 @@ export class ConfigController extends Controller {
 
   @Put("relay/proxy")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: relayProxyConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -280,7 +404,7 @@ export class ConfigController extends Controller {
   )
   public async setRelayProxyConfig(@Body() body: SetRelayProxyConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED]: String(body.enabled),
         [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: body.url,
@@ -294,7 +418,11 @@ export class ConfigController extends Controller {
 
   @Put("smtp")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: smtpConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -303,7 +431,7 @@ export class ConfigController extends Controller {
   )
   public async setSmtpConfig(@Body() body: SetSmtpConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SMTP.HOST]: body.host,
         [CONFIG_KEYS.SMTP.PORT]: String(body.port),
@@ -322,7 +450,11 @@ export class ConfigController extends Controller {
 
   @Put("site")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: siteConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -331,7 +463,7 @@ export class ConfigController extends Controller {
   )
   public async setSiteConfig(@Body() body: SetSiteConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SITE.BACKEND_PUBLIC_URL]: body.backendPublicUrl,
       },
@@ -344,7 +476,11 @@ export class ConfigController extends Controller {
 
   @Put("notification")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: notificationConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -353,7 +489,7 @@ export class ConfigController extends Controller {
   )
   public async setNotificationConfig(@Body() body: SetNotificationConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_SUBSCRIBED_EVENTS]: JSON.stringify(body.defaultSubscribedEvents),
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_THRESHOLDS]: JSON.stringify(body.defaultThresholds),
@@ -368,7 +504,11 @@ export class ConfigController extends Controller {
 
   @Put("ipban")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: ipBanConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -377,7 +517,7 @@ export class ConfigController extends Controller {
   )
   public async setIpBanConfig(@Body() body: SetIpBanConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.IP_BAN.ENABLED]: String(body.enabled),
         [CONFIG_KEYS.IP_BAN.LEVEL_1_THRESHOLD]: String(body.level1Threshold),
@@ -396,7 +536,11 @@ export class ConfigController extends Controller {
 
   @Put("billing")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: billingConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -405,7 +549,7 @@ export class ConfigController extends Controller {
   )
   public async setBillingConfig(@Body() body: SetBillingConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.BILLING.RECHARGE_RATIO]: String(body.rechargeRatio),
         [CONFIG_KEYS.BILLING.GIFT_CODE_ENABLED]: String(body.giftCodeEnabled),
@@ -423,7 +567,11 @@ export class ConfigController extends Controller {
 
   @Put("heartbeat")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: heartbeatConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -432,7 +580,7 @@ export class ConfigController extends Controller {
   )
   public async setHeartbeatConfig(@Body() body: SetHeartbeatConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.HEARTBEAT.INTERVAL_SECONDS]: String(body.intervalSeconds),
         [CONFIG_KEYS.HEARTBEAT.TIMEOUT_SECONDS]: String(body.timeoutSeconds),
@@ -446,7 +594,11 @@ export class ConfigController extends Controller {
 
   @Put("remote-terminal/unbind")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: remoteTerminalUnbindConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -458,7 +610,7 @@ export class ConfigController extends Controller {
     @Request() request: TypedRequest,
   ) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.REMOTE_TERMINAL.UNBIND_MAX_COUNT]: String(body.maxCount),
         [CONFIG_KEYS.REMOTE_TERMINAL.UNBIND_WINDOW_HOURS]: String(body.windowHours),
@@ -473,7 +625,11 @@ export class ConfigController extends Controller {
 
   @Put("captcha")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: captchaConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -482,7 +638,7 @@ export class ConfigController extends Controller {
   )
   public async setCaptchaConfig(@Body() body: SetCaptchaConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.CAPTCHA.PROVIDER]: body.provider,
         [CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER]: body.fallbackProvider,
@@ -498,7 +654,11 @@ export class ConfigController extends Controller {
 
   @Put("social-auth")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: socialAuthConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -507,7 +667,7 @@ export class ConfigController extends Controller {
   )
   public async setSocialAuthConfig(@Body() body: SetSocialAuthConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL]: body.frontendBaseUrl,
         [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED]: String(body.qrLoginEnabled),
@@ -552,10 +712,16 @@ export class ConfigController extends Controller {
    */
   @Get("auto-proxy-pool")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: autoProxyPoolConfigurationResources,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getAutoProxyPoolConfig(@Request() _request: TypedRequest): Promise<AutoProxyPoolConfigDto> {
-    return this.configService.getAutoProxyPoolConfig();
+    return this.configService.getManagedConfiguration(AUTO_PROXY_POOL_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getAutoProxyPoolConfig(),
+    );
   }
 
   /**
@@ -563,16 +729,33 @@ export class ConfigController extends Controller {
    */
   @Put("auto-proxy-pool")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: autoProxyPoolConfigurationResources,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "Validation error")
   @Response<ErrorResponse>(HttpStatusCode.InternalServerError, "Internal server error")
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(setAutoProxyPoolConfigBodySchema),
+  )
   public async setAutoProxyPoolConfig(
     @Request() request: TypedRequest,
     @Body() body: SetAutoProxyPoolConfigDto,
   ): Promise<{ message: string }> {
-    const currentUserId = request.user?.userId;
-    await this.configService.setAutoProxyPoolConfig(body, currentUserId, request);
+    const currentUserId = request.user!.userId;
+    await this.configService.setManagedConfiguration(
+      {
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES]: String(body.cacheHitRateMinSamples),
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS]: String(body.cacheHitRateWindowHours),
+      },
+      currentUserId,
+      request,
+    );
     setResponseMessageKey(request, "system.configUpdated");
     return { message: "自动代理池配置更新成功" };
   }

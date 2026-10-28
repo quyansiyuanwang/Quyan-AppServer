@@ -1,3 +1,6 @@
+vi.mock("../../../src/services/notification/notification-test-delivery-iam.service");
+vi.mock("../../../src/store/notification/notification-test-email.repository");
+vi.mock("../../../src/store/notification/notification-webhook-management.repository");
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NotificationService } from "../../../src/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "../../../src/store/notification/notification-preference.repository";

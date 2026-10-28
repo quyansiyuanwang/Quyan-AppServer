@@ -1,43 +1,70 @@
-import { Body, Controller, Get, Put, Query, Request, Route, Security, Tags, Middlewares } from "@tsoa/runtime";
-import { RelayConfigService } from "@/services/relay/relay-config.service";
+import { PlatformRelayConcurrencyReadIamService } from "@/services/relay/platform-relay-concurrency-read-iam.service";
+import { platformRelayConcurrencyArn } from "@/iam/resources/platform-relay-concurrency-resources";
+import { PlatformRelayUptimeReadIamService } from "@/services/relay/platform-relay-uptime-read-iam.service";
+import { platformRelayUptimeArn } from "@/iam/resources/platform-relay-uptime-resources";
+import { PlatformRelayConfigurationWriteIamService } from "@/services/relay/platform-relay-configuration-write-iam.service";
+import { PlatformRelayConfigurationReadIamService } from "@/services/relay/platform-relay-configuration-read-iam.service";
+import {
+  platformRelayConfigurationArn,
+  platformRelayConfigurationWriteResources,
+} from "@/iam/resources/platform-relay-configuration-resources";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import type { ErrorResponse } from "@/api/response";
+import {
+  Body,
+  Controller,
+  Get,
+  Put,
+  Query,
+  Request,
+  Route,
+  Security,
+  Tags,
+  Middlewares,
+  Response,
+} from "@tsoa/runtime";
 import type {
   RelayConfigDto,
   RelayConcurrencyStatusResponse,
   UpdateRelayConfigRequest,
   UptimeResponse,
-  UpstreamApiResponse,
 } from "@/api/dto/relay/relay-config.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
-import axios from "axios";
-import { getLogger, LogCategory } from "@/util/logger";
+import { HttpStatusCode } from "axios";
 import { updateRelayConfigBodySchema } from "@/api/schema/relay/relay-config.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
-import { HEARTBEAT_STATUS } from "@/constant/status";
 import type { TypedRequest } from "@/types/express";
-import { RelayProxyService } from "@/services/relay/relay-proxy.service";
-
-const logger = getLogger("RelayConfigController", LogCategory.BUSINESS);
 
 @Route("v1/relay-config")
 @Tags("Relay Config")
 export class RelayConfigController extends Controller {
-  private relayConfigService = RelayConfigService.getInstance();
-  private relayProxyService = RelayProxyService.getInstance();
-
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
-  public async getRelayConfig(): Promise<RelayConfigDto> {
-    const config = await this.relayConfigService.getRelayConfig();
-    return config;
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:GetConfiguration",
+      resourceKind: "collection",
+      resource: platformRelayConfigurationArn,
+    }),
+  )
+  public async getRelayConfig(@Request() request: TypedRequest): Promise<RelayConfigDto> {
+    return PlatformRelayConfigurationReadIamService.getInstance().read(request);
   }
 
   @Put()
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:UpdateConfiguration",
+      resourceKind: "batch",
+      resource: platformRelayConfigurationWriteResources,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -48,8 +75,7 @@ export class RelayConfigController extends Controller {
     @Body() body: UpdateRelayConfigRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayConfigDto> {
-    const config = await this.relayConfigService.updateRelayConfig(body, request.user!.userId, request);
-    return config;
+    return PlatformRelayConfigurationWriteIamService.getInstance().write(body, request);
   }
 
   /**
@@ -59,108 +85,38 @@ export class RelayConfigController extends Controller {
    */
   @Get("uptime-status")
   @Security("jwt")
-  @RequirePermission(Permission.UPSTREAM_STATUS_READ)
-  public async getUptimeStatus(): Promise<UptimeResponse> {
-    const config = await this.relayConfigService.getRelayConfig();
-
-    // Priority 1: Upstream API + name mapping
-    if (config.uptimeStatusUrl)
-      try {
-        const response = await axios.get<UpstreamApiResponse>(config.uptimeStatusUrl, {
-          timeout: 10000,
-        });
-
-        logger.info("Upstream API response received", {
-          hasData: !!response.data,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-        });
-
-        const { heartbeatList, uptimeList } = response.data;
-
-        if (!heartbeatList || !uptimeList) {
-          logger.error("Invalid upstream API response format", {
-            hasHeartbeatList: !!heartbeatList,
-            hasUptimeList: !!uptimeList,
-            responseData: response.data,
-          });
-          throw new Error("Invalid upstream API response format");
-        }
-
-        logger.info("Processing heartbeat data", {
-          heartbeatListKeys: Object.keys(heartbeatList),
-          uptimeListKeys: Object.keys(uptimeList),
-        });
-
-        // Transform the data into monitors
-        const monitors = Object.entries(heartbeatList).map(([id, heartbeats]) => {
-          const uptime = uptimeList[`${id}_24`] || 0;
-          const latestHeartbeat = heartbeats && heartbeats.length > 0 ? heartbeats[heartbeats.length - 1] : null;
-
-          // 使用简单的名称映射
-          const displayName = config.monitorNameMapping?.[id] || `Monitor ${id}`;
-
-          logger.debug(`Processing monitor ${id}`, {
-            heartbeatsCount: heartbeats?.length || 0,
-            uptime,
-            latestStatus: latestHeartbeat?.status,
-            displayName,
-          });
-
-          return {
-            id,
-            name: displayName,
-            uptime,
-            status: latestHeartbeat?.status ?? HEARTBEAT_STATUS.DOWN,
-            heartbeats: heartbeats ? heartbeats.slice(-100) : [], // Keep last 100 heartbeats
-          };
-        });
-
-        // 如果启用了"仅展示已配置"，则过滤掉未配置的监控项
-        const filteredMonitors =
-          config.showOnlyConfigured && config.monitorNameMapping
-            ? monitors.filter((m) => config.monitorNameMapping![m.id])
-            : monitors;
-
-        logger.info("Monitors processed", {
-          count: monitors.length,
-          filteredCount: filteredMonitors.length,
-          showOnlyConfigured: config.showOnlyConfigured,
-        });
-
-        const category = {
-          categoryName: "Upstream Services",
-          monitors: filteredMonitors,
-        };
-
-        return {
-          data: [category],
-          message: "Success",
-          success: true,
-        };
-      } catch (error: any) {
-        logger.error("Upstream API failed, falling back to static data", { error: error.message });
-      }
-
-    // Priority 2: Static data fallback
-    if (config.uptimeStaticData)
-      return {
-        data: [config.uptimeStaticData],
-        message: "Using static data (upstream unavailable)",
-        success: true,
-      };
-
-    // Priority 3: No data configured
-    return {
-      data: [],
-      message: "No uptime data configured",
-      success: false,
-    };
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:GetUptimeStatus",
+      resourceKind: "collection",
+      resource: platformRelayUptimeArn,
+    }),
+  )
+  public async getUptimeStatus(@Request() request: TypedRequest): Promise<UptimeResponse> {
+    return PlatformRelayUptimeReadIamService.getInstance().read(request);
   }
 
   @Get("concurrency-status")
   @Security("jwt")
-  @RequirePermission(Permission.UPSTREAM_STATUS_READ)
-  public async getConcurrencyStatus(@Query() userId?: string): Promise<RelayConcurrencyStatusResponse> {
-    return this.relayProxyService.getConcurrencyStatus(userId);
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Response<ErrorResponse>(HttpStatusCode.BadRequest, "分页参数无效")
+  @Response<ErrorResponse>(HttpStatusCode.ServiceUnavailable, "并发统计后端不可用")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:GetConcurrencyStatus",
+      resourceKind: "collection",
+      resource: platformRelayConcurrencyArn,
+    }),
+  )
+  public async getConcurrencyStatus(
+    @Request() request: TypedRequest,
+    @Query() userId?: string,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RelayConcurrencyStatusResponse> {
+    return PlatformRelayConcurrencyReadIamService.getInstance().read(request, userId, { page, pageSize });
   }
 }

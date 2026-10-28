@@ -1,3 +1,4 @@
+import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "@/constant/relay-capability";
 import type { Prisma, RelayChannel } from "@prisma/client";
 import {
   parseRelayModelNameConstraint,
@@ -33,6 +34,22 @@ export type RelayPoolMemberOrderer = (
   context: RelayPoolMemberOrderContext,
 ) => Promise<RelayPoolMemberGraph[]>;
 
+/** Fields needed for model capability discovery; upstream credentials are deliberately absent. */
+export type RelayCapabilityChannel = Pick<
+  RelayChannel,
+  | "id"
+  | "name"
+  | "status"
+  | "providerServiceEnabled"
+  | "channelType"
+  | "allowedFormats"
+  | "allowedModels"
+  | "modelMapping"
+  | "routingConfig"
+>;
+export interface RelayCapabilityGraphNode extends RelayCapabilityChannel {
+  poolMembers: Array<Pick<RelayPoolMemberGraph, "memberChannelId" | "priority" | "weight" | "enabled">>;
+}
 export interface RelayChannelGraphNode extends RelayChannel {
   poolMembers: RelayPoolMemberGraph[];
 }
@@ -50,7 +67,7 @@ export interface RelayModelCatalogEntry {
 }
 
 export interface RelayPoolResolverContext<TModel extends RelayModelCatalogEntry = RelayModelCatalogEntry> {
-  graph: ReadonlyMap<string, RelayChannelGraphNode>;
+  graph: ReadonlyMap<string, RelayCapabilityGraphNode>;
   modelCatalog: readonly TModel[];
   includeDisabled?: boolean;
 }
@@ -83,8 +100,8 @@ export interface RelayResolvedChannelCandidate {
   routingKey?: string;
 }
 
-interface ResolvedLeafPath {
-  channel: RelayChannelGraphNode;
+interface ResolvedLeafPath<TChannel extends RelayCapabilityGraphNode = RelayChannelGraphNode> {
+  channel: TChannel;
   constraints: EffectiveChannelConstraints;
   ancestorChannelIds: string[];
 }
@@ -122,6 +139,8 @@ export class RelayPoolResolverService {
       undefined,
       new Set(),
       context.includeDisabled === true,
+      false,
+      { remaining: RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits },
     );
     const capabilities = new Map<string, RelayChannelModelCapability>();
 
@@ -166,6 +185,38 @@ export class RelayPoolResolverService {
         left.requestModelId.localeCompare(right.requestModelId) ||
         left.leafChannelId.localeCompare(right.leafChannelId),
     );
+  }
+
+  /** Resolve caller-supplied credential-free snapshots without loading the routing repository.
+   * Keep each path intact: merging by leaf/model would combine incompatible mappings and exclusions.
+   */
+  async resolveCapabilityLeafCandidates<TChannel extends RelayCapabilityGraphNode>(
+    roots: readonly string[],
+    graph: ReadonlyMap<string, TChannel>,
+  ): Promise<Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }>> {
+    const candidates: Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }> = [];
+    const budget = { remaining: RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits };
+    for (const id of new Set(roots)) {
+      const root = graph.get(id);
+      if (!root || root.status !== RELAY_CHANNEL_STATUS.ENABLED || root.providerServiceEnabled === false) continue;
+      const paths = await this.resolveLeafPaths(
+        root,
+        graph,
+        this.initialConstraints(),
+        undefined,
+        new Set(),
+        false,
+        false,
+        budget,
+      );
+      for (const path of paths) {
+        candidates.push({
+          resolvedChannel: this.applyConstraints(path.channel, path.constraints),
+          routingChannelIds: [...path.ancestorChannelIds, path.channel.id],
+        });
+      }
+    }
+    return candidates;
   }
 
   async resolveActiveLeaves(
@@ -250,15 +301,26 @@ export class RelayPoolResolverService {
     return graph;
   }
 
-  private async resolveLeafPaths(
-    channel: RelayChannelGraphNode,
-    graph: ReadonlyMap<string, RelayChannelGraphNode>,
+  private async resolveLeafPaths<TChannel extends RelayCapabilityGraphNode>(
+    channel: TChannel,
+    graph: ReadonlyMap<string, TChannel>,
     inherited: EffectiveChannelConstraints,
-    orderMembers: RelayPoolMemberOrderer | undefined,
+    orderMembers:
+      | ((
+          pool: TChannel,
+          members: TChannel["poolMembers"],
+          context: RelayPoolMemberOrderContext,
+        ) => Promise<TChannel["poolMembers"]>)
+      | undefined,
     ancestors: Set<string>,
     includeDisabled = false,
     expandAllEligibleMembers = false,
-  ): Promise<ResolvedLeafPath[]> {
+    budget?: { remaining: number },
+  ): Promise<ResolvedLeafPath<TChannel>[]> {
+    if (budget && (--budget.remaining < 0 || ancestors.size > RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth))
+      throw new BadRequestError("Capability graph exceeds safe traversal limits", undefined, {
+        messageKey: "errors.badRequest",
+      });
     if (ancestors.has(channel.id))
       throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`, undefined, {
         messageKey: "relay.poolCycle",
@@ -278,7 +340,7 @@ export class RelayPoolResolverService {
           expandAllEligibleMembers: childPathsMustRemainReachable,
         })
       : [...enabledMembers].sort((left, right) => left.priority - right.priority);
-    const leaves: ResolvedLeafPath[] = [];
+    const leaves: ResolvedLeafPath<TChannel>[] = [];
 
     for (const member of orderedMembers) {
       const memberChannel = graph.get(member.memberChannelId);
@@ -297,6 +359,7 @@ export class RelayPoolResolverService {
           nextAncestors,
           includeDisabled,
           childPathsMustRemainReachable,
+          budget,
         )),
       );
     }
@@ -308,7 +371,10 @@ export class RelayPoolResolverService {
     return { formats: new Set(RELAY_REQUEST_FORMATS), allowedModelNames: null, modelMapping: {} };
   }
 
-  private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
+  private mergeConstraints(
+    inherited: EffectiveChannelConstraints,
+    channel: RelayCapabilityChannel,
+  ): EffectiveChannelConstraints {
     const isPool = ["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone");
     // Logical pools have no upstream protocol of their own. Their persisted
     // allowedFormats value is historical management metadata, not a routing
@@ -336,7 +402,7 @@ export class RelayPoolResolverService {
     };
   }
 
-  private getManualAllowedModelNames(channel: RelayChannel): string[] | null {
+  private getManualAllowedModelNames(channel: RelayCapabilityChannel): string[] | null {
     const routingConfig = channel.routingConfig as Record<string, unknown> | null;
     const mode = typeof routingConfig?.allowedModelsMode === "string" ? routingConfig.allowedModelsMode : "";
     const isManual = mode === "manual" || (mode !== "all" && mode !== "auto" && Boolean(channel.allowedModels));
@@ -362,7 +428,10 @@ export class RelayPoolResolverService {
     return left.filter((name) => rightSet.has(name));
   }
 
-  private applyConstraints(channel: RelayChannel, constraints: EffectiveChannelConstraints): RelayChannel {
+  private applyConstraints<TChannel extends RelayCapabilityChannel>(
+    channel: TChannel,
+    constraints: EffectiveChannelConstraints,
+  ): TChannel {
     const routingConfig = (channel.routingConfig as Record<string, unknown> | null) ?? {};
     return {
       ...channel,

@@ -1,6 +1,9 @@
+import { iamAccountDenied } from "../users/iam-account-principal";
+import { assertIamAccountUserMutation } from "../users/iam-account-user-mutation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { Decimal } from "@prisma/client/runtime/library";
-import type { BalanceAccount, BalanceTransaction, Prisma } from "@prisma/client";
+import type { BalanceAccount, BalanceTransaction } from "@prisma/client";
 import type { BalanceStore, RechargeParams } from "./balance.store";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
@@ -33,29 +36,38 @@ export class BalanceRepository implements BalanceStore {
   async recharge(params: RechargeParams): Promise<BalanceAccount> {
     const { userId, amount, description, countAsStatistics } = params;
 
-    const result = await prisma.$transaction(async (tx) => {
-      const mutation = await applyBalanceAccountMutation(tx, {
-        userId,
-        balanceDelta: new Decimal(amount),
-        totalRechargedDelta: countAsStatistics && amount > 0 ? new Decimal(amount) : undefined,
-        totalUsedDelta: countAsStatistics && amount < 0 ? new Decimal(Math.abs(amount)) : undefined,
-        createIfMissing: true,
-      });
-      if (!mutation) throw new Error("Balance account mutation unexpectedly failed");
-
-      await tx.balanceTransaction.create({
-        data: {
+    const result = await prisma.$transaction(
+      async (tx) => {
+        if (params.iamGuard) await assertIamAccountUserMutation(tx, params.iamGuard, userId);
+        const mutation = await applyBalanceAccountMutation(tx, {
           userId,
-          type: "recharge",
-          amount,
-          balanceBefore: mutation.balanceBefore,
-          balanceAfter: mutation.balanceAfter,
-          description: description || "管理员充值",
-        },
-      });
+          balanceDelta: new Decimal(amount),
+          totalRechargedDelta: countAsStatistics && amount > 0 ? new Decimal(amount) : undefined,
+          totalUsedDelta: countAsStatistics && amount < 0 ? new Decimal(Math.abs(amount)) : undefined,
+          createIfMissing: true,
+          ...(params.iamGuard ? { requireActive: true } : {}),
+        });
+        if (!mutation) {
+          if (params.iamGuard) throw iamAccountDenied();
+          throw new Error("Balance account mutation unexpectedly failed");
+        }
 
-      return mutation.account;
-    });
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: "recharge",
+            amount,
+            balanceBefore: mutation.balanceBefore,
+            balanceAfter: mutation.balanceAfter,
+            description: description || "管理员充值",
+          },
+        });
+
+        if (params.iamGuard) await assertIamAccountUserMutation(tx, params.iamGuard, userId);
+        return mutation.account;
+      },
+      params.iamGuard ? { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } : undefined,
+    );
 
     // Fire-and-forget notifications
     if (amount < 0) this.dispatchBalanceLowNotification(userId).catch(() => {});

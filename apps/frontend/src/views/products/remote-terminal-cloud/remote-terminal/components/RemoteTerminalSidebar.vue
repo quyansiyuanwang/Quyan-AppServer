@@ -29,8 +29,15 @@
 
       <div class="section-block">
         <div class="section-label">{{ i18ns.t('remoteTerminal.devices') }}</div>
+        <el-alert
+          v-if="inventorySections.devices === 'failed'"
+          :title="i18ns.t('remoteTerminal.devicesUnavailable')"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
         <el-empty
-          v-if="!loading && devices.length === 0"
+          v-else-if="!loading && devices.length === 0"
           :description="i18ns.t('remoteTerminal.noDevices')"
           :image-size="96"
         />
@@ -66,7 +73,14 @@
       </div>
 
       <div class="action-panel">
-        <div class="quota-panel">
+        <el-alert
+          v-if="inventorySections.usage === 'failed'"
+          :title="i18ns.t('remoteTerminal.usageUnavailable')"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
+        <div v-if="usageSummary" class="quota-panel">
           <div class="quota-grid">
             <div class="quota-card">
               <div class="quota-card-label">{{ i18ns.t('remoteTerminal.terminalQuota') }}</div>
@@ -196,7 +210,14 @@
 
       <div class="section-block">
         <div class="section-label">{{ i18ns.t('remoteTerminal.recentSessions') }}</div>
-        <el-table :data="paginatedSessions" size="small" stripe>
+        <el-alert
+          v-if="inventorySections.sessions === 'failed'"
+          :title="i18ns.t('remoteTerminal.sessionsUnavailable')"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
+        <el-table v-else :data="paginatedSessions" size="small" stripe>
           <el-table-column
             prop="deviceId"
             :label="i18ns.t('remoteTerminal.deviceId')"
@@ -269,6 +290,7 @@ const {
   sessionPageSize,
   sortedSessions,
   usageSummary,
+  inventorySections,
   handleSessionPageChange,
   RefreshRight,
 } = state

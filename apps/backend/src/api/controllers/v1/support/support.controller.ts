@@ -1,3 +1,7 @@
+import { validateQuery } from "@/middleware/validation";
+import { supportAnalyticsQuerySchema } from "@/api/schema/support/support-analytics.schema";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamAccountUserResourceResolver } from "@/iam/request/account-user-resource-resolver";
 import {
   Body,
   Controller,
@@ -24,11 +28,16 @@ import type {
   UpdateSupportAiConfigDto,
 } from "@/api/dto/support/support.dto";
 import { SupportAiService } from "@/services/support/support-ai.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { supportConfigResourceResolver } from "@/iam/request/support-config-resource-resolver";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { SSEStreamService } from "@/util/streaming/sse";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamCollectionAuthorizationMiddleware,
+  iamAuthenticatedAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver, iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import type { SuccessResponse } from "@/api/response";
 
 @Route("v1/support")
@@ -39,6 +48,13 @@ export class SupportController extends Controller {
 
   @Get("availability")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:GetAvailability",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async availability(): Promise<SuccessResponse<SupportAvailabilityDto>> {
     const config = await this.supportService.getConfig();
     return {
@@ -54,12 +70,26 @@ export class SupportController extends Controller {
 
   @Get("conversation")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:GetConversation",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async conversation(@Request() request: TypedRequest): Promise<SuccessResponse<SupportConversationDto>> {
     return { code: 0, message: "Success", data: await this.supportService.getConversation(request.user!.userId) };
   }
 
   @Delete("conversation")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:ClearConversation",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async clearConversation(@Request() request: TypedRequest): Promise<SuccessResponse<void>> {
@@ -69,30 +99,52 @@ export class SupportController extends Controller {
 
   @Get("analytics")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_ANALYTICS_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:support:GetUserUsageAnalytics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(supportAnalyticsQuerySchema),
+  )
   public async analytics(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() startAt?: string,
     @Query() endAt?: string,
     @Query() userId?: string,
+    @Request() request?: TypedRequest,
   ): Promise<SuccessResponse<SupportAiAnalyticsDto>> {
     return {
       code: 0,
       message: "Success",
-      data: await this.supportService.getAnalytics({ page, pageSize, startAt, endAt, userId }),
+      data: await this.supportService.getManagedAnalytics({ page, pageSize, startAt, endAt, userId }, request),
     };
   }
 
   @Get("analytics/users/{userId}/conversation")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_ANALYTICS_READ)
-  public async analyticsConversation(@Path() userId: string): Promise<SuccessResponse<SupportConversationDto>> {
-    return { code: 0, message: "Success", data: await this.supportService.getConversation(userId) };
+  @CheckPermission(Permission.SUPPORT_AI_ANALYTICS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:GetUserConversation",
+    resourceKind: "single-resource",
+    resource: iamAccountUserResourceResolver,
+  })
+  public async analyticsConversation(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<SuccessResponse<SupportConversationDto>> {
+    return { code: 0, message: "Success", data: await this.supportService.getMonitoredConversation(userId, request) };
   }
 
   @Post("messages")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:SendMessage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async messages(@Body() body: SendSupportMessageDto, @Request() request: TypedRequest): Promise<void> {
@@ -117,6 +169,13 @@ export class SupportController extends Controller {
 
   @Post("handoff")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:Handoff",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async handoff(
@@ -129,14 +188,22 @@ export class SupportController extends Controller {
 
   @Get("config")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_CONFIG)
-  public async getConfig(): Promise<SuccessResponse<SupportAiConfigDto>> {
-    return { code: 0, message: "Success", data: await this.supportService.getConfig() };
+  @CheckPermission(Permission.SUPPORT_AI_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:GetConfig",
+    resourceKind: "single-resource",
+    resource: supportConfigResourceResolver,
+  })
+  public async getConfig(@Request() request: TypedRequest): Promise<SuccessResponse<SupportAiConfigDto>> {
+    return { code: 0, message: "Success", data: await this.supportService.getAdminConfig(request) };
   }
 
   @Post("config")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_CONFIG)
+  @CheckPermission(Permission.SUPPORT_AI_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:UpdateConfig",
+    resourceKind: "single-resource",
+    resource: supportConfigResourceResolver,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async updateConfig(

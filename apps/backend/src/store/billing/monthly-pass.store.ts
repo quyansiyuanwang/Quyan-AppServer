@@ -1,3 +1,7 @@
+import type { MonthlyPassPurchaseGuard, MonthlyPassPurchaseCharge } from "./monthly-pass-purchase";
+import type { MonthlyPassAssignGuard, MonthlyPassAssignmentUser } from "./monthly-pass-assign";
+import type { MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
+import type { MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import type {
   MonthlyPassTemplate,
   MonthlyPassTemplateQuotaWindow,
@@ -81,13 +85,15 @@ export interface MonthlyPassStore {
   createTemplate(
     data: Prisma.MonthlyPassTemplateUncheckedCreateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows>;
   updateTemplate(
     id: string,
     data: Prisma.MonthlyPassTemplateUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows>;
-  softDeleteTemplate(id: string): Promise<MonthlyPassTemplate>;
+  softDeleteTemplate(id: string, guard?: MonthlyPassTemplateWriteGuard): Promise<MonthlyPassTemplate>;
   listPublishedTemplates(): Promise<MonthlyPassTemplateWithQuotaWindows[]>;
   listTemplates(
     where: Prisma.MonthlyPassTemplateWhereInput,
@@ -95,30 +101,33 @@ export interface MonthlyPassStore {
     pageSize: number,
   ): Promise<{ total: number; records: MonthlyPassTemplateWithQuotaWindows[] }>;
 
+  findAssignmentUser(id: string): Promise<MonthlyPassAssignmentUser | null>;
+  findUserPassIdentity(id: string): Promise<Pick<UserMonthlyPass, "id" | "userId" | "status"> | null>;
   findUserPassById(id: string): Promise<UserMonthlyPassWithTemplate | null>;
+  findLatestUserPassIdentity(
+    userId: string,
+    templateId: string,
+  ): Promise<Pick<UserMonthlyPass, "id" | "userId" | "status"> | null>;
   findLatestUserPassByUserAndTemplate(userId: string, templateId: string): Promise<UserMonthlyPassWithTemplate | null>;
   countUserPassesByUserAndTemplateSince(userId: string, templateId: string, startAt: Date): Promise<number>;
   createUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassAssignGuard,
   ): Promise<UserMonthlyPassWithTemplate>;
   purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[],
-    purchase: {
-      userId: string;
-      purchaseAmount: number;
-      templateName: string;
-      templateId: string;
-      limit?: { maximum: number; windowStart: Date };
-    },
+    purchase: MonthlyPassPurchaseCharge,
+    guard?: MonthlyPassPurchaseGuard,
   ): Promise<UserMonthlyPassWithTemplate>;
   updateUserPass(
     id: string,
     data: Prisma.UserMonthlyPassUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassAssignmentWriteGuard,
   ): Promise<UserMonthlyPassWithTemplate>;
-  softDeleteUserPass(id: string): Promise<UserMonthlyPass>;
+  softDeleteUserPass(id: string, guard?: MonthlyPassAssignmentWriteGuard): Promise<UserMonthlyPass>;
   listUserPasses(
     where: Prisma.UserMonthlyPassWhereInput,
     page: number,

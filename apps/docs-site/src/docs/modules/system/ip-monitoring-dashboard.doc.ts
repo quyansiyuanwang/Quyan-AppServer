@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'ip-monitoring-dashboard',
+  updatedAt: '2026-10-14',
   category: {
     en: 'System',
     'zh-CN': '系统',

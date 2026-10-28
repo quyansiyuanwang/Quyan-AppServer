@@ -1,7 +1,7 @@
 <template>
   <section class="ram-section">
     <div v-if="canReadSessions" class="section-toolbar">
-      <el-button :icon="Refresh" @click="loadSessions">{{ i18ns.t('refresh') }}</el-button>
+      <el-button :icon="Refresh" @click="loadSessions()">{{ i18ns.t('refresh') }}</el-button>
     </div>
 
     <el-table v-if="canReadSessions" v-loading="loading.sessions" :data="sessions" border stripe>
@@ -33,11 +33,28 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
+    <el-alert
+      v-if="canReadSessions && sessionPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadSessions"
+      :page="sessionPage.page.value"
+      :page-size="sessionPage.pageSize.value"
+      :has-next="sessionPage.hasNext.value"
+      :loading="sessionPage.loading.value"
+      @previous="loadSessions(sessionPage.page.value - 1)"
+      @next="loadSessions(sessionPage.page.value + 1)"
+      @size="resizeSessionsPage"
+    />
+    <el-empty v-if="!canReadSessions" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -48,6 +65,8 @@ const {
   formatDate,
   formatRelativeTime,
   loadSessions,
+  sessionPage,
+  resizeSessionsPage,
   loading,
   revokeSession,
   sessions,

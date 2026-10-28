@@ -64,12 +64,24 @@
 
 ## 所需权限
 
-| 操作           | 所需权限             |
-| -------------- | -------------------- |
-| 查看分析概览   | `ANALYTICS_OVERVIEW` |
-| 查看分析漏斗   | `ANALYTICS_FUNNEL`   |
-| 查看分析热力图 | `ANALYTICS_HEATMAP`  |
-| 配置热力图端点 | `SYSTEM_CONFIG`      |
+| 操作           | 所需权限         |
+| -------------- | ---------------- |
+| 查看分析概览   | `ANALYTICS_READ` |
+| 查看分析漏斗   | `ANALYTICS_READ` |
+| 查看分析热力图 | `ANALYTICS_READ` |
+| 配置热力图端点 | `SYSTEM_CONFIG`  |
+
+## IAM 报表授权
+
+JWT 查询 API 需要 `ANALYTICS_READ`。IAM 强制模式下，这一资格必须来自真实部署全局组。三个报表分别使用独立 Action 和资源：
+
+| API                      | IAM Action                              | 资源 ARN                                         |
+| ------------------------ | --------------------------------------- | ------------------------------------------------ |
+| `POST /v1/track/stats`   | `quyan:analytics:GetTrackingStatistics` | `acs:platform:*:platform:system/tracking-stats`  |
+| `POST /v1/track/funnel`  | `quyan:analytics:GetFunnelStatistics`   | `acs:platform:*:platform:system/tracking-funnel` |
+| `POST /v1/heatmap/query` | `quyan:analytics:GetHeatmap`            | `acs:platform:*:platform:system/heatmap-stats`   |
+
+这些资源代表部署级聚合报表。日期、页面和事件筛选只选择报表数据，不会把权限缩小为某一页面，也不会将报表变成账户级资源。账户策略不能授予平台资格。匹配的 Deny 优先于 Allow；读取过程中资格、策略或当前角色会话失效时，结果不会返回。AssumeRole 使用角色自身的授权。匿名采集接口保留现有采集行为。
 
 ## 注意事项
 

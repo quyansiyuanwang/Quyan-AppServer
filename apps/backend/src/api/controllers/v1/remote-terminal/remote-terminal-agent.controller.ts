@@ -27,7 +27,7 @@ export class RemoteTerminalAgentController extends Controller {
     skipResponseWrapper(request);
 
     try {
-      return await this.gatewayService.registerAgent(body);
+      return await this.gatewayService.registerAgent(body, request);
     } catch (error) {
       throw new BadRequestError(error instanceof Error ? error.message : "Agent registration failed", undefined, {
         messageKey: "remoteTerminal.agentRegistrationFailed",

@@ -1,3 +1,7 @@
+import { PlatformTicketReviewMutationIamService } from "./platform-ticket-review-mutation-iam.service";
+import type { TicketReviewMutationInput } from "@/store/ticket/platform-ticket-review-mutation.store";
+import { PlatformTicketReviewReadIamService } from "./platform-ticket-review-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { Ticket, TicketComment } from "@prisma/client";
 import type { Request } from "express";
 import type {
@@ -37,6 +41,11 @@ import { AccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { OwnTicketIamService } from "./own-ticket-iam.service";
+import { getLogger, LogCategory } from "@/util/logger";
+
 const INTERNAL_VISIBILITY = "internal";
 const PUBLIC_VISIBILITY = "public";
 const TICKET_ASSIGNMENT_CURSOR_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -60,9 +69,13 @@ export class TicketService {
   }
 
   async createTicket(userId: string, body: CreateTicketDto, request?: Request): Promise<TicketDetailDto> {
+    const principal =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await OwnTicketIamService.getInstance().authorizeCreate(userId, request as TypedRequest | undefined)
+        : undefined;
     const autoAssigneeUserId = await this.resolveAutoAssigneeUserId(body.type, DEFAULT_TICKET_PRIORITY);
 
-    const created = await this.repository.create({
+    const data = {
       userId,
       type: body.type,
       title: body.title.trim(),
@@ -73,7 +86,10 @@ export class TicketService {
       workflowStatus: DEFAULT_TICKET_WORKFLOW_STATUS,
       priority: DEFAULT_TICKET_PRIORITY,
       assigneeUserId: autoAssigneeUserId ?? undefined,
-    });
+    };
+    const created = principal
+      ? await this.repository.createInAccount(data, principal.accountOwnerId)
+      : await this.repository.create(data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_CREATE,
@@ -101,19 +117,48 @@ export class TicketService {
       });
     else await this.notifyPendingReviewUsers(created.id, created.title, created.priority, userId);
 
+    if (principal) {
+      const detail = await OwnTicketIamService.getInstance().createdDetail(
+        created,
+        userId,
+        request as TypedRequest | undefined,
+      );
+      return this.toDetailDto(detail.ticket, detail.comments);
+    }
     return this.getMyTicketDetail(created.id, userId);
   }
 
-  async listMyTickets(userId: string, query: TicketListQueryDto): Promise<TicketListResponseDto> {
+  async listMyTickets(
+    userId: string,
+    query: TicketListQueryDto,
+    request?: TypedRequest,
+  ): Promise<TicketListResponseDto> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
-    const { items, total } = await this.repository.findMyList(userId, {
-      page,
-      pageSize,
-      keyword: query.keyword,
-      workflowStatus: query.workflowStatus,
-      type: query.type,
-    });
+    const filters = { page, pageSize, keyword: query.keyword, workflowStatus: query.workflowStatus, type: query.type };
+    let result;
+    if (env.security.iamAuthorizationMode === "enforce")
+      result = await OwnTicketIamService.getInstance().list(userId, filters, request);
+    else {
+      const permission = await this.permissionService.checkUserPermissions(userId, [Permission.TICKET_SELF_READ], {
+        assumedRoleSessionId: request?.user?.roleSessionId,
+      });
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy own ticket listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      result = await this.repository.findMyList(userId, filters);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await OwnTicketIamService.getInstance().list(userId, filters, request);
+        } catch {
+          getLogger("OwnTicketIam", LogCategory.SECURITY).warn("Own ticket list shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
+    const { items, total } = result;
 
     return {
       items: items.map((item) => this.toListItemDto(item)),
@@ -124,7 +169,11 @@ export class TicketService {
     };
   }
 
-  async getMyTicketDetail(id: string, userId: string): Promise<TicketDetailDto> {
+  async getMyTicketDetail(id: string, userId: string, request?: TypedRequest): Promise<TicketDetailDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const detail = await OwnTicketIamService.getInstance().detail(id, userId, "quyan:ticket:GetOwnTicket", request);
+      return this.toDetailDto(detail.ticket, detail.comments);
+    }
     const ticket = await this.requireOwnedTicket(id, userId);
     const comments = await this.repository.findCommentsByTicketId(id);
     return this.toDetailDto(
@@ -139,14 +188,46 @@ export class TicketService {
     body: UpdateMyTicketDto,
     request?: Request,
   ): Promise<TicketDetailDto> {
-    const existing = await this.requireOwnedTicket(id, userId);
+    const grant =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await OwnTicketIamService.getInstance().authorizeTarget(
+            id,
+            userId,
+            "quyan:ticket:UpdateOwnTicket",
+            request as TypedRequest | undefined,
+          )
+        : undefined;
+    const existing = grant
+      ? (await this.repository.readOwnDetail(userId, grant.principal.accountOwnerId, grant.target)).ticket
+      : await this.requireOwnedTicket(id, userId);
     if (isTicketTerminalStatus(existing.workflowStatus))
       throw new BadRequestError("当前工单已结束，不能再修改", undefined, { messageKey: "ticket.closedForUpdate" });
 
     const updateData = this.buildSelfUpdateInput(body);
-    if (Object.keys(updateData).length === 0) return this.getMyTicketDetail(id, userId);
+    if (Object.keys(updateData).length === 0) {
+      if (grant) {
+        const detail = await OwnTicketIamService.getInstance().detail(
+          id,
+          userId,
+          "quyan:ticket:UpdateOwnTicket",
+          request as TypedRequest | undefined,
+        );
+        return this.toDetailDto(detail.ticket, detail.comments);
+      }
+      return this.getMyTicketDetail(id, userId);
+    }
 
-    const updated = await this.repository.update(id, updateData);
+    // Reauthorize immediately before the account/snapshot-scoped write.
+    if (grant)
+      await OwnTicketIamService.getInstance().authorizeTarget(
+        id,
+        userId,
+        "quyan:ticket:UpdateOwnTicket",
+        request as TypedRequest | undefined,
+      );
+    const updated = grant
+      ? await this.repository.updateOwnTarget(grant.target, grant.principal.accountOwnerId, updateData)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_UPDATE,
@@ -161,6 +242,15 @@ export class TicketService {
       ...buildBusinessLogRequestContext(request),
     });
 
+    if (grant) {
+      const detail = await OwnTicketIamService.getInstance().detail(
+        id,
+        userId,
+        "quyan:ticket:UpdateOwnTicket",
+        request as TypedRequest | undefined,
+      );
+      return this.toDetailDto(detail.ticket, detail.comments);
+    }
     return this.getMyTicketDetail(id, userId);
   }
 
@@ -170,18 +260,36 @@ export class TicketService {
     body: CreateTicketCommentDto,
     request?: Request,
   ): Promise<TicketCommentDto> {
-    const ticket = await this.requireOwnedTicket(id, userId);
+    const grant =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await OwnTicketIamService.getInstance().authorizeTarget(
+            id,
+            userId,
+            "quyan:ticket:AddOwnComment",
+            request as TypedRequest | undefined,
+          )
+        : undefined;
+    const ticket = grant ? grant.target : await this.requireOwnedTicket(id, userId);
     if (isTicketTerminalStatus(ticket.workflowStatus))
       throw new BadRequestError("当前工单已结束，不能再追加评论", undefined, { messageKey: "ticket.closedForComment" });
 
-    const created = await this.repository.createComment({
+    if (grant)
+      await OwnTicketIamService.getInstance().authorizeTarget(
+        id,
+        userId,
+        "quyan:ticket:AddOwnComment",
+        request as TypedRequest | undefined,
+      );
+    const data = {
       ticketId: id,
       authorUserId: userId,
       visibility: PUBLIC_VISIBILITY,
       content: body.content.trim(),
-    });
-
-    await this.repository.update(id, { lastReplyAt: created.createTime });
+    };
+    const created = grant
+      ? await this.repository.commentOwnTarget(grant.target, grant.principal.accountOwnerId, data)
+      : await this.repository.createComment(data);
+    if (!grant) await this.repository.update(id, { lastReplyAt: created.createTime });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_COMMENT_CREATE,
@@ -190,7 +298,7 @@ export class TicketService {
       targetUserId: userId,
       targetResourceId: ticket.id,
       targetResourceType: "TICKET",
-      description: `为工单 '${ticket.title}' 添加评论`,
+      description: "添加工单评论",
       changes: { visibility: PUBLIC_VISIBILITY },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -205,7 +313,31 @@ export class TicketService {
     });
   }
 
-  async listReviewTickets(query: TicketReviewListQueryDto): Promise<TicketListResponseDto> {
+  async listReviewTickets(query: TicketReviewListQueryDto, request?: TypedRequest): Promise<TicketListResponseDto> {
+    const mode = env.security.iamAuthorizationMode;
+    if (!request?.user || !["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode === "enforce") {
+      const result = await PlatformTicketReviewReadIamService.getInstance().list(query, request);
+      return { ...result, items: result.items.map((item) => this.toListItemDto(item)) };
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(request.user.userId, [Permission.TICKET_REVIEW_READ], {
+          assumedRoleSessionId: request.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewReadIamService.getInstance().list(query, request, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review shadow evaluation failed", {
+          action: "quyan:ticket:ListReviewTickets",
+        });
+      }
+    }
+
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const { items, total } = await this.repository.findReviewList({
@@ -230,11 +362,81 @@ export class TicketService {
     };
   }
 
-  async getReviewTicketDetail(id: string): Promise<TicketDetailDto> {
+  async getReviewTicketDetail(id: string, request?: TypedRequest): Promise<TicketDetailDto> {
+    const mode = env.security.iamAuthorizationMode;
+    if (!request?.user || !["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode === "enforce") {
+      const detail = await PlatformTicketReviewReadIamService.getInstance().detail(id, request);
+      if (!detail) throw iamAccountDenied();
+      return this.toDetailDto(detail.ticket, detail.comments);
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(request.user.userId, [Permission.TICKET_REVIEW_READ], {
+          assumedRoleSessionId: request.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewReadIamService.getInstance().detail(id, request, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review shadow evaluation failed", {
+          action: "quyan:ticket:GetReviewTicket",
+        });
+      }
+    }
+
+    return this.loadReviewTicketDetail(id);
+  }
+
+  private async loadReviewTicketDetail(id: string): Promise<TicketDetailDto> {
     const ticket = await this.repository.findByIdWithRelations(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
     const comments = await this.repository.findCommentsByTicketId(id);
     return this.toDetailDto(ticket, comments);
+  }
+
+  private async reviewMutation(
+    id: string,
+    reviewerUserId: string,
+    input: TicketReviewMutationInput,
+    request?: Request,
+  ) {
+    const typed = request as TypedRequest | undefined,
+      mode = env.security.iamAuthorizationMode;
+    if (!typed?.user || typed.user.userId !== reviewerUserId || !["legacy", "shadow", "enforce"].includes(mode))
+      throw iamAccountDenied();
+    if (mode === "enforce") {
+      const result = await PlatformTicketReviewMutationIamService.getInstance().execute(
+        id,
+        reviewerUserId,
+        input,
+        typed,
+      );
+      if (!result || (input.kind === "update" && !result.detail) || (input.kind === "comment" && !result.comment))
+        throw iamAccountDenied();
+      return result;
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(reviewerUserId, [Permission.TICKET_REVIEW_UPDATE], {
+          assumedRoleSessionId: typed.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewMutationIamService.getInstance().execute(id, reviewerUserId, input, typed, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review mutation shadow evaluation failed", {
+          operation: input.kind,
+        });
+      }
+    }
+    return undefined;
   }
 
   async reviewTicket(
@@ -243,7 +445,8 @@ export class TicketService {
     body: ReviewTicketDto,
     request?: Request,
   ): Promise<TicketDetailDto> {
-    const existing = await this.repository.findByIdWithRelations(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "update", data: body }, request);
+    const existing = native ? native.before : await this.repository.findByIdWithRelations(id);
     if (!existing) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
     const updateData: Record<string, unknown> = {};
@@ -257,7 +460,7 @@ export class TicketService {
 
     if (Object.prototype.hasOwnProperty.call(body, "assigneeUserId")) {
       const normalizedAssignee = this.normalizeNullableId(body.assigneeUserId);
-      if (normalizedAssignee) {
+      if (normalizedAssignee && !native) {
         const assignee = await this.userRepository.findActiveById(normalizedAssignee);
         if (!assignee)
           throw new BadRequestError("分配的处理人不存在或不可用", undefined, {
@@ -267,9 +470,12 @@ export class TicketService {
       updateData.assigneeUserId = normalizedAssignee;
     }
 
-    if (Object.keys(updateData).length === 0) return this.getReviewTicketDetail(id);
+    if (Object.keys(updateData).length === 0)
+      return native
+        ? this.toDetailDto(native.detail!.ticket, native.detail!.comments)
+        : this.loadReviewTicketDetail(id);
 
-    const updated = await this.repository.update(id, updateData);
+    const updated = native ? native.detail!.ticket : await this.repository.update(id, updateData);
 
     if (existing.type !== updated.type)
       await this.businessLogService.logOperation({
@@ -348,7 +554,7 @@ export class TicketService {
         });
     }
 
-    return this.getReviewTicketDetail(id);
+    return native ? this.toDetailDto(native.detail!.ticket, native.detail!.comments) : this.loadReviewTicketDetail(id);
   }
 
   async addReviewComment(
@@ -357,17 +563,20 @@ export class TicketService {
     body: CreateTicketReviewCommentDto,
     request?: Request,
   ): Promise<TicketCommentDto> {
-    const ticket = await this.repository.findByIdWithRelations(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "comment", data: body }, request);
+    const ticket = native ? native.before : await this.repository.findByIdWithRelations(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
-    const created = await this.repository.createComment({
-      ticketId: id,
-      authorUserId: reviewerUserId,
-      visibility: body.visibility,
-      content: body.content.trim(),
-    });
+    const created = native
+      ? native.comment!
+      : await this.repository.createComment({
+          ticketId: id,
+          authorUserId: reviewerUserId,
+          visibility: body.visibility,
+          content: body.content.trim(),
+        });
 
-    await this.repository.update(id, { lastReplyAt: created.createTime });
+    if (!native) await this.repository.update(id, { lastReplyAt: created.createTime });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_COMMENT_CREATE,
@@ -389,6 +598,7 @@ export class TicketService {
         ticketId: ticket.id,
       });
 
+    if (native) return this.toCommentDto(native.comment!);
     return this.toCommentDto({
       ...created,
       author: {
@@ -399,9 +609,10 @@ export class TicketService {
   }
 
   async deleteTicket(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const ticket = await this.repository.findById(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "delete" }, request);
+    const ticket = native ? native.before : await this.repository.findById(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
-    await this.repository.delete(id);
+    if (!native) await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_DELETE,

@@ -1,3 +1,75 @@
+import { normalizeRelayForwardedHeaderNames } from "@quyan/shared";
+import { RelayChannelImportIamService } from "./relay-channel-import-iam.service";
+import { RelayChannelCreateIamService } from "./relay-channel-create-iam.service";
+import { RelayChannelUpdateIamService } from "./relay-channel-update-iam.service";
+import { relayChannelExportConfigurationSchema } from "@/api/schema/relay/relay-channel.schema";
+import { RelayChannelDuplicateIamService } from "./relay-channel-duplicate-iam.service";
+import type { ChannelDuplicatePreparation } from "@/store/relay/relay-channel-duplicate.repository";
+import { RelayChannelBatchUpdateIamService } from "./relay-channel-batch-update-iam.service";
+import type { BatchChannelPatch } from "@/store/relay/relay-channel-batch-update.repository";
+import { batchUpdateRelayChannelPatchSchema } from "@/api/schema/relay/relay-channel.schema";
+import { renderDescriptorSafely, DEFAULT_BACKEND_LOCALE } from "@/locales";
+import { RelayChannelExportIamService } from "./relay-channel-export-iam.service";
+import { projectRelayChannelExport } from "./relay-channel-export-projection";
+import { catalogModelCapabilities, catalogModelPriceRanges } from "./relay-channel-catalog-projection";
+import { RelayChannelCatalogIamService } from "./relay-channel-catalog-iam.service";
+import { RelayChannelUpstreamModelIamService } from "./relay-channel-upstream-model-iam.service";
+import {
+  parseUpstreamModels,
+  relayUpstreamModelsPolicy,
+  type UpstreamModelExecutionGuard,
+} from "./relay-upstream-models";
+import { RelayChannelModelRestrictionIamService } from "./relay-channel-model-restriction-iam.service";
+import { RelayChannelChangeRequestReviewIamService } from "./relay-channel-change-request-review-iam.service";
+import { createRelayChannelChangeRequestBodySchema } from "@/api/schema/relay/relay-channel.schema";
+import { assertRelayChannelChangeProviderBindings } from "@/store/relay/relay-channel-change-provider-bindings";
+import { RelayChannelChangeRequestCreateIamService } from "./relay-channel-change-request-create-iam.service";
+import { RelayChannelProviderConfigIamService } from "./relay-channel-provider-config-iam.service";
+import { RelayChannelSubmissionReviewIamService } from "./relay-channel-submission-review-iam.service";
+import { PlatformRelayChannelDeleteIamService } from "./platform-relay-channel-delete-iam.service";
+import { RelayChannelSubmissionCreateIamService } from "./relay-channel-submission-create-iam.service";
+import { RelayChannelSubmissionMutationIamService } from "./relay-channel-submission-mutation-iam.service";
+import { RelayChannelSubmissionReadIamService } from "./relay-channel-submission-read-iam.service";
+import { RelayChannelHealthClearIamService } from "./relay-channel-health-clear-iam.service";
+import { RelayChannelHealthConfigIamService } from "./relay-channel-health-config-iam.service";
+import { RelayChannelHealthReadIamService } from "./relay-channel-health-read-iam.service";
+import {
+  DEFAULT_AUTOMATIC_POOL_RANKING_MODE,
+  getRelayChannelHealthTrackingConfig,
+  toOptionalFiniteHealthNumber,
+  projectRelayChannelHealth,
+  projectRelayAutomaticPoolHealth,
+} from "./relay-channel-health-projection";
+import { RelayChannelConfigurationReadIamService } from "./relay-channel-configuration-read-iam.service";
+import {
+  projectRelayChannelConfiguration,
+  type RelayChannelCredentialPresence,
+} from "./relay-channel-configuration-projection";
+import { RelayChannelTopologyAuditIamService } from "./relay-channel-topology-audit-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { RelayChannelChangeRequestReadIamService } from "./relay-channel-change-request-read-iam.service";
+import {
+  projectRelayChannelChangeRequest,
+  type RelayChannelChangeRequestProjectionSource,
+} from "./relay-channel-change-request-projection";
+import { PlatformRelayChannelStatusIamService } from "./platform-relay-channel-status-iam.service";
+import { RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
+import { normalizeRelayChannelVisibilityConfig } from "@/util/relay/relay-channel-visibility.util";
+import { PlatformRelayChannelManagementReadIamService } from "./platform-relay-channel-management-read-iam.service";
+import {
+  projectRelayManagementChannels,
+  DEFAULT_CHANNEL_TYPE,
+  DEFAULT_ROUTING_STRATEGY,
+  DEFAULT_VISIBILITY_MODE,
+  isProviderServiceEnabled,
+  isChannelServiceEnabled,
+} from "./relay-channel-management-projection";
+import {
+  buildRelayChannelManagementQuery,
+  type RelayChannelManagementFilters,
+} from "@/store/relay/relay-channel-management-query";
+import type { TypedRequest } from "@/types/express";
+import type { RelayChannelSelectionMetadata } from "@/store/relay/relay-channel.store";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
@@ -18,7 +90,6 @@ import type {
   RelayChannelDto,
   RelayCatalogOptionDto,
   RelayRoutingCatalogOptionDto,
-  RelayCatalogModelPriceRangeDto,
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
@@ -28,11 +99,9 @@ import type {
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
   RelayAutomaticPoolHealthDto,
-  RelayAutomaticPoolHealthMemberDto,
   RelayChannelHealthDto,
   RelayChannelHealthOverviewDto,
   RelayChannelHealthOverviewItemDto,
-  RelayChannelHealthTrackingMode,
   RelayPoolPricingMemberOptionDto,
   RelayPoolPricingOptionDto,
   ContextLengthMultiplierRule,
@@ -46,7 +115,6 @@ import type {
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
   RelayChannelProviderConfigRequest,
-  RelayChannelProviderDto,
   RelayChannelSubmissionStatus,
   SubmitRelayChannelRequest,
   ReviewRelayChannelSubmissionRequest,
@@ -82,7 +150,7 @@ import type { RamRoleStore } from "@/store/users/ram-role.store";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { ApiError, BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
 import { assertSafeOutboundUrl, type SafeOutboundUrl } from "@/util/developer-outbound-url";
@@ -90,11 +158,10 @@ import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats, parseAllowedModelsJson, RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
-import { RelayPoolResolverService } from "./relay-pool-resolver.service";
+import { RelayPoolResolverService, type RelayModelCatalogEntry } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 import { RelayConfigService } from "./relay-config.service";
-import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.util";
 import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
 import { env } from "@/config/env";
 import { ConfigService } from "@/services/system/config.service";
@@ -144,6 +211,34 @@ interface ValidatedRelayChannelData {
   providers?: RelayChannelProviderConfigRequest[];
 }
 
+type RelayChannelValidationSource = Pick<
+  RelayChannel,
+  | "id"
+  | "name"
+  | "channelType"
+  | "routingStrategy"
+  | "routingConfig"
+  | "visibilityMode"
+  | "visibilityConfig"
+  | "pooledParentId"
+  | "pooledPriority"
+  | "pooledWeight"
+  | "pooledMemberEnabled"
+  | "openaiUpstreamUrl"
+  | "anthropicUpstreamUrl"
+  | "geminiUpstreamUrl"
+  | "useProxy"
+  | "multiplier"
+  | "allowedFormats"
+  | "allowedModels"
+  | "addUserIdentifier"
+  | "inputTokensIncludeCacheRead"
+  | "modelMapping"
+  | "timePeriodMultipliers"
+  | "contextLengthMultipliers"
+> &
+  Partial<Pick<RelayChannel, "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey">>;
+
 type ResolvedRelayChannelProviderConfig = Omit<RelayChannelProviderConfigRequest, "username"> & {
   userId: string;
   nextSettlementAt?: Date | null;
@@ -160,20 +255,6 @@ type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
   previousChannelStatus?: RelayChannelStatus;
   previousProviderServiceEnabled?: boolean;
 };
-
-const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
-const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
-const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
-const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
-const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
-const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
-const UPSTREAM_MODELS_BATCH_CONCURRENCY = 4;
-
-const isProviderServiceEnabled = (channel: Pick<RelayChannel, "providerServiceEnabled">): boolean =>
-  channel.providerServiceEnabled !== false;
-
-const isChannelServiceEnabled = (channel: Pick<RelayChannel, "status" | "providerServiceEnabled">): boolean =>
-  channel.status === RELAY_CHANNEL_STATUS.ENABLED && isProviderServiceEnabled(channel);
 
 const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
   const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
@@ -225,7 +306,23 @@ export class RelayChannelService {
     return this.instance;
   }
 
+  async listChannelConfigurations(
+    actorUserId: string,
+    includeDisabled = false,
+    request?: TypedRequest,
+  ): Promise<RelayChannelDto[]> {
+    return RelayChannelConfigurationReadIamService.getInstance().read(
+      "ListChannels",
+      { includeDisabled },
+      actorUserId,
+      request,
+      () => this.listChannels(actorUserId, includeDisabled),
+    );
+  }
+
+  /** Legacy probe/business callbacks only. Native endpoints must use listChannelConfigurations. */
   async listChannels(actorUserId: string, includeDisabled = false): Promise<RelayChannelDto[]> {
+    if (!["legacy", "shadow"].includes(env.security.iamAuthorizationMode)) throw iamAccountDenied();
     const channels = includeDisabled
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
@@ -277,49 +374,25 @@ export class RelayChannelService {
 
   async listManagementChannels(
     actorUserId: string,
-    query: {
-      page?: number;
-      pageSize?: number;
-      keyword?: string;
-      channelType?: RelayChannelType;
-      channelTypes?: RelayChannelType[];
-      enabled?: boolean;
-      submissionStatus?: RelayChannelSubmissionStatus;
-      models?: string[];
-      modelMatchMode?: "any" | "all";
-    },
+    query: RelayChannelManagementFilters,
+    request?: TypedRequest,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 25;
-    const modelFilters = [...new Set((query.models ?? []).map((model) => model.trim()).filter(Boolean))];
-    const modelMatchMode = query.modelMatchMode ?? "any";
-    const where: Prisma.RelayChannelWhereInput = {
-      status:
-        query.enabled === undefined
-          ? { in: VISIBLE_RELAY_CHANNEL_STATUSES }
-          : query.enabled
-            ? RELAY_CHANNEL_STATUS.ENABLED
-            : RELAY_CHANNEL_STATUS.DISABLED,
-    };
-
-    if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
-    if (query.channelType && query.channelTypes?.length)
-      throw new BadRequestError("channelType and channelTypes cannot be used together", undefined, {
-        messageKey: "relayChannel.channelTypeConflict",
-      });
-    if (query.channelTypes?.length) where.channelType = { in: query.channelTypes };
-    else if (query.channelType) where.channelType = query.channelType;
-    if (query.submissionStatus === "pending") {
-      where.OR = [
-        { submissionStatus: "pending" },
-        { changeRequests: { some: { status: 1, reviewStatus: "pending" } } },
-      ];
-    } else if (query.submissionStatus) {
-      where.submissionStatus = query.submissionStatus;
-    }
-
-    const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
-    if (visibilityWhere) where.AND = [visibilityWhere];
+    return PlatformRelayChannelManagementReadIamService.getInstance().list(
+      actorUserId,
+      request,
+      query,
+      () => this.buildManagementVisibilityWhere(actorUserId),
+      () => this.listManagementChannelsLegacy(actorUserId, query),
+    );
+  }
+  private async listManagementChannelsLegacy(
+    actorUserId: string,
+    query: RelayChannelManagementFilters,
+  ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
+    const { where, page, pageSize, modelFilters, modelMatchMode } = buildRelayChannelManagementQuery(
+      query,
+      await this.buildManagementVisibilityWhere(actorUserId),
+    );
 
     let records;
     let total;
@@ -351,44 +424,25 @@ export class RelayChannelService {
       total = result.total;
     }
 
-    return {
-      items: records.map((channel) => {
-        const providers = channel.providers ?? [];
-        return {
-          id: channel.id,
-          name: channel.name,
-          submittedByUserId: channel.submittedByUserId || undefined,
-          submittedByUsername: channel.submittedBy?.username || channel.submittedByUserId || undefined,
-          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          providerServiceEnabled: channel.providerServiceEnabled !== false,
-          serviceEnabled: isChannelServiceEnabled(channel),
-          channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-          routingStrategy:
-            (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-          visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-          poolMemberCount: new Set([
-            ...channel.poolMembers.map((member) => member.memberChannelId),
-            ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
-          ]).size,
-          pooledParentId: channel.pooledParentId || undefined,
-          pooledParentName: channel.pooledParent?.name,
-          multiplier: Number(channel.multiplier),
-          submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
-          providerCount: providers.length,
-          providerCommissionPercent: providers.reduce(
-            (total, provider) => total + Number(provider.commissionPercent),
-            0,
-          ),
-          updateTime: channel.updateTime,
-        };
-      }),
-      total,
-      page,
-      pageSize,
-    };
+    return projectRelayManagementChannels(records, total, page, pageSize);
   }
 
   async listChannelOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    listOptions: { excludePooled?: boolean } = {},
+    request?: TypedRequest,
+  ): Promise<RelayChannelOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().readOptions(
+      actorUserId,
+      targetUserId,
+      listOptions.excludePooled === true,
+      request,
+      () => this.listLegacyChannelOptions(actorUserId, targetUserId, listOptions),
+    );
+  }
+
+  private async listLegacyChannelOptions(
     actorUserId: string,
     targetUserId?: string,
     listOptions: { excludePooled?: boolean } = {},
@@ -474,7 +528,12 @@ export class RelayChannelService {
     return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  async getTopologyAudit(actorUserId: string): Promise<RelayChannelTopologyAuditDto> {
+  async getTopologyAudit(actorUserId: string, request?: TypedRequest): Promise<RelayChannelTopologyAuditDto> {
+    return RelayChannelTopologyAuditIamService.getInstance().read(actorUserId, request, () =>
+      this.getTopologyAuditLegacy(actorUserId),
+    );
+  }
+  private async getTopologyAuditLegacy(actorUserId: string): Promise<RelayChannelTopologyAuditDto> {
     const [config, channels] = await Promise.all([
       this.relayConfigService.getRelayConfig(),
       this.relayChannelRepository.listVisible(),
@@ -523,7 +582,20 @@ export class RelayChannelService {
    * while automatic-pool membership remains visible as logical pooled routes so
    * a token owner can make an informed blocking decision.
    */
-  async listRoutingCatalogOptions(actorUserId: string, targetUserId?: string): Promise<RelayRoutingCatalogOptionDto[]> {
+  async listRoutingCatalogOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayRoutingCatalogOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().readRouting(actorUserId, targetUserId, request, () =>
+      this.listLegacyRoutingCatalogOptions(actorUserId, targetUserId),
+    );
+  }
+
+  private async listLegacyRoutingCatalogOptions(
+    actorUserId: string,
+    targetUserId?: string,
+  ): Promise<RelayRoutingCatalogOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
     const [activeChannels, modelCatalog] = await Promise.all([
       this.relayChannelRepository.listActive(),
@@ -598,7 +670,13 @@ export class RelayChannelService {
    * API documentation projection. Variable-priced logical channels are published without their
    * pool identity, members, or routing details; consumers only receive per-model price ranges.
    */
-  async listCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
+  async listCatalogOptions(actorUserId: string, request?: TypedRequest): Promise<RelayCatalogOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().read(actorUserId, request, () =>
+      this.listLegacyCatalogOptions(actorUserId),
+    );
+  }
+
+  private async listLegacyCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
     const [relayConfig, activeChannels, modelCatalog] = await Promise.all([
       this.relayConfigService.getRelayConfig(),
       this.relayChannelRepository.listActive(),
@@ -651,7 +729,7 @@ export class RelayChannelService {
           channel.id,
           resolverContext,
         );
-        const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
+        const modelCapabilities = catalogModelCapabilities(resolvedCapabilities);
 
         if (channelType === "automatic-proxy-pool") {
           return {
@@ -664,7 +742,7 @@ export class RelayChannelService {
             ]),
             modelCapabilities,
             pricingMode: "range" as const,
-            modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
+            modelPriceRanges: catalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
             pricingEffectiveAt: now,
             priceMayVary: true,
           } satisfies RelayCatalogOptionDto;
@@ -699,83 +777,6 @@ export class RelayChannelService {
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  private toCatalogModelCapabilities(
-    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
-  ): RelayCatalogOptionDto["modelCapabilities"] {
-    const capabilities = new Map<string, RelayCatalogOptionDto["modelCapabilities"][number]>();
-    for (const capability of resolvedCapabilities) {
-      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const existing = capabilities.get(key);
-      if (existing) {
-        existing.supportedRequestFormats = [
-          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
-        ];
-      } else {
-        capabilities.set(key, {
-          catalogModelName: capability.catalogModelName,
-          requestModelId: capability.requestModelId,
-          supportedRequestFormats: [...capability.supportedRequestFormats],
-        });
-      }
-    }
-    return [...capabilities.values()].sort(
-      (left, right) =>
-        left.catalogModelName.localeCompare(right.catalogModelName) ||
-        left.requestModelId.localeCompare(right.requestModelId),
-    );
-  }
-
-  private toCatalogModelPriceRanges(
-    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
-    activeChannelsById: ReadonlyMap<string, RelayChannel>,
-    now: Date,
-  ): RelayCatalogModelPriceRangeDto[] {
-    const ranges = new Map<string, RelayCatalogModelPriceRangeDto>();
-
-    for (const capability of resolvedCapabilities) {
-      const leaf = activeChannelsById.get(capability.leafChannelId);
-      if (!leaf || !isChannelServiceEnabled(leaf)) continue;
-
-      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const multipliers = this.getCatalogContextMultipliers(leaf, now);
-      if (multipliers.length === 0) continue;
-
-      const minMultiplier = Math.min(...multipliers);
-      const maxMultiplier = Math.max(...multipliers);
-      const existing = ranges.get(key);
-      if (existing) {
-        existing.minMultiplier = Math.min(existing.minMultiplier, minMultiplier);
-        existing.maxMultiplier = Math.max(existing.maxMultiplier, maxMultiplier);
-      } else {
-        ranges.set(key, {
-          catalogModelName: capability.catalogModelName,
-          requestModelId: capability.requestModelId,
-          minMultiplier,
-          maxMultiplier,
-        });
-      }
-    }
-
-    return [...ranges.values()].sort(
-      (left, right) =>
-        left.catalogModelName.localeCompare(right.catalogModelName) ||
-        left.requestModelId.localeCompare(right.requestModelId),
-    );
-  }
-
-  private getCatalogContextMultipliers(channel: RelayChannel, now: Date): number[] {
-    const baseMultiplier =
-      Number(channel.multiplier) *
-      computeMultiplierForTime(
-        (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
-        now,
-      );
-    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
-    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
-    if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
-    return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
 
   private toAutomaticProxyPoolOption(
@@ -911,7 +912,21 @@ export class RelayChannelService {
     return normalizedTargetUserId;
   }
 
+  async getChannelConfiguration(id: string, actorUserId: string, request?: TypedRequest): Promise<RelayChannelDto> {
+    const records = await RelayChannelConfigurationReadIamService.getInstance().read(
+      "GetChannel",
+      { id, includeDisabled: false },
+      actorUserId,
+      request,
+      async () => [await this.getChannel(id, actorUserId)],
+    );
+    if (!records[0]) throw iamAccountDenied();
+    return records[0];
+  }
+
+  /** Legacy probe/business callbacks only; never a fallback for an enforced resource read. */
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
+    if (!["legacy", "shadow"].includes(env.security.iamAuthorizationMode)) throw iamAccountDenied();
     const channel = await this.relayChannelRepository.findVisibleById(id);
     if (!channel)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -920,6 +935,19 @@ export class RelayChannelService {
   }
 
   async getChannelHealth(
+    id: string,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayChannelHealthDto | RelayAutomaticPoolHealthDto>(
+      { kind: "single", id },
+      actorUserId,
+      request,
+      () => this.getChannelHealthLegacy(id, actorUserId),
+    );
+  }
+
+  private async getChannelHealthLegacy(
     id: string,
     actorUserId: string,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
@@ -938,82 +966,23 @@ export class RelayChannelService {
       return this.toHealthDto(channel, snapshot);
     }
 
-    const now = new Date();
-    const poolMembers = (channel as RelayChannelWithMembers).poolMembers ?? [];
-    const rankingMode =
-      (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.rankingMode === "stability-first"
-        ? "stability-first"
-        : DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
-    const dynamicMemberRankingEnabled =
-      (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.dynamicMemberRankingEnabled !== false;
-    const rankedMembers = await this.relayChannelHealthService.rankMembers(
-      poolMembers.map((member) => {
-        const memberChannel = member.memberChannel;
-        const effectivePrice =
-          Number(memberChannel?.multiplier ?? 1) *
-          computeMultiplierForTime(
-            (memberChannel?.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
-            now,
-          );
-        return {
-          id: member.memberChannelId,
-          name: memberChannel?.name ?? member.memberChannelId,
-          enabled: member.enabled !== false && Boolean(memberChannel && isChannelServiceEnabled(memberChannel)),
-          priority: member.priority,
-          weight: Number(member.weight),
-          effectivePrice,
-          ...this.getHealthTrackingConfig(memberChannel),
-        };
-      }),
-      rankingMode,
-      now,
-      {
-        healthScoreThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-          ?.healthScoreThreshold,
-        latencyThresholdMs: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-          ?.latencyThresholdMs,
-        circuitBreakerThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-          ?.circuitBreakerThreshold,
-      },
+    return projectRelayAutomaticPoolHealth(
+      channel,
+      (channel as RelayChannelWithMembers).poolMembers ?? [],
+      this.relayChannelHealthService,
     );
-    const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
-    const displayedMembers = dynamicMemberRankingEnabled
-      ? rankedMembers
-      : [...rankedMembers].sort(
-          (left, right) =>
-            left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
-        );
-    const members: RelayAutomaticPoolHealthMemberDto[] = displayedMembers.map((member, index) => ({
-      ...member.health,
-      name: member.name,
-      enabled: member.enabled,
-      priority: member.priority,
-      weight: member.weight,
-      effectivePrice: member.effectivePrice,
-      score: member.score,
-      rank: index + 1,
-      eligible: member.eligible,
-      exclusionReasons: member.exclusionReasons,
-      trackingMode: member.healthTrackingMode ?? "automatic",
-      source: member.source,
-      manualAvailability:
-        member.healthTrackingMode === "manual" ? this.toOptionalFiniteNumber(member.manualAvailability) : undefined,
-      manualLatencyMs:
-        member.healthTrackingMode === "manual" ? this.toOptionalFiniteNumber(member.manualLatencyMs) : undefined,
-    }));
-
-    return {
-      channelId: channel.id,
-      name: channel.name,
-      rankingMode,
-      dynamicMemberRankingEnabled,
-      windowStartAt: window.windowStartAt,
-      windowEndAt: window.windowEndAt,
-      members,
-    };
   }
 
-  async getChannelHealthOverview(actorUserId: string): Promise<RelayChannelHealthOverviewDto> {
+  async getChannelHealthOverview(actorUserId: string, request?: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayChannelHealthOverviewDto>(
+      { kind: "overview" },
+      actorUserId,
+      request,
+      () => this.getChannelHealthOverviewLegacy(actorUserId),
+    );
+  }
+
+  private async getChannelHealthOverviewLegacy(actorUserId: string): Promise<RelayChannelHealthOverviewDto> {
     const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
     const standaloneChannels = channels.filter((channel) => channel.channelType === "standalone");
     const healthMap = await this.relayChannelHealthService.getHealthMap(
@@ -1031,7 +1000,16 @@ export class RelayChannelService {
     return { windowMinutes: RelayChannelHealthService.constants.windowMinutes, channels: items };
   }
 
-  async getAutomaticPoolHealths(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
+  async getAutomaticPoolHealths(actorUserId: string, request?: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayAutomaticPoolHealthDto[]>(
+      { kind: "automatic-pools" },
+      actorUserId,
+      request,
+      () => this.getAutomaticPoolHealthsLegacy(actorUserId),
+    );
+  }
+
+  private async getAutomaticPoolHealthsLegacy(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
     const canViewPoolMetadata = await this.permissionService.hasPermission(
       actorUserId,
       Permission.RELAY_CHANNEL_POOL_METADATA_READ,
@@ -1046,11 +1024,71 @@ export class RelayChannelService {
       (channel) =>
         ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
     );
-    const healths = await Promise.all(pools.map((channel) => this.getChannelHealth(channel.id, actorUserId)));
+    const healths = await Promise.all(pools.map((channel) => this.getChannelHealthLegacy(channel.id, actorUserId)));
     return healths.filter((health): health is RelayAutomaticPoolHealthDto => "members" in health);
   }
 
   async updateChannelHealthConfig(
+    id: string,
+    data: UpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelHealthDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayChannelHealthConfigIamService.getInstance().execute(
+      { ...data, ids: [id] },
+      actorUserId,
+      request,
+      async () => ({
+        total: 1,
+        affected: 1,
+        projection: await this.updateChannelHealthConfigLegacy(id, data, actorUserId, request),
+      }),
+      true,
+    );
+    if (!result.projection)
+      throw new ForbiddenError("Missing authorized health projection", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: id,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "更新了中转渠道的健康追踪设置",
+        metadata: { healthTrackingMode: data.healthTrackingMode },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result.projection;
+  }
+
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayChannelHealthConfigIamService.getInstance().execute(data, actorUserId, request, () =>
+      this.batchUpdateChannelHealthConfigLegacy(data, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "批量更新了中转渠道的健康追踪设置",
+        metadata: { ids: data.ids, healthTrackingMode: data.healthTrackingMode },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+
+  private async updateChannelHealthConfigLegacy(
     id: string,
     data: UpdateRelayChannelHealthConfigRequest,
     actorUserId: string,
@@ -1086,7 +1124,7 @@ export class RelayChannelService {
     return this.toHealthDto(updated, await this.relayChannelHealthService.getHealth(updated.id));
   }
 
-  async batchUpdateChannelHealthConfig(
+  private async batchUpdateChannelHealthConfigLegacy(
     data: BatchUpdateRelayChannelHealthConfigRequest,
     actorUserId: string,
     request?: Request,
@@ -1132,7 +1170,24 @@ export class RelayChannelService {
     return { total: data.ids.length, affected: updated.length };
   }
 
-  async clearChannelHealth(id: string, actorUserId: string, request?: Request): Promise<void> {
+  async clearChannelHealth(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
+    await RelayChannelHealthClearIamService.getInstance().execute({ ids: [id] }, actorUserId, request, async () => {
+      await this.clearChannelHealthLegacy(id, actorUserId, request);
+      return { total: 1, affected: 1 };
+    });
+  }
+
+  async batchClearChannelHealth(
+    ids: string[],
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return RelayChannelHealthClearIamService.getInstance().execute({ ids }, actorUserId, request, () =>
+      this.batchClearChannelHealthLegacy(ids, actorUserId, request),
+    );
+  }
+
+  private async clearChannelHealthLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if (channel.channelType !== "standalone")
       throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
@@ -1155,7 +1210,7 @@ export class RelayChannelService {
     });
   }
 
-  async batchClearChannelHealth(
+  private async batchClearChannelHealthLegacy(
     ids: string[],
     actorUserId: string,
     request?: Request,
@@ -1165,10 +1220,8 @@ export class RelayChannelService {
       throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
         messageKey: "relayChannel.healthStatsStandaloneOnly",
       });
-    const results = await Promise.all(
-      channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)),
-    );
-    if (results.some((cleared) => !cleared))
+    const cleared = await this.relayChannelHealthService.clearHealthMany(channels.map((channel) => channel.id));
+    if (!cleared)
       throw new BadRequestError("Channel health storage is temporarily unavailable", undefined, {
         messageKey: "relayChannel.healthStorageUnavailable",
       });
@@ -1195,8 +1248,18 @@ export class RelayChannelService {
     return channel;
   }
 
-  async assertChannelBusinessSelectableById(id: string, actorUserId: string): Promise<RelayChannel> {
-    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+  /** Business selections must not load credentials or upstream configuration just to check visibility. */
+  async assertChannelBusinessSelectableMetadataById(
+    id: string,
+    actorUserId: string,
+  ): Promise<RelayChannelSelectionMetadata> {
+    const channel = await this.relayChannelRepository.findVisibleSelectionMetadataById(id);
+    if (!channel || !(await this.canUserAccessChannel(channel, actorUserId)))
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
+    this.assertBusinessSelectionType(channel);
+    return channel;
+  }
+  private assertBusinessSelectionType(channel: Pick<RelayChannel, "visibilityMode" | "channelType">) {
     if ((channel.visibilityMode as RelayChannelVisibilityMode | undefined) === "hidden")
       throw new BadRequestError("Hidden relay channels can only be used as pooled channel members", undefined, {
         messageKey: "relay.hiddenChannelPoolOnly",
@@ -1207,11 +1270,39 @@ export class RelayChannelService {
         undefined,
         { messageKey: "relayChannel.automaticPoolTokenModeOnly" },
       );
-
+  }
+  async assertChannelBusinessSelectableById(id: string, actorUserId: string): Promise<RelayChannel> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    this.assertBusinessSelectionType(channel);
     return channel;
   }
 
   async exportChannels(
+    body: ExportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelExportResponse> {
+    return RelayChannelExportIamService.getInstance().read(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.exportChannelsLegacy(body, actorUserId, request),
+      async (result) => {
+        await this.businessLogService.logOperation({
+          operationType: OperationType.RELAY_CHANNEL_EXPORT,
+          operationCategory: OperationCategory.RELAY,
+          actorUserId,
+          targetResourceType: "RELAY_CHANNEL",
+          description: "Exported authorized portable channel configuration",
+          metadata: { total: result.channels.length, includeDisabled: body.includeDisabled === true },
+          success: true,
+          ...buildBusinessLogRequestContext(request),
+        });
+      },
+    );
+  }
+
+  private async exportChannelsLegacy(
     body: ExportRelayChannelsRequest,
     actorUserId: string,
     request?: Request,
@@ -1231,6 +1322,7 @@ export class RelayChannelService {
     // Whether the user selected roots or exported the full list, make every pool export
     // self-contained. This also pulls disabled members referenced by an active pool.
     channels = await this.expandPoolExportDependencies(channels);
+    for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -1282,10 +1374,13 @@ export class RelayChannelService {
   /**
    * Validate that allowedModels array doesn't contain multiple models with the same model ID
    */
-  private async validateNoDuplicateModelIds(modelNames: readonly unknown[]): Promise<void> {
+  private async validateNoDuplicateModelIds(
+    modelNames: readonly unknown[],
+    catalog?: readonly RelayModelCatalogEntry[],
+  ): Promise<void> {
     if (!modelNames || modelNames.length === 0) return;
 
-    const allModels = await this.modelPricingService.getModelPricing();
+    const allModels = catalog ?? (await this.modelPricingService.getModelPricing());
 
     // Build a map of model name -> model ID
     const modelNameToId = new Map<string, string>();
@@ -1351,12 +1446,7 @@ export class RelayChannelService {
   }
 
   private async canBypassVisibility(actorUserId: string): Promise<boolean> {
-    return this.permissionService.hasAnyPermission(actorUserId, [
-      Permission.RELAY_CHANNEL_CREATE,
-      Permission.RELAY_CHANNEL_UPDATE,
-      Permission.RELAY_CHANNEL_DELETE,
-      Permission.RELAY_CHANNEL_REVIEW,
-    ]);
+    return this.permissionService.hasAnyPermission(actorUserId, [...RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS]);
   }
 
   private async buildManagementVisibilityWhere(
@@ -1398,15 +1488,34 @@ export class RelayChannelService {
   private normalizeVisibilityConfig(
     visibilityConfig?: RelayChannelVisibilityConfigDto | null,
   ): Required<RelayChannelVisibilityConfigDto> {
-    return {
-      userIds: Array.isArray(visibilityConfig?.userIds) ? visibilityConfig.userIds.filter(Boolean) : [],
-      groupIds: Array.isArray(visibilityConfig?.groupIds) ? visibilityConfig.groupIds.filter(Boolean) : [],
-      roleIds: Array.isArray(visibilityConfig?.roleIds) ? visibilityConfig.roleIds.filter(Boolean) : [],
-    };
+    return normalizeRelayChannelVisibilityConfig(visibilityConfig);
   }
 
+  /** Share option visibility rules with authorized metadata consumers without loading channel credentials. */
+  async canAccessChannelOption(
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
+    actorUserId: string,
+    assumedRoleSessionId?: string,
+  ): Promise<boolean> {
+    if (channel.visibilityMode === "hidden") return false;
+    return this.canAccessChannelMetadata(channel, actorUserId, assumedRoleSessionId);
+  }
+  /** Share probe visibility checks without reading channel credentials. */
+  async canAccessChannelMetadata(
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
+    actorUserId: string,
+    assumedRoleSessionId?: string,
+  ): Promise<boolean> {
+    if (!assumedRoleSessionId) return this.canUserAccessChannel(channel, actorUserId);
+    const checks = await Promise.all(
+      RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS.map((permission) =>
+        this.permissionService.checkUserPermissions(actorUserId, [permission], { assumedRoleSessionId }),
+      ),
+    );
+    return checks.some((result) => result.hasPermission) || this.canUserAccessChannel(channel, actorUserId, false);
+  }
   private async canUserAccessChannel(
-    channel: RelayChannel,
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
     actorUserId: string,
     allowManagementBypass = true,
   ): Promise<boolean> {
@@ -1538,6 +1647,16 @@ export class RelayChannelService {
     if (routingConfig === null) return null;
 
     const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+    if (normalized.forwardedRequestHeaders !== undefined) {
+      const names = normalizeRelayForwardedHeaderNames(normalized.forwardedRequestHeaders);
+      if (!names)
+        throw new BadRequestError("Invalid forwarded request-header names", undefined, {
+          messageKey: "relayChannel.forwardedRequestHeadersInvalid",
+        });
+      // Pools never override a physical provider's header policy.
+      if (isPoolType(channelType)) delete normalized.forwardedRequestHeaders;
+      else normalized.forwardedRequestHeaders = names;
+    }
 
     const hasHealthTrackingConfig =
       Object.prototype.hasOwnProperty.call(normalized, "healthTrackingMode") ||
@@ -1616,62 +1735,17 @@ export class RelayChannelService {
     return normalized;
   }
 
-  private getHealthTrackingConfig(channel?: RelayChannel | null): {
-    healthTrackingMode: RelayChannelHealthTrackingMode;
-    manualAvailability?: number;
-    manualLatencyMs?: number;
-  } {
-    const routingConfig = channel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
-    const trackingMode: RelayChannelHealthTrackingMode =
-      routingConfig?.healthTrackingMode === "manual" || routingConfig?.healthTrackingMode === "disabled"
-        ? routingConfig.healthTrackingMode
-        : "automatic";
-    return {
-      healthTrackingMode: trackingMode,
-      manualAvailability:
-        trackingMode === "manual" ? this.toOptionalFiniteNumber(routingConfig?.manualAvailability) : undefined,
-      manualLatencyMs:
-        trackingMode === "manual" ? this.toOptionalFiniteNumber(routingConfig?.manualLatencyMs) : undefined,
-    };
+  private getHealthTrackingConfig(channel?: Pick<RelayChannel, "routingConfig"> | null) {
+    return getRelayChannelHealthTrackingConfig(channel);
   }
-
   private toOptionalFiniteNumber(value: unknown): number | undefined {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : undefined;
+    return toOptionalFiniteHealthNumber(value);
   }
-
-  private toHealthDto(channel: RelayChannel, snapshot?: RelayChannelHealthSnapshot): RelayChannelHealthDto {
-    const health = snapshot ?? {
-      channelId: channel.id,
-      windowStartAt: new Date(),
-      windowEndAt: new Date(),
-      sampleCount: 0,
-      successCount: 0,
-      failureCount: 0,
-      availability: 1,
-      averageLatencyMs: 0,
-      status2xxCount: 0,
-      status3xxCount: 0,
-      status4xxCount: 0,
-      status5xxCount: 0,
-      statusOtherCount: 0,
-    };
-    const tracking = this.getHealthTrackingConfig(channel);
-    if (tracking.healthTrackingMode === "manual") {
-      return {
-        ...health,
-        availability: tracking.manualAvailability ?? 0.5,
-        averageLatencyMs: tracking.manualLatencyMs ?? 0,
-        trackingMode: "manual",
-        source: "manual",
-        manualAvailability: tracking.manualAvailability,
-        manualLatencyMs: tracking.manualLatencyMs,
-      };
-    }
-    if (tracking.healthTrackingMode === "disabled") {
-      return { ...health, trackingMode: "disabled", source: "disabled" };
-    }
-    return { ...health, trackingMode: "automatic", source: "redis" };
+  private toHealthDto(
+    channel: Pick<RelayChannel, "id" | "routingConfig">,
+    snapshot?: RelayChannelHealthSnapshot,
+  ): RelayChannelHealthDto {
+    return projectRelayChannelHealth(channel, snapshot);
   }
 
   private assertNoSelfReference(channelId: string | undefined, members?: RelayChannelMemberDto[] | null): void {
@@ -1846,7 +1920,10 @@ export class RelayChannelService {
 
   private async buildValidatedChannelData(
     data: CreateRelayChannelRequest | UpdateRelayChannelRequest,
-    existing?: RelayChannel,
+    existing?: RelayChannelValidationSource,
+    standaloneCatalog?: readonly RelayModelCatalogEntry[],
+    credentialPresence?: RelayChannelCredentialPresence,
+    topologyMode?: "legacy" | "strict-two-tier",
   ): Promise<ValidatedRelayChannelData> {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
     if (!name)
@@ -1966,7 +2043,18 @@ export class RelayChannelService {
       data.contextLengthMultipliers !== undefined
         ? data.contextLengthMultipliers
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
-    const topology = await this.relayConfigService.getRelayConfig();
+    if (
+      standaloneCatalog &&
+      topologyMode === undefined &&
+      (channelType !== "standalone" || (existing && existing.channelType !== "standalone"))
+    )
+      throw iamAccountDenied();
+    const topology =
+      topologyMode !== undefined
+        ? { channelTopologyMode: topologyMode }
+        : standaloneCatalog
+          ? undefined
+          : await this.relayConfigService.getRelayConfig();
 
     if (allowedModels !== undefined && allowedModels !== null) {
       let parsedAllowedModels: unknown;
@@ -1982,7 +2070,7 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array", undefined, {
           messageKey: "relayChannel.allowedModelsInvalidJson",
         });
-      await this.validateNoDuplicateModelIds(parsedAllowedModels);
+      await this.validateNoDuplicateModelIds(parsedAllowedModels, standaloneCatalog);
     }
 
     if (isUpstreamChannelType(channelType)) {
@@ -2000,7 +2088,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.openaiUpstreamUrlRequired" },
           );
-        if (!openaiUpstreamApiKey)
+        if (
+          !(data.openaiUpstreamApiKey !== undefined
+            ? Boolean(openaiUpstreamApiKey)
+            : Boolean(openaiUpstreamApiKey) || credentialPresence?.hasOpenaiUpstreamApiKey)
+        )
           throw new BadRequestError(
             "OpenAI API key is required when allowedFormats includes an OpenAI format",
             undefined,
@@ -2014,7 +2106,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.anthropicUpstreamUrlRequired" },
           );
-        if (!anthropicUpstreamApiKey)
+        if (
+          !(data.anthropicUpstreamApiKey !== undefined
+            ? Boolean(anthropicUpstreamApiKey)
+            : Boolean(anthropicUpstreamApiKey) || credentialPresence?.hasAnthropicUpstreamApiKey)
+        )
           throw new BadRequestError(
             "Anthropic API key is required when allowedFormats includes 'anthropic'",
             undefined,
@@ -2028,7 +2124,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.geminiUpstreamUrlRequired" },
           );
-        if (!geminiUpstreamApiKey)
+        if (
+          !(data.geminiUpstreamApiKey !== undefined
+            ? Boolean(geminiUpstreamApiKey)
+            : Boolean(geminiUpstreamApiKey) || credentialPresence?.hasGeminiUpstreamApiKey)
+        )
           throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'", undefined, {
             messageKey: "relayChannel.geminiApiKeyRequired",
           });
@@ -2050,7 +2150,7 @@ export class RelayChannelService {
 
     if (
       channelType === "pooled" &&
-      topology.channelTopologyMode === "strict-two-tier" &&
+      topology?.channelTopologyMode === "strict-two-tier" &&
       poolMembers != null &&
       poolMembers.length > 0
     )
@@ -2064,7 +2164,7 @@ export class RelayChannelService {
     if (
       existing &&
       channelType === "pooled" &&
-      topology.channelTopologyMode !== "strict-two-tier" &&
+      topology?.channelTopologyMode !== "strict-two-tier" &&
       poolMembers != null &&
       poolMembers.length === 0
     )
@@ -2128,14 +2228,7 @@ export class RelayChannelService {
           throw new BadRequestError("Channel provider username is unavailable", undefined, {
             messageKey: "relayChannel.providerUsernameUnavailable",
           });
-        const nextSettlementAt =
-          provider.settlementMode === "interval"
-            ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
-            : provider.settlementMode === "daily"
-              ? nextDailyProviderSettlementAt(provider.settlementTime, now)
-              : null;
-        const { username: _username, userId: _legacyUserId, ...config } = provider;
-        return { ...config, userId: user.id, nextSettlementAt };
+        return this.buildProviderRow(provider, user.id, now);
       }),
     );
     if (new Set(rows.map((provider) => provider.userId)).size !== rows.length)
@@ -2143,6 +2236,21 @@ export class RelayChannelService {
         messageKey: "relayChannel.providersUnique",
       });
     return rows;
+  }
+
+  private buildProviderRow(
+    provider: RelayChannelProviderConfigInput,
+    userId: string,
+    now: Date,
+  ): ResolvedRelayChannelProviderConfig {
+    const nextSettlementAt =
+      provider.settlementMode === "interval"
+        ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
+        : provider.settlementMode === "daily"
+          ? nextDailyProviderSettlementAt(provider.settlementTime, now)
+          : null;
+    const { username: _username, userId: _legacyUserId, ...config } = provider;
+    return { ...config, userId, nextSettlementAt };
   }
 
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
@@ -2176,7 +2284,9 @@ export class RelayChannelService {
     };
   }
 
-  private toCreateRequest(channel: RelayChannel): RelayChannelImportItemDto {
+  private toCreateRequest(
+    channel: RelayChannelValidationSource & Pick<RelayChannel, "status">,
+  ): RelayChannelImportItemDto {
     return {
       name: channel.name,
       channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
@@ -2226,16 +2336,58 @@ export class RelayChannelService {
   }
 
   private toExportItemDto(channel: RelayChannel): RelayChannelExportItemDto {
-    return {
-      ...this.toCreateRequest(channel),
-      id: channel.id,
-      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-      createTime: channel.createTime,
-      updateTime: channel.updateTime,
-    };
+    return projectRelayChannelExport(
+      channel,
+      ((channel as RelayChannelWithMembers).poolMembers ?? []).map((member) => ({
+        memberChannelId: member.memberChannelId,
+        priority: member.priority,
+        weight: Number(member.weight),
+        enabled: member.enabled,
+      })),
+    );
   }
 
   async createChannel(
+    data: CreateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelCreateIamService.getInstance().execute(
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      (input, catalog, topologyMode) => this.prepareNativeChannelCreation(input, catalog, topologyMode),
+      (provider, userId, now) => this.buildProviderRow(provider, userId, now),
+      () => this.createChannelLegacy(data, actorUserId, request),
+    );
+  }
+
+  private async prepareNativeChannelCreation(
+    input: CreateRelayChannelRequest,
+    catalog: readonly RelayModelCatalogEntry[],
+    topologyMode: "legacy" | "strict-two-tier",
+  ) {
+    const validated = await this.buildValidatedChannelData(input, undefined, catalog, undefined, topologyMode);
+    const registered = relayChannelExportConfigurationSchema.partial().safeParse(validated);
+    if (!registered.success)
+      throw new BadRequestError("Invalid registered channel configuration", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    const values = this.toPersistenceInput(validated);
+    for (const key of [
+      "routingConfig",
+      "visibilityConfig",
+      "modelMapping",
+      "timePeriodMultipliers",
+      "contextLengthMultipliers",
+    ] as const) {
+      const value = registered.data[key];
+      values[key] = value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue | undefined);
+    }
+    return { data: values, members: validated.poolMembers };
+  }
+
+  private async createChannelLegacy(
     data: CreateRelayChannelRequest,
     actorUserId: string,
     request?: Request,
@@ -2286,6 +2438,24 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelDto> {
+    return RelayChannelSubmissionCreateIamService.getInstance().execute(
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, catalog) =>
+        this.toPersistenceInput(
+          await this.buildValidatedChannelData({ ...input, channelType: "standalone" }, undefined, catalog),
+        ),
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+      () => this.submitChannelLegacy(data, actorUserId, request),
+    );
+  }
+
+  private async submitChannelLegacy(
+    data: SubmitRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" });
     await this.assertVisibleNameAvailable(validated.name);
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
@@ -2320,7 +2490,16 @@ export class RelayChannelService {
     return this.toDto(refreshed ?? channel, undefined, true);
   }
 
-  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20) {
+  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    return RelayChannelSubmissionReadIamService.getInstance().list(
+      request,
+      { page, pageSize },
+      () => this.listMySubmittedChannelsLegacy(actorUserId, page, pageSize),
+      actorUserId,
+    );
+  }
+
+  private async listMySubmittedChannelsLegacy(actorUserId: string, page = 1, pageSize = 20) {
     const result = await this.relayChannelRepository.listSubmittedByUser(actorUserId, page, pageSize);
     return {
       items: await Promise.all(result.records.map((channel) => this.toDto(channel, undefined, true))),
@@ -2331,6 +2510,23 @@ export class RelayChannelService {
   }
 
   async updateSubmittedChannelServiceStatus(
+    id: string,
+    body: UpdateRelayChannelServiceStatusRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const result = await RelayChannelSubmissionMutationIamService.getInstance().execute(
+      { operation: "service-status", enabled: body.enabled },
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.updateSubmittedChannelServiceStatusLegacy(id, body, actorUserId, request),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+
+  private async updateSubmittedChannelServiceStatusLegacy(
     id: string,
     body: UpdateRelayChannelServiceStatusRequest,
     actorUserId: string,
@@ -2377,6 +2573,21 @@ export class RelayChannelService {
   }
 
   async reviewSubmittedChannel(
+    id: string,
+    body: ReviewRelayChannelSubmissionRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelSubmissionReviewIamService.getInstance().execute(
+      id,
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.reviewSubmittedChannelLegacy(id, body, actorUserId, request),
+    );
+  }
+
+  private async reviewSubmittedChannelLegacy(
     id: string,
     body: ReviewRelayChannelSubmissionRequest,
     actorUserId: string,
@@ -2459,6 +2670,21 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelDto> {
+    return RelayChannelProviderConfigIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.updateProviderConfigLegacy(id, data, actorUserId, request),
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+    );
+  }
+  private async updateProviderConfigLegacy(
+    id: string,
+    data: UpdateRelayChannelProviderConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -2492,6 +2718,24 @@ export class RelayChannelService {
   }
 
   async listUpstreamModels(
+    data: RelayChannelUpstreamModelsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    return RelayChannelUpstreamModelIamService.getInstance().single(
+      data,
+      actorUserId,
+      request,
+      () => this.listUpstreamModelsLegacy(data, actorUserId),
+      async (format, config, guard) =>
+        this.executeUpstreamModelsRequest(
+          await this.prepareUpstreamModelsRequest(format, config.upstreamUrl!, config.apiKey!, config.useProxy),
+          guard,
+        ),
+    );
+  }
+
+  private async listUpstreamModelsLegacy(
     data: RelayChannelUpstreamModelsRequest,
     actorUserId: string,
   ): Promise<RelayChannelUpstreamModelsResponse> {
@@ -2531,6 +2775,24 @@ export class RelayChannelService {
   }
 
   async batchListUpstreamModels(
+    data: BatchRelayChannelUpstreamModelsRequest,
+    actorUserId?: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelUpstreamModelsResponse> {
+    return RelayChannelUpstreamModelIamService.getInstance().batch(
+      data,
+      actorUserId,
+      request,
+      () => this.batchListUpstreamModelsLegacy(data),
+      async (format, config, guard) =>
+        this.executeUpstreamModelsRequest(
+          await this.prepareUpstreamModelsRequest(format, config.upstreamUrl!, config.apiKey!, config.useProxy),
+          guard,
+        ),
+    );
+  }
+
+  private async batchListUpstreamModelsLegacy(
     data: BatchRelayChannelUpstreamModelsRequest,
   ): Promise<BatchRelayChannelUpstreamModelsResponse> {
     const channels = await this.getOrderedChannelsByIds(data.ids, true);
@@ -2581,7 +2843,9 @@ export class RelayChannelService {
     };
 
     await Promise.all(
-      Array.from({ length: Math.min(UPSTREAM_MODELS_BATCH_CONCURRENCY, Math.max(channels.length, 1)) }, () => worker()),
+      Array.from({ length: Math.min(relayUpstreamModelsPolicy.concurrency, Math.max(channels.length, 1)) }, () =>
+        worker(),
+      ),
     );
 
     return { format: data.format, items };
@@ -2619,71 +2883,61 @@ export class RelayChannelService {
     channelUseProxy: boolean,
   ): Promise<PreparedUpstreamModelsRequest> {
     const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(upstreamUrl));
-    const relayProxyConfig = await this.configService.getRelayProxyConfig();
-    const probeAgent =
-      channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
-        ? new ProxyAgent({ ...getAIResourceConfig().aiResources.http, getProxyForUrl: () => relayProxyConfig.url })
-        : undefined;
-    const endpoint = new URL(safe.url.toString());
-    const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
-    endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
-    const headers: Record<string, string> =
-      format === "anthropic"
-        ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-        : format === "gemini"
-          ? { "x-goog-api-key": apiKey }
-          : { Authorization: `Bearer ${apiKey}` };
-
-    return {
-      format,
-      endpointUrl: endpoint.toString(),
-      headers,
-      httpAgent: probeAgent || safe.httpAgent,
-      httpsAgent: probeAgent || safe.httpsAgent,
-    };
+    let probeAgent: ProxyAgent | undefined;
+    try {
+      const relayProxyConfig = await this.configService.getRelayProxyConfig();
+      if (channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url) {
+        probeAgent = new ProxyAgent({
+          ...getAIResourceConfig().aiResources.http,
+          getProxyForUrl: () => relayProxyConfig.url,
+        });
+      }
+      const endpoint = new URL(safe.url.toString());
+      const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
+      endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
+      const headers: Record<string, string> =
+        format === "anthropic"
+          ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+          : format === "gemini"
+            ? { "x-goog-api-key": apiKey }
+            : { Authorization: `Bearer ${apiKey}` };
+      if (probeAgent) {
+        safe.httpAgent.destroy();
+        if (safe.httpsAgent !== safe.httpAgent) safe.httpsAgent.destroy();
+      }
+      return {
+        format,
+        endpointUrl: endpoint.toString(),
+        headers,
+        httpAgent: probeAgent || safe.httpAgent,
+        httpsAgent: probeAgent || safe.httpsAgent,
+      };
+    } catch (error) {
+      probeAgent?.destroy();
+      safe.httpAgent.destroy();
+      if (safe.httpsAgent !== safe.httpAgent) safe.httpsAgent.destroy();
+      throw error;
+    }
   }
 
   private async executeUpstreamModelsRequest(
     prepared: PreparedUpstreamModelsRequest,
+    guard?: UpstreamModelExecutionGuard,
   ): Promise<RelayChannelUpstreamModelsResponse> {
     try {
+      await guard?.beforeSend();
       const response = await axios.get(prepared.endpointUrl, {
         headers: prepared.headers,
         httpAgent: prepared.httpAgent,
         httpsAgent: prepared.httpsAgent,
         proxy: false,
-        timeout: UPSTREAM_MODELS_TIMEOUT_MS,
+        timeout: relayUpstreamModelsPolicy.timeoutMs,
         maxRedirects: 0,
-        maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
+        maxContentLength: relayUpstreamModelsPolicy.maxBytes,
         validateStatus: (status) => status >= 200 && status < 300,
       });
-      const payload = response.data as Record<string, unknown>;
-      const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
-      const ids = source
-        .map((item) => {
-          if (typeof item === "string") return item;
-          if (!item || typeof item !== "object") return "";
-          const record = item as Record<string, unknown>;
-          return String(record.id || record.name || record.model || "");
-        })
-        .map((id) => id.trim())
-        .filter(Boolean);
-      const catalog = await this.modelPricingService.getModelPricing();
-      const seen = new Set<string>();
-      return {
-        format: prepared.format,
-        models: ids
-          .filter((id) => !seen.has(id) && seen.add(id))
-          .map((id) => {
-            const matched = catalog.find((model) => resolveModelId(model).trim() === id);
-            return {
-              id,
-              matched: Boolean(matched),
-              pricingModel: matched?.model,
-              pricingModelId: matched ? resolveModelId(matched) : undefined,
-            };
-          }),
-      };
+      const catalog = guard?.catalog ?? (await this.modelPricingService.getModelPricing());
+      return { format: prepared.format, models: parseUpstreamModels(response.data, catalog) };
     } finally {
       prepared.httpAgent.destroy();
       if (prepared.httpsAgent !== prepared.httpAgent) prepared.httpsAgent.destroy();
@@ -2741,37 +2995,71 @@ export class RelayChannelService {
     });
   }
 
-  private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
-    const snapshot = (row.configSnapshot || {}) as Record<string, unknown>;
-    const {
-      previousSubmissionStatus: _previousSubmissionStatus,
-      previousChannelStatus: _previousChannelStatus,
-      ...publicSnapshot
-    } = snapshot;
-    return {
-      id: row.id,
-      relayChannelId: row.relayChannelId,
-      channelName: row.relayChannel?.name || "",
-      submittedByUserId: row.submittedByUserId,
-      submittedByUsername: row.submittedBy?.username,
-      reviewStatus: row.reviewStatus as RelayChannelChangeRequestStatus,
-      reviewedAt: row.reviewedAt || undefined,
-      reviewReason: row.reviewReason || undefined,
-      config: {
-        ...(publicSnapshot as Omit<
-          CreateRelayChannelChangeRequest,
-          "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
-        >),
-        hasOpenaiUpstreamApiKey: Boolean(snapshot.hasOpenaiUpstreamApiKey),
-        hasAnthropicUpstreamApiKey: Boolean(snapshot.hasAnthropicUpstreamApiKey),
-        hasGeminiUpstreamApiKey: Boolean(snapshot.hasGeminiUpstreamApiKey),
-      },
-      createTime: row.createTime,
-      updateTime: row.updateTime,
-    };
+  private toChangeRequestDto(row: RelayChannelChangeRequestProjectionSource): RelayChannelChangeRequestDto {
+    return projectRelayChannelChangeRequest(row);
   }
 
   async createChangeRequest(
+    id: string,
+    data: CreateRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
+    return RelayChannelChangeRequestCreateIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, source, presence, catalog) => {
+        const normalizedInput = {
+          ...input,
+          openaiUpstreamApiKey: input.openaiUpstreamApiKey?.trim() || undefined,
+          anthropicUpstreamApiKey: input.anthropicUpstreamApiKey?.trim() || undefined,
+          geminiUpstreamApiKey: input.geminiUpstreamApiKey?.trim() || undefined,
+        };
+        const validated = await this.buildValidatedChannelData(
+          { ...normalizedInput, channelType: "standalone" },
+          source,
+          catalog,
+          presence,
+        );
+        const credentials: Record<string, string> = {};
+        if (input.openaiUpstreamApiKey?.trim()) credentials.openaiUpstreamApiKey = input.openaiUpstreamApiKey.trim();
+        if (input.anthropicUpstreamApiKey?.trim())
+          credentials.anthropicUpstreamApiKey = input.anthropicUpstreamApiKey.trim();
+        if (input.geminiUpstreamApiKey?.trim()) credentials.geminiUpstreamApiKey = input.geminiUpstreamApiKey.trim();
+        const encrypted = Object.keys(credentials).length ? this.encryptChangeCredentials(credentials) : undefined;
+        return {
+          snapshot: JSON.parse(
+            JSON.stringify({
+              name: validated.name,
+              openaiUpstreamUrl: validated.openaiUpstreamUrl,
+              anthropicUpstreamUrl: validated.anthropicUpstreamUrl,
+              geminiUpstreamUrl: validated.geminiUpstreamUrl,
+              multiplier: validated.multiplier,
+              allowedFormats: validated.allowedFormats,
+              allowedModels: validated.allowedModels,
+              inputTokensIncludeCacheRead: validated.inputTokensIncludeCacheRead,
+              modelMapping: validated.modelMapping,
+              timePeriodMultipliers: validated.timePeriodMultipliers,
+              contextLengthMultipliers: validated.contextLengthMultipliers,
+              providers: validated.providers,
+              hasOpenaiUpstreamApiKey: Boolean(credentials.openaiUpstreamApiKey) || presence.hasOpenaiUpstreamApiKey,
+              hasAnthropicUpstreamApiKey:
+                Boolean(credentials.anthropicUpstreamApiKey) || presence.hasAnthropicUpstreamApiKey,
+              hasGeminiUpstreamApiKey: Boolean(credentials.geminiUpstreamApiKey) || presence.hasGeminiUpstreamApiKey,
+              previousSubmissionStatus: source.submissionStatus,
+              previousChannelStatus: source.status,
+              previousProviderServiceEnabled: source.providerServiceEnabled,
+            }),
+          ) as Prisma.InputJsonObject,
+          encrypted,
+        };
+      },
+      () => this.createChangeRequestLegacy(id, data, actorUserId, request),
+    );
+  }
+  private async createChangeRequestLegacy(
     id: string,
     data: CreateRelayChannelChangeRequest,
     actorUserId: string,
@@ -2870,17 +3158,110 @@ export class RelayChannelService {
     return this.toChangeRequestDto(row);
   }
 
-  async listMyChangeRequests(actorUserId: string, page = 1, pageSize = 20) {
-    const result = await this.changeRequestRepository.listMine(actorUserId, page, pageSize);
-    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  async listMyChangeRequests(actorUserId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    if (request && request.user?.userId !== actorUserId) throw iamAccountDenied();
+    return RelayChannelChangeRequestReadIamService.getInstance().list(
+      request,
+      { mine: true, page, pageSize },
+      async () => {
+        const result = await this.changeRequestRepository.listMine(actorUserId, page, pageSize);
+        return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+      },
+    );
   }
 
-  async listChangeRequests(page = 1, pageSize = 20, reviewStatus?: RelayChannelChangeRequestStatus) {
-    const result = await this.changeRequestRepository.listAdmin(page, pageSize, reviewStatus);
-    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  async listChangeRequests(
+    page = 1,
+    pageSize = 20,
+    reviewStatus?: RelayChannelChangeRequestStatus,
+    request?: TypedRequest,
+  ) {
+    return RelayChannelChangeRequestReadIamService.getInstance().list(
+      request,
+      { mine: false, page, pageSize, reviewStatus },
+      async () => {
+        const result = await this.changeRequestRepository.listAdmin(page, pageSize, reviewStatus);
+        return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+      },
+    );
   }
 
   async reviewChangeRequest(
+    changeRequestId: string,
+    body: ReviewRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
+    return RelayChannelChangeRequestReviewIamService.getInstance().execute(
+      changeRequestId,
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (row, source, presence, catalog) => {
+        const config = projectRelayChannelChangeRequest(row).config;
+        const stored = [row.encryptedCredentials, row.credentialIv, row.credentialAuthTag];
+        if (stored.some((value) => value !== null) && stored.some((value) => !value))
+          throw new BadRequestError("Incomplete stored proposal credentials", undefined, {
+            messageKey: "relayChannel.changeRequestCredentialDecryptFailed",
+          });
+        const credentials = this.decryptChangeCredentials(row);
+        const credentialSchema = createRelayChannelChangeRequestBodySchema
+          .pick({
+            openaiUpstreamApiKey: true,
+            anthropicUpstreamApiKey: true,
+            geminiUpstreamApiKey: true,
+          })
+          .strict();
+        const parsed = credentialSchema.safeParse(
+          Object.fromEntries(
+            Object.entries(credentials).map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]),
+          ),
+        );
+        if (!parsed.success || Object.values(parsed.data).some((value) => !value))
+          throw new BadRequestError("Invalid stored proposal credentials", undefined, {
+            messageKey: "errors.badRequest",
+          });
+        const validated = await this.buildValidatedChannelData(
+          { ...config, ...parsed.data, channelType: "standalone" },
+          source,
+          catalog,
+          presence,
+        );
+        // A proposal authorizes only these fields, not routing, visibility, proxy, token or settlement state.
+        const {
+          name,
+          openaiUpstreamUrl,
+          anthropicUpstreamUrl,
+          geminiUpstreamUrl,
+          multiplier,
+          allowedFormats,
+          allowedModels,
+          inputTokensIncludeCacheRead,
+          modelMapping,
+          timePeriodMultipliers,
+          contextLengthMultipliers,
+        } = this.toPersistenceInput(validated);
+        return {
+          name,
+          openaiUpstreamUrl,
+          anthropicUpstreamUrl,
+          geminiUpstreamUrl,
+          multiplier,
+          allowedFormats,
+          allowedModels,
+          inputTokensIncludeCacheRead,
+          modelMapping,
+          timePeriodMultipliers,
+          contextLengthMultipliers,
+          ...parsed.data,
+        };
+      },
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+      () => this.reviewChangeRequestLegacy(changeRequestId, body, actorUserId, request),
+    );
+  }
+
+  private async reviewChangeRequestLegacy(
     changeRequestId: string,
     body: ReviewRelayChannelChangeRequest,
     actorUserId: string,
@@ -2916,6 +3297,7 @@ export class RelayChannelService {
     );
     const updated = await this.relayChannelRepository.withTransaction(async (tx) => {
       if (body.action === "approve") {
+        await assertRelayChannelChangeProviderBindings(tx, row.configSnapshot, validated.providers);
         await this.relayChannelRepository.updateById(
           row.relayChannelId,
           {
@@ -2982,6 +3364,65 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelDto> {
+    return RelayChannelUpdateIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, source, catalog, presence, topologyMode) => {
+        const validated = await this.buildValidatedChannelData(input, source, catalog, presence, topologyMode);
+        const registered = relayChannelExportConfigurationSchema.partial().safeParse(validated);
+        if (!registered.success)
+          throw new BadRequestError("Invalid registered channel configuration", undefined, {
+            messageKey: "errors.badRequest",
+          });
+        const values = this.toPersistenceInput(validated),
+          patch: Record<string, unknown> = { name: validated.name, channelType: validated.channelType };
+        const fields = new Set(Object.keys(input).filter((key) => !["poolMembers", "providers"].includes(key)));
+        if (
+          [
+            "channelType",
+            "poolMembers",
+            "pooledParentId",
+            "pooledPriority",
+            "pooledWeight",
+            "pooledMemberEnabled",
+          ].some((key) => Object.hasOwn(input, key))
+        )
+          fields.add("pooledParentId");
+        if (validated.channelType !== source.channelType)
+          for (const key of ["routingConfig", "visibilityMode", "visibilityConfig", "allowedFormats", "pooledParentId"])
+            fields.add(key);
+        if (validated.visibilityMode !== source.visibilityMode) {
+          fields.add("visibilityMode");
+          fields.add("visibilityConfig");
+        }
+        const jsonFields = new Set([
+          "routingConfig",
+          "visibilityConfig",
+          "modelMapping",
+          "timePeriodMultipliers",
+          "contextLengthMultipliers",
+        ]);
+        for (const key of fields) {
+          const value = jsonFields.has(key)
+            ? registered.data[key as keyof typeof registered.data]
+            : values[key as keyof typeof values];
+          if (value !== undefined) patch[key] = jsonFields.has(key) && value === null ? Prisma.JsonNull : value;
+        }
+        return { patch, channelType: validated.channelType, members: validated.poolMembers };
+      },
+      (provider, userId, now) => this.buildProviderRow(provider, userId, now),
+      () => this.updateChannelLegacy(id, data, actorUserId, request),
+    );
+  }
+
+  private async updateChannelLegacy(
+    id: string,
+    data: UpdateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3039,6 +3480,102 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchUpdateRelayChannelsResponse> {
+    return RelayChannelBatchUpdateIamService.getInstance().execute(
+      body,
+      (input) => async (source, catalog, presence, topologyMode, tx) => {
+        try {
+          const migration = input.modelPricingMigration;
+          const patch: UpdateRelayChannelRequest = { ...input.patch };
+          if (migration) {
+            const sourceModelId = migration.sourceModelId.trim(),
+              targetPricingModel = migration.targetPricingModel.trim(),
+              target = catalog.find((model) => model.model?.trim() === targetPricingModel);
+            if (!target || resolveModelId(target).trim() !== sourceModelId)
+              throw new BadRequestError("Pricing migration target is missing or incompatible", undefined, {
+                messageKey: "relayChannel.modelMigrationTargetInvalid",
+              });
+            const sourceNames = new Set(
+              catalog
+                .filter((model) => resolveModelId(model).trim() === sourceModelId)
+                .map((model) => model.model!.trim()),
+            );
+            if (!this.channelAllowsModelId(source, sourceModelId, sourceNames))
+              throw new BadRequestError("Channel does not allow migration source", undefined, {
+                messageKey: "relayChannel.requestModelNotAllowed",
+              });
+            patch.modelMapping = {
+              ...((source.modelMapping as Record<string, string> | null) ?? {}),
+              [sourceModelId]: targetPricingModel,
+            };
+          }
+          const validated = await this.buildValidatedChannelData(patch, source, catalog, presence, topologyMode);
+          if (
+            validated.visibilityMode === "hidden" &&
+            source.visibilityMode !== "hidden" &&
+            (await this.relayChannelRepository.countDirectBusinessReferences(source.id, tx)) > 0
+          )
+            throw new BadRequestError("Channel has direct business assignments", undefined, {
+              messageKey: "relayChannel.hideBlockedByAssignments",
+            });
+          // Persist only canonical batch fields, never a complete create input or credentials read from storage.
+          const values = this.toPersistenceInput(validated),
+            result: Record<string, unknown> = {};
+          const jsonFields = new Set([
+            "modelMapping",
+            "routingConfig",
+            "visibilityConfig",
+            "timePeriodMultipliers",
+            "contextLengthMultipliers",
+          ]);
+          for (const key of Object.keys(batchUpdateRelayChannelPatchSchema.shape)) {
+            if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
+            const value = values[key as keyof typeof values];
+            result[key] =
+              jsonFields.has(key) &&
+              (value === null || (value === undefined && patch[key as keyof typeof patch] === null))
+                ? Prisma.JsonNull
+                : value;
+          }
+          if (
+            validated.visibilityMode === "hidden" &&
+            (source.visibilityMode !== "hidden" || "visibilityConfig" in patch)
+          )
+            result.visibilityConfig = Prisma.JsonNull;
+          if (validated.visibilityMode !== source.visibilityMode) result.visibilityMode = validated.visibilityMode;
+          return { patch: result as BatchChannelPatch };
+        } catch (error) {
+          // Only known business validation is partial success. Never expose raw exceptions or downgrade denial.
+          if (!(error instanceof BadRequestError)) throw error;
+          return {
+            reason: this.batchChannelRejectionReason(error, request),
+          };
+        }
+      },
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchUpdateChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  /** Batch partial-success responses must never expose exception text, SQL or upstream credentials. */
+  private batchChannelRejectionReason(error: unknown, request?: Request): string {
+    if (error instanceof ApiError && [401, 403].includes(error.statusCode)) throw error;
+    const business =
+      error instanceof BadRequestError || error instanceof ConflictError || error instanceof NotFoundError;
+    return renderDescriptorSafely(
+      {
+        key: business ? (error.messageKey ?? "errors.badRequest") : "errors.internalServerError",
+        params: business ? error.messageParams : undefined,
+      },
+      request?.locale ?? DEFAULT_BACKEND_LOCALE,
+    ).message;
+  }
+
+  private async batchUpdateChannelsLegacy(
+    body: BatchUpdateRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchUpdateRelayChannelsResponse> {
     const channels = await this.getOrderedChannelsByIds(body.ids, true);
     const migration = body.modelPricingMigration;
     const relayConfig = migration ? await this.relayConfigService.getRelayConfig() : undefined;
@@ -3051,27 +3588,14 @@ export class RelayChannelService {
     const rejected: BatchUpdateRelayChannelsResponse["rejected"] = [];
     const updated: RelayChannelDto[] = [];
 
-    if (migration && !targetModel) {
-      await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
-      return {
-        updated,
-        rejected: channels.map((channel) => ({
-          id: channel.id,
-          reason: `Pricing model '${targetPricingModel}' was not found`,
-        })),
-      };
-    }
-
     const targetModelId = targetModel?.modelId?.trim() || targetModel?.model.trim();
-    if (migration && targetModelId !== sourceModelId) {
+    if (migration && (!targetModel || targetModelId !== sourceModelId)) {
       await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
-      return {
-        updated,
-        rejected: channels.map((channel) => ({
-          id: channel.id,
-          reason: `Pricing model '${targetPricingModel}' has upstream modelId '${targetModelId}', expected '${sourceModelId}'`,
-        })),
-      };
+      const reason = renderDescriptorSafely(
+        { key: "relayChannel.modelMigrationTargetInvalid" },
+        request?.locale ?? DEFAULT_BACKEND_LOCALE,
+      ).message;
+      return { updated, rejected: channels.map((channel) => ({ id: channel.id, reason })) };
     }
 
     const sourceModelNames = new Set(
@@ -3118,7 +3642,7 @@ export class RelayChannelService {
       } catch (error) {
         rejected.push({
           id: channel.id,
-          reason: error instanceof Error ? error.message : "Channel update failed",
+          reason: this.batchChannelRejectionReason(error, request),
         });
       }
     }
@@ -3129,6 +3653,19 @@ export class RelayChannelService {
   }
 
   async applyModelRestrictions(
+    body: ApplyRelayChannelModelRestrictionsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ApplyRelayChannelModelRestrictionsResponse> {
+    return RelayChannelModelRestrictionIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.applyModelRestrictionsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async applyModelRestrictionsLegacy(
     body: ApplyRelayChannelModelRestrictionsRequest,
     actorUserId: string,
     request?: Request,
@@ -3182,7 +3719,7 @@ export class RelayChannelService {
       } catch (error) {
         rejected.push({
           id: channel.id,
-          reason: error instanceof Error ? error.message : "Channel model restriction update failed",
+          reason: this.batchChannelRejectionReason(error, request),
         });
       }
     }
@@ -3233,7 +3770,11 @@ export class RelayChannelService {
     });
   }
 
-  private channelAllowsModelId(channel: RelayChannel, sourceModelId: string, sourceModelNames: Set<string>): boolean {
+  private channelAllowsModelId(
+    channel: Pick<RelayChannel, "allowedModels">,
+    sourceModelId: string,
+    sourceModelNames: Set<string>,
+  ): boolean {
     if (!channel.allowedModels) return true;
     try {
       const allowedModels = JSON.parse(channel.allowedModels);
@@ -3248,6 +3789,62 @@ export class RelayChannelService {
   }
 
   async duplicateChannel(
+    id: string,
+    data: DuplicateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const result = await RelayChannelDuplicateIamService.getInstance().execute(
+      "single",
+      [id],
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async () => [await this.duplicateChannelLegacy(id, data, actorUserId, request)],
+      this.prepareChannelDuplicate(),
+      (name, reserved) => this.buildCopyName(name, reserved),
+    );
+    if (result.length !== 1) throw iamAccountDenied();
+    return result[0]!;
+  }
+
+  private prepareChannelDuplicate(): ChannelDuplicatePreparation {
+    return async (source, name, catalog, presence, topologyMode) => {
+      const parsed = relayChannelExportConfigurationSchema.safeParse({ ...this.toCreateRequest(source), name });
+      if (!parsed.success)
+        throw new BadRequestError("Invalid source channel configuration", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      const validated = await this.buildValidatedChannelData(
+        {
+          ...parsed.data,
+          openaiUpstreamUrl: source.openaiUpstreamUrl ?? undefined,
+          anthropicUpstreamUrl: source.anthropicUpstreamUrl ?? undefined,
+          geminiUpstreamUrl: source.geminiUpstreamUrl ?? undefined,
+        },
+        undefined,
+        catalog,
+        presence,
+        topologyMode,
+      );
+      const data = this.toPersistenceInput(validated);
+      // These values are copied by SQL only after source/destination/reference authorization.
+      delete data.openaiUpstreamApiKey;
+      delete data.anthropicUpstreamApiKey;
+      delete data.geminiUpstreamApiKey;
+      for (const key of [
+        "routingConfig",
+        "visibilityConfig",
+        "modelMapping",
+        "timePeriodMultipliers",
+        "contextLengthMultipliers",
+      ] as const)
+        if (data[key] === null) data[key] = Prisma.JsonNull;
+      return data;
+    };
+  }
+
+  private async duplicateChannelLegacy(
     id: string,
     data: DuplicateRelayChannelRequest,
     actorUserId: string,
@@ -3296,6 +3893,23 @@ export class RelayChannelService {
   }
 
   async batchDuplicateChannels(ids: string[], actorUserId: string, request?: Request): Promise<RelayChannelDto[]> {
+    return RelayChannelDuplicateIamService.getInstance().execute(
+      "batch",
+      ids,
+      {},
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchDuplicateChannelsLegacy(ids, actorUserId, request),
+      this.prepareChannelDuplicate(),
+      (name, reserved) => this.buildCopyName(name, reserved),
+    );
+  }
+
+  private async batchDuplicateChannelsLegacy(
+    ids: string[],
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto[]> {
     const sourceChannels = await this.getOrderedChannelsByIds(ids, true);
     const duplicatedChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet();
@@ -3342,6 +3956,29 @@ export class RelayChannelService {
   async batchSetChannelStatus(
     body: BatchSetRelayChannelStatusRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await PlatformRelayChannelStatusIamService.getInstance().execute(body, actorUserId, request, () =>
+      this.batchSetChannelStatusLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_BATCH_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "批量修改了中转渠道启用状态",
+        metadata: { ids: body.ids, enabled: body.enabled },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async batchSetChannelStatusLegacy(
+    body: BatchSetRelayChannelStatusRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayChannelsResultDto> {
     await this.getOrderedChannelsByIds(body.ids, true);
@@ -3373,6 +4010,19 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayChannelsResultDto> {
+    return PlatformRelayChannelDeleteIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchDeleteChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async batchDeleteChannelsLegacy(
+    body: BatchDeleteRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
     await this.getOrderedChannelsByIds(body.ids, true);
     const affected = await this.relayChannelRepository.softDeleteAndUnassignTokensByIds(body.ids);
 
@@ -3396,6 +4046,22 @@ export class RelayChannelService {
   }
 
   async importChannels(
+    body: ImportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ImportRelayChannelsResponse> {
+    return RelayChannelImportIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      (input, catalog, topologyMode) => this.prepareNativeChannelCreation(input, catalog, topologyMode),
+      (provider, userId, now) => this.buildProviderRow(provider, userId, now),
+      (name, reserved) => this.buildCopyName(name, reserved),
+      () => this.importChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async importChannelsLegacy(
     body: ImportRelayChannelsRequest,
     actorUserId: string,
     request?: Request,
@@ -3502,6 +4168,32 @@ export class RelayChannelService {
   }
 
   async toggleChannelStatus(id: string, actorUserId: string, request?: Request): Promise<RelayChannelDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await PlatformRelayChannelStatusIamService.getInstance().toggle(
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.toggleChannelStatusLegacy(id, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: id,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "Toggled authorized channel availability",
+        changes: { enabled: result.enabled },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async toggleChannelStatusLegacy(
+    id: string,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3535,6 +4227,19 @@ export class RelayChannelService {
   }
 
   async deleteChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    await PlatformRelayChannelDeleteIamService.getInstance().execute(
+      { ids: [id] },
+      actorUserId,
+      request as TypedRequest | undefined,
+      async () => {
+        await this.deleteChannelLegacy(id, actorUserId, request);
+        return { total: 1, affected: 1 };
+      },
+      true,
+    );
+  }
+
+  private async deleteChannelLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3554,6 +4259,16 @@ export class RelayChannelService {
   }
 
   async deleteSubmittedChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    await RelayChannelSubmissionMutationIamService.getInstance().execute(
+      { operation: "delete" },
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.deleteSubmittedChannelLegacy(id, actorUserId, request),
+    );
+  }
+
+  private async deleteSubmittedChannelLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3587,86 +4302,11 @@ export class RelayChannelService {
     modelCatalog?: ModelPricingDto[],
     includeDisabled = false,
   ): Promise<RelayChannelDto> {
-    const poolMembers = resolveEffectiveRelayPoolMembers(channel).map(
-      (member): RelayChannelMemberDto => ({
-        memberChannelId: member.memberChannelId,
-        priority: member.priority,
-        weight: Number(member.weight),
-        enabled: member.enabled,
-        memberChannelName: member.memberChannel?.name,
-        memberChannelType: member.memberChannel?.channelType as RelayChannelType | undefined,
-        memberChannelEnabled: member.memberChannel ? isChannelServiceEnabled(member.memberChannel) : false,
-      }),
-    );
-
-    const dto: RelayChannelDto = {
-      id: channel.id,
-      name: channel.name,
-      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-      providerServiceEnabled: channel.providerServiceEnabled !== false,
-      serviceEnabled: isChannelServiceEnabled(channel),
-      openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
+    const dto = projectRelayChannelConfiguration(channel, {
       hasOpenaiUpstreamApiKey: Boolean(channel.openaiUpstreamApiKey),
-      anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
       hasAnthropicUpstreamApiKey: Boolean(channel.anthropicUpstreamApiKey),
-      geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
-      useProxy: channel.useProxy === true,
-      multiplier: Number(channel.multiplier),
-      allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
-      allowedModels: [],
-      configuredAllowedModels: channel.allowedModels || undefined,
-      addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
-      inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
-      modelMapping: channel.modelMapping as Record<string, string> | undefined,
-      timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
-      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
-        | ContextLengthMultiplierRule[]
-        | undefined,
-      channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-      routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-      routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
-      visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-      visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
-      poolMembers,
-      pooledParentId: channel.pooledParentId || undefined,
-      pooledParentName: (channel as RelayChannel & { pooledParent?: RelayChannel | null }).pooledParent?.name,
-      pooledPriority: channel.pooledPriority,
-      pooledWeight: Number(channel.pooledWeight),
-      pooledMemberEnabled: channel.pooledMemberEnabled,
-      submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
-      submittedByUserId: channel.submittedByUserId || undefined,
-      submittedByUsername: (channel as RelayChannel & { submittedBy?: { username?: string } | null }).submittedBy
-        ?.username,
-      reviewedAt: channel.reviewedAt || undefined,
-      reviewReason: channel.reviewReason || undefined,
-      providers:
-        (
-          channel as RelayChannel & {
-            providers?: Array<{
-              id: string;
-              userId: string;
-              commissionPercent: Prisma.Decimal | number;
-              settlementMode: RelayChannelProviderDto["settlementMode"];
-              settlementIntervalDays: number | null;
-              settlementTime: string | null;
-              nextSettlementAt: Date | null;
-              user?: { username: string } | null;
-            }>;
-          }
-        ).providers?.map((provider) => ({
-          id: provider.id,
-          userId: provider.userId,
-          username: provider.user?.username || provider.userId,
-          commissionPercent: Number(provider.commissionPercent),
-          settlementMode: provider.settlementMode,
-          settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
-          settlementTime: provider.settlementTime ?? undefined,
-          nextSettlementAt: provider.nextSettlementAt ?? undefined,
-        })) ?? [],
-      createTime: channel.createTime,
-      updateTime: channel.updateTime,
-    };
+    });
 
     const resolvedModelCatalog = modelCatalog ?? (await this.modelPricingService.getModelPricing());
     if (isPoolType(dto.channelType)) {

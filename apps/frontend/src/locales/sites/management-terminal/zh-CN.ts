@@ -4,6 +4,9 @@ import type { DeepStringify } from '@/types/common'
 
 const zhCN = {
   remoteTerminal: {
+    devicesUnavailable: '设备列表不可用，请检查设备资源权限或重试。',
+    sessionsUnavailable: '会话记录不可用，其他已授权的工作区功能仍可使用。',
+    usageUnavailable: '配额信息不可用，连接时由服务端检查权限和配额。',
     overview: '产品概览',
     overviewDescription: '查看云终端设备、会话额度和订阅状态。',
     subscriptions: '有效订阅',

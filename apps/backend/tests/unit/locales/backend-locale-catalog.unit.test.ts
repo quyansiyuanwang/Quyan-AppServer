@@ -118,6 +118,7 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "developerProject",
         "developerProduct",
         "dataMaintenance",
+        "iam",
         "dataLifecycle",
         "contentSafety",
         "monthlyPass",

@@ -1,8 +1,12 @@
+import {
+  platformTrackingStatisticsResource,
+  platformFunnelStatisticsResource,
+} from "@/iam/request/platform-system-resource-resolvers";
 import { Route, Tags, Controller, SuccessResponse, Response, Post, Body, Request, Security } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { ErrorResponse } from "@/api/response";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import { extractClientIp } from "@/util/ip-extractor";
@@ -36,9 +40,13 @@ export class TrackController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.ANALYTICS_READ)
-  public async getStats(@Body() body: TrackStatsQuery): Promise<TrackStatsResponse> {
-    return this.service.getStats(body);
+  @CheckPermission(Permission.ANALYTICS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:analytics:GetTrackingStatistics",
+    resourceKind: "single-resource",
+    resource: platformTrackingStatisticsResource,
+  })
+  public async getStats(@Body() body: TrackStatsQuery, @Request() request: TypedRequest): Promise<TrackStatsResponse> {
+    return this.service.getManagedStats(body, request);
   }
 
   @Post("/funnel")
@@ -46,8 +54,12 @@ export class TrackController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.ANALYTICS_READ)
-  public async getFunnel(@Body() body: FunnelQuery): Promise<FunnelResponse> {
-    return this.service.getFunnel(body);
+  @CheckPermission(Permission.ANALYTICS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:analytics:GetFunnelStatistics",
+    resourceKind: "single-resource",
+    resource: platformFunnelStatisticsResource,
+  })
+  public async getFunnel(@Body() body: FunnelQuery, @Request() request: TypedRequest): Promise<FunnelResponse> {
+    return this.service.getManagedFunnel(body, request);
   }
 }

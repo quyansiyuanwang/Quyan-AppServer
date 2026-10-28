@@ -50,6 +50,13 @@ interface ChatRequestMeta {
   signal?: AbortSignal;
 }
 
+export interface ChatTextGenerationOptions extends ChatRequestMeta {
+  maxOutputCharacters: number;
+}
+type ModelCompletionEvent =
+  | Extract<ChatStreamEvent, { type: "delta" | "complete" }>
+  | { type: "generation-complete"; done: true };
+
 interface ChatRouteCandidate {
   channel: RelayChannel;
   displayChannel: RelayChannel;
@@ -318,6 +325,42 @@ export class ChatService {
       throw aiContentTooLarge();
   }
 
+  /** Completes a bounded user-funded request without storing a conversation or prompt. */
+  async generateTextForUser(
+    userId: string,
+    content: string,
+    model: string,
+    relayTokenId: string,
+    options: ChatTextGenerationOptions,
+  ): Promise<string> {
+    if (!Number.isSafeInteger(options.maxOutputCharacters) || options.maxOutputCharacters <= 0)
+      throw new BadRequestError("Invalid generation limit", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "generationLimit" },
+      });
+    if (options.signal?.aborted)
+      throw new BadRequestError("Generation was aborted", undefined, { messageKey: "chat.upstreamNoVisibleResponse" });
+    let text = "",
+      completed = false;
+    for await (const event of this.streamModelCompletion(
+      undefined,
+      userId,
+      content,
+      model,
+      relayTokenId,
+      options,
+      undefined,
+      options,
+    )) {
+      if (event.type === "delta") text += event.content;
+      if (event.type === "generation-complete") completed = true;
+    }
+    if (!completed || options.signal?.aborted)
+      throw new BadRequestError("Generation did not complete", undefined, {
+        messageKey: "chat.upstreamNoVisibleResponse",
+      });
+    return text;
+  }
   async *sendMessage(
     conversationId: string,
     userId: string,
@@ -327,10 +370,33 @@ export class ChatService {
     requestMeta?: ChatRequestMeta,
     replaceMessageId?: string,
   ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
+    for await (const event of this.streamModelCompletion(
+      conversationId,
+      userId,
+      content,
+      model,
+      relayTokenId,
+      requestMeta,
+      replaceMessageId,
+    )) {
+      if (event.type !== "generation-complete") yield event;
+    }
+  }
+
+  private async *streamModelCompletion(
+    conversationId: string | undefined,
+    userId: string,
+    content: string,
+    model: string,
+    relayTokenId?: string,
+    requestMeta?: ChatRequestMeta,
+    replaceMessageId?: string,
+    generation?: { maxOutputCharacters: number },
+  ): AsyncGenerator<ModelCompletionEvent> {
     yield* withAIGenerator(
       (signal) =>
         withContentSafetyGenerator(() =>
-          this.sendMessageInternal(
+          this.streamModelCompletionInternal(
             conversationId,
             userId,
             content,
@@ -338,30 +404,38 @@ export class ChatService {
             relayTokenId,
             { ...requestMeta, signal },
             replaceMessageId,
+            generation,
           ),
         ),
       requestMeta?.signal,
     );
   }
 
-  private async *sendMessageInternal(
-    conversationId: string,
+  private async *streamModelCompletionInternal(
+    conversationId: string | undefined,
     userId: string,
     content: string,
     model: string,
     relayTokenId?: string,
     requestMeta?: ChatRequestMeta,
     replaceMessageId?: string,
-  ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
-    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
-    const conversation = await this.getConversation(conversationId, userId);
+    generation?: { maxOutputCharacters: number },
+  ): AsyncGenerator<ModelCompletionEvent> {
+    const limits = getAIResourceConfig().chat.resourceLimits;
+    const contentBytes = Buffer.byteLength(content);
+    if (contentBytes > limits.inputLimitBytes || contentBytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES)
+      throw aiContentTooLarge();
+    if (conversationId) await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
+    const conversation = conversationId ? await this.getConversation(conversationId, userId) : undefined;
 
-    const tokenId = relayTokenId || conversation.relayTokenId;
+    const tokenId = relayTokenId || conversation?.relayTokenId;
     if (!tokenId) throw new BadRequestError("No relay token specified", undefined, { messageKey: "chat.noRelayToken" });
 
     const token = await this.relayTokenRepository.findByIdWithChannel(tokenId);
     if (!token || token.userId !== userId)
       throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
+    if (generation && (token.status !== 1 || (token.expiresAt && token.expiresAt.getTime() <= Date.now())))
+      throw new ForbiddenError("Inactive generation token", undefined, { messageKey: "relayToken.invalid" });
 
     const requestedModel = model.trim();
     if (!requestedModel)
@@ -418,20 +492,19 @@ export class ChatService {
         messageKey: "relayProxy.tokenModelNotAllowed",
       });
 
-    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
-    if (replaceMessageId) {
+    if (conversationId) await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
+    if (conversationId && replaceMessageId) {
       const message = await this.messageRepo.findById(replaceMessageId);
       if (!message || message.conversationId !== conversationId || message.role !== "user")
         throw new BadRequestError("The message to replace must be a user message in this conversation", undefined, {
           messageKey: "chat.replaceTargetInvalid",
         });
       await this.messageRepo.replaceFrom(replaceMessageId, content);
-    } else await this.messageRepo.create({ conversationId, role: "user", content });
+    } else if (conversationId) await this.messageRepo.create({ conversationId, role: "user", content });
 
-    const history = await this.messageRepo.findContext(
-      conversationId,
-      getAIResourceConfig().chat.resourceLimits.contextMaxMessages,
-    );
+    const history = conversationId
+      ? await this.messageRepo.findContext(conversationId, getAIResourceConfig().chat.resourceLimits.contextMaxMessages)
+      : [{ role: "user", content }];
     if (
       (getAIResourceConfig().chat.resourceLimits.contextMaxMessages > 0 &&
         history.length > getAIResourceConfig().chat.resourceLimits.contextMaxMessages) ||
@@ -555,7 +628,11 @@ export class ChatService {
               streamRequestFormat,
             );
         for await (const chunk of stream) {
-          if (!chunk.done && typeof chunk.content === "string" && chunk.content.trim()) {
+          if (
+            !chunk.done &&
+            typeof chunk.content === "string" &&
+            (generation ? chunk.content.length > 0 : chunk.content.trim())
+          ) {
             if (!firstChunkAt) firstChunkAt = Date.now();
             const responseSafety = await this.contentSafetyService.evaluateLocal("response", chunk.content, {
               userId,
@@ -577,6 +654,10 @@ export class ChatService {
             const nextBytes = assistantBytes + Buffer.byteLength(chunk.content);
             assertAnswerBudget(nextBytes);
             assistantBytes = nextBytes;
+            if (generation && assistantContent.length + chunk.content.length > generation.maxOutputCharacters)
+              throw new BadRequestError("Generation output exceeds the limit", undefined, {
+                messageKey: "chat.generationOutputTooLarge",
+              });
             assistantContent += chunk.content;
             if (!auditResponse) yield { type: "delta", content: chunk.content, done: false };
           }
@@ -620,6 +701,10 @@ export class ChatService {
             });
             if (audited.action === "unreachable") throw new ContentSafetyBlockedError();
             assertAnswerBudget(Buffer.byteLength(audited.text));
+            if (generation && audited.text.length > generation.maxOutputCharacters)
+              throw new BadRequestError("Generation output exceeds the limit", undefined, {
+                messageKey: "chat.generationOutputTooLarge",
+              });
             assistantContent = audited.text;
             assistantBytes = Buffer.byteLength(assistantContent);
           }
@@ -738,17 +823,19 @@ export class ChatService {
     const capacityFailure = failed && lastError instanceof PayloadTooLargeError;
     if (capacityFailure) cost = 0;
 
-    const message = await this.messageRepo.create({
-      conversationId,
-      role: "assistant",
-      content: assistantContent,
-      model: selectedModelName,
-      inputTokens,
-      outputTokens,
-      totalTokens,
-      cost: new Decimal(cost),
-      completionStatus: stopped ? "stopped" : failed ? "failed" : "completed",
-    });
+    const message = conversationId
+      ? await this.messageRepo.create({
+          conversationId,
+          role: "assistant",
+          content: assistantContent,
+          model: selectedModelName,
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          cost: new Decimal(cost),
+          completionStatus: stopped ? "stopped" : failed ? "failed" : "completed",
+        })
+      : undefined;
 
     if (capacityFailure) {
       await this.relayUsageRepository
@@ -826,7 +913,8 @@ export class ChatService {
       throw new Error("Upstream stream failed after producing output");
     }
 
-    yield { type: "complete", done: true, message: this.toStreamMessage(message) };
+    if (message) yield { type: "complete", done: true, message: this.toStreamMessage(message) };
+    else yield { type: "generation-complete", done: true };
   }
 
   async getAvailableTokens(userId: string) {

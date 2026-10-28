@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isApiLogResourceId } from "@/iam/resources/platform-api-log-resources";
+import { IAM_SERVER_LOG_FILE_NAME_PATTERN } from "@quyan/shared";
 
 const SYSTEM_QUERY_MAX_RANGE_DAYS = 30;
 const SYSTEM_QUERY_MAX_RANGE_MS = SYSTEM_QUERY_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000;
@@ -88,7 +90,7 @@ export const systemLogStatsQuerySchema = z
   .superRefine(validateDateRange);
 
 export const systemLogDetailParamsSchema = z.object({
-  logId: z.string().trim().min(1),
+  logId: z.string().trim().min(1).max(191).refine(isApiLogResourceId, "invalid API log identifier"),
 });
 
 export const serverLogFilesQuerySchema = z.object({
@@ -96,10 +98,7 @@ export const serverLogFilesQuerySchema = z.object({
 });
 
 export const serverLogFileParamsSchema = z.object({
-  fileName: z
-    .string()
-    .trim()
-    .regex(/^(combined|error)-\d{4}-\d{2}-\d{2}\.log(?:\.gz)?$/, "invalid log file name"),
+  fileName: z.string().trim().regex(IAM_SERVER_LOG_FILE_NAME_PATTERN, "invalid log file name"),
 });
 
 export const serverLogContentQuerySchema = z.object({

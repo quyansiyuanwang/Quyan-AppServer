@@ -1,9 +1,10 @@
+import { impersonationResourceResolver } from "@/iam/request/impersonation-resource-resolver";
 import { Body, Controller, Middlewares, Post, Request, Route, Security, SuccessResponse, Tags } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { ImpersonationService } from "@/services/users/impersonation.service";
 import type { StartImpersonationDto, StartImpersonationResponse } from "@/api/dto/users/impersonation.dto";
 import { Permission } from "@/constant/permission";
-import { RequireAnyPermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { validateBody } from "@/middleware/validation";
 import { startImpersonationBodySchema } from "@/api/schema/users/impersonation.schema";
 import type { TypedRequest } from "@/types/express";
@@ -16,7 +17,7 @@ import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-prote
 @Route("v1/impersonation")
 @Tags("Impersonation")
 export class ImpersonationController extends Controller {
-  private impersonationService = new ImpersonationService();
+  private impersonationService = ImpersonationService.getInstance();
 
   /**
    * 开始模拟指定用户
@@ -29,7 +30,23 @@ export class ImpersonationController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "模拟成功")
   @ReplayProtected()
-  @RequireAnyPermission([Permission.USER_IMPERSONATE_VIEW, Permission.USER_IMPERSONATE_ACT])
+  @CheckPermission(
+    [Permission.USER_IMPERSONATE_VIEW, Permission.USER_IMPERSONATE_ACT],
+    PermissionCheckMode.ANY,
+    "jwt",
+    [
+      {
+        action: "quyan:user:StartViewImpersonation",
+        resourceKind: "single-resource",
+        resource: impersonationResourceResolver,
+      },
+      {
+        action: "quyan:user:StartActImpersonation",
+        resourceKind: "single-resource",
+        resource: impersonationResourceResolver,
+      },
+    ],
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(startImpersonationBodySchema))
   public async startImpersonation(
     @Body() body: StartImpersonationDto,

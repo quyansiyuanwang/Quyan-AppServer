@@ -56,7 +56,7 @@ describe("agent workspace runtime safety", () => {
       listActiveOrderedByModel: vi.fn().mockResolvedValue([{ model: "GPT-4o Mini", provider: "gpt-4o-mini" }]),
     };
     const service = new (AgentService as any)(repository, pricing);
-    service.run = vi.fn();
+    service.run = vi.fn().mockResolvedValue(undefined);
 
     const result = await service.createRun("user-1", "conversation-1", {
       workspaceId: "workspace-1",
@@ -65,6 +65,10 @@ describe("agent workspace runtime safety", () => {
     });
 
     expect(result.model).toBe("gpt-4o-mini");
-    expect(repository.createTask).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-4o-mini" }));
+    expect(repository.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o-mini" }),
+      undefined,
+      undefined,
+    );
   });
 });

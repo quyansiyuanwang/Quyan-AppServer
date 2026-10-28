@@ -12,5 +12,9 @@ export const passkeyAuthVerifyBodySchema = z.object({
 });
 
 export const passkeyCredentialIdParamsSchema = z.object({
-  credentialId: z.string().trim().min(1),
+  credentialId: z
+    .string()
+    .min(1)
+    .max(2048)
+    .regex(/^[A-Za-z0-9_-]+$/),
 });

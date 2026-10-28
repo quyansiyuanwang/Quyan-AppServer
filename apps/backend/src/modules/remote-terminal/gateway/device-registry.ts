@@ -1,3 +1,5 @@
+import type { TypedRequest } from "@/types/express";
+import { TerminalInstallRegistrationIamService } from "@/services/remote-terminal/terminal-install-registration-iam.service";
 import { randomUUID } from "node:crypto";
 import { MANAGED_STATUS } from "@/constant/status";
 import { isInstallToken, verifyInstallToken } from "@/modules/remote-terminal/install-token";
@@ -49,6 +51,7 @@ export class RemoteTerminalDeviceRegistry {
 
   public async register(
     payload: RemoteTerminalAgentRegistrationRequest,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalAgentRegistrationResponse> {
     const now = new Date();
     let entitlement: RemoteTerminalActiveEntitlementTokenRecord | null;
@@ -57,6 +60,25 @@ export class RemoteTerminalDeviceRegistry {
       if (!secret) throw new Error("RTM_INSTALL_TOKEN_SECRET is not configured");
       const verified = verifyInstallToken(payload.registrationToken, secret);
       if (!verified) throw new Error("Invalid or expired install token.");
+      if (verified.capability) {
+        const fingerprint = this.normalizeDeviceFingerprint(payload.deviceFingerprint),
+          fingerprintVersion = this.normalizeFingerprintVersion(payload.fingerprintVersion);
+        if (!fingerprint || !fingerprintVersion) throw new Error("Invalid device fingerprint.");
+        const config = await this.configService.getRemoteTerminalUnbindConfig();
+        const result = await TerminalInstallRegistrationIamService.getInstance().register(
+          verified.capability,
+          {
+            fingerprint,
+            fingerprintVersion,
+            snapshot: payload.snapshot,
+            cooldownMinutes: config.rebindCooldownMinutes,
+          },
+          request,
+        );
+        return { ...result, heartbeatIntervalSeconds: DEFAULT_HEARTBEAT_INTERVAL_SECONDS };
+      }
+      if (env.security.iamAuthorizationMode !== "legacy" && env.security.iamAuthorizationMode !== "shadow")
+        throw new Error("Reissue an IAM installation token before registration.");
       entitlement = await this.productRepository.findActiveEntitlementById(verified.entitlementId, now);
     } else entitlement = await this.productRepository.findActiveEntitlementByToken(payload.registrationToken, now);
 

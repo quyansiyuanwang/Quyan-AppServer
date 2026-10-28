@@ -34,6 +34,18 @@
 - 新增和移除操作。
 - 所有写入操作需通过 **二次验证步骤（step-up）**。
 
+## 白名单读取权限
+
+启用 IAM 强制授权时，白名单管理读取需要实际部署全局组中的 `IP_WHITELIST_READ`。列表使用 `quyan:ip_whitelist:ListEntries`，状态查询使用 `quyan:ip_whitelist:GetStatus`；两者的资源格式均为 `acs:platform:*:platform:ip-whitelist/<记录 ID>`。IPv4 / IPv6 地址用于查找已有记录，资源 ID 始终来自数据库，不从地址或客户端提供的账号拼接。
+
+列表先按记录检查权限，再分页；`total` 只统计已授权记录。状态查询读取记录的当前有效期，已存在但过期的记录返回 `false`。不存在、被删除或未获授权的记录无法安全解析授权资源，在强制模式下返回 403。权限、角色会话或记录在读取期间失效时，结果不会返回。服务端自动防滥用检查仍使用其内部白名单读取流程。
+
+## 白名单写入权限
+
+IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREATE` 资格，以及 `quyan:ip_whitelist:CreateEntry` 对 `acs:platform:*:platform:ip-whitelist-control/default` 的授权。事务提交前还会检查实际记录 `acs:platform:*:platform:ip-whitelist/<record-id>`。移除记录需要真实全局组中的 `IP_WHITELIST_DELETE` 资格，以及 `quyan:ip_whitelist:DeleteEntry` 对该记录 ARN 的授权。账户所有者和账户内自建组不能授予平台资格。写入仍要求二次认证与重放保护。
+
+输入必须为有效 IPv4 或 IPv6 地址。已存在的有效记录返回 409；重新加入已删除地址会恢复原记录 ID，保留资源级 Deny 的约束。强制模式下，目标不存在或没有移除权限时返回 403。事务内会再次校验身份、用户组、记录和策略，校验失败时整批回滚。自动封禁使用的白名单查询会用数据库确认缓存中的允许结果，过期或删除的记录不会因旧缓存继续豁免。
+
 ## 错误权重与衰减机制
 
 错误权重是封禁系统的核心：
@@ -66,3 +78,53 @@
 - `server-configuration`
 - `system-logs`
 - `business-logs`
+
+## 指定 IP 的 IAM 查询权限
+
+IAM `enforce` 模式下，封禁查询使用 `quyan:system:ip_blacklist:CheckIPAddress`，实时错误状态使用独立的 `quyan:system:ip_blacklist:GetIPAddressErrorStatus`。两者都针对 `acs:platform:*:platform:ip-address/<地址标识>` 授权，并要求当前用户在有效全局组中具备 `IP_BLACKLIST_READ`。私有组、用户附加权限或账户策略不能替代这项平台资格。
+
+IPv4 地址直接作为标识，例如 `acs:platform:*:platform:ip-address/192.0.2.1`。IPv6 使用小写压缩写法并将冒号替换为下划线，例如 `2001:db8::1` 对应 `acs:platform:*:platform:ip-address/2001_db8__1`。IPv4 映射的 IPv6 地址归一为 IPv4；IPv6 回环地址与现有 IP 规范一致，归一为 `127.0.0.1`。查询仍使用你提供的原始地址查找现有记录和权重。
+
+匹配的显式 Deny 优先，没有匹配 Allow 时拒绝查询。两项权限互不替代，也不授予列表、面板或修改权重的权限。未封禁或已过期的 IP 不返回封禁详情；实时状态仍按既有配置计算错误衰减。读取期间策略、资格、角色会话或封禁记录变化时拒绝返回结果。`legacy` 和 `shadow` 保留原查询权限，`shadow` 同时记录 IAM 决策。
+
+## 黑名单列表的资源权限
+
+IAM `enforce` 模式下，列表使用独立的 `quyan:system:ip_blacklist:ListBlacklists` Action，逐条检查记录对应的 `acs:platform:*:platform:ip-address/<地址标识>`。仍需有效全局组中的 `IP_BLACKLIST_READ` 资格；封禁查询或实时错误状态的权限不能代替列表权限。
+
+列表的总数、`offset` 和 `limit` 都以允许访问的记录为准，显式 Deny 优先。没有匹配 Allow 时返回空列表。允许查看的过期封禁记录仍保留，只有当前页的详情会被读取。单次查询固定截止位置；读取期间授权或参与总数计算的记录变化时，请求会被拒绝，需要重新查询。`legacy` 和 `shadow` 保留原列表行为，`shadow` 同时记录 IAM 决策。
+
+## 按记录 ID 获取黑名单详情
+
+`GET /v1/ip-blacklist/{id}` 现在可以返回实际记录详情，包括过期但仍有效保留的历史记录。IAM `enforce` 模式使用独立的 `quyan:system:ip_blacklist:GetBlacklist` Action，由服务端从记录 ID 解析实际 IP，并按该 IP 的资源 ARN 授权。它同样要求有效全局组中的 `IP_BLACKLIST_READ`；列表和封禁查询权限不能代替详情权限。
+
+缺失、删除或无法安全解析的记录在 `enforce` 模式下被拒绝，不会退化为全资源授权。返回前会复核记录的地址、版本与当前授权。`legacy` 和 `shadow` 按原有效权限提供详情，找不到记录时返回 404；`shadow` 额外记录 IAM 决策。
+
+## 指定 IP 的权重修改权限
+
+IAM `enforce` 模式下，设置权重使用独立的 `quyan:system:ip_blacklist:SetIPAddressErrorWeight`，重置使用 `quyan:system:ip_blacklist:ResetIPAddressErrorWeight`。两者都检查目标 IP 的资源 ARN，并要求当前用户在有效的全局用户组中具备 `IP_BLACKLIST_UPDATE`。只读授权、私有组和用户附加权限不能替代这项平台资格；设置与重置权限也不能互相替代。
+
+设置为正整数会替换权重并更新衰减起算时间；设置为 `0` 仅清除权重和衰减时间，保留错误明细及当前小时计数。重置会同时清除这四项数据。两种操作都保留二次验证和请求重放保护，不会自动解除已有封禁。
+
+服务端在修改前复核当前主体、用户组资格、角色会话和策略；复核不通过时不执行修改。修改结果必须由 Redis 确认。若返回“修改结果未确认”，请先查询当前状态，再决定是否重试：该响应不能证明数据已修改，也不能证明数据未修改。服务端不会自动重试修改。`legacy` 和 `shadow` 保留原有权限及修改行为，`shadow` 另外记录 IAM 诊断。
+
+## 指定 IP 的封禁记录更新权限
+
+IAM `enforce` 模式下，修改封禁原因或到期时间使用独立的 `quyan:system:ip_blacklist:UpdateBlacklist` Action，并检查目标 IP 的资源 ARN。当前用户仍须在有效的全局用户组中具备 `IP_BLACKLIST_UPDATE`。权重设置、重置或只读权限不能替代封禁记录更新权限。
+
+允许更新仍有效的记录及保留的过期历史，不改变封禁等级、封禁类型或原封禁操作者。不存在和已删除的记录在 `enforce` 模式下返回权限拒绝，即使有通配符 Allow 也不会恢复记录；`legacy` 和 `shadow` 保留原有更新行为，对不存在记录返回 404。服务端在事务中复核记录版本、主体、平台资格及策略，并保留二次验证和重放保护。记录或授权在修改前变化时拒绝更新，可在确认当前状态后重新提交。
+
+## 手动封禁与解封的资源权限
+
+IAM `enforce` 模式下，手动封禁使用 `quyan:system:ip_blacklist:CreateBlacklist`，解封使用 `quyan:system:ip_blacklist:DeleteBlacklist`。两项 Action 分别检查目标 IP 的 ARN，并要求当前用户在有效的全局用户组中具备对应的 `IP_BLACKLIST_CREATE` 或 `IP_BLACKLIST_DELETE`。创建、更新、解封和权重操作的权限相互独立。
+
+手动封禁以当前认证用户记录操作者；永久封禁沿用系统的长期到期时间。再次封禁已软删除的 IP 会复用原记录 ID；已有有效记录时返回冲突，不会覆盖原因或等级。解封只软删除仍有效的封禁记录，不清除错误权重；权重如需清除，应另行执行重置。`enforce` 下缺失或已删除的解封目标返回权限拒绝；`legacy` 和 `shadow` 保留原有行为，不存在有效记录时返回 404。
+
+两项操作保留二次验证、重放保护和业务日志；修改前发生撤权或记录变化时拒绝执行。系统根据错误阈值进行的后台自动封禁继续使用服务端配置，不通过这些手动操作权限执行。
+
+## 监控面板的 IP 资源范围
+
+IAM `enforce` 模式下，面板使用独立的 `quyan:system:ip_blacklist:GetMonitoringDashboard` Action，逐一检查封禁记录和封禁活动事件所对应的 IP 资源 ARN。仍须在有效的全局用户组中具备 `IP_BLACKLIST_READ`；列表、详情和状态查询授权不能替代面板授权。
+
+面板先排除没有 Allow 或命中 Deny 的 IP，再计算有效封禁总数、等级和类型分布、24 小时与 7 天活动总数。最近封禁最多展示 20 条；时间线和 Top IP 基于最近 7 天内最多 1000 条已授权事件，Top IP 最多展示 10 个。活动总数统计全部已授权事件，因此事件很多时可以高于时间线采样数量。Top IP 的当前状态也仅根据已授权的有效封禁判断。
+
+有效封禁摘要沿用现有到期时间规则：过期记录和到期时间为空的记录不计入该摘要；系统手动永久封禁使用的长期到期时间仍可计入。查询固定时间截止点，若影响结果的记录、事件或授权在读取中变化，则拒绝返回这次结果。无法安全确认事件对应的 IP 时也会拒绝请求，不会扩大到全部资源。`legacy` 和 `shadow` 保留原有聚合行为，`shadow` 另外记录 IAM 诊断。

@@ -1,10 +1,17 @@
 import { normalizeCookieSameSite, sanitizeInt } from "./common";
 import type { EnvSnapshot } from "./source";
 
+export function parseIamAuthorizationMode(value: string | undefined): "legacy" | "shadow" | "enforce" {
+  const mode = value ?? "legacy";
+  if (mode !== "legacy" && mode !== "shadow" && mode !== "enforce") throw new Error("Invalid IAM_AUTHORIZATION_MODE");
+  return mode;
+}
+
 export function buildSecurityConfig(source: EnvSnapshot) {
   const captchaTrustSameSite = normalizeCookieSameSite(source.CAPTCHA_TRUST_COOKIE_SAMESITE, "lax");
 
   return {
+    iamAuthorizationMode: parseIamAuthorizationMode(source.IAM_AUTHORIZATION_MODE),
     protectedGroupName: source.PROTECTED_GROUP_NAME,
     superAdminGroupUsername: String(source.SUPER_ADMIN_GROUP_USERNAME || "admin").trim() || "admin",
     replayProtection: {

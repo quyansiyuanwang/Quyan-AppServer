@@ -131,4 +131,9 @@ export interface RelayConcurrencyStatusResponse {
   limits: RelayConcurrencyStatusLimitsDto;
   totals: RelayConcurrencyStatusTotalsDto;
   items: RelayConcurrencyStatusItemDto[];
+  /** IAM enforcement mode returns a bounded authorized page; totals cover all permitted records. */
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  hasNext?: boolean;
 }

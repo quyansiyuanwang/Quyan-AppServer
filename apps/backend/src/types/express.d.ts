@@ -62,6 +62,7 @@ export interface TypedRequest<T = undefined> extends Request {
     scopes: string[];
     expiresAt: string;
   };
+  iamDecisions?: Array<import("@quyan/shared").IamEvaluationResult & { action: string; resource: string }>;
   permissions?: PermissionCheckResult;
 }
 

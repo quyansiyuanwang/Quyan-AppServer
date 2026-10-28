@@ -1,0 +1,650 @@
+import { isSafeIamResourceBatch } from "@/iam/authorization-limits";
+import { ForbiddenError } from "@/util/errors";
+import { IAM_CONDITION_LIMITS } from "@/iam/condition/condition-schema";
+import { RedisService } from "@/services/infrastructure/redis.service";
+import {
+  terminalSessionRedisKey,
+  isTerminalSessionIdentifier,
+} from "@/services/infrastructure/remote-terminal-session-projection";
+import { ArticleManagementRepository } from "@/store/content/article-management.repository";
+import { developerKvKeyFromArnSegment } from "@/iam/resources/developer-resources";
+import { developerSecretAliasSchema } from "@/api/schema/developer/developer.schema";
+import { lockRamResourceGroup } from "./ram-resource-group-lock";
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { getIamResourceType } from "@quyan/shared";
+import { prisma } from "@/config/database";
+import { AccountStatus } from "@/util/auth/account-status";
+import type {
+  RamResourceGroupStore,
+  CreateRamResourceGroupInput,
+  CreateRamResourceGroupMemberInput,
+} from "./ram-resource-group.store";
+export class RamResourceGroupRepository implements RamResourceGroupStore {
+  private static instance: RamResourceGroupRepository;
+  static getInstance() {
+    return (this.instance ??= new RamResourceGroupRepository());
+  }
+  list(accountOwnerId: string, page: IamManagementPage = iamManagementPaginationSchema.parse({})) {
+    return prisma.ramResourceGroup.findMany({
+      where: { accountOwnerId, status: AccountStatus.ACTIVE },
+      include: { members: { where: { status: AccountStatus.ACTIVE }, orderBy: { createTime: "asc" } } },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (page.page - 1) * page.pageSize,
+      take: page.pageSize,
+    });
+  }
+  async listSummaryPage(accountOwnerId: string, page: IamManagementSearchPage) {
+    const records = await prisma.ramResourceGroup.findMany({
+      where: {
+        accountOwnerId,
+        status: AccountStatus.ACTIVE,
+        ...(page.keyword
+          ? {
+              OR: [
+                { id: { contains: page.keyword } },
+                { name: { contains: page.keyword } },
+                { description: { contains: page.keyword } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (page.page - 1) * page.pageSize,
+      take: page.pageSize + 1,
+    });
+    return { items: records.slice(0, page.pageSize), ...page, hasNext: records.length > page.pageSize };
+  }
+  async listMemberPage(accountOwnerId: string, groupId: string, page: IamManagementPage) {
+    const records = await prisma.ramResourceGroupMember.findMany({
+      where: {
+        accountOwnerId,
+        resourceGroupId: groupId,
+        status: AccountStatus.ACTIVE,
+        resourceGroup: { accountOwnerId, status: AccountStatus.ACTIVE },
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (page.page - 1) * page.pageSize,
+      take: page.pageSize + 1,
+    });
+    return { items: records.slice(0, page.pageSize), ...page, hasNext: records.length > page.pageSize };
+  }
+  findSummaryById(id: string) {
+    return prisma.ramResourceGroup.findFirst({ where: { id, status: AccountStatus.ACTIVE } });
+  }
+  create(data: CreateRamResourceGroupInput) {
+    return prisma.ramResourceGroup.create({
+      data: { ...data, status: AccountStatus.ACTIVE, description: data.description ?? null },
+    });
+  }
+  findById(id: string) {
+    return prisma.ramResourceGroup.findFirst({
+      where: { id, status: AccountStatus.ACTIVE },
+      include: { members: { where: { status: AccountStatus.ACTIVE } } },
+    });
+  }
+  async conditionMemberships(accountOwnerId: string, resourceArns: readonly string[]): Promise<Map<string, string[]>> {
+    const resources = [...new Set(resourceArns)];
+    if (!resources.length) return new Map();
+    if (
+      !isSafeIamResourceBatch(resources) ||
+      resources.some(
+        (resource) =>
+          !getIamResourceType(resource)?.resourceGroupCondition || resource.split(":")[3] !== accountOwnerId,
+      )
+    )
+      throw new ForbiddenError("Invalid resource group condition boundary", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const candidates = await prisma.ramResourceGroupMember.findMany({
+      where: {
+        accountOwnerId,
+        resourceArn: { in: resources },
+        status: AccountStatus.ACTIVE,
+        resourceGroup: { accountOwnerId, status: AccountStatus.ACTIVE },
+      },
+      select: { resourceArn: true, resourceGroupId: true },
+      take: resources.length * IAM_CONDITION_LIMITS.values + 1,
+    });
+    if (candidates.length > resources.length * IAM_CONDITION_LIMITS.values)
+      throw new ForbiddenError("Resource group condition capacity exceeded", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const result = new Map(resources.map((resource) => [resource, [] as string[]]));
+    for (const member of candidates) {
+      const groups = result.get(member.resourceArn);
+      if (!groups) continue; // Reject case aliases selected by a case-insensitive database collation.
+      if (!groups.includes(member.resourceGroupId)) groups.push(member.resourceGroupId);
+      if (groups.length > IAM_CONDITION_LIMITS.values)
+        throw new ForbiddenError("Resource group condition capacity exceeded", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    }
+    return result;
+  }
+  async resourceExistsInAccount(resourceArn: string, accountOwnerId: string): Promise<boolean> {
+    const type = getIamResourceType(resourceArn);
+    if (!type || resourceArn.split(":")[3] !== accountOwnerId) return false;
+    const [, id, childId, nestedId] = resourceArn.split(":")[4].split("/");
+    const active = { status: AccountStatus.ACTIVE };
+    const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
+    switch (type.id) {
+      case "remote-terminal/session": {
+        if (!isTerminalSessionIdentifier(id) || !isTerminalSessionIdentifier(childId)) return false;
+        const user = await prisma.user.findFirst({
+          where: { id, ...active, ...userOwner },
+          select: { id: true, accountOwnerId: true },
+        });
+        if (!user || user.id !== id || (user.accountOwnerId || user.id) !== accountOwnerId) return false;
+        const rows = await RedisService.getInstance().projectTerminalSessions(id, [terminalSessionRedisKey(childId)]);
+        const row = rows?.[0];
+        return Boolean(
+          rows?.length === 1 &&
+            row?.state === "present" &&
+            row.metadata.ownerUserId === id &&
+            row.metadata.sessionId === childId,
+        );
+      }
+      // Product metadata remains addressable while disabled or expired; deleted parents never qualify.
+      // These resources use database IDs. The live device/session types below use their protocol IDs.
+      case "remote-terminal/product-entitlement": {
+        const row = await prisma.remoteTerminalUserEntitlement.findFirst({
+          where: { id: childId, userId: id, status: { in: [0, 1] }, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
+      case "remote-terminal/product-binding": {
+        const row = await prisma.remoteTerminalDeviceBinding.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            status: { in: [0, 1] },
+            user: { ...active, ...userOwner },
+            entitlement: { userId: id, status: { in: [0, 1] } },
+          },
+          select: { id: true, userId: true, entitlement: { select: { userId: true } } },
+        });
+        return row?.id === childId && row.userId === id && row.entitlement.userId === id;
+      }
+      case "remote-terminal/product-registration-token": {
+        const row = await prisma.remoteTerminalEntitlementToken.findFirst({
+          where: {
+            id: nestedId,
+            entitlementId: childId,
+            status: { in: [0, 1] },
+            entitlement: { userId: id, status: { in: [0, 1] }, user: { ...active, ...userOwner } },
+          },
+          select: { id: true, entitlementId: true, entitlement: { select: { userId: true } } },
+        });
+        return row?.id === nestedId && row.entitlementId === childId && row.entitlement.userId === id;
+      }
+      case "remote-terminal/published-template": {
+        // An account owns only its identity's published offer projection, never the platform template.
+        const user = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (user?.id !== id) return false;
+        const row = await prisma.remoteTerminalProductTemplate.findFirst({
+          where: { id: childId, ...active, publishStatus: "published" },
+          select: { id: true },
+        });
+        return row?.id === childId;
+      }
+      case "remote-terminal/device": {
+        const at = new Date();
+        const device = await prisma.remoteTerminalDeviceBinding.findFirst({
+          where: {
+            deviceId: childId,
+            userId: id,
+            ...active,
+            user: { ...active, ...userOwner },
+            entitlement: { userId: id, ...active, startAt: { lte: at }, endAt: { gte: at } },
+          },
+          select: {
+            deviceId: true,
+            userId: true,
+            user: { select: { id: true, accountOwnerId: true } },
+            entitlement: { select: { userId: true } },
+          },
+        });
+        return Boolean(
+          device &&
+            device.deviceId === childId &&
+            device.userId === id &&
+            device.entitlement.userId === id &&
+            device.user.id === id &&
+            (device.user.accountOwnerId || device.user.id) === accountOwnerId,
+        );
+      }
+      case "balance/transaction": {
+        const owner = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (!owner) return false;
+        const row = await prisma.balanceTransaction.findFirst({
+          where: { id: childId, userId: owner.id, ...active },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
+      case "quyan/online-session": {
+        const session = await prisma.userOnlineSession.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return session?.id === childId && session.userId === id;
+      }
+      case "auth-center/client": {
+        const client = await prisma.authCenterClient.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return client?.id === childId && client.userId === id;
+      }
+      case "oauth/client": {
+        const client = await prisma.oAuthClient.findFirst({
+          where: { id: childId, userId: id, ...active, isSystemClient: false, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return client?.id === childId && client.userId === id;
+      }
+      case "oj/api-key": {
+        // OJAPIKey deliberately has no Prisma User relation.
+        const owner = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (!owner) return false;
+        const key = await prisma.oJAPIKey.findFirst({
+          where: { id: childId, userId: owner.id, ...active },
+          select: { id: true, userId: true },
+        });
+        return key?.id === childId && key.userId === id;
+      }
+      case "json-endpoint/endpoint": {
+        const endpoint = await prisma.jsonEndpoint.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return endpoint?.id === childId && endpoint.userId === id;
+      }
+      case "quyan/passkey": {
+        const passkey = await prisma.passkeyCredential.findFirst({
+          where: { id: childId, userId: id, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return passkey?.id === childId && passkey.userId === id;
+      }
+      case "script/execution": {
+        const execution = await prisma.userScriptExecution.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            user: { ...active, ...userOwner },
+            OR: [{ scriptId: null }, { script: { userId: id } }],
+          },
+          select: { id: true, userId: true },
+        });
+        return execution?.id === childId && execution.userId === id;
+      }
+      case "agent/approval": {
+        const approval = await prisma.agentApproval.findFirst({
+          where: {
+            id: nestedId,
+            taskId: childId,
+            status: "pending",
+            expiresAt: { gt: new Date() },
+            step: { taskId: childId },
+            task: {
+              id: childId,
+              userId: id,
+              ...active,
+              taskStatus: "waiting_approval",
+              user: { ...active, ...userOwner },
+              workspace: { userId: id, ...active },
+              conversation: { userId: id, ...active },
+            },
+          },
+          select: { id: true, taskId: true },
+        });
+        return approval?.id === nestedId && approval.taskId === childId;
+      }
+      case "agent/task": {
+        const task = await prisma.agentTask.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            ...active,
+            user: { ...active, ...userOwner },
+            workspace: { userId: id, ...active },
+            conversation: { userId: id, ...active },
+          },
+          select: { id: true, userId: true },
+        });
+        return task?.id === childId && task.userId === id;
+      }
+      case "agent/workspace": {
+        const workspace = await prisma.agentWorkspace.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return workspace?.id === childId && workspace.userId === id;
+      }
+      case "agent/machine": {
+        const machine = await prisma.agentRuntimeMachine.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return machine?.id === childId && machine.userId === id;
+      }
+      case "mcp/server": {
+        const server = await prisma.mcpServer.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return server?.id === childId && server.userId === id;
+      }
+      case "ticket/ticket": {
+        const ticket = await prisma.ticket.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return ticket?.id === childId && ticket.userId === id;
+      }
+      case "script/script": {
+        const script = await prisma.userScript.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return script?.id === childId && script.userId === id;
+      }
+      case "quyan/account":
+        return Boolean(await prisma.user.findFirst({ where: { id: accountOwnerId, ...active } }));
+      case "quyan/user": {
+        const row = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/access-key": {
+        const row = await prisma.accessKey.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
+      case "quyan/group": {
+        const row = await prisma.group.findFirst({ where: { id, accountOwnerId, ...active }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/role": {
+        const row = await prisma.ramRole.findFirst({ where: { id, accountOwnerId, ...active }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/policy": {
+        const row = await prisma.ramPolicy.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/policy-version": {
+        const row = await prisma.ramPolicyVersion.findFirst({
+          where: { id: childId, policyId: id, ...active, policy: { accountOwnerId, ...active } },
+          select: { id: true, policyId: true },
+        });
+        return row?.id === childId && row.policyId === id;
+      }
+      case "quyan/authorization": {
+        const row = await prisma.ramAuthorization.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/resource-group": {
+        const row = await prisma.ramResourceGroup.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/role-session": {
+        const row = await prisma.ramRoleSession.findFirst({
+          where: { id, accountOwnerId, ...active, revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "notification/webhook": {
+        const webhook = await prisma.notificationWebhook.findUnique({
+          where: { id: childId },
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            preferenceId: true,
+            preference: { select: { id: true, userId: true, status: true } },
+          },
+        });
+        if (
+          !webhook ||
+          webhook.id !== childId ||
+          webhook.userId !== id ||
+          webhook.status !== AccountStatus.ACTIVE ||
+          webhook.preferenceId !== webhook.preference.id ||
+          webhook.preference.userId !== id ||
+          webhook.preference.status !== AccountStatus.ACTIVE
+        )
+          return false;
+        const user = await prisma.user.findUnique({
+          where: { id },
+          select: { id: true, status: true, accountOwnerId: true },
+        });
+        return Boolean(
+          user &&
+            user.id === id &&
+            user.status === AccountStatus.ACTIVE &&
+            (user.accountOwnerId || user.id) === accountOwnerId,
+        );
+      }
+      case "notification/delivery-log": {
+        const log = await prisma.notificationLog.findUnique({
+          where: { id: childId },
+          select: { id: true, userId: true },
+        });
+        if (!log || log.id !== childId || log.userId !== id) return false;
+        const user = await prisma.user.findUnique({
+          where: { id },
+          select: { id: true, status: true, accountOwnerId: true },
+        });
+        return Boolean(
+          user &&
+            user.id === id &&
+            user.status === AccountStatus.ACTIVE &&
+            (user.accountOwnerId || user.id) === accountOwnerId,
+        );
+      }
+      case "notification/inbox-item": {
+        const item = await prisma.notificationInboxItem.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true, user: { select: { id: true, accountOwnerId: true } } },
+        });
+        return Boolean(
+          item &&
+            item.id === childId &&
+            item.userId === id &&
+            item.user.id === id &&
+            (item.user.accountOwnerId || item.user.id) === accountOwnerId,
+        );
+      }
+      case "balance/gift-code": {
+        const record = await prisma.balanceGiftCode.findFirst({
+          where: { id: childId, createdBy: id, ...active, createdByUser: { ...active, ...userOwner } },
+          select: { id: true, createdBy: true },
+        });
+        return record?.id === childId && record.createdBy === id;
+      }
+      case "chat/conversation": {
+        const record = await prisma.conversation.findFirst({
+          where: { id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "chat/message": {
+        const record = await prisma.message.findFirst({
+          where: { id, ...active, conversation: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "carpool/order": {
+        const record = await prisma.carpoolOrder.findFirst({
+          where: {
+            id,
+            ...active,
+            members: { some: { ...active, state: { not: "left" }, user: { ...active, ...userOwner } } },
+          },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "carpool/template": {
+        // Published templates are shared offerings; the ARN scopes use to this account, never template ownership.
+        const record = await prisma.carpoolPackageTemplate.findFirst({
+          where: { id, ...active, publishStatus: "published", monthlyPassTemplate: active },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "article/article":
+        return Boolean(await ArticleManagementRepository.getInstance().findTarget(id, accountOwnerId));
+      case "developer/project": {
+        const project = await prisma.developerProject.findFirst({
+          where: { id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true },
+        });
+        return project?.id === id;
+      }
+      case "developer/push-delivery": {
+        const record = await prisma.developerPushDelivery.findFirst({
+          where: {
+            id: childId,
+            projectId: id,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+            channel: { projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          },
+          select: { id: true, projectId: true, channelId: true },
+        });
+        if (!record || record.id !== childId || record.projectId !== id) return false;
+        const channel = await prisma.developerPushChannel.findFirst({
+          where: {
+            id: record.channelId,
+            projectId: id,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+          },
+          select: { id: true, projectId: true },
+        });
+        return channel?.id === record.channelId && channel.projectId === id;
+      }
+      case "developer/push-channel": {
+        const record = await prisma.developerPushChannel.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
+      case "developer/status-monitor": {
+        const record = await prisma.developerStatusMonitor.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
+      case "developer/project-api-key": {
+        const record = await prisma.developerProjectApiKey.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
+      case "developer/short-link": {
+        const record = await prisma.developerShortLink.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
+      case "developer/kv-item": {
+        const key = developerKvKeyFromArnSegment(childId);
+        if (!key) return false;
+        const record = await prisma.developerKvEntry.findFirst({
+          where: {
+            projectId: id,
+            key,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: { key: true, projectId: true },
+        });
+        return record?.key === key && record.projectId === id;
+      }
+      case "developer/secret": {
+        const alias = developerSecretAliasSchema.safeParse(childId);
+        if (!alias.success || alias.data !== childId) return false;
+        const record = await prisma.developerSecret.findFirst({
+          where: {
+            projectId: id,
+            alias: childId,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+          },
+          select: { alias: true, projectId: true },
+        });
+        return record?.alias === childId && record.projectId === id;
+      }
+      // Shared/global channels have no account ownership. Only submission-owned channels may join a group.
+      case "relay/token": {
+        const token = await prisma.relayToken.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            ...active,
+            user: { ...active, ...userOwner },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: { id: true, userId: true },
+        });
+        return token?.id === childId && token.userId === id;
+      }
+      case "relay/channel":
+        return Boolean(await prisma.relayChannel.findFirst({ where: { id, ...active, submittedBy: userOwner } }));
+      default:
+        return false;
+    }
+  }
+  addMember(data: CreateRamResourceGroupMemberInput) {
+    return prisma.$transaction(
+      async (tx) => {
+        const { expectedGroupUpdateTime, ...record } = data;
+        await lockRamResourceGroup(tx, data.resourceGroupId, expectedGroupUpdateTime);
+        return tx.ramResourceGroupMember.upsert({
+          where: {
+            resourceGroupId_resourceArn: { resourceGroupId: data.resourceGroupId, resourceArn: data.resourceArn },
+          },
+          create: { ...record, status: AccountStatus.ACTIVE },
+          update: { status: AccountStatus.ACTIVE },
+        });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+  async removeMember(groupId: string, memberId: string, expectedGroupUpdateTime?: Date) {
+    await prisma.$transaction(
+      async (tx) => {
+        await lockRamResourceGroup(tx, groupId, expectedGroupUpdateTime);
+        await tx.ramResourceGroupMember.updateMany({
+          where: { id: memberId, resourceGroupId: groupId, status: AccountStatus.ACTIVE },
+          data: { status: AccountStatus.DELETED },
+        });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+}

@@ -1,3 +1,5 @@
+import { copyProbeProfileSettings } from "./relay-probe-profile-template";
+import { relayProbeHistoryTerminalStatuses } from "./relay-probe-run-history-policy";
 import { prisma } from "@/config/database";
 import type { Prisma } from "@prisma/client";
 
@@ -53,27 +55,14 @@ export class RelayChannelProbeRepository {
   }
 
   /** Copies an already encrypted profile without ever decrypting its credentials for a caller. */
-  public copyProfile(source: RelayChannelProbeProfileRecord, targetChannelId: string, copyCredentials = true) {
+  public copyProfile(
+    source: RelayChannelProbeProfileRecord,
+    targetChannelId: string,
+    copyCredentials = true,
+    reservedId?: string,
+  ) {
     const data = {
-      enabled: source.enabled,
-      probeFormat: source.probeFormat,
-      probeEndpoint: source.probeEndpoint,
-      probeModel: source.probeModel,
-      probePayload: source.probePayload as Prisma.InputJsonValue,
-      preventCache: source.preventCache,
-      cacheMode: source.cacheMode,
-      sampleCount: source.sampleCount,
-      strictCalibrationValidation: source.strictCalibrationValidation,
-      measurementInputTokens: source.measurementInputTokens,
-      balanceSettlementTolerance: source.balanceSettlementTolerance,
-      balanceSettlementReads: source.balanceSettlementReads,
-      upstreamCurrency: source.upstreamCurrency,
-      localCurrency: source.localCurrency,
-      upstreamBalanceDivisor: source.upstreamBalanceDivisor,
-      upstreamRateMultiplier: source.upstreamRateMultiplier,
-      probeGroup: source.probeGroup,
-      distributionMultiplier: source.distributionMultiplier,
-      workflow: source.workflow as Prisma.InputJsonValue,
+      ...copyProbeProfileSettings(source),
       ...(copyCredentials
         ? {
             encryptedCredentials: source.encryptedCredentials,
@@ -84,7 +73,7 @@ export class RelayChannelProbeRepository {
     };
     return prisma.relayChannelProbeProfile.upsert({
       where: { relayChannelId: targetChannelId },
-      create: { relayChannelId: targetChannelId, ...data },
+      create: { ...(reservedId ? { id: reservedId } : {}), relayChannelId: targetChannelId, ...data },
       update: data,
     });
   }
@@ -100,6 +89,13 @@ export class RelayChannelProbeRepository {
         status: { in: ["queued", "running"] },
         ...(memberChannelId === undefined ? {} : { probeMemberChannelId: memberChannelId }),
       },
+    });
+  }
+
+  public findRunQueueIdentity(id: string) {
+    return prisma.relayChannelProbeRun.findUnique({
+      where: { id },
+      select: { relayChannelId: true, probeMemberChannelId: true },
     });
   }
 
@@ -127,12 +123,11 @@ export class RelayChannelProbeRepository {
     scope: "all" | "failed",
     memberChannelId?: string,
   ): Promise<{ count: number }> {
-    const statuses =
-      scope === "failed" ? ["failed", "timed_out", "cancelled"] : ["succeeded", "failed", "timed_out", "cancelled"];
+    const statuses = relayProbeHistoryTerminalStatuses[scope];
     return prisma.relayChannelProbeRun.deleteMany({
       where: {
         relayChannelId: channelId,
-        status: { in: statuses },
+        status: { in: [...statuses] },
         ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
       },
     });
@@ -244,6 +239,17 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeRun.updateMany({
       where: { id: runId, status: "running", leaseOwner: owner },
       data,
+    });
+  }
+
+  public listActiveRunMembers(channelId: string, memberChannelId?: string) {
+    return prisma.relayChannelProbeRun.findMany({
+      where: {
+        relayChannelId: channelId,
+        status: { in: ["queued", "running"] },
+        ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
+      },
+      select: { probeMemberChannelId: true },
     });
   }
 

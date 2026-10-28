@@ -1,3 +1,4 @@
+import { relayProbeAccountPublicSelect } from "./platform-relay-probe-account-read.repository";
 import { prisma } from "@/config/database";
 
 export class RelayChannelProbeAccountRepository {
@@ -10,6 +11,9 @@ export class RelayChannelProbeAccountRepository {
   }
   find(id: string) {
     return prisma.relayChannelProbeAccount.findUnique({ where: { id } });
+  }
+  findPublic(id: string) {
+    return prisma.relayChannelProbeAccount.findUnique({ where: { id }, select: relayProbeAccountPublicSelect });
   }
   create(data: Parameters<typeof prisma.relayChannelProbeAccount.create>[0]["data"]) {
     return prisma.relayChannelProbeAccount.create({ data });

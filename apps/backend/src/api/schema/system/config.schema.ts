@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AUTO_PROXY_POOL_CONFIG_POLICY } from "@/constant/auto-proxy-pool-policy";
+import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import type { MessageKey } from "@/locales";
 import { ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { TICKET_PRIORITIES, TICKET_TYPES } from "@/constant/ticket";
@@ -51,6 +53,7 @@ const callbackPathSchema = z
   });
 
 const urlOrEmptySchema = z.string().max(500).url().or(z.literal(""));
+const managedUrlSchema = urlOrEmptySchema.or(z.literal(SERVER_CONFIG_SECRET_PLACEHOLDER));
 
 export const setCaptchaConfigBodySchema = z
   .object({
@@ -72,10 +75,10 @@ const socialAuthGithubSchema = z.object({
   enabled: z.coerce.boolean(),
   clientId: z.string().max(200),
   clientSecret: z.string().max(500),
-  authorizeUrl: urlOrEmptySchema,
-  tokenUrl: urlOrEmptySchema,
-  userUrl: urlOrEmptySchema,
-  emailUrl: urlOrEmptySchema,
+  authorizeUrl: managedUrlSchema,
+  tokenUrl: managedUrlSchema,
+  userUrl: managedUrlSchema,
+  emailUrl: managedUrlSchema,
   scope: z.string().max(500),
   callbackPath: callbackPathSchema,
 });
@@ -84,16 +87,16 @@ const socialAuthWechatSchema = z.object({
   enabled: z.coerce.boolean(),
   appId: z.string().max(200),
   appSecret: z.string().max(500),
-  authorizeUrl: urlOrEmptySchema,
-  tokenUrl: urlOrEmptySchema,
-  userUrl: urlOrEmptySchema,
+  authorizeUrl: managedUrlSchema,
+  tokenUrl: managedUrlSchema,
+  userUrl: managedUrlSchema,
   scope: z.string().max(500),
   callbackPath: callbackPathSchema,
 });
 
 export const setSocialAuthConfigBodySchema = z
   .object({
-    frontendBaseUrl: urlOrEmptySchema,
+    frontendBaseUrl: managedUrlSchema,
     qrLoginEnabled: z.coerce.boolean(),
     stateTtlSeconds: z.coerce.number().int().min(60).max(3600),
     qrLoginTtlSeconds: z.coerce.number().int().min(60).max(1800),
@@ -252,9 +255,14 @@ export const setRelayProxyConfigBodySchema = z
       .max(500)
       .url()
       .or(z.literal(""))
-      .refine((value) => !value || /^(https?|socks(?:4|5|5h)?):\/\//i.test(value), {
-        message: "Proxy URL must use HTTP, HTTPS, SOCKS4, SOCKS5, or SOCKS5H",
-      }),
+      .or(z.literal(SERVER_CONFIG_SECRET_PLACEHOLDER))
+      .refine(
+        (value) =>
+          value === SERVER_CONFIG_SECRET_PLACEHOLDER || !value || /^(https?|socks(?:4|5|5h)?):\/\//i.test(value),
+        {
+          message: "Proxy URL must use HTTP, HTTPS, SOCKS4, SOCKS5, or SOCKS5H",
+        },
+      ),
   })
   .refine((value) => !value.enabled || value.url.length > 0, {
     message: "Proxy URL is required when upstream proxy is enabled",
@@ -262,7 +270,7 @@ export const setRelayProxyConfigBodySchema = z
   });
 
 export const setSiteConfigBodySchema = z.object({
-  backendPublicUrl: z.string().max(500).url().or(z.literal("")),
+  backendPublicUrl: managedUrlSchema,
 });
 
 export const setSmtpConfigBodySchema = z.object({
@@ -302,3 +310,18 @@ export const setIpBanConfigBodySchema = z.object({
   level3Threshold: z.coerce.number().int().min(0),
   level3Duration: z.coerce.number().int().min(-1),
 });
+
+export const setAutoProxyPoolConfigBodySchema = z
+  .object({
+    cacheHitRateMinSamples: z
+      .number()
+      .int()
+      .min(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.min)
+      .max(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.max),
+    cacheHitRateWindowHours: z
+      .number()
+      .int()
+      .min(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.min)
+      .max(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.max),
+  })
+  .strict();

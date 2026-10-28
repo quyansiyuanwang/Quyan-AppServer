@@ -1,5 +1,8 @@
+import { createIamCatalogControllerApi } from '@/client/services/iam-catalog-controller.gen'
 import { createRamControllerApi } from '@/client/services/ram-controller.gen'
 import type {
+  CreateRamAuthorizationDto,
+  CreateRamResourceGroupDto,
   AssumeRamRoleDto,
   AttachPolicyBodyDto,
   BindRamRoleToGroupDto,
@@ -10,12 +13,18 @@ import type {
   UpdateRamPolicyDto,
   UpdateRamRoleDto,
   UpdateRamUserDto,
+  ValidateIamPolicyDto,
+  SimulateIamPolicyDto,
+  SetDefaultRamPolicyVersionDto,
+  SetRamRoleTrustPolicyDto,
 } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
 import { useRequestStore } from '@/stores/request'
 import { cacheObject } from '@/utils/common'
 import { toServiceError } from '@/utils/error-utils'
 import { passwordEncryptionService } from '@/service/passwordEncryptionService'
+
+const catalogApi = cacheObject(() => createIamCatalogControllerApi(useRequestStore().getAxios()))
 
 const ramApi = cacheObject(() => createRamControllerApi(useRequestStore().getAxios()))
 
@@ -29,6 +38,12 @@ export class RamService {
       this.instance = new RamService()
     }
     return this.instance
+  }
+
+  async listUsersPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listUsersPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
   }
 
   async listUsers() {
@@ -66,6 +81,12 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listRolesPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listRolesPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listRoles() {
     const result = await ramApi.listRoles({})
     if (result?.code === CustomCode.OK && result.data) return result.data
@@ -84,9 +105,24 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async setRoleTrustPolicy(roleId: string, data: SetRamRoleTrustPolicyDto) {
+    const result = await ramApi.setRoleTrustPolicy({ path: { roleId }, body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async deleteRole(roleId: string) {
     const result = await ramApi.deleteRole({ path: { roleId } })
     if (result?.code === CustomCode.OK) return true
+    throw toServiceError(result)
+  }
+
+  async listRoleBindingsPage(
+    roleId: string,
+    query: { page: number; pageSize: number; userId?: string },
+  ) {
+    const result = await ramApi.listRoleBindingsPage({ path: { roleId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }
 
@@ -126,6 +162,12 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listSessionsPage(query: { page: number; pageSize: number; principalUserId?: string }) {
+    const result = await ramApi.listSessionsPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listSessions(principalUserId?: string) {
     const result = await ramApi.listSessions({ params: { principalUserId } })
     if (result?.code === CustomCode.OK && result.data) return result.data
@@ -139,6 +181,12 @@ export class RamService {
   }
 
   // ── 权限策略 ──
+
+  async listPoliciesPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listPoliciesPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
 
   async listPolicies() {
     const result = await ramApi.listPolicies({})
@@ -158,9 +206,59 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listPolicyVersions(policyId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listPolicyVersions({ path: { policyId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async setDefaultPolicyVersion(policyId: string, data: SetDefaultRamPolicyVersionDto) {
+    const result = await ramApi.setDefaultPolicyVersion({ path: { policyId }, body: data })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+
+  async getIamActions() {
+    const result = await ramApi.getIamActions({})
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async simulatePolicy(data: SimulateIamPolicyDto) {
+    const result = await ramApi.simulatePolicy({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async diagnosePolicy(documentText: string, policyKind?: 'identity' | 'trust') {
+    const result = await ramApi.diagnosePolicy({
+      body: { documentText, ...(policyKind ? { policyKind } : {}) },
+    })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async getPolicySchema(policyKind: 'identity' | 'trust' = 'identity') {
+    const result = await catalogApi.getPolicySchema({ params: { policyKind } })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async validatePolicy(document: ValidateIamPolicyDto['document']) {
+    const result = await ramApi.validatePolicy({ body: { document } })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async deletePolicy(policyId: string) {
     const result = await ramApi.deletePolicy({ path: { policyId } })
     if (result?.code === CustomCode.OK) return true
+    throw toServiceError(result)
+  }
+
+  async listPolicyAttachmentsPage(policyId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listPolicyAttachmentsPage({ path: { policyId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }
 
@@ -182,10 +280,62 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listAuthorizationPage(query: {
+    page: number
+    pageSize: number
+    principalType?: string
+    principalId?: string
+  }) {
+    const result = await ramApi.listAuthorizationPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async createAuthorization(data: CreateRamAuthorizationDto) {
+    const result = await ramApi.createAuthorization({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async deleteAuthorization(authorizationId: string) {
+    const result = await ramApi.deleteAuthorization({ path: { authorizationId } })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+  async listResourceGroupPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listResourceGroupPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async createResourceGroup(data: CreateRamResourceGroupDto) {
+    const result = await ramApi.createResourceGroup({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async listResourceGroupMemberPage(groupId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listResourceGroupMemberPage({ path: { groupId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async addResourceGroupMember(groupId: string, resourceArn: string) {
+    const result = await ramApi.addResourceGroupMember({ path: { groupId }, body: { resourceArn } })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+  async removeResourceGroupMember(groupId: string, memberId: string) {
+    const result = await ramApi.removeResourceGroupMember({ path: { groupId, memberId } })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+
   // ── 授权概览 ──
 
   async getUserEffectivePermissions(userId: string) {
     const result = await ramApi.getUserEffectivePermissions({ params: { userId } })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async listVisibleGroupPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listVisibleGroupPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

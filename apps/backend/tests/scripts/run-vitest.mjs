@@ -1,12 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { canReusePrismaClient } from "./prisma-client-readiness.mjs";
 
 const namespace = randomBytes(12).toString("hex");
 const vitestArgs = process.argv.slice(2);
 // Some pure services import Prisma-generated types without opening a database
-// connection. Generate once for every invocation so a clean CI checkout can
-// load those modules; database bootstrap remains database-project-only.
-const needsPrismaGenerate = true;
+// connection. Reuse a matching generated client to avoid rewriting a Windows
+// engine DLL loaded by the dev server. Changed schemas, CLI versions or a clean
+// checkout still generate; database bootstrap remains database-project-only.
+const needsPrismaGenerate = !canReusePrismaClient(process.cwd());
 const spawnOptions = {
   cwd: process.cwd(),
   env: { ...process.env, APPSERVER_TEST_RUN_NAMESPACE: namespace },

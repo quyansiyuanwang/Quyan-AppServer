@@ -220,9 +220,15 @@
             </template>
             <template v-else-if="columnKey === 'token'">
               <div class="token-cell">
-                <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
+                <el-link
+                  v-if="row.token"
+                  type="primary"
+                  class="token-link"
+                  @click="state.copyToken(row.token)"
+                >
                   {{ maskSecret(row.token) }}
                 </el-link>
+                <span v-else>{{ i18ns.t('relay.tokenCredentialUnavailable') }}</span>
               </div>
             </template>
             <template v-else-if="columnKey === 'routing'">
@@ -485,9 +491,15 @@
         <el-table-column v-if="false" :label="i18ns.t('relay.token')" min-width="180">
           <template #default="{ row }">
             <div class="token-cell">
-              <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
+              <el-link
+                v-if="row.token"
+                type="primary"
+                class="token-link"
+                @click="state.copyToken(row.token)"
+              >
                 {{ maskSecret(row.token) }}
               </el-link>
+              <span v-else>{{ i18ns.t('relay.tokenCredentialUnavailable') }}</span>
             </div>
           </template>
         </el-table-column>

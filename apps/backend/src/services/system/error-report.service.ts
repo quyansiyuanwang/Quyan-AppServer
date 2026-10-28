@@ -160,8 +160,8 @@ export class ErrorReportService {
     return this.repository.updateErrorGroupStatus(id, status);
   }
 
-  public getOccurrences(groupId: string, page: number, pageSize: number) {
-    return this.repository.listErrorOccurrences(groupId, page, pageSize);
+  public getOccurrences(groupId: string, page: number, pageSize: number, activeOnly = false) {
+    return this.repository.listErrorOccurrences(groupId, page, pageSize, activeOnly);
   }
 
   public async cleanupExpired(): Promise<number> {

@@ -1,10 +1,23 @@
+import {
+  runMonthlyPassPurchase,
+  type MonthlyPassPurchaseGuard,
+  type MonthlyPassPurchaseCharge,
+} from "./monthly-pass-purchase";
+import {
+  MONTHLY_PASS_ASSIGNMENT_USER_SELECT,
+  runMonthlyPassAssignmentCreate,
+  type MonthlyPassAssignGuard,
+} from "./monthly-pass-assign";
+import { summarizeMonthlyPassWindowUsage } from "./monthly-pass-usage-summary";
+import { runMonthlyPassAssignmentWrite, type MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
+import { iamAccountDenied } from "../users/iam-account-principal";
+import { runMonthlyPassTemplateWrite, type MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import { prisma } from "@/config/database";
 import { BadRequestError } from "@/util/errors";
 import type { MonthlyPassTemplate, MonthlyPassUsage, Prisma, UserMonthlyPass } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import type {
   ActiveMonthlyPassCandidate,
-  MonthlyPassQuotaUnit,
   MonthlyPassQuotaWindowInput,
   MonthlyPassTemplateWithQuotaWindows,
   MonthlyPassUsageSummary,
@@ -23,11 +36,6 @@ export type {
   MonthlyPassTemplateWithQuotaWindows,
   MonthlyPassUsageWithDetails,
 } from "./monthly-pass.store";
-
-const getUsageSummaryPassHoursKey = (passId: string, quotaWindowHours: number): string =>
-  `${passId}:${quotaWindowHours}`;
-const getUsageSummaryRuleKey = (passId: string, quotaUnit: MonthlyPassQuotaUnit, quotaWindowHours: number): string =>
-  `${passId}:${quotaWindowHours}:${quotaUnit}`;
 
 const monthlyPassTemplateInclude = {
   quotaWindows: {
@@ -110,8 +118,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async createTemplate(
     data: Prisma.MonthlyPassTemplateUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassTemplateWrite(guard, undefined, data, async (tx) => {
       const created = await tx.monthlyPassTemplate.create({ data });
 
       if (quotaWindows.length > 0)
@@ -133,8 +142,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     id: string,
     data: Prisma.MonthlyPassTemplateUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows> {
-    return prisma.$transaction(async (tx) => {
+    if (guard && guard.operation !== "UpdateTemplate" && quotaWindows !== undefined) throw iamAccountDenied();
+    return runMonthlyPassTemplateWrite(guard, id, data, async (tx) => {
       await tx.monthlyPassTemplate.update({ where: { id }, data });
 
       if (quotaWindows !== undefined) {
@@ -155,11 +166,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
-  async softDeleteTemplate(id: string): Promise<MonthlyPassTemplate> {
-    return prisma.monthlyPassTemplate.update({
-      where: { id },
-      data: { status: MANAGED_STATUS.DELETED },
-    });
+  async softDeleteTemplate(id: string, guard?: MonthlyPassTemplateWriteGuard): Promise<MonthlyPassTemplate> {
+    const data = { status: MANAGED_STATUS.DELETED };
+    return runMonthlyPassTemplateWrite(guard, id, data, (tx) => tx.monthlyPassTemplate.update({ where: { id }, data }));
   }
 
   async listPublishedTemplates(): Promise<MonthlyPassTemplateWithQuotaWindows[]> {
@@ -192,6 +201,12 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     return { total, records };
   }
 
+  async findAssignmentUser(id: string) {
+    return prisma.user.findUnique({ where: { id }, select: MONTHLY_PASS_ASSIGNMENT_USER_SELECT });
+  }
+  async findUserPassIdentity(id: string) {
+    return prisma.userMonthlyPass.findUnique({ where: { id }, select: { id: true, userId: true, status: true } });
+  }
   async findUserPassById(id: string): Promise<UserMonthlyPassWithTemplate | null> {
     return prisma.userMonthlyPass.findUnique({
       where: { id },
@@ -199,6 +214,13 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
+  async findLatestUserPassIdentity(userId: string, templateId: string) {
+    return prisma.userMonthlyPass.findFirst({
+      where: { userId, templateId, status: { gte: 0 } },
+      select: { id: true, userId: true, status: true },
+      orderBy: [{ endAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
+    });
+  }
   async findLatestUserPassByUserAndTemplate(
     userId: string,
     templateId: string,
@@ -210,7 +232,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
         status: { gte: MANAGED_STATUS.DISABLED },
       },
       include: userMonthlyPassInclude,
-      orderBy: [{ endAt: "desc" }, { createTime: "desc" }],
+      orderBy: [{ endAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
     });
   }
 
@@ -228,8 +250,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async createUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
+    guard?: MonthlyPassAssignGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassAssignmentCreate(guard, data, async (tx) => {
       const created = await tx.userMonthlyPass.create({ data });
 
       if (quotaWindows.length > 0)
@@ -250,30 +273,33 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
-    purchase: {
-      userId: string;
-      purchaseAmount: number;
-      templateName: string;
-      templateId: string;
-      limit?: { maximum: number; windowStart: Date };
-    },
+    purchase: MonthlyPassPurchaseCharge,
+    guard?: MonthlyPassPurchaseGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassPurchase(guard, data, quotaWindows, purchase, async (tx) => {
       await tx.$queryRaw`SELECT id FROM balance_accounts WHERE userId = ${purchase.userId} FOR UPDATE`;
 
-      if (purchase.limit) {
+      const limit = guard
+        ? guard.template.purchaseLimitPerUser != null && guard.template.purchaseLimitWindowDays != null
+          ? {
+              maximum: guard.template.purchaseLimitPerUser,
+              windowStart: new Date(Date.now() - guard.template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
+            }
+          : undefined
+        : purchase.limit;
+      if (limit) {
         const currentCount = await tx.userMonthlyPass.count({
           where: {
             userId: purchase.userId,
             templateId: purchase.templateId,
             status: { gte: MANAGED_STATUS.DISABLED },
-            createTime: { gte: purchase.limit.windowStart },
+            createTime: { gte: limit.windowStart },
           },
         });
-        if (currentCount >= purchase.limit.maximum)
-          throw new BadRequestError(`purchase limit exceeded: at most ${purchase.limit.maximum} claim(s)`, undefined, {
+        if (currentCount >= limit.maximum)
+          throw new BadRequestError(`purchase limit exceeded: at most ${limit.maximum} claim(s)`, undefined, {
             messageKey: "monthlyPass.purchaseLimitExceededShort",
-            messageParams: { limit: purchase.limit.maximum },
+            messageParams: { limit: limit.maximum },
           });
       }
 
@@ -300,8 +326,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     id: string,
     data: Prisma.UserMonthlyPassUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassAssignmentWriteGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    if (guard && !["UpdateUserPass", "AssignUserPassBatch"].includes(guard.operation)) throw iamAccountDenied();
+    return runMonthlyPassAssignmentWrite(guard, id, data, async (tx) => {
       await tx.userMonthlyPass.update({ where: { id }, data });
 
       if (quotaWindows !== undefined) {
@@ -322,11 +350,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
-  async softDeleteUserPass(id: string): Promise<UserMonthlyPass> {
-    return prisma.userMonthlyPass.update({
-      where: { id },
-      data: { status: MANAGED_STATUS.DELETED },
-    });
+  async softDeleteUserPass(id: string, guard?: MonthlyPassAssignmentWriteGuard): Promise<UserMonthlyPass> {
+    if (guard && guard.operation !== "DeleteUserPass") throw iamAccountDenied();
+    const data = { status: MANAGED_STATUS.DELETED };
+    return runMonthlyPassAssignmentWrite(guard, id, data, (tx) => tx.userMonthlyPass.update({ where: { id }, data }));
   }
 
   async listUserPasses(
@@ -396,48 +423,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     quotaWindowRules: MonthlyPassUsageSummaryRule[],
     endAt: Date,
   ): Promise<Record<string, MonthlyPassUsageSummary>> {
-    if (quotaWindowRules.length === 0) return {};
-
-    const uniquePassIds = [...new Set(quotaWindowRules.map((item) => item.passId))];
-    const uniqueWindowHours = [...new Set(quotaWindowRules.map((item) => Number(item.quotaWindowHours)))];
-    const summaryByPassHoursKey: Record<string, MonthlyPassUsageSummary> = {};
-
-    await Promise.all(
-      uniqueWindowHours.map(async (windowHours) => {
-        const startAt = new Date(endAt.getTime() - windowHours * 60 * 60 * 1000);
-        const grouped = await prisma.monthlyPassUsage.groupBy({
-          by: ["userMonthlyPassId"],
-          where: {
-            status: MANAGED_STATUS.ENABLED,
-            userMonthlyPassId: { in: uniquePassIds },
-            createTime: {
-              gte: startAt,
-              lte: endAt,
-            },
-          },
-          _sum: {
-            coveredAmount: true,
-            coveredRequests: true,
-            coveredTokens: true,
-          },
-        });
-
-        for (const item of grouped)
-          summaryByPassHoursKey[getUsageSummaryPassHoursKey(item.userMonthlyPassId, windowHours)] = {
-            coveredAmount: Number(item._sum.coveredAmount || 0),
-            coveredRequests: Number(item._sum.coveredRequests || 0),
-            coveredTokens: Number(item._sum.coveredTokens || 0),
-          };
-      }),
-    );
-
-    const result: Record<string, MonthlyPassUsageSummary> = {};
-    for (const rule of quotaWindowRules) {
-      const summary = summaryByPassHoursKey[getUsageSummaryPassHoursKey(rule.passId, Number(rule.quotaWindowHours))];
-      if (summary) result[getUsageSummaryRuleKey(rule.passId, rule.quotaUnit, Number(rule.quotaWindowHours))] = summary;
-    }
-
-    return result;
+    return summarizeMonthlyPassWindowUsage(prisma, quotaWindowRules, endAt);
   }
 
   async createUsageRecord(data: Prisma.MonthlyPassUsageUncheckedCreateInput): Promise<MonthlyPassUsage> {

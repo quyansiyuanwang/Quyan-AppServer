@@ -46,6 +46,15 @@
             </template>
           </el-table-column>
         </el-table>
+        <RamIamPageControls
+          :page="page"
+          :page-size="pageSize"
+          :has-next="hasNext"
+          :loading="loading"
+          @previous="previousKeyPage"
+          @next="nextKeyPage"
+          @size="changeKeyPageSize"
+        />
       </el-card>
     </div>
 
@@ -97,6 +106,15 @@
           </div>
           <el-empty v-else />
         </el-skeleton>
+        <RamIamPageControls
+          :page="page"
+          :page-size="pageSize"
+          :has-next="hasNext"
+          :loading="loading"
+          @previous="previousKeyPage"
+          @next="nextKeyPage"
+          @size="changeKeyPageSize"
+        />
       </el-card>
     </div>
 
@@ -178,11 +196,13 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { AccessKeyService } from '@/service/accesskeyService'
 import type { AccessKeyDto } from '@/client/types.gen'
+import { useAccessKeyList } from './access-key-management/useAccessKeyList'
+import RamIamPageControls from '@/views/management/ram-management/components/RamIamPageControls.vue'
 import TwoFactorGuardedVerificationField from '@/components/auth/TwoFactorGuardedVerificationField.vue'
 
 const { t } = i18ns
-const accessKeys = ref<AccessKeyDto[]>([])
-const loading = ref(false)
+const keyPage = useAccessKeyList()
+const { items: accessKeys, loading, page, pageSize, hasNext } = keyPage
 const showCreateDialog = ref(false)
 const showKeyDialog = ref(false)
 const createdKey = ref('')
@@ -200,17 +220,16 @@ const stopTimer = () => {
   }
 }
 
-const loadAccessKeys = async () => {
-  loading.value = true
-  try {
-    const res = await accesskeyService.getAccessKeys()
-    accessKeys.value = res.data
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, t('accesskey.loadFailed')))
-    throw error
-  } finally {
-    loading.value = false
-  }
+const runListRequest = async (operation: () => Promise<boolean>) => {
+  await operation()
+  if (keyPage.failed.value) ElMessage.error(t('accesskey.loadFailed'))
+}
+const loadAccessKeys = () => runListRequest(() => keyPage.load())
+const previousKeyPage = () => runListRequest(keyPage.previous)
+const nextKeyPage = () => runListRequest(keyPage.next)
+const changeKeyPageSize = (size: number) => {
+  keyPage.pageSize.value = size
+  return runListRequest(() => keyPage.load(1))
 }
 
 const loadTwoFactorStatus = async () => {
@@ -277,7 +296,7 @@ const handleCreate = async () => {
     showCreateDialog.value = false
     showKeyDialog.value = true
     createForm.value = { name: '', expiresAt: null, verificationCode: '' }
-    loadAccessKeys()
+    void runListRequest(() => keyPage.load(1))
   } catch (error: any) {
     if (error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
     ElMessage.error(getErrorMessage(error, t('accesskey.createFailed')))
@@ -311,6 +330,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  keyPage.clear()
   stopTimer()
 })
 

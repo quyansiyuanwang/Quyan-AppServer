@@ -8,6 +8,8 @@ export interface GroupListFilters {
   keyword?: string;
   hasRamPermission?: boolean;
   minLevel?: number;
+  accountOwnerId?: string;
+  recoveryGroupId?: string;
 }
 
 export interface PaginatedGroupListFilters extends GroupListFilters {
@@ -18,7 +20,7 @@ export interface PaginatedGroupListFilters extends GroupListFilters {
 export interface GroupQueryStore {
   findById(id: string): Promise<Group | null>;
   findByIds(ids: string[]): Promise<Group[]>;
-  findByIdWithUserCount(id: string): Promise<GroupWithUserCount | null>;
+  findByIdWithUserCount(id: string, accountOwnerId?: string): Promise<GroupWithUserCount | null>;
   findByUsername(username: string): Promise<Group | null>;
   findActiveByUsername(username: string): Promise<Group | null>;
   findDefaultUserGroup(): Promise<Group | null>;
@@ -30,10 +32,21 @@ export interface GroupQueryStore {
   countAll(): Promise<number>;
 }
 
+/** Server-owned state shared by diff authorization and the conditional write. */
+export type GroupPermissionSnapshot = Pick<
+  Group,
+  "id" | "updateTime" | "accountOwnerId" | "status" | "level" | "username" | "name" | "permissions"
+>;
+
 export interface GroupMutationStore {
   createWithUserCount(data: Prisma.GroupUncheckedCreateInput): Promise<GroupWithUserCount>;
   updateById(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<Group>;
-  updateWithUserCount(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<GroupWithUserCount>;
+  updateWithUserCount(
+    id: string,
+    data: Prisma.GroupUncheckedUpdateInput,
+    accountOwnerId?: string,
+  ): Promise<GroupWithUserCount>;
+  compareAndSetPermissions(expected: GroupPermissionSnapshot, permissions: string[]): Promise<boolean>;
   softDelete(id: string): Promise<Group>;
 }
 

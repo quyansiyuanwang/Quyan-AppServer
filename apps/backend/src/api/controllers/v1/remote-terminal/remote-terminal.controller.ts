@@ -35,7 +35,13 @@ import { Permission } from "@/constant/permission";
 import { validateBody, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalService } from "@/services/remote-terminal/remote-terminal.service";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  remoteTerminalQueryDeviceResourceResolver,
+  remoteTerminalBodyDeviceResourceResolver,
+} from "@/iam/request/remote-terminal-resource-resolvers";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 
 function getFirstHeaderValue(header: string | string[] | undefined): string | undefined {
@@ -103,9 +109,15 @@ export class RemoteTerminalController extends Controller {
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListDevices",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listDevices(@Request() request: TypedRequest): Promise<RemoteTerminalDeviceListDto> {
-    return this.remoteTerminalService.listDevicesForUser(request.user!.userId);
+    return this.remoteTerminalService.listDevicesForUser(request.user!.userId, request);
   }
 
   @Post("devices/probe")
@@ -114,27 +126,43 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ProbeDevices",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async probeDevices(@Request() request: TypedRequest): Promise<RemoteTerminalDeviceProbeResponseDto> {
-    return this.remoteTerminalService.probeDevicesForUser(request.user!.userId);
+    return this.remoteTerminalService.probeDevicesForUser(request.user!.userId, request);
   }
 
   @Get("sessions")
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListSessions",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listSessions(@Request() request: TypedRequest): Promise<RemoteTerminalSessionListDto> {
-    return this.remoteTerminalService.listSessionsForUser(request.user!.userId);
+    return this.remoteTerminalService.listSessionsForUser(request.user!.userId, request);
   }
 
   @Get("usage")
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_READ)
+  @CheckPermission(Permission.REMOTE_TERMINAL_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:GetUsageSummary",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   public async getUsageSummary(@Request() request: TypedRequest): Promise<RemoteTerminalUsageSummaryDto> {
-    return this.remoteTerminalService.getUsageSummaryForUser(request.user!.userId);
+    return this.remoteTerminalService.getUsageSummaryForUser(request.user!.userId, request);
   }
 
   @Get("directories")
@@ -142,13 +170,17 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @Middlewares(validateQuery(browseRemoteTerminalDirectoriesQuerySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_READ)
+  @CheckPermission(Permission.REMOTE_TERMINAL_DEVICE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:BrowseDirectories",
+    resourceKind: "single-resource",
+    resource: remoteTerminalQueryDeviceResourceResolver,
+  })
   public async browseDirectories(
     @Query() deviceId: string,
     @Query() path: string | undefined,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalDirectoryBrowseDto> {
-    return this.remoteTerminalService.browseDirectoriesForUser(request.user!.userId, deviceId, path);
+    return this.remoteTerminalService.browseDirectoriesForUser(request.user!.userId, deviceId, path, request);
   }
 
   @Get("preferences")
@@ -156,12 +188,16 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @Middlewares(validateQuery(remoteTerminalAgentPreferencesQuerySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_READ)
+  @CheckPermission(Permission.REMOTE_TERMINAL_DEVICE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:GetAgentPreferences",
+    resourceKind: "single-resource",
+    resource: remoteTerminalQueryDeviceResourceResolver,
+  })
   public async getAgentPreferences(
     @Query() deviceId: string,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    return this.remoteTerminalService.getAgentPreferencesForUser(request.user!.userId, deviceId);
+    return this.remoteTerminalService.getAgentPreferencesForUser(request.user!.userId, deviceId, request);
   }
 
   @Put("preferences")
@@ -170,12 +206,16 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(updateRemoteTerminalAgentPreferencesBodySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE)
+  @CheckPermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:UpdateAgentPreferences",
+    resourceKind: "single-resource",
+    resource: remoteTerminalBodyDeviceResourceResolver,
+  })
   public async updateAgentPreferences(
     @Body() body: UpdateRemoteTerminalAgentPreferencesRequest,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    return this.remoteTerminalService.updateAgentPreferencesForUser(request.user!.userId, body);
+    return this.remoteTerminalService.updateAgentPreferencesForUser(request.user!.userId, body, request);
   }
 
   @Post("sessions")
@@ -184,7 +224,11 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createRemoteTerminalSessionBodySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_CREATE)
+  @CheckPermission(Permission.REMOTE_TERMINAL_SESSION_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:CreateSession",
+    resourceKind: "single-resource",
+    resource: remoteTerminalBodyDeviceResourceResolver,
+  })
   public async createSession(
     @Body() body: CreateRemoteTerminalSessionRequest,
     @Request() request: TypedRequest,
@@ -194,6 +238,7 @@ export class RemoteTerminalController extends Controller {
       request.user!.userId,
       body,
       getRemoteTerminalWebSocketBaseUrl(request),
+      request,
     );
   }
 }

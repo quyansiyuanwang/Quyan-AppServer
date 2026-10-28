@@ -18,7 +18,20 @@ export interface CreateGiftCodeParams {
   expiresAt?: Date;
 }
 
+export type BalanceGiftCodeTarget = Pick<BalanceGiftCode, "id" | "createdBy" | "createTime" | "updateTime">;
+
 export interface BalanceTransferStore {
+  findGiftCodeTarget(id: string, senderId: string, accountOwnerId: string): Promise<BalanceGiftCodeTarget | null>;
+  scanGiftCodeTargets(
+    senderId: string,
+    accountOwnerId: string,
+    after?: BalanceGiftCodeTarget,
+  ): Promise<BalanceGiftCodeTarget[]>;
+  readGiftCodeTargets(
+    senderId: string,
+    accountOwnerId: string,
+    targets: readonly BalanceGiftCodeTarget[],
+  ): Promise<BalanceGiftCode[]>;
   createGiftCode(params: CreateGiftCodeParams): Promise<{ giftCode: BalanceGiftCode; balance: number }>;
   listGiftCodes(senderId: string, skip: number, take: number): Promise<{ total: number; records: BalanceGiftCode[] }>;
   redeemGiftCode(code: string, userId: string): Promise<{ balance: number; amount: number }>;

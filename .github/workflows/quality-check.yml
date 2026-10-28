@@ -83,6 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -100,6 +102,10 @@ jobs:
           pnpm --filter @quyan/backend run openapi:generate
           pnpm --filter @quyan/backend run db:generate
           pnpm --filter @quyan/backend run check:explicit-deps
+      - name: Check IAM route coverage regression
+        env:
+          IAM_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: pnpm --filter @quyan/backend run iam:routes:audit -- --check --base-ref "$IAM_BASE_REF"
       - name: Check backend in parallel
         run: pnpm run check:backend
 

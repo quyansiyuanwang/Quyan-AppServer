@@ -1,3 +1,6 @@
+import { PlatformManagementReadIamService } from "@/services/system/platform-management-read-iam.service";
+import { platformSystemArn } from "@/iam/resources/platform-system-resources";
+import type { TypedRequest } from "@/types/express";
 import { TrackEventRepository } from "@/store/analytics/track-event.repository";
 import type {
   TrackEventInput,
@@ -10,7 +13,10 @@ import type {
 class TrackService {
   private static instance: TrackService;
 
-  private constructor(private readonly repository: TrackEventRepository = TrackEventRepository.getInstance()) {}
+  private constructor(
+    private readonly repository: TrackEventRepository = TrackEventRepository.getInstance(),
+    private readonly iamReads = PlatformManagementReadIamService.getInstance(),
+  ) {}
 
   public static getInstance(): TrackService {
     if (!TrackService.instance) TrackService.instance = new TrackService();
@@ -23,6 +29,22 @@ class TrackService {
     await this.repository.batchCreate(valid, ip);
   }
 
+  async getManagedStats(query: TrackStatsQuery, request: TypedRequest): Promise<TrackStatsResponse> {
+    return this.iamReads.read(
+      "quyan:analytics:GetTrackingStatistics",
+      platformSystemArn("tracking-stats"),
+      request,
+      () => this.getStats(query),
+    );
+  }
+  async getManagedFunnel(query: FunnelQuery, request: TypedRequest): Promise<FunnelResponse> {
+    return this.iamReads.read(
+      "quyan:analytics:GetFunnelStatistics",
+      platformSystemArn("tracking-funnel"),
+      request,
+      () => this.getFunnel(query),
+    );
+  }
   async getStats(query: TrackStatsQuery): Promise<TrackStatsResponse> {
     return this.repository.getStats(query);
   }

@@ -1,6 +1,6 @@
 import { ArticleRepository } from "@/store/content/article.repository";
 import { UserRepository } from "@/store/users/user.repository";
-import type { ArticleStore } from "@/store/content/article.store";
+import type { ArticleQueryFilters, ArticleStore } from "@/store/content/article.store";
 import type { UserStore } from "@/store/users/user.store";
 import { PermissionService } from "@/services/users/permission.service";
 import BusinessLogService from "@/services/system/businesslog.service";
@@ -17,6 +17,16 @@ import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { Permission } from "@/constant/permission";
 import { extractClientIp } from "@/util/ip-extractor";
 import type { Request } from "express";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
+import { env } from "@/config/env";
+import { ArticleManagementService } from "./article-management.service";
+import {
+  assertArticlePublicAccess,
+  normalizeArticleCreate,
+  normalizeArticleListFilters,
+  normalizeArticleUpdate,
+} from "./article-validation";
 
 export class ArticleService {
   private static instance: ArticleService;
@@ -40,15 +50,12 @@ export class ArticleService {
   }
 
   async createArticle(dto: CreateArticleDto, authorId: string, request: Request): Promise<ArticleDto> {
-    const existing = await this.repository.findBySlug(dto.slug);
-    if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
-
-    this.validatePublicAccess(dto.isPublic ?? false, dto.requirePermission);
-
-    const article = await this.repository.create({
-      ...dto,
-      authorId,
-    });
+    const changes = normalizeArticleCreate(dto);
+    assertArticlePublicAccess(changes.isPublic ?? false, changes.requirePermission);
+    const article =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().create(changes, authorId, request as TypedRequest)
+        : await this.createLegacyArticle(changes, authorId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_CREATE,
@@ -68,25 +75,11 @@ export class ArticleService {
   }
 
   async updateArticle(id: string, dto: UpdateArticleDto, userId: string, request: Request): Promise<ArticleDto> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.authorId !== userId)
-      throw new ForbiddenError("You can only update your own articles", undefined, {
-        messageKey: "article.updateOwnOnly",
-      });
-
-    if (dto.slug && dto.slug !== article.slug) {
-      const existing = await this.repository.findBySlug(dto.slug);
-      if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
-    }
-
-    this.validatePublicAccess(
-      dto.isPublic ?? article.isPublic,
-      dto.requirePermission ?? article.requirePermission ?? undefined,
-    );
-
-    const updated = await this.repository.update(id, dto);
+    if (env.security.iamAuthorizationMode === "enforce") dto = normalizeArticleUpdate(dto);
+    const updated =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().update(id, dto, userId, request as TypedRequest)
+        : await this.updateLegacyArticle(id, dto, userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UPDATE,
@@ -106,15 +99,10 @@ export class ArticleService {
   }
 
   async deleteArticle(id: string, userId: string, request: Request): Promise<void> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.authorId !== userId)
-      throw new ForbiddenError("You can only delete your own articles", undefined, {
-        messageKey: "article.deleteOwnOnly",
-      });
-
-    await this.repository.delete(id);
+    const article =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().delete(id, userId, request as TypedRequest)
+        : await this.deleteLegacyArticle(id, userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_DELETE,
@@ -130,17 +118,47 @@ export class ArticleService {
     });
   }
 
-  async publishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
+  private async createLegacyArticle(dto: CreateArticleDto, authorId: string) {
+    const existing = await this.repository.findBySlug(dto.slug);
+    if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+    return this.repository.create({ ...dto, authorId });
+  }
+
+  private async updateLegacyArticle(id: string, dto: UpdateArticleDto, userId: string) {
     const article = await this.repository.findById(id);
     if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
-    if (article.publishStatus === "published")
-      throw new BadRequestError("Article is already published", undefined, { messageKey: "article.alreadyPublished" });
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only update your own articles", undefined, {
+        messageKey: "article.updateOwnOnly",
+      });
 
-    const updated = await this.repository.update(id, {
-      publishStatus: "published",
-      publishedAt: new Date(),
-    });
+    if (dto.slug && dto.slug !== article.slug) {
+      const existing = await this.repository.findBySlug(dto.slug);
+      if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+    }
+
+    assertArticlePublicAccess(
+      dto.isPublic ?? article.isPublic,
+      dto.requirePermission ?? article.requirePermission ?? undefined,
+    );
+
+    return this.repository.update(id, dto);
+  }
+  private async deleteLegacyArticle(id: string, userId: string) {
+    const article = await this.repository.findById(id);
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
+
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only delete your own articles", undefined, {
+        messageKey: "article.deleteOwnOnly",
+      });
+
+    return this.repository.delete(id);
+  }
+
+  async publishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
+    const updated = await this.transitionPublication(id, userId, request, "published");
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_PUBLISH,
@@ -159,15 +177,7 @@ export class ArticleService {
   }
 
   async unpublishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.publishStatus === "draft")
-      throw new BadRequestError("Article is already a draft", undefined, { messageKey: "article.alreadyDraft" });
-
-    const updated = await this.repository.update(id, {
-      publishStatus: "draft",
-    });
+    const updated = await this.transitionPublication(id, userId, request, "draft");
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UNPUBLISH,
@@ -183,6 +193,21 @@ export class ArticleService {
     });
 
     return this.toArticleDto(updated);
+  }
+
+  private async transitionPublication(id: string, userId: string, request: Request, next: "draft" | "published") {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return ArticleManagementService.getInstance().transition(id, userId, request as TypedRequest, next);
+    const article = await this.repository.findById(id);
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
+    if (article.publishStatus === next)
+      throw new BadRequestError("Article publication state is unchanged", undefined, {
+        messageKey: next === "published" ? "article.alreadyPublished" : "article.alreadyDraft",
+      });
+    return this.repository.update(id, {
+      publishStatus: next,
+      ...(next === "published" ? { publishedAt: new Date() } : {}),
+    });
   }
 
   async getArticle(id: string, userId: string): Promise<ArticleDto> {
@@ -243,48 +268,134 @@ export class ArticleService {
 
   async listArticles(
     userId: string,
-    filters?: {
-      category?: string;
-      authorId?: string;
-    },
+    filters?: Pick<ArticleQueryFilters, "category" | "authorId">,
+    request?: Request,
   ): Promise<ArticleListItemDto[]> {
-    // Admin users can see all articles (draft + published)
-    const articles = await this.repository.findAll(filters);
-
-    // Filter by permissions
-    const accessible = await Promise.all(
-      articles.map(async (article) => {
-        try {
-          await this.checkArticleAccess(article, userId);
-          return article;
-        } catch {
-          return null;
-        }
-      }),
+    const normalized = normalizeArticleListFilters(filters);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article list request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, normalized);
+      const accessible = await this.filterArticleRequirements(rows, userId);
+      return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+    }
+    const permission = await this.permissionService.checkUserPermissions(userId, [Permission.ARTICLE_READ], {
+      assumedRoleSessionId: (request as TypedRequest | undefined)?.user?.roleSessionId,
+    });
+    if (!permission.hasPermission)
+      throw new ForbiddenError("Legacy article listing denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const articles = await this.repository.findAll(normalized);
+    const accessible = (
+      await Promise.all(
+        articles.map(async (article) => {
+          try {
+            await this.checkArticleAccess(article, userId);
+            return article;
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((row): row is NonNullable<typeof row> => row !== null);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const iamRows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          normalized,
+          new Set(accessible.map((row) => row.id)),
+        );
+        const iamAccessible = await this.filterArticleRequirements(iamRows, userId);
+        const ids = new Set(iamAccessible.map((row) => row.id));
+        if (ids.size !== accessible.length || accessible.some((row) => !ids.has(row.id)))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM article list differs from legacy", {
+            action: "quyan:article:ListArticles",
+            legacyCount: accessible.length,
+            iamCount: ids.size,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM article list shadow evaluation unavailable",
+          {
+            action: "quyan:article:ListArticles",
+            reason: "iam-list-unavailable",
+          },
+        );
+      }
+    }
+    return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+  }
+  private async filterArticleRequirements<T extends { isPublic: boolean; requirePermission: string | null }>(
+    rows: readonly T[],
+    userId: string,
+  ): Promise<T[]> {
+    const decisions = await Promise.all(
+      rows.map(
+        async (row) =>
+          row.isPublic ||
+          !row.requirePermission ||
+          (await this.permissionService.hasPermission(userId, row.requirePermission as Permission)),
+      ),
     );
-
-    return Promise.all(accessible.filter((a) => a !== null).map((a) => this.toArticleListItemDto(a!)));
+    return rows.filter((_, index) => decisions[index]);
   }
 
-  async listPublishedArticles(userId: string): Promise<ArticleListItemDto[]> {
-    // Only show published articles
-    const articles = await this.repository.findAll({
-      publishStatus: "published",
-    });
+  async listPublishedArticles(userId: string, request?: Request): Promise<ArticleListItemDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article list request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, {
+        publishStatus: "published",
+      });
+      const accessible = await this.filterArticleRequirements(rows, userId);
+      return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+    }
 
-    // Filter by permissions
-    const accessible = await Promise.all(
-      articles.map(async (article) => {
-        try {
-          await this.checkArticleAccess(article, userId);
-          return article;
-        } catch {
-          return null;
-        }
-      }),
-    );
+    const articles = await this.repository.findAll({ publishStatus: "published" });
+    const accessible = (
+      await Promise.all(
+        articles.map(async (article) => {
+          try {
+            await this.checkArticleAccess(article, userId);
+            return article;
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((article): article is NonNullable<typeof article> => article !== null);
 
-    return Promise.all(accessible.filter((a) => a !== null).map((a) => this.toArticleListItemDto(a!)));
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const iamRows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          { publishStatus: "published" },
+          new Set(accessible.map((article) => article.id)),
+        );
+        const iamAccessible = await this.filterArticleRequirements(iamRows, userId);
+        const iamIds = new Set(iamAccessible.map((article) => article.id));
+        if (iamIds.size !== accessible.length || accessible.some((article) => !iamIds.has(article.id)))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM published article list differs", {
+            action: "quyan:article:ListArticles",
+            legacyCount: accessible.length,
+            iamCount: iamIds.size,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM published article list shadow evaluation unavailable",
+          { action: "quyan:article:ListArticles", reason: "iam-list-unavailable" },
+        );
+      }
+    }
+
+    return Promise.all(accessible.map((article) => this.toArticleListItemDto(article)));
   }
 
   async listPublicArticles(): Promise<ArticleListItemDto[]> {
@@ -308,13 +419,6 @@ export class ArticleService {
 
     this.repository.incrementViewCount(article.id).catch(() => {});
     return this.toArticleDto(article);
-  }
-
-  private validatePublicAccess(isPublic: boolean, requirePermission?: string): void {
-    if (isPublic && requirePermission?.trim())
-      throw new BadRequestError("Public articles cannot require permissions", undefined, {
-        messageKey: "article.publicCannotRequirePermissions",
-      });
   }
 
   private async checkArticleAccess(article: any, userId: string): Promise<void> {
@@ -390,7 +494,7 @@ export class ArticleService {
     };
   }
 
-  async getDefaultArticle(userId: string): Promise<ArticleDto | null> {
+  async getDefaultArticle(userId: string, request?: Request): Promise<ArticleDto | null> {
     const article = await this.repository.findDefault();
     if (!article) return null;
 
@@ -398,6 +502,37 @@ export class ArticleService {
       await this.checkArticleAccess(article, userId);
     } catch {
       return null;
+    }
+
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article default request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, {
+        publishStatus: "published",
+      });
+      if (!rows.some((row) => row.id === article.id && row.isDefault)) return null;
+    } else if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const rows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          { publishStatus: "published" },
+          new Set([article.id]),
+        );
+        if (!rows.some((row) => row.id === article.id && row.isDefault))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM default article access differs", {
+            action: "quyan:article:ListArticles",
+            legacyCount: 1,
+            iamCount: 0,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM default article shadow evaluation unavailable",
+          { action: "quyan:article:ListArticles", reason: "iam-list-unavailable" },
+        );
+      }
     }
 
     this.repository.incrementViewCount(article.id).catch(() => {});
@@ -449,7 +584,9 @@ export class ArticleService {
   }
 
   async reorderArticles(items: ReorderArticleItem[], userId: string, request: Request): Promise<void> {
-    await this.repository.batchUpdateSortOrder(items);
+    if (env.security.iamAuthorizationMode === "enforce")
+      await ArticleManagementService.getInstance().reorder(items, userId, request as TypedRequest);
+    else await this.repository.batchUpdateSortOrder(items);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UPDATE,

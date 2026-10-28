@@ -18,7 +18,7 @@
       <el-input
         v-model="roleSearch"
         :prefix-icon="Search"
-        :placeholder="i18ns.t('RamManagement.searchPlaceholder')"
+        :placeholder="i18ns.t('RamManagement.pageSearchPlaceholder')"
         clearable
         style="width: 280px"
       />
@@ -75,6 +75,9 @@
           >
             {{ i18ns.t('RamManagement.bindGroup') }}
           </el-button>
+          <el-button link type="primary" @click="trustRole = row">{{
+            i18ns.t('RamManagement.trustEditorTitle')
+          }}</el-button>
           <el-button v-if="canDeleteRoles" link type="danger" @click="deleteRole(row)">
             {{ i18ns.t('delete') }}
           </el-button>
@@ -82,11 +85,33 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
+    <el-alert
+      v-if="canReadRoles && rolePage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadRoles"
+      :page="rolePage.page.value"
+      :page-size="rolePage.pageSize.value"
+      :has-next="rolePage.hasNext.value"
+      :loading="rolePage.loading.value"
+      @previous="loadRoles(rolePage.page.value - 1)"
+      @next="loadRoles(rolePage.page.value + 1)"
+      @size="resizeRolesPage"
+    />
+    <p v-if="canReadRoles">{{ i18ns.t('RamManagement.scopedPageHint') }}</p>
+
+    <RamIamRoleTrustEditor :role="trustRole" @close="trustRole = null" @saved="loadRoles()" />
+    <el-empty v-if="!canReadRoles" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
+import { shallowRef } from 'vue'
+import RamIamPageControls from './RamIamPageControls.vue'
+import RamIamRoleTrustEditor from './RamIamRoleTrustEditor.vue'
 import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamRoleDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
@@ -105,6 +130,8 @@ const {
   loading,
   loadGroups,
   loadRoles,
+  rolePage,
+  resizeRolesPage,
   loadUsers,
   openBindDialog,
   openRoleDialog,
@@ -112,6 +139,8 @@ const {
   selectRole,
   selectedRoles,
 } = useRamManagementContext()
+
+const trustRole = shallowRef<RamRoleDto | null>(null)
 
 const refreshRoles = () => void Promise.all([loadRoles(), loadUsers(), loadGroups()])
 

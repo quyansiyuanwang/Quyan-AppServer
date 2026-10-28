@@ -2,6 +2,10 @@
 
 RAM 是授权与访问控制中心，用于创建子用户、定义角色、编写权限策略并进行绑定。所有变更操作均需通过 2FA 二次验证，且角色/策略/绑定变更会触发安全通知事件。
 
+远程终端产品权益、设备绑定和注册令牌元数据可使用数据库资源 ID 加入资源组。禁用或过期的产品元数据仍可管理，已删除资源及已删除父权益不会被纳入。`published-template` 成员表示 ARN 中用户可见的已发布套餐，套餐必须已启用、已发布；它不授予平台模板管理权限。系统通过资源归属与父子关系检查成员，不读取凭据值；移除成员后，范围授权在下一次请求时重新生效。
+
+RAM 用户、用户组、角色、策略和角色会话列表逐项检查返回资源的 IAM 权限。获得指定资源的授权后即可看到该资源，无需额外的账号级 Allow。授权关系与资源组列表也按各自的列表 Action 过滤；候选页为空时，hasNext 仍可能为 true。在 legacy 和 shadow 模式下，用户、角色、策略和会话列表仍强制执行原有权限检查；原生授权关系与资源组 API 在所有模式下都执行 IAM 检查。
+
 ## 功能概览
 
 - **RAM 用户** — 主账号下的子账号，拥有独立的登录凭据。
@@ -59,6 +63,10 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 - 策略绑定的权限。
 - 被排除的权限。
 
+登录身份可读取自己的权限摘要，这项基础读取仅作用于自己的用户资源，不提供账户管理权限。enforce 模式下，读取或检查他人权限需要 `quyan:permission:Manage` 对目标用户 ARN 的 Allow，并且目标必须属于当前账户且处于启用状态。仅对 `account` ARN 授予 View 可查看完整权限目录，不会自动授予所有用户的查看权限；仅对具体用户授予 View 也不会显示完整目录。显式 Deny 可以阻止自己的摘要读取。AccessKey 使用相同规则；AssumeRole 只使用有效角色会话及角色策略，不继承调用者的管理授权。三条权限查询接口在 legacy/shadow 模式保持原有权限检查，enforce 模式执行上述资源检查。
+
+个人在线心跳的三个操作也使用自己的用户 ARN：`quyan:user:GetHeartbeatConfig`、`quyan:user:SendHeartbeat`、`quyan:user:StopHeartbeat`。Catalog 的 `defaultAuthorizationScope: "self"` 表示该操作拥有受限的默认自助 Allow，仅作用于当前认证用户，不授予查看在线监控、强制下线他人或操作其他账户的能力。若要限制这些默认能力，应发布匹配该 Action 和用户 ARN 的显式 Deny；增加带条件的 Allow 不会收窄默认 Allow。客户端提交的用户 ID、账户 ID 和 Action Header 不能改变心跳目标。
+
 ## 所需权限
 
 | 操作              | 所需权限             |
@@ -90,6 +98,8 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 - **强制验证**: 删除用户、角色、策略以及解绑策略需要强制 2FA 验证（不接受受信任设备窗口）。
 - **通知事件**: 所有 RAM 变更操作均会触发安全通知，请确保通知偏好中包含 RAM 相关事件。
 
+修改用户附加／移除权限、清空权限配置或替换用户组权限时，如果目标权限、所属组等级或账户归属在检查后发生变化，服务端返回 **409 冲突**，不会覆盖并发更新。请重新读取目标的当前状态，确认增权和减权范围后再提交；不要把失败当成已生效，也不要自动重试旧内容。
+
 ## 常见操作流程
 
 1. **创建 RAM 用户**: RAM 用户 → 创建用户 → 填写用户名和 RAM 用户名 → 选择访问方式 → 提交。
@@ -97,9 +107,485 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 3. **授权**: 将角色绑定到用户，或将策略直接附加到用户。
 4. **权限审计**: 权限诊断 → 选择用户 → 查看其综合有效权限。
 
+## IAM JSON 策略
+
+操作选择器按目录中的读取、写入、列表类别展示操作数量。选择服务后，可将某类别的全部明确操作加入策略；这种选择不会自动变成服务通配符，也不会清除其他已选择的操作。仅在服务范围可以明确确定且显示全部操作类别时，才提供单独的“服务全部操作（\*）”选项；它覆盖该服务的全部操作，后续新增的匹配操作也会落入范围，请结合通配符警告审慎使用。
+
+所选操作下方的“额外授权检查”面板可展开查看，分别说明同资源必需检查、仅特定操作变体需要的检查，以及源、目标或引用资源上的跨资源检查。例如复制渠道时，源访问与服务端预留的新目标创建权限必须分开。面板不会自动添加操作、扩大资源匹配范围或修改 JSON；仅在已有策略未覆盖所需流程时，审核并另行添加限定范围的声明。
+
+资源构造器根据所选操作的资源类型和 ARN 模板显示全部标识字段，包括用户、父资源及三级子资源。每个字段可填写明确 ID，或显式勾选该字段的通配符；未填写的字段不会自动扩大为 `*`。账号范围只读取当前可信身份，平台资源使用目录规定的平台账号，不能在构造器中覆盖。变更资源类型会重置尚未添加的标识输入，已写入策略的 ARN 保留供核对；服务端仍会检查资源兼容性和委派范围。
+
+策略编辑抽屉提供 **权限树** 和 **IAM JSON** 两种格式。选择 IAM JSON 后粘贴策略，点击 **校验 JSON** 由服务端检查；校验结果会提示显式 Deny 和过宽通配符。修改文本后之前的校验结果失效，保存时会先校验未验证的内容。已有 IAM 策略固定使用 JSON 格式，列表显示当前默认版本。更新携带原文档 hash，并发变更返回 409；请重新打开策略并核对变更后再保存。拥有策略读取权限时可加载服务端 Action 清单，将光标放入 Action 字符串内后选择 Action 插入。Resource 示例说明当前可用的全局和账户范围。**模拟授权** 抽屉接受同账户主体用户 ID、清单中的 Action 和 Resource，仅评估已保存策略，不包含编辑器未保存的内容。结果显示决策、原因和匹配标识，修改输入会清除结果。即使抽屉可见，调用模拟仍需要专用权限。在 IAM 策略行点击**版本历史**可分页查看不可变版本并预览 JSON。有更新权限时，可对非默认的自定义版本点击**恢复**并确认；操作需要相应授权、委派检查及二次验证，会立即改变所有绑定身份使用的权限。恢复发生冲突或失败后，需刷新并确认当前默认版本再重试。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action`/`NotAction` 二选一、`Resource` 和可选 `Condition`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Principal、NotResource 和策略变量均拒绝，不会被忽略。阿里云 DNS Action 仅作为文档示例，不属于生产 Action 清单。
+
+在 enforce 模式下，转授权限还受操作者实际账户和平台管理资格约束。策略中的 `Resource: "*"` 不表示拥有跨账户资源，也不能据此向其他账户转授权限。请使用当前账户的明确 ARN 或已注册资源类型的账户内通配符。平台管理 Action 必须由有效的全局用户组提供相应资格；个人附加权限、私有用户组和自定义策略不能代替该资格。授权关系范围、资源组成员、Condition 和显式 Deny 同样参与委派检查。无法证明通配符范围被覆盖时，系统拒绝转授。
+
+RAM 管理操作按 Action 清单使用具体用户、组、角色、策略等 Resource，创建操作使用账户范围 `acs:quyan:*:<主账号ID>:account`。集合读取还会逐项过滤未授权资源。Action 由服务端声明，目标资源归属仍单独检查。这些管理操作遵循配置的 legacy/shadow/enforce 切换模式；专用的模拟 Action 始终强制执行 IAM。
+
+评估顺序是 **匹配的显式 Deny > 匹配的 Allow > 默认拒绝**。Action 与 Resource 必须同时匹配。普通用户身份合并用户、启用用户组和直接分配角色的策略；扮演角色后，只使用该角色的策略及范围授权，不叠加调用者的用户、用户组或其他角色权限。旧用户排除权限只在普通用户身份下转换为 Deny。账户归属、角色会话有效性和业务所有权检查仍保留。Action 来自服务端定义，不能由请求头覆盖；无法可靠解析 Resource 的请求被拒绝。
+
+### 条件约束
+
+`Condition` 支持字符串、数值、日期、布尔、IPv4/IPv6 和存在性运算符。`GET /v1/iam/catalog/condition-keys` 返回条件键、类型、允许的运算符和可用状态。当前可用属性包括客户端 IP、当前时间、User-Agent、HTTPS 状态及主体 ID、类型、账户；资源标签和 MFA 尚不可用，提交这些条件会被拒绝。User-Agent 由客户端提供，不应作为唯一的安全保证。
+
+IAM 的具体用户、组、角色、策略、策略版本、授权关系、资源组、角色会话、AccessKey、Passkey 和在线会话资源支持 `quyan:ResourceGroupId`，是否可用以 Action 清单为准。该条件使用当前账户内有效资源和资源组的实时成员关系，支持 `StringEquals`、`StringEqualsIgnoreCase`、`StringLike` 与 `Null`；负向资源组运算符暂不支持。一个资源属于多个组时，任一组与任一期望值匹配即满足该键；没有有效成员关系时，正向匹配不成立，`Null: true` 成立。成员移除或组禁用会立即影响后续授权，客户端不能覆盖这些属性。账户级资源没有成员关系；业务资源暂未开放此条件。角色信任策略和模拟使用相同规则，角色必须仍是有效的账户内资源。
+
+已迁移的文章资源操作支持 `quyan:ResourceOwnerId`，值为数据库中保存的作者用户 ID，不是 ARN 中的账户 ID。条件由服务端读取当前有效文章及作者归属，客户端属性不能覆盖。该键只能与操作清单中明确支持它的 Action 配合；不兼容的 Action（包括展开后包含其他服务的通配符）会被拒绝。模拟已保存策略和 JSON 草稿使用同一可信资源属性；文章不存在、已删除、跨账户或 ID 大小写别名会被安全拒绝。
+
+文章管理列表 `quyan:article:ListArticles` 另支持 `quyan:ArticlePublishStatus`，值来自数据库中的发布状态（`draft` 或 `published`），不能由客户端覆盖。例如可用 `StringEquals` 将列表范围限定为已发布文章。该键只适用于操作目录明确声明支持它的 Action；资源所有者条件与发布状态条件写在同一语句时为 AND，需要 OR 范围时使用多个 Allow 语句。
+
+不同运算符与条件键之间为 AND，同一键多个值为 OR。`StringLike` 支持 `*` 和 `?`；Action/Resource 仍只支持 `*`。`IpAddress` 不包含网段首尾地址，`IpAddressIncludeBorder` 包含首尾地址。除了显式 `Null` 检查，匹配语句所需的属性缺失时会安全拒绝，包括条件 Deny；模拟器不提供真实 IP/HTTPS 等请求属性，会返回 `missing-condition-context`，不会猜测属性。
+
+### 服务和资源目录
+
+具有目录读取权限时，可调用 `GET /v1/iam/catalog/services`、`GET /v1/iam/catalog/services/{service}/actions` 和 `GET /v1/iam/catalog/resources` 获取本平台服务、操作分类与 ARN 模板。API 关联由服务端路由声明生成。目录中的 `legacy` 表示该操作仍使用旧权限兼容语义；资源模板用于描述资源格式，不表示所有接口已完成资源级授权。现有 Action 名称保持兼容，不会将 `ReadUser` 自动改名为 `GetUser`。
+
+ARN 构造、策略校验和评估只接受目录中已注册的资源类型。具体资源必须包含正确数量的标识段，例如策略版本必须包含策略 ID 和版本 ID；未知服务、未知类型、空标识和多余路径段会被拒绝。Action 与 Resource 类型不兼容时策略校验失败；即使通配符策略允许所有操作，具体请求仍须符合对应 Action 的资源类型。实际资源账户必须与认证主体账户一致，明确跨账户的策略 ARN 无法发布。资源归属查询和列表数据隔离仍须由业务服务执行。
+
+用户、角色、策略和资源组分页 API 支持可选的 `keyword`（最多 100 字符）。可搜索 ID 和名称；角色、策略及资源组还匹配描述，用户还匹配 RAM 登录名。账户隔离和关键词筛选先于数据库分页，再逐项过滤 IAM 权限。搜索不会授予读取权限、暴露未过滤总数，也不会取消空候选页的下一页入口；不接受通过 Query 覆盖账户或 Action。
+
+### JSON 诊断和 Schema
+
+提供原始 JSON 文本给 `POST /v1/ram/policies/diagnose`（字段 `documentText`），可获得错误、安全警告、警告和建议。每条诊断含稳定错误码、JSON Pointer、从 1 开始的行号和列号。语法错误、重复键、原型键、未知字段、未知 Action、条件值错误、资源类型不匹配和明确的跨账户 ARN 会阻止验证；过宽 Allow、IAM 管理授权和重复语句会提示风险。诊断不回显策略中的任意值。
+
+`GET /v1/iam/catalog/policy-schema` 提供从同一策略校验器生成的 JSON Schema，供编辑器和 AI 构造草稿。Schema 包含当前生产 Action、资源模板、已实现条件键和限制；目录及账户归属等自定义语义仍须经过服务端诊断。在 IAM enforce 模式下，目录和 Schema 使用独立的 `quyan:iam:GetCatalog` Action，资源为当前认证用户 ARN。其默认本人授权仅允许读取静态定义，不授予账户策略或其他用户的读取权限；匹配的显式 Deny 仍可限制访问。legacy 和 shadow 模式保留原有策略读取门禁。诊断需要策略创建或更新任一权限。验证通过只说明文档符合当前语法，返回的 `delegation: "not-evaluated"` 表示尚未证明操作者可以发布或委派；保存和绑定继续执行已有授权检查。
+
+JSON 编辑器的“校验 JSON”会提交原始文本，并按错误、安全警告、警告和建议分组展示诊断；点击诊断可定位到对应文本位置。编辑内容后原有诊断和校验结果立即失效。“格式化已校验 JSON”先完成服务端校验，再格式化规范化后的文档；“下载 JSON Schema”可将当前规范提供给外部 AI 辅助编写草稿。操作自动补全和 Schema 下载直接检查静态目录访问，不以是否能读取账户策略作为前端条件；若服务端拒绝目录访问，页面显示失败并允许重试，草稿文本仍保留。
+
+### API 和权限
+
+- `POST /v1/ram/policies`：提供 name 和 document，或旧 permissions；不可同时提交两种格式。
+- `POST /v1/ram/policies/validate`：提供 document，返回规范化文档、SHA-256 hash 和过宽通配符提示；需策略创建或更新任一权限。
+- `GET /v1/ram/iam/actions`：查看 Action 清单；需策略读取权限。Action 清单只包含本平台已实现的 API；阿里云 DNS 策略示例仅用于说明兼容的 JSON 结构。
+- `GET /v1/ram/policies/{policyId}/versions`：通过 `page`（默认 1）和 `pageSize`（默认 20，最大 100）分页查看不可变版本；返回 `items`、`total`、`page`、`pageSize`、`defaultVersionId` 和 `defaultDocumentHash`。需策略读取权限。
+- `POST /v1/ram/policies/{policyId}/versions`：新增版本并设为默认；提交 document 和当前 expectedDocumentHash。首次转换旧策略可不传 hash；已有 IAM 版本时必需。需策略更新权限、2FA 和重放保护。
+- `PUT /v1/ram/policies/{policyId}/default-version`：提交 versionId 和当前 expectedDocumentHash，恢复某个历史版本；需策略更新权限、强制 2FA 和重放保护。hash 过期返回 409，不覆盖其他更新。
+- `POST /v1/ram/policies/simulate`：提交同账户 principalId、action、resource；单独要求 `quyan:iam:SimulatePolicy` 对账户资源的 Allow，策略读取权限不足以调用。仅返回决策、原因和匹配的策略/版本/语句标识，不返回策略内容或凭据。
+
+IAM 文档的创建、更新、默认版本切换和绑定要求拥有相应操作权限，并且部署必须已启用 enforce 模式。子用户可以委派可证明为自己现有授权子集的策略：资源范围不能扩大，条件不能放宽；无法证明的通配符包含关系或 Deny 交集会被拒绝。账户所有者保留恢复授权关系的管理能力。系统托管策略不可通过这些版本接口修改。新 IAM 策略不能降级成旧权限数组。
+
+### 部署与迁移边界
+
+`IAM_AUTHORIZATION_MODE` 默认为 `legacy`：保持旧权限强制。`shadow` 仍由旧权限强制，只比较并审计 IAM 差异；`enforce` 对明确声明服务端 Action 和 Resource Resolver 的权限检查使用 IAM，授权数据异常时不退回旧逻辑。缺少端点声明的旧检查返回 403，即使策略允许 `Action: "*"`、`Resource: "*"` 也不能放行；服务端不会替这些接口猜测账户级资源。未知授权模式同样拒绝请求。明确采用 IAM 中间件的接口（例如模拟器）始终强制 IAM。当前 JWT 路由已声明服务端 Action 和资源解析方式；路由覆盖检查不等于真实数据迁移验收，启用 enforce 前仍需完成回填和差异检查。
+
+旧策略转换时保留旧权限字段，回滚配置无需删除版本数据；新建纯 JSON 策略在 legacy 模式下不会凭空获得旧权限。授权结果不使用缓存，策略解绑、禁用和会话撤销在后续请求中重新读取。列表行过滤、批量操作逐资源检查和业务归属检查不能被账户级授权替代；正式切换前仍应完成真实账户的迁移与差异校验。
+
+### 一次性部署迁移（运维）
+
+生产运行包包含 `dist/iam-migrate.cjs`，服务器无需安装 TypeScript 或开发依赖。迁移不会更改 `IAM_AUTHORIZATION_MODE`，也不会凭空为旧角色生成信任策略。
+
+使用已有 Build and Deploy 工作流时，勾选 **iam-migration** 和 **iam-backup-confirmed**。后者表示已验证数据库备份、安排维护窗口，并暂停其他节点或任务的写入；工作流不会代替你创建备份。也可以在发布分支执行：
+
+```bash
+gh workflow run deploy.yml --ref master \
+  -f deploy-backend=true \
+  -f iam-migration=true \
+  -f iam-backup-confirmed=true
+```
+
+工作流会执行数据库结构迁移，再运行 IAM 只读预检；预检通过后停止现有 PM2 `backend` 进程，按账户迁移策略和授权关系并重新校验，全部通过才重载后端。此选项用于已有部署的维护窗口，不是零停机发布。预检失败不会主动停止后端；停止后迁移失败则保持停止，避免提供未校验的授权数据。修复报告中的问题后可重新运行，已完成记录不会重复创建。自动推送部署默认不执行这项业务回填。
+
+也可在已部署的后端根目录手动执行：
+
+```bash
+# 前提：已运行 prisma migrate deploy；以下默认只读
+NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts
+
+# 已备份并暂停写入后：预检 → 停止后端 → 回填与校验
+bash ./scripts/deploy-iam.sh
+
+# 仅当前一步成功后重载
+pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
+```
+
+指定账户时，用 `--account-owner-id <id>` 替代 `--all-accounts`；只有显式指定 `--apply` 才写入。读取部署目录的 `.env`，自定义路径使用 `ENV_FILE_PATH`，不要将数据库密码放在命令行。
+
+预检覆盖用户附加/移除权限、用户组权限、旧策略和绑定，以及已迁移版本的 hash。未知权限、损坏版本、跨账户绑定或迁移中数据变化都会阻止完成。回填按记录事务提交，不是全库单个事务；中途失败可修复后重跑，旧字段和绑定保留用于回滚。
+
+报告中的 `rolesRequiringTrustPolicy` 表示尚无信任策略的旧角色数量。legacy/shadow 模式允许先迁移其余数据；若部署配置已为 enforce，预检会拒绝缺失信任策略的角色，需先由管理员明确配置可信主体，不能通过自动生成宽泛信任来绕过。迁移成功不代表已启用 enforce，也不代表所有业务场景都已通过生产验收。
+
 ## 相关页面
 
 - `user-management`
 - `group-management`
 - `permission-management`
 - `access-key-management`
+
+## 授权关系与资源组 API
+
+授权关系把用户、用户组或角色与策略连接起来，并独立限定生效范围。请求必须同时满足策略的操作、资源和条件，以及授权关系的范围。资源组范围不会把策略中未允许的资源变成允许。
+
+| 操作       | API                                                           | 所需操作                              |
+| ---------- | ------------------------------------------------------------- | ------------------------------------- |
+| 查询授权   | `GET /v1/ram/authorizations`                                  | `quyan:ram:ListAuthorizations`        |
+| 创建授权   | `POST /v1/ram/authorizations`                                 | `quyan:ram:CreateAuthorization`       |
+| 删除授权   | `DELETE /v1/ram/authorizations/{authorizationId}`             | `quyan:ram:DeleteAuthorization`       |
+| 查询资源组 | `GET /v1/ram/resource-groups`                                 | `quyan:ram:ListResourceGroups`        |
+| 创建资源组 | `POST /v1/ram/resource-groups`                                | `quyan:ram:CreateResourceGroup`       |
+| 添加成员   | `POST /v1/ram/resource-groups/{groupId}/members`              | `quyan:ram:AddResourceGroupMember`    |
+| 移除成员   | `DELETE /v1/ram/resource-groups/{groupId}/members/{memberId}` | `quyan:ram:RemoveResourceGroupMember` |
+
+这些操作使用独立的 IAM 权限，旧用户组管理或策略绑定权限不会自动获得新能力。写操作需要重放保护和二次认证。列表支持 `page`、`pageSize`，默认每页 50 条，最大 100 条；先在账户内分页，再逐条过滤 IAM 拒绝的记录，因此返回条数可能少于页大小，不提供未过滤总数。每条记录需要对应 authorization 或 resource-group ARN 的列表权限；仅授予指定记录即可，无需额外的账号级列表 Allow。
+
+创建授权提交以下字段：
+
+```json
+{
+  "principalType": "user",
+  "principalId": "user-id",
+  "policyId": "policy-id",
+  "scopeType": "resource",
+  "scopeArn": "acs:quyan:*:account-id:user/target-user-id"
+}
+```
+
+- `account`：不填写 scopeArn 或 scopeResourceId；这种授权同步到旧绑定展示。
+- `resource`：填写注册类型的 scopeArn，限定当前账户的具体资源或资源路径通配符；不能使用单独的 `*`。
+- `resource-group`：填写本账户资源组的 scopeResourceId，不填写 scopeArn。
+
+创建资源组提交 name 和可选 description；添加成员提交 resourceArn。成员必须是本账户真实存在且启用的具体资源，不能使用通配符或虚构账户归属。移除成员立即停止组范围授权，资源禁用或移出账户后也不再获得该组授权。成员加入会重新检查委派，不能通过扩展资源组扩大自己的权限。
+
+同一策略可有多条不同范围的授权，Deny 仅在该授权范围内生效。发布、绑定或资源组修改出现并发版本变化时应重新读取并重试；不得把失败当成已授权。子用户不能改动主账户及其恢复组、恢复角色的授权关系。
+
+## 角色信任策略
+
+enforce 模式下，扮演角色必须同时满足 **身份策略 Allow 与角色信任策略 Allow**，任意一侧匹配 Deny 都会拒绝。旧角色绑定不能替代信任策略，信任策略 Allow 也不能替代 AssumeRole 权限。启用强制模式前，请为已有角色配置有效信任，并核对角色会话身份隔离产生的差异。
+
+信任策略必须填写 Principal，身份策略仍禁止 Principal。当前只接受本账户真实、启用的准确 RAM 用户主体，包括主账户自己的用户 ARN；通配符主体、跨账户主体、服务主体和角色链式扮演均不接受。Action 必须为 quyan:ram:AssumeRole，Resource 必须是注册的角色 ARN。
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "RAM": ["acs:quyan::account-id:user/user-id"] },
+      "Action": "quyan:ram:AssumeRole",
+      "Resource": "acs:quyan:*:account-id:role/role-id",
+      "Condition": { "Bool": { "acs:SecureTransport": true } }
+    }
+  ]
+}
+```
+
+使用 `GET /v1/iam/catalog/policy-schema?policyKind=trust` 获取独立 JSON Schema；向 `POST /v1/ram/policies/diagnose` 提交 documentText 和 policyKind: trust，获得原始 JSON 的路径及行列诊断。Schema 使用前述目录访问边界；诊断仍需策略创建或更新权限。诊断校验语法和显式跨账户主体；发布还会验证主体真实存在及委派能力。
+
+通过 `PUT /v1/ram/roles/{roleId}/trust-policy` 发布，提交 document 和可选 expectedDocumentHash。需要 `quyan:ram:UpdateRoleTrustPolicy` 对该角色的授权、重放保护和二次认证。普通角色更新权限不会自动获得信任发布能力。原角色创建、更新接口仍接受 trustPolicy，但提交时同样需要这项专用权限：创建使用账户范围，更新使用具体角色范围。有效信任文档的角色响应包含 trustPolicyHash；hash 或角色版本过期返回 409。发布会证明 AssumeRole 权限及角色全部有效授权，不丢弃授权关系的资源范围。角色列表提供独立信任编辑器。
+
+enforce 模式下，assume-role 从已校验的 roleId 解析具体角色 ARN。模拟 quyan:ram:AssumeRole 对该 ARN 的请求也会同时评估身份与已保存信任，不虚构来源 IP 或 HTTPS 属性。无有效信任的角色在 enforce 下拒绝；legacy/shadow 保留旧的绑定角色或主账户准入方式。
+
+已签发会话只使用所选角色的当前权限，同时检查账户、状态、过期和撤销。信任变更约束新会话；已有会话通过过期或显式撤销终止，不会在每次请求重新检查签发时的信任条件。用户组身份策略中的 Deny 不自动变成角色会话的权限边界：禁止切换身份应拒绝 AssumeRole，终止已签发会话应撤销会话。角色自身策略中匹配的 Deny 仍覆盖 Allow。
+
+具体用户的修改和删除、角色删除、会话撤销、策略修改/删除/版本管理，均使用当前账号构造目标资源 ARN。角色与用户/组的绑定、策略与主体的绑定需要同时拥有两侧资源的管理权限；切换默认策略版本需要同时允许策略与所选版本。修改用户所属组还会检查该组的直接、角色及范围授权能否由操作者委派，避免通过用户编辑扩大自身权限。
+
+旧 Permission 的账户级含义会转换为当前账号内已登记的兼容资源范围。手写 JSON 的 `account` ARN 只代表账号目标，不自动扩展成所有用户或策略；已经保存的 JSON 版本也不会被静默改写，迁移后的差异应在模拟和 shadow 评估中检查。
+
+可视化编辑器与 JSON 编辑器共用一份身份策略草稿。选择服务后可按读取、写入和列表筛选操作，添加 Statement、复制或删除 Statement，使用当前账号 ARN 模板填写资源 ID，并选择已支持的条件键和运算符。模板不会默认填入所有资源；明确选择 `*` 时会显示宽泛授权提示。条件值按 JSON 输入（例如 `"203.0.113.0/24"`、`true` 或数组），保留字符串、数字和布尔类型。
+
+从 JSON 切换到可视化前会运行服务端诊断。语法错误、未知字段或当前编辑器无法保留的结构会阻止切换；未完成的可视化表单也可随时返回 JSON：当前操作、资源和条件输入会保留，不会恢复成旧版本或自动补成 `*`。未完成的草稿（包括暂时无效的 JSON 条件值）不能保存，也不能将旧的校验结果用于发布。账号信息缺失时 ARN 模板不可用，请刷新用户信息。生成草稿后仍需通过服务端目录、资源、条件和委派检查。
+
+## 向现有 AI 客服咨询 IAM JSON
+
+在现有 AI 客服会话中询问策略语法、解释策略或排查诊断即可，系统不再提供独立 AI 策略草稿面板或生成接口。客服通过公开 RAM 文档、JSON Schema 和本系统的服务、Action、Resource、Condition 目录辅助编写 JSON。客服不能查询或猜测你的账户 ID、资源 ID、资源组成员关系和实际权限；请提供准确的非敏感标识及期望范围，不要提供密码、JWT、AccessKey Secret 或中转凭据。
+
+请自行将建议 JSON 复制到身份策略或角色信任策略编辑器，下载对应 Schema，执行服务端诊断、逐项检查提示，并在具备权限时模拟未发布的身份策略。语法通过或模拟 Allow 不代表可以发布；保存仍执行归属、委派、并发及必要的二次验证。客服不会自动填入编辑器、创建策略、绑定授权或发布版本。
+
+### 最小范围身份策略示例
+
+将 `account-id` 和 `user-id` 替换为实际标识。以下策略只允许读取指定用户，不是账户内所有用户：
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "quyan:ram:ReadUser",
+      "Resource": "acs:quyan:*:account-id:user/user-id",
+      "Condition": { "Bool": { "acs:SecureTransport": true } }
+    }
+  ]
+}
+```
+
+只有 `*` 是通配符；`user/*` 比单个用户更宽。`account` ARN 是独立授权目标，不代表该账户下全部资源。Action 与 Resource 必须同时命中且符合目录中的兼容类型。条件中不同运算符和不同键为 AND，同一键的多个值为 OR；条件上下文由服务端提供，不能由客户端请求头或任意 JSON 指定。匹配的显式 Deny 覆盖所有 Allow，没有匹配的 Allow 时默认拒绝。信任策略使用下文单独的 Principal 语法，AssumeRole 还必须具有身份策略 Allow。
+
+### 不扩大权限地修复诊断
+
+- JSON 语法错误：按返回的行、列和 path 修复引号、逗号及未完成的条件值，保留原本资源范围。
+- Action 不存在或 ARN 不兼容：从真实目录选择 Action 及其已注册资源模板，不猜测操作名称，不用 `*` 替换失败的资源。
+- 条件未知或不支持：查阅条件目录及 Action 可用的键和运算符，不能为了通过校验随意删除安全条件。
+- 委派失败：操作者当前有效授权必须覆盖每个待委派 Allow 及资源范围，条件只能相同或更严格。无法证明子集时，请有权限的管理员审查；诊断或 AI 建议不能绕过限制。
+
+独立的 `quyan:ram:GeneratePolicyDraft` Action 已移除。已有自定义策略和历史审计不会自动改写；若策略仍引用该 Action，请删除对应条目并重新诊断完整文档后保存，不要替换为更宽的通配符。
+
+## 模拟未发布草稿
+
+在 JSON 或可视化编辑器点击“模拟当前草稿”，填写本账户主体、操作与资源，也可在模拟器中勾选“模拟未发布的身份策略草稿”并粘贴 JSON。模拟需要专用 `quyan:iam:SimulatePolicy` 权限，不会创建策略、发布版本或修改授权。修改草稿、请求参数或模拟来源后，原结果立即失效。
+
+勾选草稿模式时，评估器只使用输入草稿，不叠加用户已绑定的身份授权；取消勾选则继续模拟已绑定策略。两者必须分别比较：草稿 Allow 不能证明发布委派通过，也不能覆盖绑定后的其他 Deny。模拟 `quyan:ram:AssumeRole` 仍会联合评估目标角色已保存的信任策略。当前只支持身份草稿，不模拟假设的角色信任变更。
+
+通过 `POST /v1/ram/policies/simulate` 的可选 documentText 字段提交原始草稿。重复 JSON 键、未知字段、跨账户文档和非法语法均拒绝；请求资源须在本账户。命中记录使用 `simulation:draft` 标识，不表示已创建真实策略。模拟使用所选主体的可信身份属性和当前时间，不虚构来源 IP 或 HTTPS 条件；缺少必须的条件上下文时拒绝，不能将结果视为真实请求的最终授权。
+
+管理客户端可使用 `GET /v1/ram/authorizations/page` 与 `GET /v1/ram/resource-groups/page` 获得 items、page、pageSize、hasNext；资源组摘要不会附带全部成员。通过 `GET /v1/ram/resource-groups/{groupId}/members` 单独分页读取成员，需要该具体资源组的列表权限。每页默认 50 条、最多 100 条；授权和资源组候选页先限制账户，再过滤资源权限，因此空页仍可能 hasNext 为 true，应允许继续下一页。hasNext 表示还有候选页，不是授权记录总数。旧列表 API 保持兼容，新管理界面应使用分页接口。
+
+角色与策略列表同样使用服务端候选分页：`GET /v1/ram/roles/page` 与 `GET /v1/ram/policies/page` 返回 items、page、pageSize、hasNext。enforce 模式下，每个具体角色/策略需要独立的读取权限，无需额外的账号级 Allow；具体 Deny 会隐藏相应记录及其策略内容。列表搜索只筛选当前页。角色绑定页面及策略附加表单中的角色选项可以翻页，换页会清除失效的选择；增删改后刷新当前页。旧数组接口在 enforce 模式仅返回已过滤的默认首页，需遍历全部可见记录的客户端应改用分页接口。
+
+创建 RAM 用户、绑定角色和附加策略的用户组选项改用 `GET /v1/ram/groups/page`，支持 page、pageSize 和 keyword，并返回 items 与 hasNext。enforce 模式下，每个选项需要对应 group ARN 上的 `quyan:group:Read`，无需额外的账号级 Allow；用户读取权限不能替代组读取权限。列表先按账户和历史组等级限制候选，再执行 IAM 过滤，组人数只统计本账户用户。仅真实主账户的恢复身份可看到其无账户归属的恢复组；子用户、AccessKey 和角色会话不继承该例外。三个表单都有用户组翻页控件，换页或加载失败后会清除旧的组目标。资源组范围授权和 Deny 逐项生效，成员变化影响下一次读取；用户组管理列表使用同一资源过滤。legacy/shadow 保留历史 RAM 用户读取入口和组可见规则，分页不会改变这些模式的历史授权。
+
+RAM 用户与角色会话列表使用 `GET /v1/ram/users/page` 和 `GET /v1/ram/sessions/page`，会话接口还可按 principalUserId 筛选。enforce 模式分别检查具体 user 与 role-session ARN 的读取权限；账户列表 Allow 不会自动变成每条记录的 Allow。用户候选先限定主账户，明确声明外账户归属的记录不会通过历史 parentUserId 回退进入当前账户；会话只返回未撤销、未过期、有效且关联主体与角色归属一致的记录。用户列表搜索仅筛选当前页，角色绑定、策略附加与有效权限查询的用户选项均可翻页；换页后清除原选择及权限解释。旧数组接口在 enforce 模式返回已过滤的默认首页，legacy/shadow 保留历史数组结果。
+
+角色绑定列表使用 `GET /v1/ram/roles/{roleId}/bindings/page`，接受 page、pageSize 与可选 userId。候选按直接用户绑定、用户组绑定的顺序分页，每类按创建时间与 ID 稳定排序。enforce 模式要求 `quyan:ram:binding:Read` 同时覆盖父 role ARN 和每条关系的 user/group ARN；仅父角色 Allow 不会暴露绑定主体，目标 Deny 会隐藏该行。候选查询排除外账户、失效目标及归属不一致的关系；userId 也必须属于本账户。角色切换会重置绑定页码并丢弃旧响应。旧数组接口在 enforce 模式返回默认已过滤首页，legacy/shadow 保留历史行为。
+
+策略附加抽屉使用 `GET /v1/ram/policies/{policyId}/attachments/page`。enforce 模式要求父 policy ARN 的 `quyan:ram:ReadPolicy`；每条关系还需其目标对应的 `quyan:ram:ReadUser`、`quyan:group:Read` 或 `quyan:ram:role:Read`。策略读取权限不会自动公开目标名称。候选先按账户、有效策略及有效关系限定，目标不存在、失效或属于外账户时不返回。空过滤页可继续下一页；切换策略或关闭抽屉会清除旧记录与迟到响应。旧数组接口在 enforce 模式返回默认过滤首页；legacy/shadow 保留历史数组接口。
+
+## 在管理页面创建范围授权
+
+打开 RAM 的“授权”页面，可以分页查看资源组、成员及授权关系。先选择账号、资源组或指定资源范围：资源组从可搜索的分页列表选择，指定资源填写准确的本账户 ARN；“用于授权”可预选资源组。再从分页搜索列表多选同一类型的用户、用户组或角色，以及多项策略。成功翻页和搜索时保留已选摘要；切换主体类型或选项加载失败后清除旧选择。宽泛 Allow 或 IAM 管理策略显示高风险标记，提醒核查资源与条件；标记仅是提示，服务端仍需证明委派能力。
+
+保存前核对主体 × 策略数量及范围，每个主体都会获得每项选定策略；每次最多提交 50 个组合，并确认影响。授权关系逐条独立保存：某条请求失败时停止，页面显示已保存和待处理数量，已保存授权仍然生效。重试只发送原范围下剩余的请求；放弃待处理选择不会撤销已保存授权。关闭页面后，当前请求完成即停止后续提交。服务端对每条请求重新检查当前策略版本、资源组范围和授权条件。
+
+创建授权后刷新列表；撤销前显示确认，服务端仍要求专用管理 Action、二次认证、账户归属和委派检查。资源组成员使用独立服务端分页，添加时填写准确 ARN；移除前确认对访问权限的影响。加载失败可重试，空过滤页仍允许下一页。页面入口沿用现有 RAM 菜单可见权限；列表与写入各自独立检查新 IAM Action，菜单可见不代表已获授权。
+
+enforce 模式下，“有效权限”的最终列表与用户权限接口共用 IAM 求值，只把账户目标上 Allow 的旧 Action 投影成全局 Permission；具体资源上的 Allow 不会被扩大。Explicit Deny 会从最终投影中排除对应权限。查看自己时采用当前认证身份与角色会话，查看其他主体时不借用操作者的会话。AccessKey 的主体类型条件也参与当前身份投影。来源数组保留历史解释用途，可能不覆盖 JSON-only 策略的全部授权；确认某个 ARN 的权限应使用模拟器。legacy/shadow 的历史展示保持兼容。
+
+角色列表提供“角色信任策略”入口，打开后编辑独立信任 JSON，下载 trust Schema、查看原始文本诊断。发布先进行服务端信任诊断，再确认对新会话准入的影响，提交角色已有的 trustPolicyHash 防止覆盖并发更改。语法诊断不能证明发布权限；服务端继续检查真实同账户主体、专用 UpdateRoleTrustPolicy、AssumeRole 委派和角色有效授权。发布失败保留草稿供审阅，遇到版本冲突需重新加载角色；已有会话需要单独撤销。
+
+将旧 Permission 授予用户或用户组时，enforce 会把它转换为本账户内所有已登记资源范围，再证明操作者能够委派完整范围。菜单中的账户目标 Allow 不能证明可授予所有具体资源。删除 permissionRemoves 中的 Deny 或清空配置可能恢复原本被拒绝的能力，因此也必须通过恢复权限的委派证明。账户范围与恢复身份校验在服务端执行；legacy/shadow 保持迁移兼容行为。
+
+具体权限管理端点在 enforce 下按 user/<userId> 或 group/<groupId> 授权，不再用菜单中的账户权限代替目标检查。清空用户配置要求该用户上同时具备 Add 和 Remove；替换组权限分别检查新增和移除操作。组权限读取和写入也检查账户归属，资源通配符不能跨账户；旧的无归属恢复组仅向真实主账户恢复身份开放。目标操作授权与实际授予权限的委派证明分别执行。
+
+身份策略的 `NotAction` 采用保守快照语义：服务端只从当前生产目录中选择与声明资源类型兼容、且未被排除的操作，再转换为不含通配符的明确 `Action` 列表。诊断在原始 `NotAction` 位置给出提示；Allow 的展开范围需通过完整委派证明。缺少选择器、同时填写 Action/NotAction、未知操作、展开为空或超出策略容量均拒绝。保存的不可变版本及 hash 对应展开后的 JSON，目录新增操作不会自动加入已有版本；要扩大范围需重新校验并创建版本。JSON 编辑器可输入 NotAction，可视化编辑器在服务端诊断后导入展开后的操作。角色信任策略继续只接受明确 AssumeRole Action。
+
+用户权限配置替换在 enforce 下按实际变化检查操作：新增附加权限或移除 Deny 需要目标用户上的 Add；撤销附加权限或新增 Deny 需要 Remove，混合变化需要两者。Add-only 管理者不能通过配置替换实施移除操作；Remove-only 管理者不能恢复被拒绝的权限。恢复能力仍须通过委派证明。legacy/shadow 保留该接口原来的 Add 入口要求。
+
+## 开发者项目资源授权
+
+项目管理 API 使用 `acs:developer:*:<accountId>:project/<projectId>`。`quyan:developer:GetProject`、`GetProjectUsage` 和 `UpdateStatusPage` 分别控制项目详情、用量和状态页发布，操作相互独立。enforce 模式下可授权同账户主体管理指定项目，项目仍保留原所有者；跨账户、禁用项目或禁用所有者不能通过 ARN 中的 ID 获得访问。
+
+`GET /v1/developer/projects/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。先查询当前账户的分页候选，再按 `quyan:developer:ListProjects` 逐项目过滤；只有具体项目的 Allow 也能看到该项目，无需账户级 Allow。空页可能仍有后续页，不返回未授权项目的 total。旧数组接口在 enforce 仅返回默认第一页，遍历请使用 page 接口。新 `GET /v1/developer/projects/{projectId}` 返回被授权项目的详情。
+
+创建项目需要 `quyan:developer:CreateProject` 对当前认证用户的 `acs:quyan:*:<accountId>:user/<userId>` 授权，创建结果仍归该用户。个人基础自助权限不会自动授予项目管理能力。legacy/shadow 保留原来的个人项目所有权检查；shadow 记录差异，enforce 不会因评估失败回退放行。
+
+## 开发者 KV 与密钥资源授权
+
+JWT 项目管理接口可以授权单个 KV 键或单个密钥别名。资源格式分别为：
+
+- KV：`acs:developer:*:<accountId>:kv-item/<projectId>/<encodedKey>`，encodedKey 是原始键的 UTF-8 base64url 编码，不带等号填充。例如 `config:prod` 编码为 `Y29uZmlnOnByb2Q`。
+- 密钥：`acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`，别名保留大写格式。
+
+单项读取或写入响应及分页元数据返回可选的 `resourceArn`，可直接复制到 JSON 策略。密钥响应始终只有元数据，不返回明文、密文、IV 或认证标签。
+
+KV 操作分别使用 `quyan:developer:ListKv`、`GetKv`、`SetKv`、`DeleteKv`；密钥操作使用 `quyan:developer:ListSecrets`、`PutSecret`、`DeleteSecret`。读取、写入、删除相互独立。创建新键或新别名也需要对应目标 ARN 的写入权限。同账户委派不会改变项目所有者，项目授权不会自动覆盖 KV 或密钥资源。
+
+`GET /v1/developer/projects/{projectId}/kv/entries/page` 和 `GET /v1/developer/projects/{projectId}/secrets/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。分页候选先限定有效项目和账户归属，再逐键或逐别名检查 List 权限。空页仍可能有后续页，不返回 total。KV 列表不包含值；过期键视为不存在，enforce 下的读取和列表不会删除这些数据。原数组接口在 enforce 只返回默认第一页；`GET .../kv/page` 仍是读取名为 page 的键。
+
+KV 和密钥可作为资源组成员，移除成员后下一次请求即失去该授权范围。资源组成员必须真实存在、有效且属于当前账户；过期 KV、禁用资源以及禁用所有者的项目不能提供资源组授权。上述规则适用于 JWT 项目管理；产品实例的 API Key 接口继续按实例的独立权限验证。
+
+## 短链接资源授权
+
+短链接使用 `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`。`quyan:developer:CreateShortLink` 在项目范围控制创建，`ListShortLinks`、`UpdateShortLink`、`DeleteShortLink` 和 `GetShortLinkStats` 在单个链接范围控制管理；统计访问包含访客明细，需要独立授予。创建及项目列表权限不会自动扩大为所有链接权限。
+
+`GET /v1/developer/projects/{projectId}/short-links/page` 支持分页候选和逐资源过滤；返回 resourceArn、hasNext，没有未授权总数，空页可继续遍历。enforce 下旧数组接口只返回默认第一页。具体链接也可用于资源组授权；跨项目链接 ID、跨账户、禁用资源或禁用项目所有者均被拒绝。暂停与到期的链接仍支持授权管理。详情见 [短链接](./developer-product-short-link)。
+
+## 项目 API Key 元数据与撤销
+
+项目 API Key 使用 `acs:developer:*:<accountId>:project-api-key/<projectId>/<keyId>`，标识的是凭据记录 ID，不包含完整 Key 或哈希。`quyan:developer:ListProjectApiKeys` 控制逐项元数据查看，`RevokeProjectApiKey` 控制指定凭据撤销；列表授权不自动授予撤销，项目范围的列表授权也不会自动覆盖子资源。
+
+`GET /v1/developer/projects/{projectId}/keys/page` 返回 items、page、pageSize、hasNext。候选先限定同账户有效项目中的未撤销凭据，再逐项评估。响应包含 resourceArn、名称、前缀、scopes 等元数据，不返回完整 Key、keyHash 或 legacyKeyHash；空页可有后续页，没有 total。enforce 下旧数组接口只返回默认第一页。过期但未撤销的凭据仍能查看元数据或撤销，撤销后立即停止项目 Key 认证，也不再参与资源组授权。
+
+同账户可只委派某一凭据的查看或撤销，跨账户、跨项目 ID 和禁用资源均被拒绝。legacy/shadow 保留原个人项目所有权。签发项目 Key 使用独立的 scopes 规则；本节的查看和撤销 Action 不提供凭据签发权限。
+
+资源标识必须与保存的大小写完全一致。即使数据库把两个键视为同名，enforce 也会拒绝用不同大小写的键或 ID 访问原资源，不能通过改写大小写绕过已有 Deny。KV 写入和删除会在事务中再次检查精确键身份；资源组同样只接纳与实际保存值一致的 ARN。
+
+## 状态监控资源授权
+
+状态监控使用 `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`。创建在项目 ARN 上授权，列表逐项过滤；修改、删除和手动 HTTP 检查为独立 Action，修改或列表权限不自动包含检查。enforce 支持同账户指定监控项委派和资源组范围，拒绝跨账户、错误项目及已禁用资源，保留 SSRF 校验。分页返回 hasNext 而非未授权总数，空页仍可继续；详情与 JSON 可用的操作名称见 [状态监控](./developer-product-status)。
+
+## 项目推送渠道资源授权
+
+渠道使用 `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`。创建在项目范围控制，敏感配置列表逐渠道过滤，修改与删除独立授权。托管密钥绑定、保留引用修改地址或启用渠道，还需要在确切 Secret ARN 上授予 `quyan:developer:UseSecret`；普通渠道管理或密钥写入权限不会隐式获得此能力。管理流程不解密，事务内核实配置快照与密钥目标，拒绝并发替换沿用旧授权。分页、资源组和模式边界见 [推送聚合](./developer-product-push)。
+
+## 项目投递记录授权
+
+投递记录使用 `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`。`ListPushDeliveries` 与 `GetPushDelivery` 独立控制列表和详情，渠道管理权限不包含记录访问。逐项列表过滤与资源组都验证记录及渠道属于同一有效项目和账户，不返回消息正文或原始错误。失败记录提供固定 failureReason，旧 error 字段不再填充，以防历史错误泄露凭据；完整接口、分页和删除影响见 [推送聚合](./developer-product-push)。
+
+## 余额与兑换码资源授权
+
+在 enforce 模式下，自己的余额读取、用量、转账配置、创建兑换码、转账和兑换分别使用 `quyan:balance:GetAccount`、`GetUsage`、`GetTransferConfig`、`CreateGiftCode`、`CreateTransfer`、`RedeemCode`（后五项使用相同的 `quyan:balance:` 前缀），目标为 `acs:quyan:*:<accountId>:user/<userId>`。这些操作具有受限的默认自助 Allow，仅限当前认证用户；匹配的显式 Deny 仍然优先。转账不会授予查看或管理收款人账户的权限，余额、费率、2FA 和重放保护校验继续生效。
+
+`quyan:balance:GetUserBalance` 用于余额管理中的单用户和批量读取，目标为真实的 `acs:quyan:*:<accountId>:user/<userId>`。这项敏感权限没有默认本人授权，与自己的余额查询权限独立。IAM 强制模式只允许读取当前账户内的有效用户；批量请求会合并重复用户 ID，并且必须全部授权通过，一个拒绝、无效用户或跨账户目标都会拒绝整个请求。返回前再次检查授权及用户版本。尚未初始化余额的用户在单用户查询中显示零余额，批量查询保留只返回已初始化账户的行为；查询不会创建余额账户。
+
+`quyan:balance:RechargeUserBalance` 对指定用户资源授权管理员充值和扣款，与余额读取权限分开，没有默认本人授权。目标必须是当前账户内的有效用户。在更改余额及提交流水前，服务器复查主体、角色会话、账户归属、用户版本和策略；复查失败会回滚余额、统计与流水。正数充值和负数扣款保留原有统计选项，2FA 与重放保护仍然必需，成功后沿用原有通知设置。
+
+`quyan:balance:ListUserTransactions` 用于管理员流水列表，对每条 `acs:balance:*:<accountId>:transaction/<userId>/<transactionId>` 资源分别授权；它没有默认本人授权，也不会自动授予充值权限。IAM 强制模式先限定当前账户内的有效用户，过滤未获准流水后再计算总数及分页，Token 名称筛选也在分页前生效。返回前重新检查策略及流水版本；撤销授权或失效的记录不再计入结果。资源组可以包含指定流水，用户或流水失效后该资源组授权随之失效。展示只使用获准流水及其所属用户的关联记录，不返回 Token 值或渠道配置；自动池渠道名称使用已保存的展示快照。与原有流水列表一样，查询仅覆盖最近 30 天。
+
+用户创建的余额兑换码使用具体 ARN：`acs:balance:*:<accountId>:gift-code/<creatorUserId>/<giftCodeId>`。`quyan:balance:ListGiftCodes` 逐条评估该资源，`quyan:balance:CancelGiftCode` 检查指定兑换码资源。默认自助范围只包含当前用户创建的兑换码；知道兑换码 ID 不会获得查看或取消他人兑换码的权限。列表的记录和总数都只包括允许查看的兑换码，不能通过列表获取被拒绝资源的兑换字符串。
+
+例如，以下策略在保留其他兑换码默认能力的同时，阻止查看和取消指定兑换码。示例中的账户、用户和兑换码 ID 必须替换为自己的真实资源：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Deny",
+    "Action": ["quyan:balance:ListGiftCodes", "quyan:balance:CancelGiftCode"],
+    "Resource": "acs:balance:*:account-id:gift-code/user-id/gift-code-id"
+  }
+}
+```
+
+附加一个条件更严格的 Allow 不会缩小既有默认 Allow。需要限制默认能力时，应使用匹配操作和资源的 Deny。资源账户由认证主体决定，客户端提交的账户 ID 或 Action Header 不能改变授权目标。legacy 模式保留旧规则，shadow 模式比较 IAM 与原有列表结果，enforce 模式拒绝资源解析或授权数据读取失败的请求。
+
+## 拼车订单资源授权
+
+在 enforce 模式下，`quyan:carpool:ListMyOrders` 对 `acs:carpool:*:<accountId>:order/<orderId>` 逐条评估；订单列表和总数只包括允许查看的订单。授权前还会验证当前用户的有效成员关联，给非成员一个订单 ARN 的 Allow 不会获得订单内容。读取详情使用 `quyan:carpool:GetOrder`，列表授权不自动授予详情或写入能力。
+
+创建订单使用 `quyan:carpool:CreateOrder`，需要同时允许当前用户 ARN 和所选公开套餐 ARN `acs:carpool:*:<accountId>:template/<templateId>`。接受邀请使用 `quyan:carpool:AcceptInvite`，需要同时允许当前用户 ARN 和服务端根据有效邀请找到的订单 ARN。邀请令牌不是授权凭证，不会写入资源 ARN 或 IAM 审计日志。篡改请求中的订单 ID、账户 ID 或 Action Header 不能改变这些目标。
+
+邀请、比例分配、确认份额、退出、取消和提交分别使用 `quyan:carpool:CreateInvite`、`AllocateRatios`、`ConfirmMember`、`LeaveOrder`、`CancelOrder`、`SubmitOrder`（后五项使用相同的 `quyan:carpool:` 前缀），目标均为具体订单 ARN。IAM Allow 不取代成员和发起人校验，也不绕过订单状态、邀请有效期、份额比例或余额要求。没有匹配 Allow 时默认拒绝，任意匹配的 Deny 优先。
+
+legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列表范围，enforce 在资源解析、策略读取或最终权限复核失败时拒绝请求。套餐运营和管理员履约接口另有管理权限，自助订单授权不会授予这些能力。
+
+## 聊天、兑换码与拼车资源组
+
+资源组可以包含聊天会话、消息、余额兑换码和拼车订单。加入时及每次授权时均检查真实资源归属：聊天资源要求会话所属用户有效；兑换码要求创建者与 ARN 中的用户一致；拼车订单要求账户内至少有一位未退出的有效成员。资源删除、用户禁用或最后一位成员退出后，资源组不再提供该资源的 Allow；已有其他授权仍按普通策略规则评估。
+
+公开、有效的拼车套餐也可以加入资源组，用于限定账户可使用的套餐。此 ARN 表示该账户对共享套餐的使用范围，不赋予套餐所有权或运营权限。未发布、归档或已禁用的套餐不能提供资源组授权。
+
+## 用户脚本资源授权
+
+脚本使用 `acs:script:*:<accountId>:script/<userId>/<scriptId>` 标识。创建脚本的 `quyan:script:CreateScript` 检查当前用户资源 `acs:quyan:*:<accountId>:user/<userId>`；修改和删除分别使用 `quyan:script:UpdateScript`、`quyan:script:DeleteScript` 检查指定脚本资源。
+
+`quyan:script:ListScripts` 按脚本逐项授权：无权限的脚本不会出现在结果中，也不会读取其正文。脚本可以加入同账户资源组；禁用、删除或账户归属不符的脚本不能加入。资源级策略不会取消“只能修改、删除自己脚本”的业务限制，也不会为所有登录用户自动授予脚本权限。
+
+执行历史使用 `acs:script:*:<accountId>:execution/<userId>/<executionId>`。`quyan:script:ListExecutions` 同时检查每条历史和关联脚本（如果存在）的资源权限，过滤后最多返回最近 50 条；没有绑定脚本的历史仍按自身资源授权。已删除脚本的自有历史快照可以保留，但不能再为该脚本新增历史。执行历史也可加入同账户资源组。
+
+保存历史的 `quyan:script:SaveExecution` 检查当前用户资源，并在绑定脚本时同时检查指定脚本。不能关联他人的脚本、已删除的脚本或跨账户脚本。历史接口只保存执行快照，不在服务端执行脚本代码。
+
+## 自有工单资源授权
+
+工单资源使用 `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`。创建工单的 `quyan:ticket:CreateTicket` 检查当前用户资源；查询、修改和追加评论分别使用 `quyan:ticket:GetOwnTicket`、`quyan:ticket:UpdateOwnTicket`、`quyan:ticket:AddOwnComment` 检查指定工单。
+
+`quyan:ticket:ListOwnTickets` 逐工单授权后再分页和计数，不返回无权限的工单内容或联系信息。账户策略不能取消自有工单的归属限制；同账户的其他用户工单也不能通过自有接口访问。内部评论对提交者隐藏，已结束工单不能修改或追加评论。有效工单可以加入同账户资源组。登录本身不自动授予这些工单操作权限。
+
+## MCP 服务配置资源授权
+
+MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quyan:mcp:ListServers` 按配置逐项授权，拒绝的配置不会出现在列表中；服务端只读取允许配置的端点、工具清单和凭据是否存在的标记，不读取凭据密文。
+
+创建配置的 `quyan:mcp:CreateServer` 检查当前用户资源，并确认用户属于当前账户且有效。MCP 配置可以加入同账户资源组；跨账户、非本人或已删除的配置不能通过自有管理接口访问。配置授权不等于批准 Agent 执行任务或使用工具，这些操作仍受各自权限和运行安全约束控制。
+
+## Agent 机器资源授权
+
+机器使用 `acs:agent:*:<accountId>:machine/<userId>/<machineId>`。`quyan:agent:ListMachines` 逐机器授权，列表只展示允许的机器状态和能力，不读取注册凭据哈希。`quyan:agent:CreateMachine` 检查当前用户资源，确认用户属于当前有效账户后创建机器；注册 Token 仅在创建成功响应中提供，列表不返回。
+
+`quyan:agent:DeleteMachine` 检查指定机器资源，并校验真实用户、账户和数据版本后撤销机器。自有管理接口不能管理他人或跨账户机器。有效机器可以加入同账户资源组；机器注册权限不等于工作区创建、任务执行或工具批准权限。
+
+撤销机器后，当前服务器上的已有连接会关闭；其他服务器上的连接在下一次心跳、任务发送或响应时重新校验机器状态，失效后拒绝通信。停用用户或账户、变更账户归属也会使旧连接失效。重连会替换旧连接，任务响应只能由接收任务的已认证连接提交。
+
+## Agent 工作区列表授权
+
+工作区使用 `acs:agent:*:<accountId>:workspace/<userId>/<workspaceId>`。`quyan:agent:ListWorkspaces` 逐工作区评估，列表仅展示允许的工作区及其运行策略和容量配置。关联机器名称和状态还需要该机器的 `quyan:agent:ListMachines` 权限；缺少该权限时不显示这些字段。账户隔离和本人归属检查始终保留，工作区可以加入同账户资源组。
+
+创建工作区需要当前用户资源上的 `quyan:agent:CreateWorkspace`；选择远程机器时，还需要该机器资源上的 `quyan:agent:UseMachine`。可见机器不等于允许使用机器。服务器在创建前校验机器归属和数据版本，并在启动运行环境前重新授权；创建响应不额外显示关联机器的名称和状态，这些信息通过独立授权的列表读取。
+
+删除工作区需要该工作区的 `quyan:agent:DeleteWorkspace`；关联远程机器时还需要该机器的 `quyan:agent:UseMachine`。删除会先释放运行环境再移除工作区。释放失败时，工作区保留并标记失败，可在恢复运行环境连接和权限后重试。删除过程中不接受重复删除或较旧创建操作对状态的覆盖。
+
+## Agent 任务事件和取消
+
+任务使用 `acs:agent:*:<accountId>:task/<userId>/<taskId>`。`quyan:agent:GetTaskEvents` 控制事件内容读取，服务器按顺序分批读取，并在事件流持续期间、发送每条事件前重新授权；授权被撤销后停止发送。`quyan:agent:CancelTask` 只允许取消仍在排队、运行或等待批准的任务，并检查当前任务状态和版本。已结束任务不能再次取消，旧 worker 不能把取消后的任务改回运行中。任务仍须属于当前用户和账户，并关联有效的自有工作区与对话。
+
+## Agent 批准资源授权
+
+批准使用 `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`。读取待批准列表需要任务上的 `quyan:agent:ListTaskApprovals`，每项工具调用内容还需该批准资源上的 `quyan:agent:GetApproval`。提交批准或拒绝需要任务和批准资源上的 `quyan:agent:DecideApproval`。服务器同时核验任务、工作区、对话和步骤归属；只允许处理未过期、仍为待批准状态的操作。决定与任务状态在同一事务中更新，已取消任务不能通过较旧批准操作恢复运行。
+
+创建任务需要所选工作区和对话上的 `quyan:agent:CreateTask`，以及实际使用的 Relay Token 资源上的 `quyan:agent:UseRelayToken`。Token 资源为 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`；显式选择 Token 时不会沿用对话默认 Token 的授权。服务器只在授权后读取模型限制，并在创建事务中核验工作区、对话、Token 的账户归属和数据版本。已停用或过期 Token 不能用于创建任务，原有模型映射、允许模型、预算和步骤限制继续适用。
+
+## Passkey 资源授权
+
+Passkey 管理不再以整个账户作为资源。注册选项和注册验证分别需要 `quyan:auth:GetPasskeyRegistrationOptions`、`quyan:auth:RegisterPasskey`，资源为当前用户的 `acs:quyan:*:<accountId>:user/<userId>`。这些敏感操作没有默认自助授权，需要明确授予。
+
+列表与删除分别使用 `quyan:auth:ListPasskeys`、`quyan:auth:DeletePasskey`，资源为 `acs:quyan:*:<accountId>:passkey/<userId>/<passkeyId>`。`passkeyId` 是列表返回的 `id`，不是浏览器的 WebAuthn `credentialId`；删除 API 仍接受 `credentialId`，服务端会查找真实凭据并授权。列表只显示获准的凭据，不返回公钥或签名计数器。仅有注册权限不会通过注册选项暴露已有凭据标识。
+
+授权不会改变凭据所有权：只能管理当前用户的 Passkey，不能因通配符而查看或删除其他用户的凭据。匹配的 Deny 优先于 Allow；账户、用户、角色会话或授权失效时请求被拒绝。匿名 Passkey 登录流程不要求预先拥有 IAM 权限。注册挑战只能成功使用一次；挑战过期、并发使用或注册失败后，请重新发起注册。
+
+## JSON Endpoint 读取与所属用户
+
+IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:ListEndpoints`、`quyan:json_endpoint:GetEndpoint`，资源为 `acs:json-endpoint:*:<accountId>:endpoint/<userId>/<endpointId>`。服务端先限定当前账户，再逐端点授权；未授权端点不会出现在列表中，详情访问被拒绝。可以通过自定义策略授予同账户中指定用户的指定端点，但不能读取其他账户端点。
+
+所属用户选择器使用独立的 `quyan:json_endpoint:ListEndpointOwners`，资源为 `acs:quyan:*:<accountId>:user/<userId>`。读取某个端点不等于能枚举账户的所有用户名。管理 API 不返回访问密码或密码哈希。旧的端点读取权限仍只覆盖自己的端点；旧的端点管理权限覆盖当前账户内的端点，而不是全站账户。
+
+删除需要独立的 `quyan:json_endpoint:DeleteEndpoint`，资源与读取相同，但读取权限不能授权删除。删除前会复查策略和资源版本；并发修改、禁用账户、失效角色会话或授权撤销都会阻止删除。旧的删除权限仍仅覆盖自己的端点；同账户内指定他人端点必须获得明确授权。
+
+公开 JSON 的密码、Ed25519 签名、时效与 nonce 防重放规则不受影响。修改需要 `quyan:json_endpoint:UpdateEndpoint`，仍使用具体端点 ARN。启用或停用根 slug 还需同一资源上的 `quyan:json_endpoint:SetRootSlug`，普通修改权限不能代替根 slug 权限。服务端保留已有密码和签名访问配置，提交前复查授权、账户与资源版本。旧的修改权限仍仅覆盖自己的端点。
+
+创建使用 `quyan:json_endpoint:CreateEndpoint`，因为此时端点尚无 ID，资源是目标所属用户的 `acs:quyan:*:<accountId>:user/<userId>`。默认创建在当前用户下；指定其他用户时需要明确授予该用户资源，且所属用户必须在同一账户内。创建根 slug 额外需要该用户资源上的 `quyan:json_endpoint:SetRootSlug`。服务器在处理访问配置前及提交前分别校验权限；目标用户改名、版本变化、禁用或撤权时不会创建端点。旧的创建权限继续只覆盖当前用户，读取、删除或修改 Action 不能代替创建权限。
+
+## OJ API Key 撤销授权
+
+撤销自己的 OJ API Key 使用 `quyan:oj:DeleteApiKey`，资源为 `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`。二次验证和重放保护仍然必需；通配符授权不会越过密钥所有权，不能删除其他用户的密钥。服务端检查实际密钥元数据、当前策略以及账户与角色会话状态，并在事务中检查资源版本后撤销。匹配的 Deny、授权撤销、并发修改或账户禁用会阻止操作。
+
+撤销检查不会读取或输出密钥值、历史密钥或 Relay 上游配置。旧的 OJ 删除权限通过兼容映射保留自己的密钥撤销能力；其他 OJ 密钥接口仍按现有权限桥接处理。
+
+## OJ API Key 读取与密钥值授权
+
+`quyan:oj:ListApiKeys`、`quyan:oj:GetApiKey` 和 `quyan:oj:GetApiKeyStats` 使用 `acs:oj:*:<accountId>:api-key/<userId>/<keyId>` 对自己的每个密钥分别授权。列表和用量统计只包含允许访问的密钥。只授权一个密钥不会暴露其他密钥的存在或用量；通配符授权也不能绕过归属和账户隔离。
+
+读取基本信息不会自动授予密钥值。只有敏感操作 `quyan:oj:RevealApiKey` 同时允许该资源时，响应才包含 `key` 字段。没有此权限时，允许读取的密钥仍显示在列表中，但不会显示密钥值和复制按钮；匹配的 Deny 同样阻止密钥值返回。关联渠道只显示名称，不返回上游配置。迁移期间，旧 OJ 读取权限保留原有的本人密钥访问范围。
+
+`quyan:oj:CreateApiKey` 对认证用户的 `acs:quyan:*:<accountId>:user/<userId>` 授权签发 OJ 密钥，没有默认本人授权，不能替其他用户签发。创建响应包含本次新生成的密钥和所选渠道名称；签发权限不允许读取已有密钥。服务器在创建事务中复查主体、角色会话、用户与账户版本、策略和渠道可见性，复查失败会回滚新密钥。2FA、重放保护及已有渠道选择限制继续生效。
+
+`quyan:oj:UpdateApiKey` 对具体 OJ 密钥资源授权名称、有效期和渠道更新，仍然仅操作认证用户自己的有效密钥。更新权限不会授予读取现有密钥值的能力；返回密钥值还需要同一资源上的 `quyan:oj:RevealApiKey`，匹配的 Deny 会隐藏该字段。服务器在事务中复查用户、角色会话、密钥版本及策略，选定渠道也要再次通过可见性和版本检查；渠道更新只读取选择所需的元数据及展示名称，不返回上游凭据或配置。隐藏渠道、私有不可见渠道和自动代理池的选择限制继续生效。
+
+## 在线监控资源权限
+
+IAM 强制模式下，在线监控限定在当前账户内。`quyan:user:ListOnlineSessions` 和 `quyan:user:GetOnlineUserTimeline` 分别对 `acs:quyan:*:<accountId>:online-session/<userId>/<sessionId>` 会话资源授权。概览和时间线只包含允许访问的会话，筛选与分页基于可见记录执行；总数和统计不会包含隐藏会话或其他账户的用户。概览分别统计可见的在线用户人数和活跃会话数量。
+
+用户详情需要对 `acs:quyan:*:<accountId>:user/<userId>` 授予 `quyan:user:GetOnlineUser`。这项独立权限用于读取该用户的会话汇总和最近连接信息；仅有会话列表权限不会获得用户详情权限。心跳过期会显示为离线，读取监控数据不会附带修改已存储的会话。legacy 和 shadow 模式继续保留原有监控行为，并执行既有监控权限检查。
+
+## 在线会话强制下线
+
+IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `online-session/<userId>/<sessionId>` 资源，`quyan:user:ForceOfflineUser` 作用于选定的 `user/<userId>` 资源。结束一个会话的权限不会自动获得结束该用户全部会话的权限。两项操作继续要求重放保护，并检查当前账户、身份、角色会话、策略和资源版本。普通委派用户不能通过这些接口强制账户所有者下线，以保留恢复身份。
+
+服务器确认撤销标记写入后才提交会话关闭。如果写入不可用，请求失败，会话变更回滚。整用户下线还会修改凭据版本，使原有 JWT 在临时撤销标记过期或重新登录清除标记后仍保持失效。并发修改或权限撤销会导致请求失败；刷新监控并重试会重新执行授权。shadow 模式只评估新权限，不会额外执行一次下线。
+
+## 读取其他用户的客服会话
+
+`quyan:support:GetUserConversation` 对选定的 `acs:quyan:*:<accountId>:user/<userId>` 资源授权。IAM 强制模式下，目标必须是当前账户内的有效用户，通配符策略也不能跨账户读取。这项敏感权限没有自动的本人访问授权，也不会授予修改客服配置或查看用量分析的权限。服务器在读取会话前和返回会话前分别检查当前授权；权限撤销、用户版本变化、角色会话失效或账户禁用都会阻止响应。既有的本人客服会话操作继续使用其独立权限。
+
+## 客服用量分析范围
+
+`quyan:support:GetUserUsageAnalytics` 对 `acs:quyan:*:<accountId>:user/<userId>` 授权客服用量分析，与读取客服会话的权限分开，没有默认本人授权。IAM 强制模式只汇总当前账户内获准用户的请求数、Token、估算费用和每日趋势，用户表格在授权后分页，未获准用户不计入总数。指定用户查询必须通过该用户资源授权，跨账户目标会被拒绝；没有获准用户时显示零统计。返回前复查授权和用户版本，授权撤销或用户状态、版本变化会阻止返回已经计算的统计。
+
+查询参数支持页码、每页数量、用户及起止时间。每页最多 100 位用户，默认最近 30 天，时间窗口最多 90 天；无效时间、起止顺序和用户标识会返回参数错误。既有 legacy 和 shadow 模式保留原有权限检查，shadow 对用户资源进行诊断。
+
+## 个人 OAuth 应用读取授权
+
+个人应用使用 `acs:oauth:*:<accountId>:client/<userId>/<clientId>`。`quyan:oauth:ListClients` 逐项限制列表，`quyan:oauth:GetClient` 限制指定应用详情；这两项操作没有默认本人授权。匹配的 Deny 优先，未授权应用不会出现在列表中。通配符授权仍然只能读取认证用户自己的普通应用，不能查看其他用户或系统应用。
+
+应用可加入本账户资源组，移除成员后该授权范围失效。展示字段只在授权通过后读取，读取不会返回客户端密钥哈希或 Token；`hasClientSecret` 仅表示是否配置了密钥。服务端在返回前复查策略、应用版本、账户状态、角色会话和 OAuth Token 状态。OAuth 调用还必须满足 `oauth_client` Scope；菜单权限不能替代这些服务端检查。系统应用与审核接口保持各自的管理权限。
+
+`quyan:oauth:UpdateClient` 和 `quyan:oauth:SubmitClientReview` 分别控制指定个人应用的更新与提交审核，均使用同一个应用 ARN；更新权限不自动允许提交审核，读取权限也不授予修改。2FA 与重放保护继续生效。修改已通过或被拒绝的应用后，审核状态按原规则回到草稿。服务端在事务中锁定应用和可信用户，复查策略、应用版本、账户、角色会话和 OAuth Token；复查失败会回滚更新。修改 Scope 仍须证明其可被操作者当前角色会话授予，提交审核不会直接批准应用。
+
+轮换与删除分别使用敏感操作 `quyan:oauth:RotateClientSecret` 和 `quyan:oauth:DeleteClient`，资源仍是指定个人应用 ARN。更新权限不自动授予轮换，读取或轮换权限也不授予删除。轮换只适用于机密客户端，成功时只返回本次生成的新 Secret，请及时保存；读取接口不提供完整 Secret。事务内最终授权或资源版本复查失败时，轮换和删除都会回滚。系统应用不能通过这些个人应用操作管理。
+
+创建个人 OAuth 应用使用敏感操作 `quyan:oauth:CreateClient`，授权资源为认证用户的 `acs:quyan:*:<accountId>:user/<userId>`。此操作没有默认本人授权，只能为自己创建普通应用；应用初始为草稿，不能在创建时设置为系统应用或已批准。机密客户端的创建响应只返回本次生成的新 Secret，公共客户端不生成 Secret。创建事务会复查当前用户与账户版本、策略、角色会话、OAuth Token 和 Scope 可授予范围，任一复查失败均回滚新应用。创建权限不自动授予应用读取、修改、轮换、删除或提交审核权限。
+
+系统 OAuth 应用列表使用 `quyan:oauth:ListSystemClients`，逐应用资源为 `acs:platform:*:platform:oauth-client/<clientId>`。`platform` 是平台保留命名空间，不是调用者账户；普通账户所有者、自建账户用户组或通配符策略不能据此取得平台管理权限。操作者必须属于有效的全局管理组，且该组原有权限包含系统 OAuth 管理；再由 IAM 按具体应用、Condition 和显式 Deny 评估。移除该组的管理权限或禁用组后，读取被拒绝。列表仅包含授权的系统应用，不返回密钥哈希或 Token，也不能把这些平台资源加入普通账户资源组。
+
+系统应用更新使用敏感操作 `quyan:oauth:UpdateSystemClient`，资源为指定系统应用的 `acs:platform:*:platform:oauth-client/<clientId>`。列表权限不自动授予更新；平台管理组的原有权限范围仍是必要前提。服务器在事务中锁定可信用户、全局管理组和系统应用，并复查当前策略与版本；组权限移除、身份变化或并发修改会阻止写入。Scope 更新按当前角色会话验证可授予范围，并在提交前再次检查。系统应用类型、创建者、客户端 ID 与密钥不能通过此更新接口修改；2FA、重放保护以及生命周期上限继续生效。
+
+创建系统 OAuth 应用需要敏感操作 `quyan:oauth:CreateSystemClient`，资源固定为 `acs:platform:*:platform:oauth-control/clients`。已有的全局管理组权限仍是必要前提；普通账户策略不能制造平台管理资格。创建时检查当前角色会话可授予的 Scope，并在提交前复查策略、用户、全局组和 Scope，失败会回滚新应用。系统应用创建后为已批准状态，默认使用公共客户端且不生成密钥；机密客户端只在创建成功后返回本次新密钥。创建权限不自动包含列表或更新权限。
+
+OAuth 审核列表使用 `quyan:oauth:ListClientReviews` 和资源 `acs:platform:*:platform:oauth-review-client/<clientId>`。操作者必须属于有效的全局审核组，并保留原有审核读取权限。列表只显示普通应用，先应用审核状态和关键词筛选，再逐应用检查策略，最后分页；总数只计算已授权应用。显示字段不包含密钥哈希或 Token。返回前再次检查权限、应用版本和组资格，发生变化时拒绝返回。系统应用由独立的系统应用列表管理。
+
+审核决定和审核侧删除分别需要 `quyan:oauth:ReviewClient`、`quyan:oauth:DeleteReviewedClient`，资源仍为对应应用的 `acs:platform:*:platform:oauth-review-client/<clientId>`。全局组必须保留审核更新权限，读取权限不自动授予审核或删除。只有待审核的普通应用可以批准或拒绝；审核侧删除可以删除普通应用，但不能删除系统应用。事务提交前会复查审核人、账户、全局组、角色会话、策略和应用版本，变化会拒绝操作；最终检查失败会回滚审核结果或删除。
+
+启用 IAM 强制授权后，配置读取和更新分别需要 `quyan:support:GetConfig` 与 `quyan:support:UpdateConfig`，资源固定为 `acs:platform:*:platform:config/support-ai`。操作者还必须属于保留 AI 客服配置权限的有效全局管理组；账户内自建组或通配符策略不能取得平台管理资格。读取权限不自动授予更新权限，显式 Deny 优先。保存时所有设置一起提交，权限撤销、配置并发修改或角色会话失效会拒绝整次更新，不会留下部分新配置。密钥保持加密存储，审计仅记录发生变化的配置项名称。
+
+通用服务器配置接口在 IAM 强制模式下使用 `quyan:system:ListConfigurations` 和 `quyan:system:UpdateConfigurations`。每个已注册配置键都有独立资源，例如 `acs:platform:*:platform:config-item/smtp.host`；普通账户策略不能替代全局组中的服务器配置管理资格。列表只读取并返回已授权键，密钥值仅显示 `[configured]`，不会返回原值。保存会逐键授权，并在一个事务中提交全部变更；任意键被拒绝、配置版本变化或身份失效都会拒绝整次操作。客户端不会把密钥存在标记写回；明确输入新密钥可替换，明确清空可移除。通用接口访问客服配置还须通过对应的客服读取或更新 Action，不能绕过客服资源的 Deny。新客服上游密钥必须通过专用客服配置接口加密写入。AI 容量配置只有在写入成功后才会生效，其描述只对获准读取该配置键的主体返回。
+
+### 月卡模板管理权限
+
+在 enforce 模式下，月卡模板创建、修改、删除、发布和下架分别使用 `quyan:monthly_pass:CreateTemplate`、`UpdateTemplate`、`DeleteTemplate`、`PublishTemplate` 和 `UnpublishTemplate`。具体模板资源为 `acs:platform:*:platform:monthly-pass-template/<模板ID>`。创建同时要求控制范围 `acs:platform:*:platform:monthly-pass-template-control` 和新模板范围的授权；新模板被显式 Deny 时，模板及配额窗口均不会保存。
+
+这些操作还要求有效全局用户组的月卡模板管理资格，个人策略不能单独获得平台管理能力。通过修改接口将状态设为删除时，需要额外的 `DeleteTemplate` 授权。原有 2FA、重放保护和业务校验继续生效；策略撤销、管理资格变化或模板/配额并发调整会导致写入失败。刷新后重试会重新检查授权。legacy/shadow 保留旧权限门禁；shadow 评估 IAM，但只进行一次业务写入。

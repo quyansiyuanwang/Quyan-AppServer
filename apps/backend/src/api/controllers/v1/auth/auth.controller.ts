@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { browserStateResetGuard } from "@/middleware/auth/browser-state-reset.middleware";
 import { browserStateResetRateLimitMiddleware } from "@/middleware/rate-limit-policies";
 import { BrowserStateResetService } from "@/services/auth/browser-state-reset.service";
@@ -194,6 +196,13 @@ export class AuthController extends Controller {
 
   @Post("central-login/secure-flows")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:CreateCentralLoginFlow",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "中央登录安全续接已创建")
   @Middlewares(replayProtectionMiddleware, validateBody(createCentralLoginFlowBodySchema))
@@ -212,6 +221,13 @@ export class AuthController extends Controller {
 
   @Post("central-login/flows/consume")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:ConsumeCentralLoginFlow",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "中央登录续接已消费")
   @Middlewares(replayProtectionMiddleware, validateBody(consumeCentralLoginFlowBodySchema))
@@ -284,6 +300,13 @@ export class AuthController extends Controller {
 
   @Get("external/identities")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:ListExternalIdentities",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "获取绑定账号成功")
   public async listExternalIdentities(@Request() request: TypedRequest): Promise<ListExternalIdentitiesResponse> {
     return this.externalAuthService.listIdentities(request.user!.userId);
@@ -291,6 +314,13 @@ export class AuthController extends Controller {
 
   @Post("external/bind")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:BindExternalIdentity",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "绑定外部账号成功")
   @Middlewares(replayProtectionMiddleware, validateBody(bindExternalIdentityBodySchema))
@@ -308,6 +338,13 @@ export class AuthController extends Controller {
 
   @Post("external/unbind")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:UnbindExternalIdentity",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "解绑外部账号成功")
   @Middlewares(replayProtectionMiddleware, validateBody(unbindExternalIdentityBodySchema))
@@ -335,6 +372,13 @@ export class AuthController extends Controller {
 
   @Post("qr-login/scan")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:ScanQrLogin",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "扫码登录会话已标记")
   @Middlewares(replayProtectionMiddleware, validateBody(scanQrLoginBodySchema))
@@ -347,6 +391,13 @@ export class AuthController extends Controller {
 
   @Post("qr-login/confirm")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth:ConfirmQrLogin",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @SuccessResponse(HttpStatusCode.Ok, "扫码登录确认成功")
   @Middlewares(replayProtectionMiddleware, validateBody(confirmQrLoginBodySchema))

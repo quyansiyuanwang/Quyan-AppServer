@@ -1,21 +1,142 @@
 import type { GroupDto, CreateGroupDto, UpdateGroupDto, GetAllGroupsData } from "@/api/dto/users/group.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
-import { BadRequestError, NotFoundError } from "@/util/errors";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/util/errors";
 import { GroupRepository } from "@/store/users/group.repository";
 import { UserRepository } from "@/store/users/user.repository";
-import type { GroupStore, GroupWithUserCount, GroupListFilters } from "@/store/users/group.store";
+import type {
+  GroupStore,
+  GroupWithUserCount,
+  GroupListFilters,
+  GroupPermissionSnapshot,
+} from "@/store/users/group.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { Request } from "express";
 import { env } from "@/config/env";
 import { extractClientIp } from "@/util/ip-extractor";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { getRequestContext } from "@/util/request-context";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { requestConditionContext, principalConditionContext } from "@/iam/request/condition-context";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { buildAcsResource, IAM_MANAGEMENT_PAGINATION, type IamPrincipal, type Permission } from "@quyan/shared";
 
 export class GroupService {
+  private static instance: GroupService;
+  static getInstance(): GroupService {
+    return (this.instance ??= new GroupService());
+  }
+
   constructor(
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
   ) {}
+
+  private async iamManagementContext(actorUserId: string) {
+    const actor = await this.userRepository.findByIdWithGroup(actorUserId);
+    const request = getRequestContext();
+    const owner = actor?.accountOwnerId || actor?.id;
+    const principal: IamPrincipal | undefined = request
+      ? getIamPrincipal(request)
+      : actor && owner
+        ? {
+            subjectUserId: actor.id,
+            principalUserId: actor.id,
+            accountOwnerId: owner,
+            subjectType: actor.userType === "root" && actor.id === owner ? "root" : "sub_user",
+          }
+        : undefined;
+    if (
+      !actor ||
+      actor.status !== 1 ||
+      !principal ||
+      principal.principalUserId !== actor.id ||
+      principal.subjectUserId !== actor.id ||
+      principal.accountOwnerId !== owner ||
+      (actor.group?.accountOwnerId && actor.group.accountOwnerId !== owner)
+    )
+      throw new ForbiddenError("Invalid group management identity", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const recovery =
+      actor.userType === "root" &&
+      actor.id === owner &&
+      principal.subjectType === "root" &&
+      actor.group?.status === 1 &&
+      actor.group.accountOwnerId === null &&
+      actor.group.username === env.security.superAdminGroupUsername
+        ? actor.group.id
+        : undefined;
+    const filters: GroupListFilters = {
+      accountOwnerId: owner,
+      ...(recovery ? { recoveryGroupId: recovery } : {}),
+      ...(actor.group?.status === 1 && actor.group.username !== env.security.superAdminGroupUsername
+        ? { minLevel: actor.group.level }
+        : {}),
+    };
+    return {
+      principal,
+      filters,
+      context: request ? requestConditionContext(request, principal) : principalConditionContext(principal),
+    };
+  }
+
+  private async assertIamTargetAccount(
+    group: { id: string; accountOwnerId: string | null; status: number },
+    actorUserId?: string,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    if (!actorUserId)
+      throw new ForbiddenError("Group actor is missing", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const { filters } = await this.iamManagementContext(actorUserId);
+    if (group.status !== 1 || (group.accountOwnerId !== filters.accountOwnerId && group.id !== filters.recoveryGroupId))
+      throw new ForbiddenError("Group target crosses account scope", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+  }
+
+  private async getIamVisibleGroupsPage(options: {
+    actorUserId: string;
+    page: number;
+    pageSize: number;
+    keyword?: string;
+    hasRamPermission?: boolean;
+  }): Promise<GetAllGroupsData> {
+    const pagination = iamManagementPaginationSchema.safeParse(options);
+    if (!pagination.success)
+      throw new BadRequestError("Invalid IAM group page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const { page, pageSize } = pagination.data;
+    const { principal, filters, context } = await this.iamManagementContext(options.actorUserId);
+    const candidates = await this.groupRepository.listActiveWithUserCountPaginated({
+      ...filters,
+      keyword: options.keyword,
+      hasRamPermission: options.hasRamPermission,
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
+    });
+    const visible = await IamAuthorizationService.getInstance().filterAuthorizedPage({
+      principal,
+      action: "quyan:group:Read",
+      context,
+      items: candidates.slice(0, pageSize),
+      resource: (group) =>
+        buildAcsResource({
+          service: "quyan",
+          region: "*",
+          accountId: principal.accountOwnerId,
+          path: "group/" + group.id,
+        }),
+    });
+    const groups = visible.map((group) => this.mapGroupToDto(group));
+    return { groups, page, pageSize, hasMore: candidates.length > pageSize };
+  }
 
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
@@ -48,6 +169,14 @@ export class GroupService {
    * 管理员可以看到所有组
    */
   async getVisibleGroups(actorUserId: string): Promise<GroupDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (
+        await this.getIamVisibleGroupsPage({
+          actorUserId,
+          page: 1,
+          pageSize: IAM_MANAGEMENT_PAGINATION.defaultPageSize,
+        })
+      ).groups;
     const actorUser = await this.userRepository.findById(actorUserId);
     if (!actorUser || !actorUser.groupId) return [];
 
@@ -72,6 +201,7 @@ export class GroupService {
     keyword?: string;
     hasRamPermission?: boolean;
   }): Promise<GetAllGroupsData> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.getIamVisibleGroupsPage(options);
     const actorUser = await this.userRepository.findById(options.actorUserId);
     if (!actorUser || !actorUser.groupId)
       return { groups: [], total: 0, page: options.page, pageSize: options.pageSize, hasMore: false };
@@ -102,8 +232,12 @@ export class GroupService {
     };
   }
 
-  async getGroupById(id: string): Promise<GroupDto | null> {
-    const group = await this.groupRepository.findByIdWithUserCount(id);
+  async getGroupById(id: string, actorUserId?: string): Promise<GroupDto | null> {
+    const scoped = env.security.iamAuthorizationMode === "enforce";
+    const owner =
+      scoped && actorUserId ? (await this.iamManagementContext(actorUserId)).principal.accountOwnerId : undefined;
+    const group = await this.groupRepository.findByIdWithUserCount(id, owner);
+    if (group) await this.assertIamTargetAccount(group, actorUserId);
     return group ? this.mapGroupToDto(group) : null;
   }
 
@@ -111,7 +245,10 @@ export class GroupService {
     const existing = await this.groupRepository.findByUsername(data.username);
     if (existing) throw new BadRequestError("组标识已存在", undefined, { messageKey: "group.identifierExists" });
 
+    const iam =
+      env.security.iamAuthorizationMode === "enforce" ? await this.iamManagementContext(actorUserId) : undefined;
     const group = await this.groupRepository.createWithUserCount({
+      ...(iam ? { accountOwnerId: iam.principal.accountOwnerId } : {}),
       username: data.username,
       name: data.name || null,
       level: data.level,
@@ -139,13 +276,18 @@ export class GroupService {
   async updateGroup(groupId: string, data: UpdateGroupDto, actorUserId: string, request?: Request): Promise<GroupDto> {
     const existing = await this.groupRepository.findById(groupId);
     if (!existing) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    await this.assertIamTargetAccount(existing, actorUserId);
 
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.level !== undefined) updateData.level = data.level;
     if (data.description !== undefined) updateData.description = data.description;
 
-    const group = await this.groupRepository.updateWithUserCount(groupId, updateData);
+    const owner =
+      env.security.iamAuthorizationMode === "enforce"
+        ? (await this.iamManagementContext(actorUserId)).principal.accountOwnerId
+        : undefined;
+    const group = await this.groupRepository.updateWithUserCount(groupId, updateData, owner);
 
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -168,6 +310,7 @@ export class GroupService {
   async deleteGroup(groupId: string, actorUserId: string, request?: Request): Promise<void> {
     const group = await this.groupRepository.findByIdWithUserCount(groupId);
     if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    await this.assertIamTargetAccount(group, actorUserId);
     if (group.username === env.security.protectedGroupName)
       throw new BadRequestError("该用户组不允许删除", undefined, { messageKey: "group.notDeletable" });
     if (group._count.users > 0)
@@ -190,9 +333,17 @@ export class GroupService {
     });
   }
 
-  async getGroupPermissions(groupId: string): Promise<string[]> {
+  async getGroupPermissionSnapshot(groupId: string, actorUserId: string) {
     const group = await this.groupRepository.findById(groupId);
     if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    await this.assertIamTargetAccount(group, actorUserId);
+    return group;
+  }
+
+  async getGroupPermissions(groupId: string, actorUserId?: string): Promise<string[]> {
+    const group = await this.groupRepository.findById(groupId);
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    await this.assertIamTargetAccount(group, actorUserId);
     const permissions = typeof group.permissions === "string" ? JSON.parse(group.permissions) : group.permissions;
     return Array.isArray(permissions) ? permissions : [];
   }
@@ -202,25 +353,14 @@ export class GroupService {
     permissions: string[],
     actorUserId: string,
     request?: Request,
+    expected?: GroupPermissionSnapshot,
   ): Promise<void> {
-    const group = await this.groupRepository.findById(groupId);
-    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
-
-    await this.groupRepository.updateById(groupId, { permissions });
-
-    const actorUser = await this.userRepository.findById(actorUserId);
-    await this.businessLogService.logOperation({
-      operationType: OperationType.GROUP_PERMISSION_UPDATE,
-      operationCategory: OperationCategory.PERMISSION,
+    await PermissionService.getInstance().setGroupPermissions(
+      groupId,
+      permissions as Permission[],
       actorUserId,
-      targetResourceId: groupId,
-      targetResourceType: "GROUP",
-      description: `用户 '${actorUser?.username || actorUserId}' 更新了用户组 '${group.username}' 的权限`,
-      changes: { permissions },
-      success: true,
-      ipAddress: this.getClientIP(request),
-      userAgent: request?.headers["user-agent"],
-      requestId: request?.headers["x-request-id"] as string | undefined,
-    });
+      request,
+      expected,
+    );
   }
 }

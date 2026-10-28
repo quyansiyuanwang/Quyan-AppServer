@@ -7,7 +7,8 @@ import { createAgentRunBodySchema } from "@/api/schema/agent/agent.schema";
 import { validateBody } from "@/middleware/validation";
 import { AgentService } from "@/services/agent/agent.service";
 import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { agentTaskCreationResourcesResolver } from "@/iam/request/agent-resource-resolvers";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 
 @Route("v1/chat/conversations")
@@ -19,7 +20,11 @@ export class AgentRunController extends Controller {
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createAgentRunBodySchema))
-  @RequirePermission(Permission.AGENT_TASK_RUN)
+  @CheckPermission(Permission.AGENT_TASK_RUN, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:CreateTask",
+    resourceKind: "batch",
+    resource: agentTaskCreationResourcesResolver,
+  })
   async createRun(
     @Path() conversationId: string,
     @Body() body: CreateAgentRunRequest,
@@ -29,7 +34,7 @@ export class AgentRunController extends Controller {
     return {
       code: 0,
       message: "Success",
-      data: await this.service.createRun(request.user!.userId, conversationId, body),
+      data: await this.service.createRun(request.user!.userId, conversationId, body, request),
     };
   }
 }

@@ -44,6 +44,16 @@ export const SENSITIVE_FIELDS = [
   "private_key",
 ] as const satisfies readonly string[];
 
+/** Policy content and AI requirements are redacted only inside the RAM API domain. */
+export const IAM_LOG_REDACTED_FIELDS = [
+  "document",
+  "documentText",
+  "trustPolicy",
+  "instruction",
+  "explanation",
+  "missingInformation",
+] as const;
+
 /**
  * 不记录响应体的路径列表（防止递归套娃）
  * 这些路径的请求会被记录，但响应体会被替换为占位符

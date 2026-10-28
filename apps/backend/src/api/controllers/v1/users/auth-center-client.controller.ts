@@ -33,12 +33,17 @@ import {
   reviewAuthCenterClientBodySchema,
   updateAuthCenterClientBodySchema,
 } from "@/api/schema/users/auth-center-client.schema";
-import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
+import {
+  iamCollectionAuthorizationMiddleware,
+  iamAuthenticatedAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { authCenterClientResourceResolver } from "@/iam/request/auth-center-client-resource-resolvers";
+import { platformAuthCenterReviewClientResourceResolver } from "@/iam/request/platform-auth-center-resource-resolvers";
 import { AuthCenterClientService } from "@/services/users/auth-center-client.service";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/auth-center/clients")
@@ -49,7 +54,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_CREATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:CreateClient",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
@@ -67,15 +78,27 @@ export class AuthCenterClientController extends Controller {
 
   @Get("")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:auth_center:ListClients",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async listClients(@Request() request: TypedRequest): Promise<AuthCenterClientDto[]> {
-    return this.service.listClients(request.user!.userId);
+    return this.service.listClients(request.user!.userId, request);
   }
 
   @Get("review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:auth_center:ListClientReviews",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(authCenterClientReviewListQuerySchema))
   public async listClientsForReview(
@@ -83,23 +106,36 @@ export class AuthCenterClientController extends Controller {
     @Query() pageSize: number = 10,
     @Query() reviewStatus?: "draft" | "pending" | "approved" | "rejected",
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<AuthCenterClientReviewListResponseDto> {
-    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword });
+    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword }, request);
   }
 
   @Get("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:GetClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema))
   public async getClient(@Path() id: string, @Request() request: TypedRequest): Promise<AuthCenterClientDto> {
-    return this.service.getClient(id, request.user!.userId);
+    return this.service.getClient(id, request.user!.userId, request);
   }
 
   @Put("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:UpdateClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
@@ -119,7 +155,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/submit-review")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:SubmitClientReview",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
@@ -134,7 +176,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:ReviewClient",
+      resourceKind: "single-resource",
+      resource: platformAuthCenterReviewClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema), validateBody(reviewAuthCenterClientBodySchema))
@@ -148,7 +196,13 @@ export class AuthCenterClientController extends Controller {
 
   @Delete("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:DeleteReviewedClient",
+      resourceKind: "single-resource",
+      resource: platformAuthCenterReviewClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema))
@@ -159,7 +213,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/regenerate-secret")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:RotateClientSecret",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
@@ -177,7 +237,13 @@ export class AuthCenterClientController extends Controller {
 
   @Delete("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_DELETE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:DeleteClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")

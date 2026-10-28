@@ -1,15 +1,24 @@
-import { Controller, Get, Post, Delete, Route, Security, Request, Path, Body, Middlewares } from "@tsoa/runtime";
+import {
+  accessKeyIssuanceSnapshotMiddleware,
+  accessKeyIssuanceReadyMiddleware,
+} from "@/iam/request/accesskey-issuance-context";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { accessKeyResourceResolver } from "@/iam/request/accesskey-resource-resolvers";
+import { Query, Controller, Get, Post, Delete, Route, Security, Request, Path, Body, Middlewares } from "@tsoa/runtime";
 import { AccessKeyService } from "@/services/users/accesskey.service";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type {
+  AccessKeyPageDto,
   CreateAccessKeyDto,
   AccessKeyDto,
   SendAccessKeyCreationVerificationCodeResponse,
 } from "@/api/dto/users/accesskey.dto";
 import { accesskeyIdParamsSchema, createAccessKeyBodySchema } from "@/api/schema/users/accesskey.schema";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { ForbiddenError } from "@/util/errors";
@@ -28,12 +37,18 @@ function assertNoOAuthAccessToken(request: TypedRequest, action: "读取" | "删
 export class AccessKeyController extends Controller {
   @Post()
   @Security("jwt", ["accesskey"])
-  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:CreateAccessKey",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    accessKeyIssuanceSnapshotMiddleware(),
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(createAccessKeyBodySchema),
+    accessKeyIssuanceReadyMiddleware,
   )
   public async createAccessKey(
     @Request() request: TypedRequest,
@@ -45,16 +60,46 @@ export class AccessKeyController extends Controller {
 
   @Get()
   @Security("jwt")
-  @CheckPermission(Permission.ACCESSKEY_READ, PermissionCheckMode.ALL, "jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ListAccessKeys",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listAccessKeys(@Request() request: TypedRequest): Promise<AccessKeyDto[]> {
     assertNoOAuthAccessToken(request, "读取");
     const service = new AccessKeyService();
-    return service.listKeys(request.user!.userId);
+    return service.listKeys(request.user!.userId, request);
+  }
+
+  /** Bounded metadata page. Empty IAM-filtered pages can still have hasNext=true. */
+  @Get("page")
+  @Security("jwt")
+  @Middlewares(
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ListAccessKeys",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  public async listAccessKeysPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<AccessKeyPageDto> {
+    assertNoOAuthAccessToken(request, "读取");
+    return new AccessKeyService().listKeysPage(request.user!.userId, { page, pageSize }, request);
   }
 
   @Delete("{id}")
   @Security("jwt")
-  @CheckPermission(Permission.ACCESSKEY_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:DeleteAccessKey",
+    resourceKind: "single-resource",
+    resource: accessKeyResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
@@ -70,14 +115,23 @@ export class AccessKeyController extends Controller {
 
   @Post("send-accesskey-creation-verification-code")
   @Security("jwt", ["accesskey"])
-  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:SendAccessKeyCreationVerificationCode",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
-  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
+  @Middlewares(
+    accessKeyIssuanceSnapshotMiddleware(),
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    accessKeyIssuanceReadyMiddleware,
+  )
   public async sendAccessKeyCreationVerificationCode(
     @Request() request: TypedRequest,
   ): Promise<SendAccessKeyCreationVerificationCodeResponse> {
     const service = new AccessKeyService();
-    const sent = await service.sendAccessKeyCreationVerificationCodeForUser(request.user!.userId);
+    const sent = await service.sendAccessKeyCreationVerificationCodeForUser(request.user!.userId, request);
     return {
       message: sent ? "验证码已发送" : "当前账户已启用二次验证，无需额外邮箱验证码",
     };

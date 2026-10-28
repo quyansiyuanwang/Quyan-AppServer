@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { builtinModules } from "node:module";
+import ts from "typescript";
 
 const rootDir = process.cwd();
 const packageJsonPath = path.join(rootDir, "package.json");
@@ -82,19 +83,25 @@ function isInternalSpecifier(specifier) {
 }
 
 function collectSpecifiers(code) {
-  const patterns = [
-    /\bimport\s+(?:[^"']+?\s+from\s+)?["']([^"']+)["']/g,
-    /\bexport\s+[^"']+?\s+from\s+["']([^"']+)["']/g,
-    /\brequire\(\s*["']([^"']+)["']\s*\)/g,
-    /\bimport\(\s*["']([^"']+)["']\s*\)/g,
-  ];
-
   const specifiers = [];
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(code)) !== null)
-      specifiers.push(match[1]);
-  }
+  const sourceFile = ts.createSourceFile("dependency-scan.ts", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const addLiteral = (node) => {
+    if (node && ts.isStringLiteralLike(node)) specifiers.push(node.text);
+  };
+
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) addLiteral(node.moduleSpecifier);
+    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference))
+      addLiteral(node.moduleReference.expression);
+    else if (ts.isCallExpression(node)) {
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      if ((isRequire || isDynamicImport) && node.arguments.length > 0) addLiteral(node.arguments[0]);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
   return specifiers;
 }
 

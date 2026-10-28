@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { LockBackendUnavailableError, TooManyRequestsError } from "@/util/errors";
 
+const QUEUE_LOCK_PREFIX = "relay:channel-probe-queue-lock:v1";
 const LOCK_PREFIX = "relay:channel-probe-lock:v1";
 const LOCK_TTL_MS = 90_000;
 const POLL_INTERVAL_MS = 100;
@@ -56,13 +57,28 @@ export class RelayChannelProbeLockService {
     }
   }
 
-  private async acquire(channelId: string, mode: LockMode, timeoutMs: number): Promise<ProbeChannelLock> {
+  /** Serialize queue creation/reset without waiting for the long-running upstream calibration writer. */
+  public async withQueueWrite<T>(channelId: string, operation: () => Promise<T>): Promise<T> {
+    const lock = await this.acquire(channelId, "write", 30_000, QUEUE_LOCK_PREFIX);
+    try {
+      return await operation();
+    } finally {
+      await lock.release();
+    }
+  }
+
+  private async acquire(
+    channelId: string,
+    mode: LockMode,
+    timeoutMs: number,
+    prefix = LOCK_PREFIX,
+  ): Promise<ProbeChannelLock> {
     if (!this.redis.isRedisAvailable())
       throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable", undefined, {
         messageKey: "relayChannelProbe.coordinationBackendUnavailable",
       });
 
-    const baseKey = `${LOCK_PREFIX}:${channelId}`;
+    const baseKey = `${prefix}:${channelId}`;
     const owner = randomUUID();
     const deadline = Date.now() + Math.max(1_000, timeoutMs);
     let writeQueued = false;

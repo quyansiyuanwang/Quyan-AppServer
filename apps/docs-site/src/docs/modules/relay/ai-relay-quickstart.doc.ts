@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'ai-relay-quickstart',
+  updatedAt: '2026-10-23',
   category: { en: 'Relay', 'zh-CN': '转发' },
   title: { en: 'AI relay quick start', 'zh-CN': '调用 AI 快速开始' },
   summary: {

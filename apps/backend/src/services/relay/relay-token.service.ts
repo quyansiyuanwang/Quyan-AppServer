@@ -1,3 +1,28 @@
+import {
+  projectRelayTokenConfiguration,
+  type RelayTokenConfigurationProjectionSource,
+} from "./relay-token-configuration-projection";
+import { relayTokenCopyNames } from "@/util/relay/relay-token-name.util";
+import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
+import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
+import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
+import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
+import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
+import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
+import { relayModelCatalogArn } from "@/iam/resources/relay-model-catalog-resources";
+import { PlatformRelayRequestReadIamService } from "./platform-relay-request-read-iam.service";
+import type { RelayRequestReadQuery } from "@/store/relay/platform-relay-request-read.repository";
+import { relayTokenSwitchLogsQuerySchema } from "@/api/schema/relay/relay.schema";
+import { RelayTokenInspectionRepository } from "@/store/relay/relay-token-inspection.repository";
+import { RelayTokenLifecycleIamService } from "./relay-token-lifecycle-iam.service";
+import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
+import { RelayTokenInspectionIamService } from "./relay-token-inspection-iam.service";
+import { RelayTokenBatchUpdateIamService } from "./relay-token-batch-update-iam.service";
+import { RelayTokenDeleteIamService } from "./relay-token-delete-iam.service";
+import { env } from "@/config/env";
+import type { RelayTokenReadRecord } from "@/store/relay/relay-token-read.repository";
+import { RelayTokenReadIamService } from "./relay-token-read-iam.service";
+import type { TypedRequest } from "@/types/express";
 import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
 import { validateRelayComposition } from "@/util/relay/relay-composition.util";
 import { RelayCompositionRepository } from "@/store/relay/relay-composition.repository";
@@ -50,9 +75,8 @@ import { normalizeRetryStatusRules } from "@/util/relay";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import crypto from "crypto";
 import type { Request } from "express";
-import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
+import { toCanonicalCredential } from "@quyan/shared";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -95,8 +119,6 @@ import {
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
 const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
-const COPY_SUFFIX = "（副本）";
-const MAX_TOKEN_NAME_LENGTH = 100;
 const DEFAULT_DAILY_RESET_TIMEZONE_OFFSET_MINUTES = 0;
 
 const normalizeRequestFormatTransforms = (value: unknown): RelayRequestFormatTransform[] | null => {
@@ -220,6 +242,32 @@ export class RelayTokenService {
     editingTokenId?: string,
     selectedIds = "",
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayCompositionCandidatesDto> {
+    return RelayTokenCompositionReadService.getInstance().candidates(
+      actorUserId,
+      { page, pageSize, search, editingTokenId, selectedIds, targetUserId },
+      request,
+      () =>
+        this.compositionCandidatesLegacy(
+          actorUserId,
+          page,
+          pageSize,
+          search,
+          editingTokenId,
+          selectedIds,
+          targetUserId,
+        ),
+    );
+  }
+  private async compositionCandidatesLegacy(
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    search = "",
+    editingTokenId?: string,
+    selectedIds = "",
+    targetUserId?: string,
   ): Promise<RelayCompositionCandidatesDto> {
     const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
     if (editingTokenId) await this.getAccessibleToken(editingTokenId, actorUserId, userId);
@@ -257,6 +305,15 @@ export class RelayTokenService {
   }
 
   async previewComposition(
+    actorUserId: string,
+    data: RelayCompositionPreviewRequest,
+    request?: TypedRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    return RelayTokenCapabilityReadService.getInstance().preview(actorUserId, data, request, () =>
+      this.previewCompositionLegacy(actorUserId, data),
+    );
+  }
+  private async previewCompositionLegacy(
     actorUserId: string,
     data: RelayCompositionPreviewRequest,
   ): Promise<RelayCompositionPreviewDto> {
@@ -426,67 +483,80 @@ export class RelayTokenService {
     });
   }
 
-  async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: Request): Promise<RelayTokenDto> {
+  async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: TypedRequest): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const createData = structuredClone(data);
+    const result = await RelayTokenCreateIamService.getInstance().create(
+      actorUserId,
+      request,
+      {
+        data: createData,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.generateTokenLegacy(actorUserId, createData, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_CREATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "创建了中转令牌",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async generateTokenLegacy(
+    actorUserId: string,
+    data: CreateRelayTokenDto,
+    request?: Request,
+  ): Promise<RelayTokenDto> {
     const userId = await this.resolveManagedUserId(
       actorUserId,
       data.targetUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    const automaticPool = automaticPoolId
-      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
-      : undefined;
-    const blockedAutomaticProxyPoolChannelIds = automaticPool
-      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
-      : [];
-    const normalizedConfig =
-      data.routingMode === "composite" || automaticPoolId
-        ? { defaultChannelId: undefined, channelConfigs: [] }
-        : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
-
-    let tokenValue: string;
-    let isCustomKey = false;
-
-    if (data.token) {
-      await this.checkCustomKeyPermission(actorUserId);
-      if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
-        await this.assertCustomKeyLimit(userId);
-        await this.assertCustomKeySetRateLimit(userId);
-      }
-      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
-      isCustomKey = true;
-    } else {
-      tokenValue = this.generateRelayTokenValue();
-    }
-
-    const relayToken = await this.withGraphWrite(userId, data.routingMode === "composite", () =>
-      this.relayTokenRepo.create({
-        userId,
-        name: data.name?.trim() || undefined,
-        token: tokenValue,
-        isCustomKey,
-        expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
-        channelId: normalizedConfig.defaultChannelId,
-        routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
-        memberTokenConfigs: data.memberTokenConfigs,
-        streamConfig: data.streamConfig,
-        automaticProxyPoolChannelId: automaticPoolId,
-        blockedAutomaticProxyPoolChannelIds,
-        channelConfigs: normalizedConfig.channelConfigs,
-        failoverConfig:
-          data.failoverConfig ??
-          (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
-        quotaLimit: data.quotaLimit ?? undefined,
-        quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
-        allowedModels: data.allowedModels?.trim() || undefined,
-        requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
-        normalizerConfig: data.normalizerConfig
-          ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
-          : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
-        contentSafetyConfig: data.contentSafetyConfig ?? undefined,
-        ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
-        modelMapping: data.modelMapping ?? undefined,
-      }),
+    const prepared = await prepareRelayTokenCreate(userId, data, {
+      orderedChannels: (channelId, configs) => this.normalizeChannelConfiguration(actorUserId, channelId, configs),
+      automaticPool: async (poolId, blocked) =>
+        this.normalizeBlockedAutomaticProxyPoolChannelIds(
+          await this.assertAutomaticProxyPool(poolId, actorUserId),
+          blocked,
+        ),
+      customCredential: async (preferred) => {
+        await this.checkCustomKeyPermission(actorUserId);
+        if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
+          await this.assertCustomKeyLimit(userId);
+          await this.assertCustomKeySetRateLimit(userId);
+        }
+        return toCanonicalCredential(await this.resolveImportedTokenValue(preferred), "relayToken");
+      },
+      generatedCredential: () => this.generateRelayTokenValue(),
+      expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+      quotaWindows: (value) => this.normalizeQuotaWindows(value),
+      ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+      compositeFailover: (count) => this.compositeFailover(count),
+    });
+    const relayToken = await this.withGraphWrite(userId, prepared.requiresGraphLock, () =>
+      this.relayTokenRepo.create(prepared.create),
     );
 
     await this.businessLogService.logOperation({
@@ -506,6 +576,44 @@ export class RelayTokenService {
   }
 
   async exportTokens(
+    body: ExportRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenExportResponse> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenReadIamService.getInstance().read(
+      "ExportTokens",
+      actorUserId,
+      body,
+      request,
+      async (records) =>
+        records.map((row) => {
+          if (typeof row.token !== "string" || !row.token)
+            throw new ForbiddenError("Token export requires credential disclosure", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+          return this.toExportItemDto({ ...row, token: row.token });
+        }),
+      async () => {
+        const result = await this.exportTokensLegacy(body, actorUserId, request);
+        return { items: result.tokens, total: result.tokens.length, page: 1, pageSize: result.tokens.length };
+      },
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_EXPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: body.targetUserId ?? actorUserId,
+        targetResourceType: "RELAY_TOKEN",
+        description: `导出了 ${result.items.length} 个中转令牌`,
+        metadata: { ids: body.ids, includeDisabled: body.includeDisabled === true, total: result.items.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { tokens: result.items };
+  }
+  private async exportTokensLegacy(
     body: ExportRelayTokensRequest,
     actorUserId: string,
     request?: Request,
@@ -539,6 +647,49 @@ export class RelayTokenService {
   }
 
   async importTokens(
+    body: ImportRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ImportRelayTokensResponse> {
+    const mode = env.security.iamAuthorizationMode,
+      data = structuredClone(body);
+    const tokens = await RelayTokenCreateIamService.getInstance().importTokens(
+      actorUserId,
+      request,
+      {
+        data,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      async () => (await this.importTokensLegacy(data, actorUserId, request)).data,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_IMPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: data.targetUserId ?? actorUserId,
+        targetResourceType: "RELAY_TOKEN",
+        description: `导入了 ${tokens.length} 个中转令牌`,
+        metadata: { total: data.tokens.length, created: tokens.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { code: 0, message: "success", total: data.tokens.length, created: tokens.length, data: tokens };
+  }
+
+  private async importTokensLegacy(
     body: ImportRelayTokensRequest,
     actorUserId: string,
     request?: Request,
@@ -611,6 +762,36 @@ export class RelayTokenService {
   async refreshToken(
     tokenId: string,
     actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "refresh",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.refreshTokenLegacy(tokenId, actorUserId, request, targetUserId),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_REFRESH,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "刷新了中转令牌凭据",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async refreshTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
@@ -625,7 +806,7 @@ export class RelayTokenService {
     await this.relayTokenRepo.update(tokenId, {
       token: refreshedTokenValue,
     });
-    const refreshedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const refreshedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_REFRESH,
@@ -685,6 +866,25 @@ export class RelayTokenService {
     page?: number,
     pageSize?: number,
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenPageDto> {
+    return RelayTokenReadIamService.getInstance().read(
+      "ListTokens",
+      actorUserId,
+      { page, pageSize, targetUserId },
+      request,
+      async (records) => {
+        const usage = await this.buildQuotaWindowUsageMap(records);
+        return records.map((row) => this.toDto(row, usage));
+      },
+      () => this.listTokensLegacy(actorUserId, page, pageSize, targetUserId),
+    );
+  }
+  private async listTokensLegacy(
+    actorUserId: string,
+    page?: number,
+    pageSize?: number,
+    targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
     const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
     const result = await this.relayTokenRepo.findPageWithRelations(
@@ -702,14 +902,64 @@ export class RelayTokenService {
     };
   }
 
-  async getToken(tokenId: string, actorUserId: string, targetUserId?: string): Promise<RelayTokenDto> {
+  async getToken(
+    tokenId: string,
+    actorUserId: string,
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenDto> {
+    const result = await RelayTokenReadIamService.getInstance().read(
+      "GetToken",
+      actorUserId,
+      { id: tokenId, targetUserId },
+      request,
+      async (records) => {
+        const usage = await this.buildQuotaWindowUsageMap(records);
+        return records.map((row) => this.toDto(row, usage));
+      },
+      async () => ({
+        items: [await this.getTokenLegacy(tokenId, actorUserId, targetUserId)],
+        total: 1,
+        page: 1,
+        pageSize: 1,
+      }),
+    );
+    return result.items[0]!;
+  }
+  // Unmigrated mutation responses retain their existing authorization boundary.
+  // Public GET/list must use the IAM reader; migrate these callers with their atomic writes.
+  private async getTokenLegacy(tokenId: string, actorUserId: string, targetUserId?: string): Promise<RelayTokenDto> {
     const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     const quotaWindowUsageMap = await this.buildQuotaWindowUsageMap([token]);
     return this.toDto(token, quotaWindowUsageMap);
   }
 
-  async revokeToken(tokenId: string, actorUserId: string, request?: Request, targetUserId?: string): Promise<void> {
+  async revokeToken(
+    tokenId: string,
+    actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<void> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenDeleteIamService.getInstance().remove(
+      actorUserId,
+      { ids: [tokenId], targetUserId },
+      request,
+      true,
+      async () => {
+        await this.revokeTokenLegacy(tokenId, actorUserId, request, targetUserId);
+        return { total: 1, affected: 1 };
+      },
+    );
+    if (mode === "enforce") await this.logNativeTokenDeletion(actorUserId, [tokenId], result, request, true);
+  }
+  private async revokeTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
+    request?: Request,
+    targetUserId?: string,
+  ): Promise<void> {
     const token = await this.getAccessibleToken(
       tokenId,
       actorUserId,
@@ -733,6 +983,39 @@ export class RelayTokenService {
   }
 
   async updateTokenChannel(
+    tokenId: string,
+    actorUserId: string,
+    data: UpdateRelayTokenChannelDto,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "channel",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.updateTokenChannelLegacy(tokenId, actorUserId, data, request, targetUserId),
+      data.channelId,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "更新了中转令牌的渠道绑定",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async updateTokenChannelLegacy(
     tokenId: string,
     actorUserId: string,
     data: UpdateRelayTokenChannelDto,
@@ -769,7 +1052,7 @@ export class RelayTokenService {
       await this.relayTokenRepo.replaceChannelConfigs(tokenId, data.channelId, reorderedConfigs);
     }
 
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_CHANNEL_UPDATE,
@@ -794,6 +1077,52 @@ export class RelayTokenService {
     tokenId: string,
     actorUserId: string,
     data: UpdateRelayTokenDto,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const updateData = structuredClone(data);
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "update",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.updateTokenLegacy(tokenId, actorUserId, updateData, request, targetUserId),
+      {
+        data: updateData,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "更新了中转令牌配置",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async updateTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
+    data: UpdateRelayTokenDto,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
@@ -804,100 +1133,32 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
 
-    const hasChannelId = Object.prototype.hasOwnProperty.call(data, "channelId");
-    const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
-    const hasAutomaticMode = data.routingMode === "automatic-pool";
-    const automaticPoolId = hasAutomaticMode ? data.automaticProxyPoolChannelId : undefined;
-    const automaticPool = automaticPoolId
-      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
-      : undefined;
-    const blockedAutomaticProxyPoolChannelIds = automaticPool
-      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
-      : data.routingMode === "ordered"
-        ? []
-        : undefined;
-    const hasCompositeMode = (data.routingMode ?? token.routingMode) === "composite";
-    if (!hasCompositeMode && data.memberTokenConfigs?.length) throw compositionError("mode");
-    if (hasCompositeMode && (data.channelId || data.channelConfigs?.length || data.automaticProxyPoolChannelId))
-      throw compositionError("mode");
-    const hasRoutingUpdate = data.routingMode !== undefined || hasChannelId || hasChannelConfigs;
-    if (token.routingMode === "composite") throw compositionError("mode");
-    const normalizedConfig =
-      hasCompositeMode || hasAutomaticMode
-        ? { defaultChannelId: null, channelConfigs: [] }
-        : hasRoutingUpdate
-          ? await this.normalizeChannelConfiguration(
-              actorUserId,
-              data.channelId ?? token.channelId ?? undefined,
-              data.channelConfigs,
-            )
-          : null;
-    const hasName = Object.prototype.hasOwnProperty.call(data, "name");
-    const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
-    const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
-    const hasQuotaLimit = Object.prototype.hasOwnProperty.call(data, "quotaLimit");
-    const hasAllowedModels = Object.prototype.hasOwnProperty.call(data, "allowedModels");
-    const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
-    const hasRequestFormatTransforms = Object.prototype.hasOwnProperty.call(data, "requestFormatTransforms");
-    const hasNormalizerConfig = Object.prototype.hasOwnProperty.call(data, "normalizerConfig");
-    const hasContentSafetyConfig = Object.prototype.hasOwnProperty.call(data, "contentSafetyConfig");
-    const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
-
-    let tokenValue: string | undefined;
-    let isCustomKey: boolean | undefined;
-
-    if (hasToken && data.token) {
-      await this.checkCustomKeyPermission(actorUserId);
-      if (!(await this.canBypassCustomKeyLimits(actorUserId, token.userId))) {
-        if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
-        await this.assertCustomKeySetRateLimit(token.userId);
-      }
-      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
-      isCustomKey = true;
-    }
-
-    await this.withGraphWrite(token.userId, token.routingMode === "composite" || hasCompositeMode, () =>
-      this.relayTokenRepo.update(tokenId, {
-        name: hasName ? data.name?.trim() || null : undefined,
-        ...(hasToken
-          ? {
-              token: tokenValue,
-              legacyToken: data.token && data.token !== tokenValue ? data.token : null,
-              isCustomKey,
-            }
-          : {}),
-        expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
-        quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
-        quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
-        allowedModels: hasAllowedModels ? data.allowedModels?.trim() || null : undefined,
-        ipWhitelist: Object.prototype.hasOwnProperty.call(data, "ipWhitelist")
-          ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
-          : undefined,
-        modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
-        requestFormatTransforms: hasRequestFormatTransforms
-          ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
-          : undefined,
-        normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
-        contentSafetyConfig: hasContentSafetyConfig ? (data.contentSafetyConfig ?? null) : undefined,
-        channelId: normalizedConfig?.defaultChannelId,
-        channelConfigs: normalizedConfig?.channelConfigs,
-        routingMode: data.routingMode,
-        memberTokenConfigs: data.memberTokenConfigs,
-        streamConfig: data.streamConfig,
-        automaticProxyPoolChannelId: hasAutomaticMode
-          ? automaticPoolId
-          : data.routingMode === "ordered" || hasCompositeMode
-            ? null
-            : undefined,
-        blockedAutomaticProxyPoolChannelIds,
-        failoverConfig:
-          data.failoverConfig ??
-          (hasCompositeMode && token.routingMode !== "composite"
-            ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0)
-            : undefined),
-      }),
+    const prepared = await prepareRelayTokenUpdate(token, data, {
+      orderedChannels: (channelId, configs) => this.normalizeChannelConfiguration(actorUserId, channelId, configs),
+      automaticPool: async (channelId, blockedIds) =>
+        this.normalizeBlockedAutomaticProxyPoolChannelIds(
+          await this.assertAutomaticProxyPool(channelId, actorUserId),
+          blockedIds,
+        ),
+      customCredential: async (preferred) => {
+        await this.checkCustomKeyPermission(actorUserId);
+        if (!(await this.canBypassCustomKeyLimits(actorUserId, token.userId))) {
+          if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
+          await this.assertCustomKeySetRateLimit(token.userId);
+        }
+        return toCanonicalCredential(await this.resolveImportedTokenValue(preferred), "relayToken");
+      },
+      expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+      quotaWindows: (value) => this.normalizeQuotaWindows(value),
+      ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+      compositeFailover: (count) => this.compositeFailover(count),
+    });
+    await this.withGraphWrite(token.userId, prepared.requiresGraphLock, () =>
+      this.relayTokenRepo.update(tokenId, prepared.update),
     );
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_UPDATE,
@@ -1002,6 +1263,24 @@ export class RelayTokenService {
     tokenId: string,
     data: DuplicateRelayTokenRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenDto> {
+    const body = structuredClone(data);
+    const [result] = await this.copyTokens(
+      [tokenId],
+      actorUserId,
+      request,
+      true,
+      body.targetUserId,
+      body.name,
+      async () => [await this.duplicateTokenLegacy(tokenId, body, actorUserId, request)],
+    );
+    return result!;
+  }
+  private async duplicateTokenLegacy(
+    tokenId: string,
+    data: DuplicateRelayTokenRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<RelayTokenDto> {
     const sourceToken = await this.getAccessibleToken(
@@ -1056,6 +1335,65 @@ export class RelayTokenService {
   }
 
   async batchDuplicateTokens(
+    ids: string[],
+    actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto[]> {
+    const sourceIds = [...ids];
+    return this.copyTokens(sourceIds, actorUserId, request, false, targetUserId, undefined, () =>
+      this.batchDuplicateTokensLegacy(sourceIds, actorUserId, request, targetUserId),
+    );
+  }
+  private async copyTokens(
+    ids: string[],
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    single: boolean,
+    targetUserId: string | undefined,
+    name: string | null | undefined,
+    legacy: () => Promise<RelayTokenDto[]>,
+  ): Promise<RelayTokenDto[]> {
+    const mode = env.security.iamAuthorizationMode;
+    const tokens = await RelayTokenCreateIamService.getInstance().duplicateTokens(
+      actorUserId,
+      request,
+      {
+        data: { ids, targetUserId, name },
+        single,
+        configuration: (source) => this.toImportItemDto(source),
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      legacy,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: single ? OperationType.RELAY_TOKEN_DUPLICATE : OperationType.RELAY_TOKEN_BATCH_DUPLICATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: tokens[0]!.userId,
+        ...(single ? { targetResourceId: tokens[0]!.id } : {}),
+        targetResourceType: "RELAY_TOKEN",
+        description: `复制了 ${tokens.length} 个中转令牌`,
+        metadata: { total: tokens.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return tokens;
+  }
+  private async batchDuplicateTokensLegacy(
     ids: string[],
     actorUserId: string,
     request?: Request,
@@ -1124,6 +1462,36 @@ export class RelayTokenService {
   async toggleTokenStatus(
     tokenId: string,
     actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "toggle",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.toggleTokenStatusLegacy(tokenId, actorUserId, request, targetUserId),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "切换了中转令牌状态",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async toggleTokenStatusLegacy(
+    tokenId: string,
+    actorUserId: string,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
@@ -1136,7 +1504,7 @@ export class RelayTokenService {
 
     const newStatus = token.status === MANAGED_STATUS.ENABLED ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED;
     await this.relayTokenRepo.updateStatus(tokenId, newStatus);
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_STATUS_CHANGE,
@@ -1158,6 +1526,29 @@ export class RelayTokenService {
   }
 
   async batchSetTokenStatus(
+    body: BatchSetRelayTokenStatusRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenBatchUpdateIamService.getInstance().setStatus(actorUserId, body, request, () =>
+      this.batchSetTokenStatusLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_BATCH_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceType: "RELAY_TOKEN",
+        description: "批量更新了 " + result.affected + " 个中转令牌",
+        metadata: { ids: body.ids, enabled: body.enabled, total: result.affected },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+  private async batchSetTokenStatusLegacy(
     body: BatchSetRelayTokenStatusRequest,
     actorUserId: string,
     request?: Request,
@@ -1195,6 +1586,32 @@ export class RelayTokenService {
   async batchContentSafety(
     body: BatchRelayTokenContentSafetyRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenBatchUpdateIamService.getInstance().setContentSafety(
+      actorUserId,
+      body,
+      request,
+      () => this.batchContentSafetyLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_UPDATE,
+        operationCategory: OperationCategory.SECURITY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceType: "RELAY_TOKEN",
+        description: "批量更新了 " + result.affected + " 个中转令牌",
+        metadata: { ids: body.ids, mode: body.mode, total: result.affected },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+  private async batchContentSafetyLegacy(
+    body: BatchRelayTokenContentSafetyRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
     const userId = await this.resolveManagedUserId(
@@ -1226,6 +1643,38 @@ export class RelayTokenService {
   }
 
   async batchDeleteTokens(
+    body: BatchDeleteRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenDeleteIamService.getInstance().remove(actorUserId, body, request, false, () =>
+      this.batchDeleteTokensLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce") await this.logNativeTokenDeletion(actorUserId, body.ids, result, request, false);
+    return { total: result.total, affected: result.affected };
+  }
+  private async logNativeTokenDeletion(
+    actorUserId: string,
+    ids: string[],
+    result: { affected: number; userId?: string },
+    request: TypedRequest | undefined,
+    single: boolean,
+  ) {
+    await this.businessLogService.logOperation({
+      operationType: single ? OperationType.RELAY_TOKEN_DELETE : OperationType.RELAY_TOKEN_BATCH_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetUserId: result.userId,
+      targetResourceId: single ? ids[0] : undefined,
+      targetResourceType: "RELAY_TOKEN",
+      description: `删除了 ${result.affected} 个中转令牌`,
+      metadata: { ids, total: result.affected },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+  private async batchDeleteTokensLegacy(
     body: BatchDeleteRelayTokensRequest,
     actorUserId: string,
     request?: Request,
@@ -1264,9 +1713,29 @@ export class RelayTokenService {
     startDate?: Date,
     endDate?: Date,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayUsageStatsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
+    return RelayTokenInspectionIamService.getInstance().usage(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      (token) => this.buildTokenUsageStats(token, startDate, endDate, true),
+      async () =>
+        this.buildTokenUsageStats(
+          await this.getAccessibleToken(tokenId, actorUserId, targetUserId),
+          startDate,
+          endDate,
+        ),
+    );
+  }
+  private async buildTokenUsageStats(
+    token: { id: string; requestCount: number },
+    startDate?: Date,
+    endDate?: Date,
+    scoped = false,
+  ): Promise<RelayUsageStatsDto> {
+    const tokenId = token.id;
     const [usages, aggregates] = await Promise.all([
       this.relayUsageRepo.findByRelayTokenId(tokenId, startDate, endDate),
       this.relayUsageRepo.aggregateByRelayTokenIds([tokenId], startDate, endDate),
@@ -1279,7 +1748,7 @@ export class RelayTokenService {
       avgTokensPerRequest: requestCount > 0 ? totalTokens / requestCount : 0,
       usages: usages.map((u) => ({
         id: u.id,
-        relayTokenId: u.relayTokenId,
+        relayTokenId: scoped ? tokenId : u.relayTokenId,
         requestTokens: u.requestTokens,
         responseTokens: u.responseTokens,
         totalTokens: u.totalTokens,
@@ -1295,6 +1764,15 @@ export class RelayTokenService {
   }
 
   async getRequestDiagnostics(
+    actorUserId: string,
+    query: Omit<RelayRequestReadQuery, "page" | "pageSize"> & { page?: number; pageSize?: number },
+    request?: TypedRequest,
+  ): Promise<RelayRequestDiagnosticsPageDto> {
+    return PlatformRelayRequestReadIamService.getInstance().list(actorUserId, query, request, () =>
+      this.getRequestDiagnosticsLegacy(actorUserId, query),
+    );
+  }
+  private async getRequestDiagnosticsLegacy(
     actorUserId: string,
     query: {
       page?: number;
@@ -1341,7 +1819,16 @@ export class RelayTokenService {
     };
   }
 
-  async getRequestRouteTrace(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
+  async getRequestRouteTrace(
+    actorUserId: string,
+    requestId: string,
+    request?: TypedRequest,
+  ): Promise<RelayRequestRouteTraceDto> {
+    return PlatformRelayRequestReadIamService.getInstance().trace(actorUserId, requestId, request, () =>
+      this.getRequestRouteTraceLegacy(actorUserId, requestId),
+    );
+  }
+  private async getRequestRouteTraceLegacy(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_ROUTE_TRACE_READ);
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_CHANNEL_POOL_METADATA_READ);
@@ -1380,12 +1867,36 @@ export class RelayTokenService {
     startDate?: Date,
     endDate?: Date,
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenUsageSummaryBatchDto> {
+    return RelayTokenInspectionIamService.getInstance().summaries(
+      actorUserId,
+      tokenIds,
+      targetUserId,
+      request,
+      (targets) => this.buildTokenUsageSummaries(targets, startDate, endDate),
+      () => this.getUsageSummariesLegacy(actorUserId, tokenIds, startDate, endDate, targetUserId),
+    );
+  }
+  private async getUsageSummariesLegacy(
+    actorUserId: string,
+    tokenIds?: string[],
+    startDate?: Date,
+    endDate?: Date,
+    targetUserId?: string,
   ): Promise<RelayTokenUsageSummaryBatchDto> {
     const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
     const targetTokens = tokenIds?.length
       ? await this.getRequestedUsageSummaryTargets(actorUserId, tokenIds, userId)
       : await this.relayTokenRepo.findUsageSummaryTargets(undefined, userId);
 
+    return this.buildTokenUsageSummaries(targetTokens, startDate, endDate);
+  }
+  private async buildTokenUsageSummaries(
+    targetTokens: RelayTokenUsageSummaryTarget[],
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<RelayTokenUsageSummaryBatchDto> {
     if (!startDate && !endDate)
       return {
         summaries: targetTokens.map((token) =>
@@ -1413,9 +1924,33 @@ export class RelayTokenService {
     limit: number = 20,
     offset: number = 0,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayTokenUsageDetailDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
+    return RelayTokenInspectionIamService.getInstance().usage(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      (token) => this.buildTokenUsageDetail(token, startDate, endDate, limit, offset, true),
+      async () =>
+        this.buildTokenUsageDetail(
+          await this.getAccessibleToken(tokenId, actorUserId, targetUserId),
+          startDate,
+          endDate,
+          limit,
+          offset,
+        ),
+    );
+  }
+  private async buildTokenUsageDetail(
+    token: RelayTokenUsageSummaryTarget,
+    startDate?: Date,
+    endDate?: Date,
+    limit = 20,
+    offset = 0,
+    scoped = false,
+  ): Promise<RelayTokenUsageDetailDto> {
+    const tokenId = token.id;
     const [aggregateRows, usageDetailPage] = await Promise.all([
       this.relayUsageRepo.aggregateByRelayTokenIds([tokenId], startDate, endDate),
       this.relayUsageRepo.findUsageDetailPageByRelayTokenId(tokenId, startDate, endDate, limit, offset),
@@ -1430,7 +1965,7 @@ export class RelayTokenService {
       offset,
       usages: usageDetailPage.usages.map((usage) => ({
         id: usage.id,
-        relayTokenId: usage.relayTokenId,
+        relayTokenId: scoped ? tokenId : usage.relayTokenId,
         requestTokens: usage.requestTokens,
         responseTokens: usage.responseTokens,
         totalTokens: usage.totalTokens,
@@ -1512,9 +2047,24 @@ export class RelayTokenService {
     };
   }
 
-  async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
-    const modelConfigs = await this.modelPricingRepo.listActiveOrderedByModel();
-
+  async getAvailableModels(actorUserId?: string, request?: TypedRequest): Promise<RelayAvailableModelsMapDto> {
+    return RelayModelCatalogReadIamService.getInstance().read(
+      actorUserId,
+      request,
+      async (rows, principal) => ({
+        ...this.buildAvailableModels(rows),
+        modelResourceArns: Object.fromEntries(
+          rows
+            .filter((row) => row.model.trim())
+            .map((row) => [row.model.trim(), relayModelCatalogArn(principal.accountOwnerId, row.id)]),
+        ),
+      }),
+      async () => this.buildAvailableModels(await this.modelPricingRepo.listActiveOrderedByModel()),
+    );
+  }
+  private buildAvailableModels(
+    modelConfigs: readonly { model: string; provider: string | null }[],
+  ): RelayAvailableModelsMapDto {
     const modelNames: string[] = [];
     const seenModelNames = new Set<string>();
     const uniqueModelIdToName = new Map<string, string>();
@@ -1576,6 +2126,28 @@ export class RelayTokenService {
     actorUserId: string,
     limit: number = 50,
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenSwitchLogsDto> {
+    if (!relayTokenSwitchLogsQuerySchema.safeParse({ limit, targetUserId }).success)
+      throw new BadRequestError("Invalid switch log limit", undefined, { messageKey: "errors.badRequest" });
+    return RelayTokenInspectionIamService.getInstance().switchLogs(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (target) => ({
+        logs: (await RelayTokenInspectionRepository.getInstance().switchLogs(target.userId, target.id, limit)).map(
+          (log) => this.toSwitchLogDto(log),
+        ),
+      }),
+      () => this.getSwitchLogsLegacy(tokenId, actorUserId, limit, targetUserId),
+    );
+  }
+  private async getSwitchLogsLegacy(
+    tokenId: string,
+    actorUserId: string,
+    limit: number = 50,
+    targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
     await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
     const logs = await this.relayTokenRepo.listSwitchLogs(tokenId, limit);
@@ -1586,10 +2158,18 @@ export class RelayTokenService {
     tokenId: string,
     actorUserId: string,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayTokenAvailableModelsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
-    return this.relayProxyService.getAvailableModelMapForToken(token);
+    return RelayTokenCapabilityReadService.getInstance().models(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async () => {
+        const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+        return this.relayProxyService.getAvailableModelMapForToken(token);
+      },
+    );
   }
 
   private toDto(
@@ -1629,8 +2209,10 @@ export class RelayTokenService {
       username: token.user?.username || undefined,
       ownerName: token.user?.name || token.user?.username || undefined,
       name: token.name,
-      token: toCanonicalCredential(token.token, "relayToken"),
-      balance: Number(token.balance),
+      ...(typeof token.token === "string" && token.token
+        ? { token: toCanonicalCredential(token.token, "relayToken") }
+        : {}),
+      balance: Number(token.balance ?? 0),
       totalTokens: token.totalTokens,
       requestCount: token.requestCount,
       usedQuota: Number(token.usedQuota || 0),
@@ -1693,71 +2275,18 @@ export class RelayTokenService {
     };
   }
 
-  private toImportItemDto(token: RelayTokenWithRelations): RelayTokenImportItemDto {
-    return {
-      name: token.name || undefined,
-      token: toCanonicalCredential(token.token, "relayToken"),
-      expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
-      routingMode:
-        token.routingMode === "composite"
-          ? "composite"
-          : token.routingMode === "automatic-pool"
-            ? "automatic-pool"
-            : "ordered",
-      memberTokenConfigs:
-        token.routingMode === "composite"
-          ? (token.memberTokenConfigs ?? []).map((member) => ({
-              tokenId: member.tokenId,
-              priority: member.priority,
-              enabled: member.enabled,
-            }))
-          : undefined,
-      automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
-      blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
-        token.blockedAutomaticProxyPoolChannelIds,
-      ),
-      channelId: token.channelId || token.channelConfigs[0]?.channelId || undefined,
-      channelConfigs: token.channelConfigs.map((config) => ({
-        channelId: config.channelId,
-        priority: config.priority,
-      })),
-      failoverConfig: token.failoverConfig
-        ? {
-            enabled: Boolean(token.failoverConfig.enabled),
-            maxRetries: Number(token.failoverConfig.maxRetries || 2),
-            retryStatusCodes: normalizeRetryStatusRules(
-              Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
-            ),
-            failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
-            failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
-            maxAcceptedChannelMultiplier:
-              token.failoverConfig.maxAcceptedChannelMultiplier == null
-                ? null
-                : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
-            minCacheHitRate:
-              token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
-          }
-        : undefined,
-      quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,
-      quotaWindows: Array.isArray(token.quotaWindows)
-        ? token.quotaWindows.map((quotaWindow) => ({
-            quotaLimit: Number(quotaWindow.quotaLimit),
-            quotaUnit: normalizeQuotaUnit(quotaWindow.quotaUnit),
-            quotaWindowHours: Number(quotaWindow.quotaWindowHours),
-          }))
-        : undefined,
-      allowedModels: token.allowedModels || undefined,
-      ipWhitelist: token.ipWhitelist || undefined,
-      modelMapping: token.modelMapping as Record<string, string> | undefined,
-      requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
-      normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
-      streamConfig: token.streamConfig as CreateRelayTokenDto["streamConfig"],
-      contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
-      enabled: token.status === MANAGED_STATUS.ENABLED,
-    };
+  private toImportItemDto(token: RelayTokenConfigurationProjectionSource): RelayTokenImportItemDto {
+    return projectRelayTokenConfiguration(token, {
+      blockedChannelIds: (value) => this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(value),
+      quotaUnit: normalizeQuotaUnit,
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+    });
   }
 
-  private toExportItemDto(token: RelayTokenWithRelations): RelayTokenExportItemDto {
+  private toExportItemDto(
+    token: RelayTokenWithRelations | (RelayTokenReadRecord & { token: string }),
+  ): RelayTokenExportItemDto {
     return {
       ...this.toImportItemDto(token),
       id: token.id,
@@ -1947,7 +2476,10 @@ export class RelayTokenService {
   }
 
   private async buildQuotaWindowUsageMap(
-    tokens: Array<Pick<RelayTokenWithRelations, "id" | "quotaWindows">>,
+    tokens: Array<{
+      id: string;
+      quotaWindows: Array<Pick<RelayTokenWithRelations["quotaWindows"][number], "quotaWindowHours">>;
+    }>,
   ): Promise<Map<string, RelayTokenUsageAggregate>> {
     const relayTokenIds = [...new Set(tokens.map((token) => token.id).filter(Boolean))];
     if (relayTokenIds.length === 0) return new Map();
@@ -1984,17 +2516,13 @@ export class RelayTokenService {
   }
 
   private buildCopyName(baseName: string, reservedNames: Set<string>): string {
-    for (let index = 1; index < 10000; index += 1) {
-      const suffix = index === 1 ? COPY_SUFFIX : `（副本${index}）`;
-      const trimmedBaseName = baseName.slice(0, Math.max(1, MAX_TOKEN_NAME_LENGTH - suffix.length)).trim();
-      const candidate = `${trimmedBaseName}${suffix}`;
-
+    for (const candidate of relayTokenCopyNames(baseName)) {
       if (!reservedNames.has(candidate)) {
         reservedNames.add(candidate);
         return candidate;
       }
     }
-
+    // The shared generator throws when no bounded candidate remains.
     throw new BadRequestError("Unable to generate a unique relay token name", undefined, {
       messageKey: "relayToken.nameGenerationFailed",
     });
@@ -2259,7 +2787,7 @@ export class RelayTokenService {
   }
 
   private generateRelayTokenValue(): string {
-    return `${getCredentialPrefix("relayToken")}${crypto.randomBytes(32).toString("hex")}`;
+    return generateRelayTokenValue();
   }
 
   private normalizeOptionalIpWhitelist(value?: string | null): string | null | undefined {

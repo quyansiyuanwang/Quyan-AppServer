@@ -1,3 +1,6 @@
+import type { Application } from "express";
+import { getIamActionDefinition } from "@quyan/shared";
+import { terminalUpgradeConditionContext } from "./connection-context";
 import { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { URL } from "node:url";
@@ -6,7 +9,9 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { RemoteTerminalGatewayService } from "./gateway.service";
 
 const logger = getLogger("RemoteTerminalGateway", LogCategory.APPLICATION);
-const REMOTE_TERMINAL_WEBSOCKET_PATHS = new Set(["/remote-terminal/ws", "/v1/remote-terminal/ws"]);
+const REMOTE_TERMINAL_WEBSOCKET_PATHS = new Set(
+  getIamActionDefinition("quyan:remote_terminal:ConnectSession")!.apiRoutes.map((route) => route.slice("GET ".length)),
+);
 
 export function isRemoteTerminalWebSocketPath(pathname: string): boolean {
   return REMOTE_TERMINAL_WEBSOCKET_PATHS.has(pathname);
@@ -15,7 +20,10 @@ export function isRemoteTerminalWebSocketPath(pathname: string): boolean {
 export class RemoteTerminalGatewayBootstrap {
   private readonly webSocketServer: WebSocketServer;
 
-  public constructor(private readonly gatewayService: RemoteTerminalGatewayService) {
+  public constructor(
+    private readonly gatewayService: RemoteTerminalGatewayService,
+    private readonly application?: Application,
+  ) {
     const serverOptions = {
       noServer: true,
       // ws@8.21.0 supports these at runtime but the TypeScript types lack them.
@@ -54,7 +62,14 @@ export class RemoteTerminalGatewayBootstrap {
               const sessionId = requestUrl.searchParams.get("sessionId") ?? "";
               const browserToken = requestUrl.searchParams.get("browserToken") ?? "";
               try {
-                this.gatewayService.getSessionGateway().attachBrowser(sessionId, browserToken, websocket);
+                await this.gatewayService
+                  .getSessionGateway()
+                  .attachAuthorizedBrowser(
+                    sessionId,
+                    browserToken,
+                    websocket,
+                    terminalUpgradeConditionContext(request, this.application),
+                  );
               } catch (error) {
                 const reason = this.toCloseReason(error);
                 logger.warn("Failed to attach remote terminal browser websocket", {

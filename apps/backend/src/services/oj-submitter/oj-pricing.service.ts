@@ -1,3 +1,14 @@
+import { PlatformOjPricingWriteIamService } from "./platform-oj-pricing-write-iam.service";
+import type { CreateOJModelPricingRequest, UpdateOJModelPricingRequest } from "@/api/dto/oj-submitter/oj-qa.dto";
+import { PlatformOjPricingReadIamService } from "./platform-oj-pricing-read-iam.service";
+import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
+import type { OJModelPricing } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { NotFoundError, BadRequestError } from "@/util/errors";
 import { OJModelPricingRepository } from "@/store/oj-submitter/oj-model-pricing.repository";
@@ -14,6 +25,9 @@ export class OJPricingService {
   private constructor(
     private readonly ojModelPricingRepository: OJModelPricingStore = OJModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformOjPricingReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+    private readonly iamWrites = PlatformOjPricingWriteIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -21,13 +35,8 @@ export class OJPricingService {
     return this.instance;
   }
 
-  /**
-   * 获取所有定价
-   */
-  async listPricing() {
-    const pricings = await this.ojModelPricingRepository.listActive();
-
-    return pricings.map((p) => ({
+  private pricingDto(p: OJModelPricing) {
+    return {
       id: p.id,
       model: p.model,
       inputPrice: Number(p.inputPrice),
@@ -38,7 +47,136 @@ export class OJPricingService {
       provider: p.provider,
       createTime: p.createTime,
       updateTime: p.updateTime,
-    }));
+    };
+  }
+  private async legacyReadPermission(request: TypedRequest, permission = Permission.OJ_PRICING_READ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [permission], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  async listManagedPricing(request: TypedRequest) {
+    const project = (rows: OJModelPricing[]) => rows.map((row) => this.pricingDto(row));
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.list(request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(request, project, false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing list shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.listPricing();
+  }
+  async getManagedPricing(model: string, request: TypedRequest) {
+    const project = (row: OJModelPricing) => this.pricingDto(row);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.detail(model, request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.detail(model, request, project, false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing detail shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.getPricing(model);
+  }
+  private async managedWrite(
+    operation: "create" | "update" | "delete",
+    model: string | undefined,
+    data: CreateOJModelPricingRequest | UpdateOJModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== actorUserId ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    const evaluate = (persist: boolean) =>
+      operation === "create"
+        ? this.iamWrites.create(data as CreateOJModelPricingRequest, actorUserId, request, persist)
+        : this.iamWrites.mutate(operation, model!, data, actorUserId, request, persist);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const row = await evaluate(true);
+      if (!row) throw iamAccountDenied();
+      await this.businessLogService.logOperation({
+        operationType:
+          operation === "create"
+            ? OperationType.OJ_PRICING_CREATE
+            : operation === "update"
+              ? OperationType.OJ_PRICING_UPDATE
+              : OperationType.OJ_PRICING_DELETE,
+        operationCategory: OperationCategory.OJ_SUBMITTER,
+        actorUserId,
+        targetResourceId: row.id,
+        targetResourceType: "OJ_MODEL_PRICING",
+        description: `OJ model pricing ${operation}`,
+        ...(operation === "delete" ? {} : { changes: data }),
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return row;
+    }
+    await this.legacyReadPermission(request, Permission.OJ_PRICING_UPDATE);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await evaluate(false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing mutation shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return undefined;
+  }
+  async createManagedPricing(data: CreateOJModelPricingRequest, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("create", undefined, data, actorUserId, request);
+    return row ? this.pricingDto(row) : this.createPricing(data, actorUserId, request);
+  }
+  async updateManagedPricing(
+    model: string,
+    data: UpdateOJModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const row = await this.managedWrite("update", model, data, actorUserId, request);
+    return row ? this.pricingDto(row) : this.updatePricing(model, data, actorUserId, request);
+  }
+  async deleteManagedPricing(model: string, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("delete", model, {}, actorUserId, request);
+    return row ? { success: true } : this.deletePricing(model, actorUserId, request);
+  }
+  /**
+   * 获取所有定价
+   */
+  async listPricing() {
+    const pricings = await this.ojModelPricingRepository.listActive();
+
+    return pricings.map((p) => this.pricingDto(p));
   }
 
   /**
@@ -53,18 +191,7 @@ export class OJPricingService {
         messageParams: { model },
       });
 
-    return {
-      id: pricing.id,
-      model: pricing.model,
-      inputPrice: Number(pricing.inputPrice),
-      outputPrice: Number(pricing.outputPrice),
-      multiplier: Number(pricing.multiplier),
-      cacheCreationMultiplier: Number(pricing.cacheCreationMultiplier),
-      cacheReadMultiplier: Number(pricing.cacheReadMultiplier),
-      provider: pricing.provider,
-      createTime: pricing.createTime,
-      updateTime: pricing.updateTime,
-    };
+    return this.pricingDto(pricing);
   }
 
   /**

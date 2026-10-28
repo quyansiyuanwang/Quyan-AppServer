@@ -1,6 +1,9 @@
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
 import type {
+  BalanceGiftCodeTarget,
   BalanceTransferDisplayRecord,
   BalanceTransferStore,
   CreateGiftCodeParams,
@@ -49,6 +52,46 @@ export class BalanceTransferRepository implements BalanceTransferStore {
         },
       });
       return { giftCode, balance: Number(mutation.balanceAfter) };
+    });
+  }
+
+  private giftCodeOwnerWhere(senderId: string, accountOwnerId: string): Prisma.BalanceGiftCodeWhereInput {
+    return {
+      createdBy: senderId,
+      status: 1,
+      createdByUser: { status: 1, OR: [{ id: accountOwnerId, accountOwnerId: null }, { accountOwnerId }] },
+    };
+  }
+
+  findGiftCodeTarget(id: string, senderId: string, accountOwnerId: string) {
+    return prisma.balanceGiftCode.findFirst({
+      where: { ...this.giftCodeOwnerWhere(senderId, accountOwnerId), id },
+      select: { id: true, createdBy: true, createTime: true, updateTime: true },
+    });
+  }
+
+  scanGiftCodeTargets(senderId: string, accountOwnerId: string, after?: BalanceGiftCodeTarget) {
+    return prisma.balanceGiftCode.findMany({
+      where: {
+        ...this.giftCodeOwnerWhere(senderId, accountOwnerId),
+        ...(after
+          ? { OR: [{ createTime: { lt: after.createTime } }, { createTime: after.createTime, id: { lt: after.id } }] }
+          : {}),
+      },
+      select: { id: true, createdBy: true, createTime: true, updateTime: true },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+
+  async readGiftCodeTargets(senderId: string, accountOwnerId: string, targets: readonly BalanceGiftCodeTarget[]) {
+    if (!targets.length) return [];
+    return prisma.balanceGiftCode.findMany({
+      where: {
+        ...this.giftCodeOwnerWhere(senderId, accountOwnerId),
+        OR: targets.map((target) => ({ id: target.id, createdBy: target.createdBy, updateTime: target.updateTime })),
+      },
+      include: { redeemedByUser: { select: { username: true } } },
     });
   }
 

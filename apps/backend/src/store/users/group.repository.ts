@@ -1,8 +1,15 @@
 import { prisma } from "@/config/database";
-import type { Group, Prisma } from "@prisma/client";
-import type { GroupStore, GroupWithUserCount, GroupListFilters, PaginatedGroupListFilters } from "./group.store";
+import { Prisma, type Group } from "@prisma/client";
+import type {
+  GroupStore,
+  GroupWithUserCount,
+  GroupListFilters,
+  PaginatedGroupListFilters,
+  GroupPermissionSnapshot,
+} from "./group.store";
 import { RECORD_STATUS } from "@/constant/status";
 import { Permission } from "@/constant/permission";
+import { DEFAULT_USER_GROUP_USERNAME } from "@quyan/shared";
 
 const RAM_PERMISSION_VALUES = Object.values(Permission).filter((p) => p.startsWith("ram:"));
 
@@ -13,6 +20,14 @@ export class GroupRepository implements GroupStore {
     if (!GroupRepository.instance) GroupRepository.instance = new GroupRepository();
 
     return GroupRepository.instance;
+  }
+
+  private userCountInclude(accountOwnerId?: string) {
+    return {
+      _count: {
+        select: { users: accountOwnerId ? { where: { OR: [{ accountOwnerId }, { id: accountOwnerId }] } } : true },
+      },
+    } as const;
   }
 
   private buildActiveWhere(filters: GroupListFilters = {}): Prisma.GroupWhereInput {
@@ -33,6 +48,13 @@ export class GroupRepository implements GroupStore {
 
     if (filters.minLevel !== undefined) where.level = { gte: filters.minLevel };
 
+    if (filters.accountOwnerId) {
+      const accountScope: Prisma.GroupWhereInput = filters.recoveryGroupId
+        ? { OR: [{ accountOwnerId: filters.accountOwnerId }, { id: filters.recoveryGroupId, accountOwnerId: null }] }
+        : { accountOwnerId: filters.accountOwnerId };
+      const currentAnd = where.AND;
+      where.AND = [...(Array.isArray(currentAnd) ? currentAnd : currentAnd ? [currentAnd] : []), accountScope];
+    }
     return where;
   }
 
@@ -52,10 +74,10 @@ export class GroupRepository implements GroupStore {
     });
   }
 
-  async findByIdWithUserCount(id: string): Promise<GroupWithUserCount | null> {
+  async findByIdWithUserCount(id: string, accountOwnerId?: string): Promise<GroupWithUserCount | null> {
     return prisma.group.findUnique({
       where: { id },
-      include: { _count: { select: { users: true } } },
+      include: this.userCountInclude(accountOwnerId),
     });
   }
 
@@ -80,7 +102,8 @@ export class GroupRepository implements GroupStore {
   async findDefaultUserGroup(): Promise<Group | null> {
     return prisma.group.findFirst({
       where: {
-        username: "user",
+        username: DEFAULT_USER_GROUP_USERNAME,
+        accountOwnerId: null,
         status: RECORD_STATUS.ACTIVE,
       },
     });
@@ -117,10 +140,10 @@ export class GroupRepository implements GroupStore {
 
     return prisma.group.findMany({
       where: this.buildActiveWhere(filters),
-      include: { _count: { select: { users: true } } },
+      include: this.userCountInclude(filters.accountOwnerId),
       skip,
       take,
-      orderBy: [{ level: "desc" }, { createTime: "desc" }],
+      orderBy: [{ level: "desc" }, { createTime: "desc" }, { id: "asc" }],
     });
   }
 
@@ -141,6 +164,25 @@ export class GroupRepository implements GroupStore {
     return prisma.group.count();
   }
 
+  async compareAndSetPermissions(expected: GroupPermissionSnapshot, permissions: string[]): Promise<boolean> {
+    const result = await prisma.group.updateMany({
+      where: {
+        id: expected.id,
+        updateTime: expected.updateTime,
+        accountOwnerId: expected.accountOwnerId,
+        status: expected.status,
+        level: expected.level,
+        username: expected.username,
+        permissions: { equals: expected.permissions ?? Prisma.JsonNull },
+      },
+      data: {
+        permissions,
+        updateTime: new Date(Math.max(Date.now(), expected.updateTime.getTime() + 1)),
+      },
+    });
+    return result.count === 1;
+  }
+
   async updateById(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<Group> {
     return prisma.group.update({
       where: { id },
@@ -148,11 +190,15 @@ export class GroupRepository implements GroupStore {
     });
   }
 
-  async updateWithUserCount(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<GroupWithUserCount> {
+  async updateWithUserCount(
+    id: string,
+    data: Prisma.GroupUncheckedUpdateInput,
+    accountOwnerId?: string,
+  ): Promise<GroupWithUserCount> {
     return prisma.group.update({
       where: { id },
       data,
-      include: { _count: { select: { users: true } } },
+      include: this.userCountInclude(accountOwnerId),
     });
   }
 

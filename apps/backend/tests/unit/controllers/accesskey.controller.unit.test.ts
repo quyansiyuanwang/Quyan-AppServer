@@ -8,6 +8,7 @@ describe("AccessKeyController OAuth restrictions", () => {
   const accessKeyServiceMock = {
     generateKeyForUser: vi.fn(),
     listKeys: vi.fn(),
+    listKeysPage: vi.fn(),
     revokeKey: vi.fn(),
     sendAccessKeyCreationVerificationCodeForUser: vi.fn(),
   };
@@ -24,6 +25,7 @@ describe("AccessKeyController OAuth restrictions", () => {
       accessKeyServiceMock.generateKeyForUser,
     );
     vi.spyOn(AccessKeyService.prototype, "listKeys").mockImplementation(accessKeyServiceMock.listKeys);
+    vi.spyOn(AccessKeyService.prototype, "listKeysPage").mockImplementation(accessKeyServiceMock.listKeysPage);
     vi.spyOn(AccessKeyService.prototype, "revokeKey").mockImplementation(accessKeyServiceMock.revokeKey);
     vi.spyOn(AccessKeyService.prototype, "sendAccessKeyCreationVerificationCodeForUser").mockImplementation(
       accessKeyServiceMock.sendAccessKeyCreationVerificationCodeForUser,
@@ -42,6 +44,13 @@ describe("AccessKeyController OAuth restrictions", () => {
 
     expect(accessKeyServiceMock.generateKeyForUser).toHaveBeenCalledWith("user-1", { name: "Demo Key" }, request);
     expect(result).toEqual({ id: "ak-1", key: "ak_value" });
+  });
+
+  it("forwards trusted request context to the OAuth-compatible code-sending service", async () => {
+    const req = { user: { userId: "user-1" }, oauthAccessToken: { id: "fixture", scopes: ["accesskey"] } } as any;
+    accessKeyServiceMock.sendAccessKeyCreationVerificationCodeForUser.mockResolvedValue(true);
+    await new AccessKeyController().sendAccessKeyCreationVerificationCode(req);
+    expect(accessKeyServiceMock.sendAccessKeyCreationVerificationCodeForUser).toHaveBeenCalledWith("user-1", req);
   });
 
   it("rejects listing existing keys for OAuth-authorized third-party apps", async () => {
@@ -67,8 +76,19 @@ describe("AccessKeyController OAuth restrictions", () => {
 
     const result = await controller.listAccessKeys(request);
 
-    expect(accessKeyServiceMock.listKeys).toHaveBeenCalledWith("user-1");
+    expect(accessKeyServiceMock.listKeys).toHaveBeenCalledWith("user-1", request);
     expect(result).toEqual([{ id: "ak-1", key: "ak_****" }]);
+  });
+
+  it("forwards page arguments and trusted identity to the service", async () => {
+    const controller = new AccessKeyController(),
+      request = { user: { userId: "user-1" } } as any;
+    accessKeyServiceMock.listKeysPage.mockResolvedValue({ items: [], page: 2, pageSize: 10, hasNext: true });
+    expect(await controller.listAccessKeysPage(request, 2, 10)).toMatchObject({ page: 2, hasNext: true });
+    expect(accessKeyServiceMock.listKeysPage).toHaveBeenCalledWith("user-1", { page: 2, pageSize: 10 }, request);
+    request.oauthAccessToken = { id: "fixture" };
+    await expect(controller.listAccessKeysPage(request, 2, 10)).rejects.toBeInstanceOf(ForbiddenError);
+    expect(accessKeyServiceMock.listKeysPage).toHaveBeenCalledTimes(1);
   });
 
   it("rejects deleting existing keys for OAuth-authorized third-party apps", async () => {

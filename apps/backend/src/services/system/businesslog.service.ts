@@ -1,3 +1,6 @@
+import { BusinessLogStatisticsAccumulator } from "./business-log-statistics";
+import { platformSystemArn } from "@/iam/resources/platform-system-resources";
+import type { TypedRequest } from "@/types/express";
 import { BusinessLogRepository, CreateBusinessLogParams, QueryBusinessLogParams } from "@/store/system/businesslog";
 import {
   ALL_OPERATION_CATEGORIES,
@@ -6,7 +9,7 @@ import {
   OperationCategory,
 } from "@/constant/operation-type";
 import { getLogger, LogCategory } from "@/util/logger";
-import type { BusinessLog } from "@prisma/client";
+import type { BusinessLog, Prisma } from "@prisma/client";
 import { UserRepository } from "@/store/users/user.repository";
 import type { BusinessLogStore } from "@/store/system/businesslog.store";
 import type { UserStore } from "@/store/users/user.store";
@@ -57,10 +60,10 @@ class BusinessLogService {
 
   /**
    * 记录业务操作日志
-   * 使用 fire-and-forget 模式，日志失败不影响业务操作
+   * 普通调用为 best-effort；传入事务时日志必须与业务变更一起成功或回滚
    * @param params 操作参数
    */
-  public async logOperation(params: LogOperationParams): Promise<void> {
+  public async logOperation(params: LogOperationParams, tx?: Prisma.TransactionClient): Promise<void> {
     try {
       const logParams: CreateBusinessLogParams = {
         operationType: params.operationType,
@@ -79,9 +82,10 @@ class BusinessLogService {
         userAgent: params.userAgent,
       };
 
-      await this.repository.create(logParams);
+      await this.repository.create(logParams, tx);
     } catch (error) {
-      // 日志失败不应该影响业务操作，只记录错误
+      if (tx) throw error;
+      // 非事务日志失败不应该影响业务操作，只记录错误
       logger.error("Failed to create business log", { error, params });
     }
   }
@@ -117,9 +121,12 @@ class BusinessLogService {
 
     const result = await this.repository.query(params);
 
+    return { logs: await this.mapLogListRows(result.logs), total: result.total };
+  }
+  public async mapLogListRows(rows: readonly BusinessLog[]) {
     // Batch fetch usernames for actorUserId and targetUserId
-    const actorUserIds = [...new Set(result.logs.filter((log) => log.actorUserId).map((log) => log.actorUserId!))];
-    const targetUserIds = [...new Set(result.logs.filter((log) => log.targetUserId).map((log) => log.targetUserId!))];
+    const actorUserIds = [...new Set(rows.filter((log) => log.actorUserId).map((log) => log.actorUserId!))];
+    const targetUserIds = [...new Set(rows.filter((log) => log.targetUserId).map((log) => log.targetUserId!))];
     const allUserIds = [...new Set([...actorUserIds, ...targetUserIds])];
 
     const usernameMap = new Map<string, string>();
@@ -129,21 +136,29 @@ class BusinessLogService {
     }
 
     // Attach usernames to logs
-    const logsWithUsernames = result.logs.map((log) => ({
+    const logsWithUsernames = rows.map((log) => ({
       ...log,
       actorUsername: log.actorUserId ? usernameMap.get(log.actorUserId) || null : null,
       targetUsername: log.targetUserId ? usernameMap.get(log.targetUserId) || null : null,
     }));
 
-    return {
-      logs: logsWithUsernames,
-      total: result.total,
-    };
+    return logsWithUsernames;
   }
 
   /**
    * 获取业务日志筛选项
    */
+  public async getAuthorizedFilterOptions(request: TypedRequest): Promise<BusinessLogFilterOptionsResponse> {
+    // PermissionService records business logs during singleton initialization. Resolve its read guard after initialization.
+    const { PlatformManagementReadIamService } = await import("./platform-management-read-iam.service");
+    return PlatformManagementReadIamService.getInstance().read(
+      "quyan:system:business_log:GetFilterOptions",
+      platformSystemArn("business-log-options"),
+      request,
+      async () => this.getFilterOptions(),
+    );
+  }
+
   public getFilterOptions(): BusinessLogFilterOptionsResponse {
     return {
       operationTypes: ALL_OPERATION_TYPES,
@@ -176,138 +191,9 @@ class BusinessLogService {
       ip: filters?.ip,
     });
 
-    const summary = {
-      totalLogs: 0,
-      successLogs: 0,
-      failedLogs: 0,
-      uniqueActors: new Set<string>(),
-      systemTriggeredLogs: 0,
-      uniqueTargets: new Set<string>(),
-      uniqueIPs: new Set<string>(),
-    };
-    const dailyMap = new Map<string, { date: string; totalLogs: number; successLogs: number; failedLogs: number }>();
-    const typeMap = new Map<string, number>();
-    const categoryMap = new Map<string, number>();
-    const successMap = new Map<string, number>();
-    const typeDailyMap = new Map<string, { date: string; key: string; label: string; count: number }>();
-    const categoryDailyMap = new Map<string, { date: string; key: string; label: string; count: number }>();
-
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
-
-    for (const row of rows) {
-      const createTime = new Date(row.createTime);
-      const dateKey = createTime.toISOString().slice(0, 10);
-      const typeKey = row.operationType || "UNKNOWN";
-      const categoryKey = row.operationCategory || "UNKNOWN";
-      const successKey = row.success ? "success" : "failed";
-
-      summary.totalLogs += 1;
-      if (row.success) summary.successLogs += 1;
-      else summary.failedLogs += 1;
-      if (row.actorUserId) summary.uniqueActors.add(row.actorUserId);
-      else summary.systemTriggeredLogs += 1;
-      if (row.targetUserId) summary.uniqueTargets.add(row.targetUserId);
-      if (row.ipAddress) summary.uniqueIPs.add(row.ipAddress);
-
-      const daily = dailyMap.get(dateKey) || {
-        date: dateKey,
-        totalLogs: 0,
-        successLogs: 0,
-        failedLogs: 0,
-      };
-      daily.totalLogs += 1;
-      if (row.success) daily.successLogs += 1;
-      else daily.failedLogs += 1;
-      dailyMap.set(dateKey, daily);
-
-      typeMap.set(typeKey, (typeMap.get(typeKey) || 0) + 1);
-      categoryMap.set(categoryKey, (categoryMap.get(categoryKey) || 0) + 1);
-      successMap.set(successKey, (successMap.get(successKey) || 0) + 1);
-
-      const typeDailyComposite = `${dateKey}::${typeKey}`;
-      const typeDaily = typeDailyMap.get(typeDailyComposite) || {
-        date: dateKey,
-        key: typeKey,
-        label: typeKey,
-        count: 0,
-      };
-      typeDaily.count += 1;
-      typeDailyMap.set(typeDailyComposite, typeDaily);
-
-      const categoryDailyComposite = `${dateKey}::${categoryKey}`;
-      const categoryDaily = categoryDailyMap.get(categoryDailyComposite) || {
-        date: dateKey,
-        key: categoryKey,
-        label: categoryKey,
-        count: 0,
-      };
-      categoryDaily.count += 1;
-      categoryDailyMap.set(categoryDailyComposite, categoryDaily);
-
-      if (!minDate || createTime < minDate) minDate = createTime;
-      if (!maxDate || createTime > maxDate) maxDate = createTime;
-    }
-
-    const totalLogs = summary.totalLogs;
-    const finalizeBreakdown = (map: Map<string, number>) =>
-      [...map.entries()]
-        .map(([key, count]) => ({
-          key,
-          label: key,
-          count,
-          share: totalLogs > 0 ? Math.round((count / totalLogs) * 10000) / 100 : 0,
-        }))
-        .sort((a, b) => {
-          if (b.count !== a.count) return b.count - a.count;
-          return a.label.localeCompare(b.label);
-        });
-
-    const resolvedStart = filters?.startDate
-      ? new Date(new Date(filters.startDate).setHours(0, 0, 0, 0))
-      : minDate
-        ? new Date(new Date(minDate).setHours(0, 0, 0, 0))
-        : new Date(new Date().setHours(0, 0, 0, 0));
-    const resolvedEnd = filters?.endDate
-      ? new Date(new Date(filters.endDate).setHours(23, 59, 59, 999))
-      : maxDate
-        ? new Date(new Date(maxDate).setHours(23, 59, 59, 999))
-        : new Date(new Date().setHours(23, 59, 59, 999));
-
-    return {
-      range: {
-        startDate: resolvedStart.toISOString(),
-        endDate: resolvedEnd.toISOString(),
-        days: Math.max(1, Math.floor((resolvedEnd.getTime() - resolvedStart.getTime()) / (24 * 60 * 60 * 1000)) + 1),
-      },
-      summary: {
-        totalLogs: summary.totalLogs,
-        successLogs: summary.successLogs,
-        failedLogs: summary.failedLogs,
-        uniqueActors: summary.uniqueActors.size,
-        systemTriggeredLogs: summary.systemTriggeredLogs,
-        uniqueTargets: summary.uniqueTargets.size,
-        uniqueIPs: summary.uniqueIPs.size,
-      },
-      daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
-      byOperationType: finalizeBreakdown(typeMap),
-      byOperationCategory: finalizeBreakdown(categoryMap),
-      bySuccess: finalizeBreakdown(successMap).map((item) => ({
-        ...item,
-        label: item.key === "success" ? "success" : "failed",
-      })),
-      operationTypeDailyDistribution: [...typeDailyMap.values()].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (b.count !== a.count) return b.count - a.count;
-        return a.label.localeCompare(b.label);
-      }),
-      categoryDailyDistribution: [...categoryDailyMap.values()].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        if (b.count !== a.count) return b.count - a.count;
-        return a.label.localeCompare(b.label);
-      }),
-      generatedAt: new Date().toISOString(),
-    };
+    const accumulator = new BusinessLogStatisticsAccumulator(filters);
+    for (const row of rows) accumulator.add(row);
+    return accumulator.result();
   }
 
   /**

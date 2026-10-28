@@ -1,3 +1,4 @@
+import { RELAY_TOKEN_CREATION_LIMITS, RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { z } from "zod";
 import {
@@ -80,7 +81,7 @@ const validateCompositionFields = (
 
 const blockedAutomaticProxyPoolChannelIdsSchema = z.array(z.string().trim().min(1).max(50)).max(100).optional();
 
-const relayTokenIdsSchema = z
+export const relayTokenIdsSchema = z
   .array(z.string().trim().min(1).max(50))
   .min(1)
   .max(200)
@@ -257,7 +258,7 @@ export const createRelayTokenBodySchema = z
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
@@ -372,7 +373,7 @@ export const updateRelayTokenBodySchema = z
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
@@ -482,13 +483,15 @@ const relayTokenImportItemSchema = z
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
     blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
+    contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
+    streamConfig: relayTokenStreamConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
     enabled: z.coerce.boolean().optional(),
@@ -586,13 +589,13 @@ const relayTokenImportItemSchema = z
   });
 
 export const importRelayTokensBodySchema = z.object({
-  tokens: z.array(relayTokenImportItemSchema).min(1).max(200),
+  tokens: z.array(relayTokenImportItemSchema).min(1).max(RELAY_TOKEN_CREATION_LIMITS.batch),
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const batchSetRelayTokenStatusBodySchema = z.object({
   ids: relayTokenIdsSchema,
-  enabled: z.coerce.boolean(),
+  enabled: z.boolean(),
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
@@ -658,13 +661,8 @@ export const relayTokenUsageSummaryQuerySchema = relayTokenUsageQueryBaseSchema
       .string()
       .max(4000)
       .refine(
-        (value) =>
-          value
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .every((item) => item.length <= 50),
-        "tokenIds must be a comma-separated list of token ids",
+        (value) => relayTokenIdsSchema.safeParse(value.split(",")).success,
+        "tokenIds must contain 1 to 200 unique nonempty token ids",
       )
       .optional(),
   })
