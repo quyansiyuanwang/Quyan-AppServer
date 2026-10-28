@@ -32,8 +32,9 @@ Use this page to review and adjust user balances from an administrator perspecti
 
 1. Search for the target account by user ID.
 2. Confirm whether the displayed balance matches expectations.
-3. Open the adjustment dialog and enter the amount and reason.
-4. Verify the result in transaction history.
+3. Open the adjustment dialog and enter either the change amount or the resulting balance; the fields update each other using the displayed balance. A positive amount adds balance, a negative amount deducts it, and the change cannot be zero.
+4. Check the “count as statistics” switch and enter a reason before submitting. The switch is on by default: increases count toward total recharge and deductions toward total spending. Turn it off to exclude the adjustment from those totals.
+5. Refresh the list and check transaction history to verify the actual result.
 
 ## Permission requirements
 
@@ -44,7 +45,8 @@ Use this page to review and adjust user balances from an administrator perspecti
 
 ## Notes
 
-- Balance adjustments should always include a clear reason for auditability.
+- Record a clear reason for auditability. If left blank, the page uses a default recharge or deduction description.
+- The target balance is calculated from the balance shown when the dialog opens, and the submitted value is the change amount. If the balance changes concurrently, check the actual balance after submission.
 - If the problem is caused by automated consumption, continue into consumption stats or system logs.
 - The user-facing equivalent is usually the [Balance and transfers]({{DOCS_BASE_URL}}/en/balance-history) page.
 
