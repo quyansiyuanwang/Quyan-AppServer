@@ -27,11 +27,11 @@ Use this page to maintain site articles and knowledge content.
 
 ## Common actions
 
-1. Create an article with title, slug, category, and content.
-2. Write Markdown in the editor.
-3. Preview before publishing.
-4. Set the default article when it should appear first on the reading page.
-5. Adjust order when navigation priority changes.
+1. Create an article with a title, slug, and Markdown content; category and summary are optional.
+2. Choose its access: published public articles can be read by signed-out visitors; non-public articles can require permissions.
+3. Preview and save in the editor, then publish the article.
+4. Set a published article as the default when it should appear first. Readers must still meet its access conditions.
+5. Drag items in the desktop list to adjust their order.
 
 ## Permission requirements
 
