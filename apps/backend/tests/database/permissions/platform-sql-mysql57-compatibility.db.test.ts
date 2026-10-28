@@ -20,16 +20,18 @@ describe("MySQL 5.7-compatible authorization metadata", () => {
       { column: "sortValue", current: Prisma.sql`current_row.sortValue`, direction },
       { column: "id", current: Prisma.sql`current_row.id`, direction: "desc" },
     ]);
-    const rows = await prisma.$queryRaw<{ id: string; rank: bigint }[]>(Prisma.sql`
-      SELECT current_row.id,${rank} AS rank FROM (${selection}) current_row ORDER BY rank`);
+    const rows = await prisma.$queryRaw<{ id: string; displayOrder: bigint }[]>(Prisma.sql`
+      SELECT current_row.id,${rank} AS displayOrder FROM (${selection}) current_row ORDER BY displayOrder`);
     expect(rows.map((row) => row.id)).toEqual(
       direction === "asc" ? ["e", "a", "c", "d", "b"] : ["d", "b", "c", "e", "a"],
     );
-    expect(rows.map((row) => Number(row.rank))).toEqual([1, 2, 3, 4, 5]);
-    const page = await prisma.$queryRaw<{ id: string; rank: bigint }[]>(Prisma.sql`
-      SELECT current_row.id,${rank} AS rank FROM (${selection}) current_row WHERE current_row.id IN ('a','c') ORDER BY rank`);
-    expect(page.map((row) => ({ id: row.id, rank: Number(row.rank) }))).toEqual(
-      rows.filter((row) => ["a", "c"].includes(row.id)).map((row) => ({ id: row.id, rank: Number(row.rank) })),
+    expect(rows.map((row) => Number(row.displayOrder))).toEqual([1, 2, 3, 4, 5]);
+    const page = await prisma.$queryRaw<{ id: string; displayOrder: bigint }[]>(Prisma.sql`
+      SELECT current_row.id,${rank} AS displayOrder FROM (${selection}) current_row WHERE current_row.id IN ('a','c') ORDER BY displayOrder`);
+    expect(page.map((row) => ({ id: row.id, displayOrder: Number(row.displayOrder) }))).toEqual(
+      rows
+        .filter((row) => ["a", "c"].includes(row.id))
+        .map((row) => ({ id: row.id, displayOrder: Number(row.displayOrder) })),
     );
   });
   it("normalizes complete child snapshots independently of physical row order without string truncation", async () => {
