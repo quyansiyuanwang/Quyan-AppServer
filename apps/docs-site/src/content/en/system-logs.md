@@ -15,39 +15,39 @@ Use this page to inspect API logs, log statistics, and server log files.
 ### Log statistics panel
 
 - Request volume distribution by status code (2xx / 4xx / 5xx).
-- Daily request trend chart.
-- Error rate trend for spotting anomalous periods quickly.
+- Daily total, 4xx, and 5xx request counts; the trend chart does not show an error rate.
+- Request method and path distributions.
 - Requires `API_LOG_READ` or `SYSTEM_LOG_READ` permission.
 
 ### API logs tab
 
 - Filters by method, path, status code, user, request ID, IP, and date range.
 - Expandable log rows showing:
-  - Request and response payloads.
-  - **Request and response headers** (captured after logging module enhancement).
+  - Available request and response payloads.
+  - Recorded request and response headers.
   - Request ID, IP, User-Agent, and other metadata.
 - Pagination.
 
-> **Note**: Request bodies for high-frequency paths such as `/relay/proxy` are not recorded by default to reduce storage load.
+> **Note**: Successful requests to high-frequency paths such as `/relay/proxy` are normally omitted from these general API logs. Failed requests may be logged, and their request content may be redacted or truncated; do not assume the body is always absent. Some paths are always excluded.
 
 ### Server logs tab
 
 - Server log file list organized by type.
 - File content viewer.
 - Search within the file.
-- Line-limit controls.
+- Returned-line limit (1–2000) and truncation notice.
 
 ## Common actions
 
-1. Check the statistics panel first to find the time window with elevated error rates.
+1. Check the statistics panel first to find periods with higher error counts.
 2. Use filters to narrow down the target request or incident window.
 3. Expand a log row to inspect payloads, request headers, and response headers.
-4. Search server log files when the issue is deeper than a single API request.
+4. In server logs, choose a log type and file, set the line limit, and enter a search term. Select the load-content button or press Enter, then check the returned-line count and truncation notice.
 5. Use the request ID (`x-request-id`) to correlate across tools and services.
 
 ## Notes
 
-- Request and response payloads can contain sensitive operational data.
+- List, detail, and statistics access may be authorized separately; an absent record does not prove a request did not occur. Request and response content may be redacted, truncated, or not captured, and can still contain sensitive operational data. Share it carefully.
 - Response-header logging helps debug CORS, cache, and rate-limit header issues.
 - Log expansion is useful for trace analysis; file search works better for recurring patterns.
 - This page is central for diagnosing relay, auth, billing, and monitoring issues.
