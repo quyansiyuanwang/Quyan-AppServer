@@ -14,6 +14,30 @@ API logs, notification logs, and AI request logs default to 90 days. Business lo
 
 Balance transactions are never automatically archived or deleted.
 
+## Execution Rules
+
+1. The policy table shows how many records will be archived and deleted.
+2. Select “Run archive” to open a paginated preview dialog with record IDs, timestamps, and redacted summaries. Execution starts only after confirmation.
+3. The server writes gzip NDJSON and uploads it to OSS.
+4. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
+5. Run history reports candidate, archived, and deleted counts. Incomplete source data is retained after a failure; batches already archived and deleted are not rolled back.
+
+Manual archiving requires `quyan:system:data_lifecycle:RunPolicy` on the target dataset. Batch archiving requires the separate `quyan:system:data_lifecycle:RunBatch` action. Both use `acs:platform:*:platform:lifecycle-dataset/<dataset>` and require lifecycle management eligibility from a platform global user group. Policy updates, preview, download, and history permissions do not grant execution permission. Execution still requires two-factor verification and replay protection.
+
+An explicit batch selection is authorized in full before archiving starts. An omitted or empty dataset array processes only the enabled policies selected for that request. Denial on any target prevents execution. During processing, the server repeatedly checks the user, group, role session, policy version, and authorization. Revocation interrupts the request and stops subsequent datasets.
+
+Database source records are deleted only after upload verification, confirmation that the current records match the exported snapshot, and authorization checks within the transaction. Archive metadata, source deletion, and progress are saved together. Server log files are also checked for authorization and content changes before deletion. Archiving advances in batches: a later failure or revocation cannot undo completed uploads or deletions. Review the archived and deleted counts before retrying remaining data. A failure after upload but before metadata is saved retains the source data and may leave an OSS object without a corresponding archive entry; handle such objects through storage operations procedures.
+
+## Scheduled Archives
+
+The default schedule runs enabled policies daily at 03:20 (Asia/Shanghai). Administrators can change the time or disable the schedule on the page; saved changes take effect within about one minute.
+
+Archive details are available as administrator downloads in the first release, not as in-app full-text search. The archive bucket is private by default, so a normal object URL copied from the OSS console has no signature and returns AccessDenied; use the page download button to generate a temporary signed URL. If OSS has transitioned an object to Archive or cold storage, the first download click requests a restore; download it again after OSS finishes restoring the object. The enabled scheduled task cleans up expired archive files. Cleanup may be delayed if scheduling is disabled or OSS is unavailable; do not assume a file is deleted immediately at expiry.
+
+Downloads are gzip-compressed NDJSON containing the original rows. The Dangerous Maintenance page can preview and import supported datasets. Imports use a separate, immediately readable OSS staging bucket, and delete the temporary object after either success or failure. An archive bucket may use Archive or cold storage, but it cannot also be the import staging bucket. `relay_usages` and `monthly_pass_usages` depend on token/pass rows that must still exist; missing dependencies block the import. Balance transactions and AI request logs are outside the import scope; AI request log archives are download-only for auditing.
+
+After database rows are deleted, InnoDB normally marks the pages reusable but does not immediately shrink the `.ibd` file. Reclaiming operating-system disk space requires a separate table rebuild or `OPTIMIZE TABLE` during a low-traffic window; archival runs do not do this automatically. Server log files are removed from local disk after the OSS upload is verified.
+
 ## Lifecycle read permissions
 
 In IAM enforce mode, lifecycle reads still require lifecycle management eligibility from a platform-managed global user group. The policy list uses `quyan:system:data_lifecycle:ListPolicies`, previews use `quyan:system:data_lifecycle:PreviewPolicy`, and candidates use `quyan:system:data_lifecycle:ListCandidates`, on `acs:platform:*:platform:lifecycle-dataset/<dataset>`. Each action independently controls the selected datasets; none grants archive execution or policy updates.
@@ -41,30 +65,6 @@ Only active, undeleted, unexpired files attached to active runs can be downloade
 In IAM enforce mode, `quyan:system:data_lifecycle:UpdatePolicy` controls enablement and hot-data retention on `acs:platform:*:platform:lifecycle-dataset/<dataset>`. `quyan:system:data_lifecycle:UpdateSchedule` controls the schedule switch and time on `acs:platform:*:platform:lifecycle-schedule/default`. Read access does not replace update access, and platform global-group eligibility remains required. Policy update responses retain candidate counts for that dataset, not raw candidate records.
 
 Saving rechecks identity, group, role session, resource versions and current authorization. Revocation or version conflicts inside the transaction reject or roll back the save. Both schedule settings are saved atomically rather than partially. Policy updates cannot change archive retention, dataset identity or background task status. Step-up authentication and replay protection remain required, and successful updates produce audit records.
-
-## Execution Rules
-
-1. The policy table shows how many records will be archived and deleted.
-2. Select “Run archive” to open a paginated preview dialog with record IDs, timestamps, and redacted summaries. Execution starts only after confirmation.
-3. The server writes gzip NDJSON and uploads it to OSS.
-4. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
-5. Run history reports candidate, archived, and deleted counts. Incomplete source data is retained after a failure; batches already archived and deleted are not rolled back.
-
-Manual archiving requires `quyan:system:data_lifecycle:RunPolicy` on the target dataset. Batch archiving requires the separate `quyan:system:data_lifecycle:RunBatch` action. Both use `acs:platform:*:platform:lifecycle-dataset/<dataset>` and require lifecycle management eligibility from a platform global user group. Policy updates, preview, download, and history permissions do not grant execution permission. Execution still requires two-factor verification and replay protection.
-
-An explicit batch selection is authorized in full before archiving starts. An omitted or empty dataset array processes only the enabled policies selected for that request. Denial on any target prevents execution. During processing, the server repeatedly checks the user, group, role session, policy version, and authorization. Revocation interrupts the request and stops subsequent datasets.
-
-Database source records are deleted only after upload verification, confirmation that the current records match the exported snapshot, and authorization checks within the transaction. Archive metadata, source deletion, and progress are saved together. Server log files are also checked for authorization and content changes before deletion. Archiving advances in batches: a later failure or revocation cannot undo completed uploads or deletions. Review the archived and deleted counts before retrying remaining data. A failure after upload but before metadata is saved retains the source data and may leave an OSS object without a corresponding archive entry; handle such objects through storage operations procedures.
-
-## Scheduled Archives
-
-The default schedule runs enabled policies daily at 03:20 (Asia/Shanghai). Administrators can change the time or disable the schedule on the page; saved changes take effect within about one minute.
-
-Archive details are available as administrator downloads in the first release, not as in-app full-text search. The archive bucket is private by default, so a normal object URL copied from the OSS console has no signature and returns AccessDenied; use the page download button to generate a temporary signed URL. If OSS has transitioned an object to Archive or cold storage, the first download click requests a restore; download it again after OSS finishes restoring the object. The enabled scheduled task cleans up expired archive files. Cleanup may be delayed if scheduling is disabled or OSS is unavailable; do not assume a file is deleted immediately at expiry.
-
-Downloads are gzip-compressed NDJSON containing the original rows. The Dangerous Maintenance page can preview and import supported datasets. Imports use a separate, immediately readable OSS staging bucket, and delete the temporary object after either success or failure. An archive bucket may use Archive or cold storage, but it cannot also be the import staging bucket. `relay_usages` and `monthly_pass_usages` depend on token/pass rows that must still exist; missing dependencies block the import. Balance transactions and AI request logs are outside the import scope; AI request log archives are download-only for auditing.
-
-After database rows are deleted, InnoDB normally marks the pages reusable but does not immediately shrink the `.ibd` file. Reclaiming operating-system disk space requires a separate table rebuild or `OPTIMIZE TABLE` during a low-traffic window; archival runs do not do this automatically. Server log files are removed from local disk after the OSS upload is verified.
 
 ## Dangerous maintenance run history
 
