@@ -13,9 +13,8 @@ Use this page to maintain user groups and the permission sets assigned to them. 
 
 ### Group list
 
-- Group name.
-- Level and description.
-- Permission count.
+- Group identifier, name, level, description, and permission count.
+- Search by name or identifier, or use **Show RAM Groups** to filter for groups with RAM permissions. Refresh clears filters and returns to the first page.
 
 ### Management actions
 
@@ -26,10 +25,10 @@ Use this page to maintain user groups and the permission sets assigned to them. 
 
 ## Common actions
 
-1. Define the purpose of a group before creating it.
-2. Keep the name and description clear for later maintenance.
-3. Use the permission editor to bulk-select the permissions the group should have.
-4. Before deleting a group, confirm no active users still depend on it.
+1. Create a group with the required identifier and level; name and description are optional. The level ranges from 0 to 100 and defaults to 50, subject to the hierarchy rules below.
+2. After creation, edit the name, level, or description as needed. The edit form does not offer an identifier change.
+3. Open the permission editor, select the permissions the group should have, and save. Adding and removing permissions require their respective permissions; mixed changes require both.
+4. Before deletion, handle the users in the group: a group with users cannot be deleted. System-protected groups cannot be deleted either.
 
 ## Permission requirements
 
