@@ -1,6 +1,6 @@
 # Permission management
 
-Access control is split into overview, identity management, and permission management. Use these permission pages to inspect effective user permissions and adjust user-level overrides.
+Access control is split into overview, identity management, and permission management. Use these permission pages to inspect user permission summaries and adjust user-level overrides. Actual request authorization also depends on the authorization mode and request context.
 
 ## Page purpose
 
@@ -13,8 +13,8 @@ Access control is split into overview, identity management, and permission manag
 ### User list
 
 - Username and group.
-- Refresh action.
-- Paginated list.
+- A paginated list filtered by keyword, group, and the RAM-user toggle.
+- The current operator is excluded; refresh clears the filters and returns to the first page.
 
 ### Authorizations
 
@@ -30,8 +30,8 @@ Access control is split into overview, identity management, and permission manag
 
 ### Permission diagnostics
 
-- Uses the same live data as permission policies, displayed continuously by source.
-- Helps establish whether final access comes from a group, a user-level grant, or a user-level removal.
+- Shows the same permission summary as Permission Policies, including group permissions and user-level additions and removals.
+- Helps inspect these sources, but is not a complete authorization diagnosis for a specific resource and request conditions.
 
 ### Edit actions
 
@@ -44,7 +44,7 @@ Access control is split into overview, identity management, and permission manag
 1. Find the target user.
 2. Open Permission Policies or Permission Diagnostics to see the source of each permission.
 3. Add user-level permissions for special access.
-4. Remove user-level permissions to restrict a specific capability.
+4. Remove user-level permissions to restrict a capability, then save. Clearing custom permissions removes both user-level additions and removals and restores the group-based selection; this can restore capabilities that were previously removed.
 
 ## Permission requirements
 
@@ -59,7 +59,7 @@ An operator with 2FA enabled may need a step-up challenge when changing group pe
 
 ## Notes
 
-- Final permissions are typically the combination of group rules plus user-level overrides.
+- Outside IAM enforcement mode, the permission summary can include group, user-level override, and role-binding effects. In enforcement mode, the effective list is a policy projection for the account resource. Specific resources, conditions, explicit Deny, and role sessions can yield different results, so the list alone does not guarantee a request will be allowed.
 - This page is essential when troubleshooting “can see but cannot use” or “should not see this” issues.
 - Prefer long-term group fixes over too many permanent user-specific exceptions.
 
