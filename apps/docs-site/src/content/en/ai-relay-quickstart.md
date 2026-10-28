@@ -57,7 +57,7 @@ Administrators with channel-edit permission can open **AI relay settings → Cha
 - Model unavailable: request `/v1/models` again and check that the token's channels enable the model and format.
 - `403`: check token status, IP allowlist, and quota limits.
 
-Related pages: `relay-token-management`, `api-documentation`, `relay-settings`.
+Related pages: [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management), [API documentation]({{DOCS_BASE_URL}}/en/api-documentation), [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings).
 
 ## Resource protection and retries
 

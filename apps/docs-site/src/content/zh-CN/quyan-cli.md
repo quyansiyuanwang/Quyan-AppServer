@@ -125,4 +125,4 @@ Claude Desktop 与 Claude Code 分开处理。Quyan 只管理 `Claude-3p/configL
 
 ### 服务端组合令牌
 
-Profile 也可引用组合令牌。通过令牌管理页设置有序成员、嵌套及高级配置，服务端负责路径选择和单次结算；本地 Router 不复制成员密钥，也不增加另一套组合协议。成员变更影响后续请求，不需重启 Agent；目录变更后运行 `quyan router models --refresh`。各层计量不代表重复扣款，详见 `relay-token-management`。
+Profile 也可引用组合令牌。通过令牌管理页设置有序成员、嵌套及高级配置，服务端负责路径选择和单次结算；本地 Router 不复制成员密钥，也不增加另一套组合协议。成员变更影响后续请求，不需重启 Agent；目录变更后运行 `quyan router models --refresh`。各层计量不代表重复扣款，详见 [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)。

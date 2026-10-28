@@ -40,13 +40,13 @@ Manage credentials and authentication methods.
 
 Path: **Settings → Event Center**
 
-Configure notification preferences, email delivery, and webhooks. See `notification-settings` for full details.
+Configure notification preferences, email delivery, and webhooks. See [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings) for full details.
 
 ## Notes
 
 - Email and password changes may require a verification step or an active 2FA challenge.
 - Clearing cached data can reset temporary UI state such as theme and language preferences, and may sign you out.
-- Access keys, passkeys, and trusted devices open in drawers within the Account Security page. See `access-key-management`, `passkey-management`, and `trusted-device-management` for details.
+- Access keys, passkeys, and trusted devices open in drawers within the Account Security page. See [Access key management]({{DOCS_BASE_URL}}/en/access-key-management), [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management), and [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management) for details.
 
 ## Personal profile permissions and resource scope
 

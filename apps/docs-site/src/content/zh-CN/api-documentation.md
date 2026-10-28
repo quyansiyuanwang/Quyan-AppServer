@@ -382,7 +382,7 @@ try {
 1. 先看本页获取基础地址和鉴权方式。
 2. 再看 Swagger 确认具体字段。
 3. 接入 OAuth 时继续阅读 `oauth-app-management`。
-4. 使用程序化凭证时阅读 `access-key-management` 或 `relay-token-management`。
+4. 使用程序化凭证时阅读 [访问密钥管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management) 或 [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)。
 
 ## 相关页面
 

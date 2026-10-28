@@ -46,7 +46,7 @@ Use this page to review and adjust user balances from an administrator perspecti
 
 - Balance adjustments should always include a clear reason for auditability.
 - If the problem is caused by automated consumption, continue into consumption stats or system logs.
-- The user-facing equivalent is usually the `balance-history` page.
+- The user-facing equivalent is usually the [Balance and transfers]({{DOCS_BASE_URL}}/en/balance-history) page.
 
 ## Related pages
 

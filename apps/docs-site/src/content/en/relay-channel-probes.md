@@ -103,4 +103,4 @@ Legacy/shadow modes retain the earlier copy workflow, including its standalone c
 - Profiles and runs are removed according to the server retention policy. Historical results do not guarantee future upstream pricing or balance.
 - Balance-workflow credentials stay server-side. Batch configuration never copies source credentials or account bindings; legacy standalone-channel copy remains subject to its existing permission.
 
-Related pages: `relay-settings`, `upstream-status`.
+Related pages: [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings), [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status).

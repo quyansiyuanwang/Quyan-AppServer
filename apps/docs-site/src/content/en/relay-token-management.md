@@ -239,7 +239,7 @@ Authorization: Bearer <relay_token>
 Content-Type: application/json
 ```
 
-The request format must be enabled for the token's channels, or have a matching token conversion rule. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
+The request format must be enabled for the token's channels, or have a matching token conversion rule. See [API documentation]({{DOCS_BASE_URL}}/en/api-documentation) for complete curl examples, the Responses format, and image requests; see [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings) to change channels, models, or formats.
 
 ## Blocking automatic-pool members
 

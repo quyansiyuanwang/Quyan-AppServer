@@ -239,7 +239,7 @@ Authorization: Bearer <relay_token>
 Content-Type: application/json
 ```
 
-请求格式必须与令牌渠道中启用的格式一致，或在该 Token 上配置对应的请求格式转换。需要完整的 curl 示例、Responses 格式和图片请求说明时，继续查看 `api-documentation`；需要调整渠道、模型或格式时查看 `relay-settings`。
+请求格式必须与令牌渠道中启用的格式一致，或在该 Token 上配置对应的请求格式转换。需要完整的 curl 示例、Responses 格式和图片请求说明时，继续查看 [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)；需要调整渠道、模型或格式时查看 [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)。
 
 ## 自动代理池屏蔽成员
 

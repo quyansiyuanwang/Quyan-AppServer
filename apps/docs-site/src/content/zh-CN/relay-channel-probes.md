@@ -103,4 +103,4 @@ legacy/shadow 模式仍保留旧复制流程（包含原来复制的独立渠道
 - 探针档案和任务记录会按当前服务端保留策略清理；历史结果不能代表未来的上游价格或余额。
 - 余额工作流凭据仅用于服务端执行；批量配置不会复制来源凭据或号池绑定。旧版独立渠道的复制操作仍按其原有权限处理。
 
-相关页面：`relay-settings`、`upstream-status`。
+相关页面：[转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)、[上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)。

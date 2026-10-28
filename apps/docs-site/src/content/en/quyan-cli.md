@@ -185,4 +185,4 @@ Enable `quyan router stack enable --yes` to publish stable profile-scoped model 
 
 ### Server-side composite tokens
 
-A Profile can reference a composite token. Configure ordered members, nesting and advanced settings in token management; the server selects paths and settles each call once. The local Router neither copies member secrets nor adds a separate composition protocol. Member changes affect future requests without restarting the Agent; refresh catalog changes with `quyan router models --refresh`. Per-level accounting does not mean duplicate charges. See `relay-token-management`.
+A Profile can reference a composite token. Configure ordered members, nesting and advanced settings in token management; the server selects paths and settles each call once. The local Router neither copies member secrets nor adds a separate composition protocol. Member changes affect future requests without restarting the Agent; refresh catalog changes with `quyan router models --refresh`. Per-level accounting does not mean duplicate charges. See [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management).

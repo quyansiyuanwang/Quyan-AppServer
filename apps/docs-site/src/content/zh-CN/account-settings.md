@@ -40,13 +40,13 @@
 
 路径：**设置 → 事件中心**
 
-配置通知偏好、邮件推送和 Webhook。详见 `notification-settings`。
+配置通知偏好、邮件推送和 Webhook。详见 [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)。
 
 ## 说明
 
 - 修改邮箱和密码可能需要验证步骤或 2FA 挑战。
 - 清理缓存可能会重置主题、语言等临时界面状态，并可能导致退出登录。
-- 访问密钥、通行密钥和受信任设备在账户安全页的抽屉中进行管理，详见 `access-key-management`、`passkey-management`、`trusted-device-management`。
+- 访问密钥、通行密钥和受信任设备在账户安全页的抽屉中进行管理，详见 [访问密钥管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management)、[通行密钥管理]({{DOCS_BASE_URL}}/zh-CN/passkey-management)、[受信任设备管理]({{DOCS_BASE_URL}}/zh-CN/trusted-device-management)。
 
 ## 个人资料权限和资源范围
 

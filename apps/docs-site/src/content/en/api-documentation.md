@@ -382,7 +382,7 @@ The full list lives in `CustomCode` (`packages/shared/src/custom-code.ts`) and g
 1. Start here for base URLs and auth strategy.
 2. Use Swagger to confirm exact fields.
 3. Continue with `oauth-app-management` for OAuth onboarding.
-4. Read `access-key-management` or `relay-token-management` for programmatic credentials.
+4. Read [Access key management]({{DOCS_BASE_URL}}/en/access-key-management) or [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) for programmatic credentials.
 
 ## Related pages
 

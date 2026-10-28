@@ -58,7 +58,7 @@ Deletion uses `quyan:redemption_code:DeleteCode`, requires deployment-managed gl
 
 - Redemption codes usually affect balance or user benefits.
 - If a state looks wrong, compare it with balance records and business logs.
-- The user usually enters codes from `balance-history`.
+- The user usually enters codes from [Balance and transfers]({{DOCS_BASE_URL}}/en/balance-history).
 
 ## Related pages
 

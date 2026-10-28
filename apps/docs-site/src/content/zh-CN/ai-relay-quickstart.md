@@ -57,7 +57,7 @@ OpenAI Responses 格式使用 `/v1/responses` 和 `input` 字段。渠道、模�
 - 模型不可用：重新请求 `/v1/models`，并检查令牌渠道是否已启用该模型和格式。
 - `403`：检查令牌状态、IP 白名单和额度限制。
 
-相关页面：`relay-token-management`、`api-documentation`、`relay-settings`。
+相关页面：[转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)、[API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)、[转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)。
 
 ## 资源保护与重试
 

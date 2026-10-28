@@ -58,7 +58,7 @@ IAM 强制模式下，列表接口 `GET /v1/redemption-codes/list` 使用 `quyan
 
 - 兑换码通常会影响余额或权益。
 - 状态异常时，可联动查看余额记录与业务日志。
-- 用户输入兑换码的页面通常在 `balance-history`。
+- 用户输入兑换码的页面通常在 [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)。
 
 ## 相关页面
 
