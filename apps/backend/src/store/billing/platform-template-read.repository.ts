@@ -1,3 +1,4 @@
+import { platformSqlRowNumber } from "../system/platform-sql-row-number";
 import { Prisma } from "@prisma/client";
 import {
   IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION,
@@ -78,10 +79,10 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
     if (this.kind === "monthly-pass") {
       const child = Prisma.dmmf.datamodel.models.find((entry) => entry.name === "MonthlyPassTemplateQuotaWindow");
       if (!child) throw iamAccountDenied();
-      // The ordered, complete window aggregate is computed in SQL; quota content never enters a metadata scan.
-      columns.push(Prisma.sql`COALESCE((SELECT CAST(JSON_ARRAYAGG(JSON_ARRAY(${Prisma.join(scalarColumns(child, "q"))}))
-        OVER (ORDER BY q.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS CHAR)
-        FROM ${identifier(child.dbName ?? child.name)} q WHERE q.monthlyPassTemplateId=t.id LIMIT 1), '[]')`);
+      // Native JSON object normalization makes unique-ID keyed child snapshots order-independent.
+      // Include every child in SQL without window functions or bounded string aggregation.
+      columns.push(Prisma.sql`COALESCE((SELECT CAST(JSON_OBJECTAGG(q.id,JSON_ARRAY(${Prisma.join(scalarColumns(child, "q"))})) AS CHAR)
+        FROM ${identifier(child.dbName ?? child.name)} q WHERE q.monthlyPassTemplateId=t.id), '{}')`);
     }
     return Prisma.sql`SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256)`;
   }
@@ -94,13 +95,22 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
       ${filters.publishStatus ? Prisma.sql`AND t.publishStatus = ${filters.publishStatus}` : Prisma.empty}`;
     const order =
       this.kind === "remote-terminal" && filters.order !== "name"
-        ? Prisma.sql`t.updateTime DESC,t.id DESC`
+        ? [{ column: "updateTime", current: Prisma.sql`t.updateTime`, direction: "desc" as const }]
         : this.kind === "monthly-pass" || filters.order === "name"
-          ? Prisma.sql`t.name ASC,t.updateTime DESC,t.id DESC`
-          : Prisma.sql`t.createTime DESC,t.id DESC`;
+          ? [
+              { column: "name", current: Prisma.sql`t.name`, direction: "asc" as const },
+              { column: "updateTime", current: Prisma.sql`t.updateTime`, direction: "desc" as const },
+            ]
+          : [{ column: "createTime", current: Prisma.sql`t.createTime`, direction: "desc" as const }];
+    order.push({ column: "id", current: Prisma.sql`t.id`, direction: "desc" });
+    const rank = platformSqlRowNumber(
+      Prisma.sql`SELECT t.id,t.name,t.createTime,t.updateTime FROM ${table} t WHERE ${where}`,
+      order,
+    );
     return Prisma.sql`SELECT t.id,t.status,t.createTime,t.updateTime,${this.revision()} AS revision,
-      ROW_NUMBER() OVER(ORDER BY ${order}) AS displayOrder FROM ${table} t WHERE ${where}`;
+      ${rank} AS displayOrder FROM ${table} t WHERE ${where}`;
   }
+
   async scan(filters: PlatformTemplateFilters, after?: PlatformCollectionCursor, boundary?: PlatformCollectionCursor) {
     for (const cursor of [after, boundary])
       if (

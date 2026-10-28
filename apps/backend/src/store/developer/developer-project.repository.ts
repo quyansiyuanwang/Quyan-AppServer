@@ -25,7 +25,7 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import { assertSafeOutboundUrl, isUnsafeOutboundAddress } from "@/util/developer-outbound-url";
-import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
+import { toDatabaseDate, toLegacyDatabaseDate, localDayStartForDatabaseDate } from "@/util/database-date";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 import type {
   CreateDeveloperApiKeyDto,
@@ -308,7 +308,13 @@ export class DeveloperProjectRepository {
     return prisma.$transaction(async (tx) => {
       let records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
       if (!records.length && legacyUsageDate.getTime() !== usageDate.getTime())
-        records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate: legacyUsageDate } });
+        records = await tx.developerQuotaUsage.findMany({
+          where: {
+            projectId,
+            usageDate: legacyUsageDate,
+            updateTime: { gte: localDayStartForDatabaseDate(usageDate) },
+          },
+        });
       const counts = new Map(records.map((record) => [record.service, record.requestCount]));
       const usages = await Promise.all(
         QUOTA_SERVICES.map(async (service) => {
@@ -554,7 +560,12 @@ export class DeveloperProjectRepository {
           });
           if (!existingUsage && legacyUsageDate.getTime() !== usageDate.getTime())
             await tx.developerQuotaUsage.updateMany({
-              where: { projectId, service, usageDate: legacyUsageDate },
+              where: {
+                projectId,
+                service,
+                usageDate: legacyUsageDate,
+                updateTime: { gte: localDayStartForDatabaseDate(usageDate) },
+              },
               data: { usageDate },
             });
           const usage = await tx.developerQuotaUsage.upsert({

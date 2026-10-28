@@ -1,3 +1,4 @@
+import { platformSqlRowNumber } from "../system/platform-sql-row-number";
 import { platformScalarColumns } from "../system/platform-scalar-revision";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -71,8 +72,8 @@ export class PlatformTerminalEntitlementReadRepository implements PlatformTermin
       Prisma.sql`(SELECT JSON_ARRAY(${Prisma.join(user)}) FROM users u WHERE u.id=t.assignedBy)`,
       Prisma.sql`(SELECT JSON_ARRAY(${Prisma.join(template)}) FROM remote_terminal_product_templates p WHERE p.id=t.templateId)`,
       Prisma.sql`(SELECT JSON_ARRAY(${Prisma.join(token)}) FROM remote_terminal_entitlement_tokens k WHERE k.entitlementId=t.id)`,
-      Prisma.sql`COALESCE((SELECT CAST(JSON_ARRAYAGG(JSON_ARRAY(${Prisma.join(device)})) OVER (ORDER BY d.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS CHAR)
-        FROM remote_terminal_device_bindings d WHERE d.entitlementId=t.id AND d.status>=0 LIMIT 1), '[]')`,
+      Prisma.sql`COALESCE((SELECT CAST(JSON_OBJECTAGG(d.id,JSON_ARRAY(${Prisma.join(device)})) AS CHAR)
+        FROM remote_terminal_device_bindings d WHERE d.entitlementId=t.id AND d.status>=0), '{}')`,
     );
     return Prisma.sql`SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256)`;
   }
@@ -89,16 +90,21 @@ export class PlatformTerminalEntitlementReadRepository implements PlatformTermin
           !Number.isFinite(cursor.createTime.getTime()))
       )
         throw iamAccountDenied();
+    const from = Prisma.sql`FROM remote_terminal_user_entitlements t WHERE t.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`= ${filters.status}`}
+      ${filters.userId ? Prisma.sql`AND t.userId=${filters.userId}` : Prisma.empty}
+      ${filters.templateId ? Prisma.sql`AND t.templateId=${filters.templateId}` : Prisma.empty}`;
+    const rank = platformSqlRowNumber(Prisma.sql`SELECT t.id,t.endAt,t.updateTime ${from}`, [
+      { column: "endAt", current: Prisma.sql`t.endAt`, direction: "asc" },
+      { column: "updateTime", current: Prisma.sql`t.updateTime`, direction: "desc" },
+      { column: "id", current: Prisma.sql`t.id`, direction: "desc" },
+    ]);
     const rows = await prisma.$queryRaw<
       (Omit<TerminalEntitlementTarget, "displayOrder"> & { displayOrder: bigint })[]
     >(Prisma.sql`
       SELECT * FROM (
         SELECT t.id,t.userId,t.templateId,t.assignedBy,t.status,t.createTime,t.updateTime,
           (SELECT k.id FROM remote_terminal_entitlement_tokens k WHERE k.entitlementId=t.id) AS tokenId,
-          ${this.revision()} AS revision, ROW_NUMBER() OVER (ORDER BY t.endAt ASC,t.updateTime DESC,t.id DESC) AS displayOrder
-        FROM remote_terminal_user_entitlements t WHERE t.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`= ${filters.status}`}
-        ${filters.userId ? Prisma.sql`AND t.userId=${filters.userId}` : Prisma.empty}
-        ${filters.templateId ? Prisma.sql`AND t.templateId=${filters.templateId}` : Prisma.empty}
+          ${this.revision()} AS revision, ${rank} AS displayOrder ${from}
       ) metadata WHERE 1=1
       ${after ? Prisma.sql`AND (createTime < ${after.createTime} OR (createTime=${after.createTime} AND id<${after.id}))` : Prisma.empty}
       ${boundary ? Prisma.sql`AND (createTime < ${boundary.createTime} OR (createTime=${boundary.createTime} AND id<=${boundary.id}))` : Prisma.empty}

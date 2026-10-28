@@ -1,3 +1,4 @@
+import { platformSqlRowNumber } from "../system/platform-sql-row-number";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -69,15 +70,20 @@ export class PlatformTerminalDeviceReadRepository implements PlatformTerminalDev
           !Number.isFinite(cursor.createTime.getTime()))
       )
         throw iamAccountDenied();
+    const from = Prisma.sql`FROM remote_terminal_device_bindings t WHERE t.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`= ${filters.status}`}
+      ${filters.userId ? Prisma.sql`AND BINARY t.userId=BINARY ${filters.userId}` : Prisma.empty}
+      ${filters.entitlementId ? Prisma.sql`AND BINARY t.entitlementId=BINARY ${filters.entitlementId}` : Prisma.empty}`;
+    const rank = platformSqlRowNumber(Prisma.sql`SELECT t.id,t.lastSeenAt,t.updateTime ${from}`, [
+      { column: "lastSeenAt", current: Prisma.sql`t.lastSeenAt`, direction: "desc" },
+      { column: "updateTime", current: Prisma.sql`t.updateTime`, direction: "desc" },
+      { column: "id", current: Prisma.sql`t.id`, direction: "desc" },
+    ]);
     const rows = await prisma.$queryRaw<
       (Omit<TerminalDeviceTarget, "displayOrder"> & { displayOrder: bigint })[]
     >(Prisma.sql`
       SELECT * FROM (
         SELECT t.id,t.userId,t.entitlementId,(SELECT e.userId FROM remote_terminal_user_entitlements e WHERE e.id=t.entitlementId) AS entitlementUserId,
-          t.status,t.createTime,t.updateTime,${this.revision()} AS revision,ROW_NUMBER() OVER(ORDER BY t.lastSeenAt DESC,t.updateTime DESC,t.id DESC) AS displayOrder
-        FROM remote_terminal_device_bindings t WHERE t.status ${filters.status === undefined ? Prisma.sql`>=0` : Prisma.sql`= ${filters.status}`}
-          ${filters.userId ? Prisma.sql`AND BINARY t.userId=BINARY ${filters.userId}` : Prisma.empty}
-          ${filters.entitlementId ? Prisma.sql`AND BINARY t.entitlementId=BINARY ${filters.entitlementId}` : Prisma.empty}
+          t.status,t.createTime,t.updateTime,${this.revision()} AS revision,${rank} AS displayOrder ${from}
       ) metadata WHERE 1=1
         ${after ? Prisma.sql`AND(createTime<${after.createTime} OR(createTime=${after.createTime} AND id<${after.id}))` : Prisma.empty}
         ${boundary ? Prisma.sql`AND(createTime<${boundary.createTime} OR(createTime=${boundary.createTime} AND id<=${boundary.id}))` : Prisma.empty}
