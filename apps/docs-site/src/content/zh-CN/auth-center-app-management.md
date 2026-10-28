@@ -162,10 +162,10 @@
 ## 1. 用户登录 / 用户授权流程
 
 ```text
-用户 -> 接入应用 -> Auth Center /authorize
-用户登录或确认授权
-Auth Center -> 回调 redirect_uri，带回 code
-接入应用 -> Auth Center /token (authorization_code)
+用户 -> 部署提供的授权界面 -> Auth Center 授权预览 API
+用户登录并确认授权，授权界面提交授权决定
+Auth Center 返回包含 code 的回调地址，授权界面跳转
+接入应用 -> POST /v1/auth-center/token (authorization_code)
 Auth Center -> access_token（以及按配置可返回 refresh_token）
 接入应用通过 JWKS / 公钥本地验证 access_token
 ```
@@ -175,9 +175,9 @@ Auth Center -> access_token（以及按配置可返回 refresh_token）
 ## 2. 刷新流程
 
 ```text
-接入应用 -> Auth Center /token (refresh_token)
+接入应用 -> POST /v1/auth-center/token (refresh_token)
 Auth Center 校验 refresh token
-Auth Center -> 新的 access_token（以及按策略可能返回新的 refresh_token）
+Auth Center -> 新的 access_token 和轮换后的 refresh_token
 接入应用继续本地校验新的 access_token
 ```
 
@@ -186,7 +186,7 @@ Auth Center -> 新的 access_token（以及按策略可能返回新的 refresh_t
 ## 3. 应用到应用流程
 
 ```text
-服务 A -> Auth Center /token (client_credentials)
+服务 A -> POST /v1/auth-center/token (client_credentials)
 Auth Center -> 仅返回 access_token
 服务 A -> 服务 B / 受保护接口
 服务 B 通过 JWKS / 公钥验证 JWT
@@ -258,12 +258,16 @@ Auth Center -> 仅返回 access_token
 
 接入方常用端点包括：
 
-- `GET /auth-center/.well-known/openid-configuration`
-- `GET /auth-center/.well-known/jwks.json`
-- `GET /auth-center/authorize`
-- `POST /auth-center/authorize`
-- `POST /auth-center/token`
-- `POST /auth-center/revoke`
+- `GET /v1/auth-center/.well-known/openid-configuration`
+- `GET /v1/auth-center/.well-known/jwks.json`
+- `GET /v1/auth-center/authorize`
+- `POST /v1/auth-center/authorize`
+- `POST /v1/auth-center/token`
+- `POST /v1/auth-center/revoke`
+
+授权预览和授权决定接口需要已登录的平台身份，分别返回预览数据和包含回调地址的结果；它们不是可直接打开的授权页面。内置 OAuth 授权页面使用另一套 OAuth 接口。JWKS 与发现接口的响应采用 `{ code, message, data }` 包装；签发者以部署配置为准。
+
+本地 JWT 校验无法实时感知已经签发的访问令牌被撤销；请结合访问令牌有效期与实际接入方的授权策略。
 
 ## 最小接入清单
 

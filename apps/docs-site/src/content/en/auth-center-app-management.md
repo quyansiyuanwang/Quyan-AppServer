@@ -162,10 +162,10 @@ This gives you:
 ## 1. User login / user authorization flow
 
 ```text
-User -> Integrating App -> Auth Center /authorize
-User approves or signs in
-Auth Center -> redirect_uri with code
-Integrating App -> Auth Center /token (authorization_code)
+User -> deployment authorization interface -> Auth Center authorization preview API
+User signs in and consents; interface submits the decision
+Auth Center returns a callback URL with code; interface redirects
+Integrating App -> POST /v1/auth-center/token (authorization_code)
 Auth Center -> access_token (+ refresh_token if allowed)
 Integrating App verifies access_token with JWKS/public key
 ```
@@ -175,9 +175,9 @@ Recommended when the external system needs a user identity session.
 ## 2. Refresh flow
 
 ```text
-Integrating App -> Auth Center /token (refresh_token)
+Integrating App -> POST /v1/auth-center/token (refresh_token)
 Auth Center validates refresh token
-Auth Center -> new access_token (+ optional refresh_token depending on policy)
+Auth Center -> new access_token and rotated refresh_token
 Integrating App verifies new access_token locally
 ```
 
@@ -186,7 +186,7 @@ Recommended when the app keeps a user session longer than the access token lifet
 ## 3. App-to-app flow
 
 ```text
-Service A -> Auth Center /token (client_credentials)
+Service A -> POST /v1/auth-center/token (client_credentials)
 Auth Center -> access_token only
 Service A -> Service B / protected API
 Service B verifies JWT with JWKS/public key
@@ -258,12 +258,16 @@ A typical operator flow is:
 
 Common endpoints used by integrators:
 
-- `GET /auth-center/.well-known/openid-configuration`
-- `GET /auth-center/.well-known/jwks.json`
-- `GET /auth-center/authorize`
-- `POST /auth-center/authorize`
-- `POST /auth-center/token`
-- `POST /auth-center/revoke`
+- `GET /v1/auth-center/.well-known/openid-configuration`
+- `GET /v1/auth-center/.well-known/jwks.json`
+- `GET /v1/auth-center/authorize`
+- `POST /v1/auth-center/authorize`
+- `POST /v1/auth-center/token`
+- `POST /v1/auth-center/revoke`
+
+Authorization preview and decision require a signed-in platform identity and return preview data and a callback URL respectively; they are APIs, not pages to open directly. The built-in OAuth authorization page uses separate OAuth APIs. JWKS and discovery responses use the `{ code, message, data }` envelope; the issuer is determined by deployment configuration.
+
+Local JWT validation cannot immediately detect revocation of an already issued access token; account for token lifetime and your integration’s authorization policy.
 
 ## Minimum integration checklist
 
