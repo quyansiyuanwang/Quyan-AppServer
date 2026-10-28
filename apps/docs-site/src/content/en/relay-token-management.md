@@ -157,8 +157,8 @@ Diagnostic lists contain no physical execution channels, client IP addresses, up
 Each token can have one or more rolling time-window rate limits (e.g. per-minute, per-hour, per-day):
 
 - Master toggle to enable or disable quota windows for a token.
-- Each window shows used / limit and the next reset time.
-- Requests are rejected once the limit is reached until the window resets.
+- Each window shows usage, limit, and duration; it can limit spending, request count, or token count.
+- Requests are rejected when the limit is reached. As older usage leaves the rolling window and usage falls below the limit, requests can resume.
 
 ### IP whitelist
 
@@ -248,7 +248,7 @@ When a token uses an automatic proxy pool, you can block members that should not
 ## Notes
 
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.
-- **Quota windows vs. the overall cap**: a token has one overall lifetime `quotaLimit` that never resets (tracked against total usage since creation), separate from the rolling quota windows described above, which each reset on their own cycle (per-minute, per-hour, per-day). Both can be active on the same token at once — the overall cap stops the token permanently once reached, while a quota window only throttles until its next reset.
+- **Quota windows vs. the overall cap**: the optional `quotaLimit` caps cumulative spending; leaving it empty means no overall cap, and accumulated usage does not reset with a time window. Quota windows instead measure spending, requests, or tokens over a recent duration. Both can be enabled: when the overall cap is reached, edit it to increase or remove the limit; when a window is full, wait for older usage to leave it or adjust the rule. Other permission, balance, and channel restrictions still apply.
 - Bulk import appends new entries and does not overwrite existing tokens.
 - Show-all mode is useful for audits but can be heavier to scan.
 
