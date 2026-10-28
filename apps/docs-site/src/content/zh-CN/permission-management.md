@@ -55,7 +55,7 @@
 | 移除用户的权限       | `PERMISSION_REMOVE`                              |
 | 清空用户的权限覆盖项 | 同时需要 `PERMISSION_REMOVE` 和 `PERMISSION_ADD` |
 
-修改群组权限集合还需要重新完成一次 2FA 二次验证，与受信任设备状态无关。
+已启用 2FA 的操作者修改群组权限时可能需要二次验证；有效的受信任窗口可按当前安全规则通过。
 
 ## 说明
 
@@ -67,5 +67,5 @@
 
 - [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)
 - [群组管理]({{DOCS_BASE_URL}}/zh-CN/group-management)
-- `ram-management`（角色）
+- [RAM 管理]({{DOCS_BASE_URL}}/zh-CN/ram-management)（角色）
 - [法律政策管理]({{DOCS_BASE_URL}}/zh-CN/legal-policy-management)

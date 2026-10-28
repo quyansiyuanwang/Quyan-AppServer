@@ -55,7 +55,7 @@ Access control is split into overview, identity management, and permission manag
 | Remove permissions from a user      | `PERMISSION_REMOVE`                                      |
 | Clear a user's permission overrides | `PERMISSION_REMOVE` and `PERMISSION_ADD` (both required) |
 
-Changing a group's permission set additionally requires a fresh 2FA step-up challenge, regardless of trusted-device status.
+An operator with 2FA enabled may need a step-up challenge when changing group permissions; a valid trusted window can satisfy the current security rules.
 
 ## Notes
 
@@ -67,5 +67,5 @@ Changing a group's permission set additionally requires a fresh 2FA step-up chal
 
 - [User management]({{DOCS_BASE_URL}}/en/user-management)
 - [Group management]({{DOCS_BASE_URL}}/en/group-management)
-- `ram-management` (roles)
+- [RAM management]({{DOCS_BASE_URL}}/en/ram-management) (roles)
 - [Legal policy management]({{DOCS_BASE_URL}}/en/legal-policy-management)
