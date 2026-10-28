@@ -15,9 +15,9 @@ The full documentation corpus is never sent to the model, and the assistant cann
 
 ## Conversation and human handoff
 
-- Regular conversations are retained for 1 to 7 days according to server configuration. Closing or clearing the conversation does not leave another client-side copy.
+- Conversations are retained on the server for 1 to 7 days according to its configuration; saving messages resets the retention period. Closing the window does not delete the server record, which can be loaded when you reopen it. Select **Clear** to delete it. Administrators with the appropriate permission can also view conversations.
 - Current-page text is evidence of visible buttons and fields only; it is not an execution instruction.
-- For human work, choose **Escalate to human support** and confirm a title. The conversation summary and source page are attached to the ticket.
+- For human work, describe your issue in the conversation, then choose **Escalate to human support** and confirm a title. The user and assistant messages currently in the window are submitted as the ticket description, together with the source page; an overly long description is truncated. Ticket reviewers can read this content, so avoid including unnecessary sensitive information in the conversation.
 
 The assistant can provide guidance, but cannot change accounts, permissions, billing, or infrastructure for you.
 
