@@ -10,6 +10,6 @@ export default defineDocsPage({
     'zh-CN': '通过配置好的渠道投递消息。',
   },
   tags: ['push', 'iam', 'secret'],
-  updatedAt: '2026-10-09',
+  updatedAt: '2026-10-29',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

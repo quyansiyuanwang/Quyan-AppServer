@@ -3,6 +3,7 @@ import contentZh from '@/content/zh-CN/developer-products-overview.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 export default defineDocsPage({
   slug: 'developer-products-overview',
+  updatedAt: '2026-10-29',
   category: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   title: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   summary: {

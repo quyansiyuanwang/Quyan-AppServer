@@ -14,7 +14,7 @@ The IP lookup action is required:
 
 ```http
 GET /v1/products/ip-geolocation/8.8.8.8
-Authorization: Bearer dpk_...
+Authorization: Bearer sk-dpk-...
 ```
 
 The response supplies country, region, city, ASN, carrier, full address, and data source where the provider has data. Do not treat a lookup as proof of a user's identity, precise location, or sole authorization signal.

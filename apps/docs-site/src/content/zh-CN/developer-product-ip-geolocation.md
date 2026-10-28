@@ -14,7 +14,7 @@ IP 定位将公网 IP 标准化为国家、地区、城市、ASN、运营商和�
 
 ```http
 GET /v1/products/ip-geolocation/8.8.8.8
-Authorization: Bearer dpk_...
+Authorization: Bearer sk-dpk-...
 ```
 
 返回字段会在供应商可用数据范围内提供国家、地区、城市、ASN、运营商、完整地址和数据来源。不要把定位结果当作用户真实身份、精确位置或访问授权的唯一依据。

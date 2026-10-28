@@ -3,6 +3,7 @@ import contentZh from '@/content/zh-CN/developer-product-ip-geolocation.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 export default defineDocsPage({
   slug: 'developer-product-ip-geolocation',
+  updatedAt: '2026-10-29',
   category: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   title: { en: 'IP Geolocation API', 'zh-CN': 'IP 定位 API' },
   summary: {

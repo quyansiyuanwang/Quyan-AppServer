@@ -8,13 +8,13 @@
 
 ```http
 POST /v1/products/verification/send
-Authorization: Bearer dpk_...
+Authorization: Bearer sk-dpk-...
 Content-Type: application/json
 
 { "channel": "email", "recipient": "user@example.com", "purpose": "signup" }
 ```
 
-校验使用 `POST /v1/products/verification/verify`，在相同的 `channel`、`recipient` 和 `purpose` 基础上追加 6 位 `code`。响应 `{ "valid": true }` 后不可再次使用该验证码。
+校验使用 `POST /v1/products/verification/verify`，在相同的 `channel`、`recipient` 和 `purpose` 基础上追加 6 位 `code`。响应中的 `data.valid` 为 `true` 表示校验成功，该验证码不可再次使用。
 
 ## 通道、限流与计费
 

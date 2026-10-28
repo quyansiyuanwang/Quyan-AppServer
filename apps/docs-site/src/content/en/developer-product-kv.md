@@ -4,14 +4,15 @@ KV storage is intended for frontend configuration, lightweight counters, feature
 
 ## Permissions and limits
 
-Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. TTL is capped at 30 days. Expired values behave as absent and are cleaned up asynchronously.
+Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. TTL is capped at 30 days. Expired values behave as absent.
 
 ## API
 
-Authenticate every request with `Authorization: Bearer dpk_...`:
+Authenticate every request with `Authorization: Bearer sk-dpk-...`:
 
 ```http
 POST /v1/products/kv/entries/ui.theme
+Authorization: Bearer sk-dpk-...
 Content-Type: application/json
 
 { "value": { "mode": "dark" }, "ttlSeconds": 86400 }

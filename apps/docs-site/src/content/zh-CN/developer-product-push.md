@@ -12,7 +12,7 @@
 
 ```http
 POST /v1/products/push/send
-Authorization: Bearer dpk_...
+Authorization: Bearer sk-dpk-...
 Content-Type: application/json
 
 {

@@ -4,14 +4,15 @@ KV 存储适用于前端配置、轻量计数器、功能开关和短期 JSON �
 
 ## 权限与限制
 
-读取需要 KV 读取权限，写入和删除需要 KV 写入权限。键只能使用字母、数字、点、下划线、冒号和连字符，长度不超过 191 个字符。TTL 最长 30 天；过期条目读取时等同不存在，并会被异步清理。
+读取需要 KV 读取权限，写入和删除需要 KV 写入权限。键只能使用字母、数字、点、下划线、冒号和连字符，长度不超过 191 个字符。TTL 最长 30 天；过期条目读取时等同不存在。
 
 ## API
 
-所有请求使用 `Authorization: Bearer dpk_...`：
+所有请求使用 `Authorization: Bearer sk-dpk-...`：
 
 ```http
 POST /v1/products/kv/entries/ui.theme
+Authorization: Bearer sk-dpk-...
 Content-Type: application/json
 
 { "value": { "mode": "dark" }, "ttlSeconds": 86400 }
