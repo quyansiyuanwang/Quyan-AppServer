@@ -9,6 +9,10 @@ Use this page to submit suggestions, report bugs, and track the review status of
 - View full details including reviewer replies and comment threads.
 - Edit tickets that are still under review.
 
+## Before you begin
+
+Sign in to use the ticket page. Submitting, viewing your own tickets, editing, and commenting require separate permissions. If an action is unavailable, ask an administrator to check your permissions.
+
 ## What you will see
 
 ### Ticket form
@@ -43,9 +47,8 @@ Use this page to submit suggestions, report bugs, and track the review status of
 
 ## Notes
 
-- Tickets in **rejected** or **completed** status cannot be edited.
-- Comments are public to the ticket thread — do not include private information.
-- The workspace suggestions page (`/workspace/suggestions`) shares the same component and can be embedded in other pages for guests.
+- Tickets in **rejected** or **completed** status cannot be edited or replied to.
+- Public comments are visible to the submitter and reviewers authorized to view the ticket. Internal review notes are not shown to the submitter. Avoid including unnecessary private information in comments.
 
 ## Related pages
 
