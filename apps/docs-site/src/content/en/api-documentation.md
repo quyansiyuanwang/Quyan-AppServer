@@ -1,13 +1,6 @@
 # API documentation
 
-This page should be more than an address list. It works best as an **integration hub + SDK reference + runnable example center** so an external developer can move from “I see the endpoint” to “I can ship the integration”.
-
-## What this page should answer
-
-1. **Which base URL should I call?**
-2. **Should I use JWT, OAuth, Access Key, or Relay Token?**
-3. **Do you provide copy-paste curl / TypeScript / Python examples?**
-4. **How should I structure response parsing, pagination, and error handling?**
+Learn about endpoint addresses, authentication, request examples, and error handling. Consult the API reference for each endpoint’s fields and permissions.
 
 ## What you will see
 
@@ -26,18 +19,6 @@ This page should be more than an address list. It works best as an **integration
 - Model or provider views
 - Refresh action
 - Custom multiplier / token-unit toggles
-
-## Recommended documentation structure
-
-A usable API documentation page should contain at least:
-
-- **Endpoint addresses**
-- **Authentication guidance**
-- **Request examples**
-- **Response examples**
-- **Error handling notes**
-- **SDK samples**
-- **A minimal runnable demo**
 
 ## Base URLs
 
@@ -333,7 +314,7 @@ curl -X POST "https://api.qysyw.cn/v1/oauth/token" \
 
 ## Pagination guidance
 
-The documentation should explicitly tell integrators that:
+Pagination parameters vary by endpoint; consult its API reference. Common parameters include:
 
 - `page` is the page number, usually starting at `1`
 - `pageSize` is the number of rows per page
@@ -354,7 +335,7 @@ The path and Action are fixed by the server. Query parameters and headers cannot
 
 ## Error handling guidance
 
-Documentation should not only show success cases. It should also show how failures are handled.
+Handle failed responses and decide whether to retry based on the error.
 
 ```ts
 try {
@@ -392,16 +373,6 @@ The full list lives in `CustomCode` (`packages/shared/src/custom-code.ts`) and g
 - Only retry on codes that represent a transient state (token refresh, replay-protection session renewal, rate limiting). Retrying `1002`/`1003`/`1004`/`1014` will fail identically every time since the request itself is the problem.
 - For `1429` (rate limited), respect any suggested retry-after delay in the response rather than retrying immediately.
 - Cap automatic retries at 1-2 attempts; surface the error to the user or calling system after that instead of looping.
-
-## Minimum demo checklist for the docs site
-
-Recommended follow-up additions:
-
-1. **curl demos** for quick validation
-2. **TypeScript demos** for frontend and Node.js projects
-3. **Python demos** for backend scripts and ops tooling
-4. **Full OAuth flow demos** for open-platform consumers
-5. **Error-code and retry guidance** for production-grade integration
 
 ## Recommended reading order
 

@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'api-documentation',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Reference',
     'zh-CN': '参考',

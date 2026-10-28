@@ -13,13 +13,15 @@
         <div class="brand-mark">Q</div>
         <div>
           <div class="brand-name">QYSYW Docs</div>
-          <div class="brand-note">Structured product manual · 双语文档</div>
+          <div class="brand-note">{{ ui.brandNote }}</div>
         </div>
       </div>
 
       <div class="topbar-actions">
         <button class="command-pill" type="button" @click="focusSearch">Ctrl + K</button>
-        <a class="top-link" :href="appBaseUrl" target="_blank" rel="noreferrer">Main site</a>
+        <a class="top-link" :href="appBaseUrl" target="_blank" rel="noreferrer">{{
+          ui.mainSite
+        }}</a>
         <a class="top-link primary" :href="swaggerDocsUrl" target="_blank" rel="noreferrer">
           Swagger
         </a>
@@ -30,9 +32,7 @@
       <aside v-if="showSidebarPanel" class="sidebar-panel">
         <div class="sidebar-section sidebar-toolbar">
           <div class="sidebar-headline">
-            <div class="sidebar-eyebrow">Documentation hub</div>
-            <h2>Search, skim, jump</h2>
-            <p>Reference-first navigation with denser structure and clearer hierarchy.</p>
+            <h2>{{ ui.navigation }}</h2>
           </div>
 
           <div class="locale-switch">
@@ -41,6 +41,7 @@
               :key="option.value"
               class="locale-button"
               :class="{ active: option.value === locale }"
+              :aria-pressed="option.value === locale"
               @click="switchLocale(option.value)"
             >
               {{ option.label }}
@@ -56,23 +57,11 @@
               @keydown.enter.prevent="openFirstMatch"
             />
           </label>
-
-          <div class="sidebar-stats">
-            <div class="stat-chip">
-              <span class="stat-label">{{ ui.pages }}</span>
-              <strong>{{ docsRegistry.pages.length }}</strong>
-            </div>
-            <div class="stat-chip">
-              <span class="stat-label">{{ ui.toc }}</span>
-              <strong>{{ tocItems.length }}</strong>
-            </div>
-          </div>
         </div>
 
         <div class="sidebar-section sidebar-groups">
           <div class="sidebar-groups-head">
             <div class="section-label">{{ ui.pages }}</div>
-            <div class="sidebar-groups-meta">{{ groupedPages.length }} groups</div>
           </div>
 
           <div v-for="group in groupedPages" :key="group.label" class="group-block">
@@ -82,10 +71,10 @@
               :key="page.slug"
               class="page-item"
               :class="{ active: page.slug === currentPage.slug }"
+              :aria-current="page.slug === currentPage.slug ? 'page' : undefined"
               @click="openPage(page.slug)"
             >
               <div class="page-item-title">{{ page.title[locale] }}</div>
-              <div class="page-item-summary">{{ page.summary[locale] }}</div>
             </button>
           </div>
         </div>
@@ -97,32 +86,20 @@
             <div v-if="showEmbeddedMeta" class="doc-breadcrumbs">
               <span>{{ currentPage.category[locale] }}</span>
               <span>/</span>
-              <span>{{ currentPage.slug }}</span>
+              <span>{{ currentPage.title[locale] }}</span>
             </div>
 
-            <div class="doc-meta-row">
-              <span v-if="showEmbeddedMeta" class="doc-method">DOC</span>
-              <span class="doc-route">{{ docsRouteLabel }}</span>
-              <span v-if="showEmbeddedMeta" class="doc-update"
-                >Updated {{ currentPage.updatedAt }}</span
-              >
+            <div v-if="showEmbeddedMeta" class="doc-meta-row">
+              <span class="doc-update">{{ ui.updated }} {{ currentPage.updatedAt }}</span>
             </div>
 
             <h1>{{ currentPage.title[locale] }}</h1>
             <p class="doc-summary">{{ currentPage.summary[locale] }}</p>
-
-            <div v-if="showEmbeddedMeta" class="doc-tags">
-              <span v-for="tag in currentPage.tags" :key="tag" class="doc-tag">#{{ tag }}</span>
-            </div>
           </div>
 
           <div v-if="showHeroSide" class="doc-hero-side">
             <div class="hero-side-card">
-              <div class="hero-side-label">Route</div>
-              <div class="hero-side-value">{{ currentPage.slug }}</div>
-            </div>
-            <div class="hero-side-card">
-              <div class="hero-side-label">Actions</div>
+              <div class="hero-side-label">{{ ui.actions }}</div>
               <div class="doc-actions">
                 <button class="action-button" type="button" @click="copyCurrentPageUrl">
                   {{ ui.copyPage }}
@@ -143,16 +120,19 @@
           </div>
         </section>
 
-        <section v-if="query.trim() && searchMatches.length" class="result-panel">
+        <section v-if="query.trim()" class="result-panel" aria-live="polite">
           <div class="panel-header">
             <div>
               <div class="section-label">{{ ui.searchResults }}</div>
               <h3>{{ searchMatches.length }} {{ ui.matches }}</h3>
             </div>
-            <button class="action-button ghost" type="button" @click="query = ''">Clear</button>
+            <button class="action-button ghost" type="button" @click="query = ''">
+              {{ ui.clear }}
+            </button>
           </div>
 
-          <div class="result-list">
+          <p v-if="!searchMatches.length">{{ ui.noResults }}</p>
+          <div v-else class="result-list">
             <button
               v-for="page in searchMatches"
               :key="page.slug"
@@ -203,12 +183,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  APP_BASE_URL,
-  DOCS_BASE_URL,
-  SWAGGER_DOCS_URL,
-  interpolateDocsContent,
-} from '@/config/site'
+import { APP_BASE_URL, SWAGGER_DOCS_URL, interpolateDocsContent } from '@/config/site'
 import { docsRegistry, type DocsLocale, type DocsSlug } from '@/docs'
 import { glossaryRegistry, type GlossaryEntry } from '@/docs/glossary'
 
@@ -334,9 +309,6 @@ const currentSlug = computed<DocsSlug>(() => {
   return (docsRegistry.hasPage(slug) ? slug : docsRegistry.defaultSlug) as DocsSlug
 })
 const currentPage = computed(() => docsRegistry.getPage(currentSlug.value))
-const docsRouteLabel = computed(
-  () => `${toUrlLabel(DOCS_BASE_URL)}/${locale.value}/${currentPage.value.slug}`,
-)
 const appBaseUrlLabel = toUrlLabel(appBaseUrl)
 const swaggerDocsUrlLabel = toUrlLabel(swaggerDocsUrl)
 
@@ -346,6 +318,16 @@ const localeOptions = [
 ]
 
 const ui = computed(() => ({
+  brandNote: locale.value === 'en' ? 'Product documentation' : '产品文档',
+  mainSite: locale.value === 'en' ? 'Main site' : '进入应用',
+  navigation: locale.value === 'en' ? 'Documentation' : '文档导航',
+  updated: locale.value === 'en' ? 'Updated' : '更新于',
+  actions: locale.value === 'en' ? 'Page actions' : '页面操作',
+  clear: locale.value === 'en' ? 'Clear' : '清除',
+  noResults:
+    locale.value === 'en'
+      ? 'No matching documents. Try another search term.'
+      : '没有找到匹配的文档，请尝试其他关键词。',
   search: locale.value === 'en' ? 'Search docs' : '搜索文档',
   searchPlaceholder:
     locale.value === 'en' ? 'Search title, tag, or content' : '搜索标题、标签或正文',
@@ -620,6 +602,17 @@ const focusSearch = async () => {
   searchInputRef.value?.focus()
 }
 
+const handleSearchShortcut = (event: KeyboardEvent) => {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === 'k' &&
+    showSidebarPanel.value
+  ) {
+    event.preventDefault()
+    void focusSearch()
+  }
+}
+
 const openFirstMatch = async () => {
   const first = searchMatches.value[0]
   if (first) await openPage(first.slug)
@@ -656,6 +649,7 @@ onMounted(() => {
     docsPageResizeObserver.observe(docsPageRef.value)
   }
 
+  window.addEventListener('keydown', handleSearchShortcut)
   window.addEventListener('resize', updateEmbeddedViewportWidth)
   window.visualViewport?.addEventListener('resize', updateEmbeddedViewportWidth)
   void renderMermaidDiagrams()
@@ -664,6 +658,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   docsPageResizeObserver?.disconnect()
   docsPageResizeObserver = null
+  window.removeEventListener('keydown', handleSearchShortcut)
   window.removeEventListener('resize', updateEmbeddedViewportWidth)
   window.visualViewport?.removeEventListener('resize', updateEmbeddedViewportWidth)
 })
@@ -1563,8 +1558,8 @@ onBeforeUnmount(() => {
   }
 
   .sidebar-groups {
-    max-height: none;
-    overflow: visible;
+    max-height: 40vh;
+    overflow: auto;
   }
 
   .doc-actions {
