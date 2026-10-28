@@ -27,10 +27,10 @@ If you do not need OAuth login and only want to call a business API from your ba
 ## Suggested structure
 
 ```text
-integrations/server-sdk/sdks/oauth/node/
+example/
 ├─ package.json
 ├─ .env
-└─ src/index.mjs
+└─ index.js
 ```
 
 ## `package.json`
@@ -42,9 +42,14 @@ integrations/server-sdk/sdks/oauth/node/
   "type": "module",
   "scripts": {
     "dev": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
   }
 }
 ```
+
+These examples use an authorized access token. Third-party OAuth tokens need the `profile` scope for user information and `balance:read` for balance history. Server-side resource permissions still apply. Exclude `.env` from version control.
 
 ## `.env`
 
@@ -61,7 +66,7 @@ import 'dotenv/config'
 const apiBaseUrl = process.env.APPSERVER_BASE_URL
 const accessToken = process.env.ACCESS_TOKEN
 
-const response = await fetch(new URL('/api/user/profile', apiBaseUrl), {
+const response = await fetch(new URL('/v1/users/me', apiBaseUrl), {
   headers: {
     Authorization: `Bearer ${accessToken}`,
   },
@@ -246,7 +251,7 @@ export async function callAppServer({
 export async function getUserProfile({ baseUrl, token }) {
   const result = await callAppServer({
     baseUrl,
-    path: '/api/user/profile',
+    path: '/v1/users/me',
     token,
   })
 
@@ -272,9 +277,9 @@ console.log('profile =>', profile)
 
 const usage = await callAppServer({
   baseUrl,
-  path: '/api/user/balance-history',
+  path: '/v1/balance/transactions',
   token: accessToken,
-  query: { page: 1, pageSize: 20 },
+  query: { limit: 20, offset: 0 },
 })
 
 console.log('balance history =>', usage.data)

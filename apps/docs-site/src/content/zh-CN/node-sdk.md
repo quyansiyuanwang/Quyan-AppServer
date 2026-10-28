@@ -27,10 +27,10 @@
 ## 推荐目录
 
 ```text
-integrations/server-sdk/sdks/oauth/node/
+example/
 ├─ package.json
 ├─ .env
-└─ src/index.mjs
+└─ index.js
 ```
 
 ## `package.json`
@@ -42,9 +42,14 @@ integrations/server-sdk/sdks/oauth/node/
   "type": "module",
   "scripts": {
     "dev": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
   }
 }
 ```
+
+示例使用已获得授权的访问令牌；第三方 OAuth 令牌访问用户资料需要 `profile` scope，访问余额记录需要 `balance:read` scope。具体资源权限仍由服务端控制。请将 `.env` 排除在版本控制之外。
 
 ## `.env`
 
@@ -61,7 +66,7 @@ import 'dotenv/config'
 const apiBaseUrl = process.env.APPSERVER_BASE_URL
 const accessToken = process.env.ACCESS_TOKEN
 
-const response = await fetch(new URL('/api/user/profile', apiBaseUrl), {
+const response = await fetch(new URL('/v1/users/me', apiBaseUrl), {
   headers: {
     Authorization: `Bearer ${accessToken}`,
   },
@@ -246,7 +251,7 @@ export async function callAppServer({
 export async function getUserProfile({ baseUrl, token }) {
   const result = await callAppServer({
     baseUrl,
-    path: '/api/user/profile',
+    path: '/v1/users/me',
     token,
   })
 
@@ -272,9 +277,9 @@ console.log('profile =>', profile)
 
 const usage = await callAppServer({
   baseUrl,
-  path: '/api/user/balance-history',
+  path: '/v1/balance/transactions',
   token: accessToken,
-  query: { page: 1, pageSize: 20 },
+  query: { limit: 20, offset: 0 },
 })
 
 console.log('balance history =>', usage.data)

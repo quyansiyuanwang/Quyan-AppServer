@@ -27,7 +27,7 @@
 ## 推荐目录
 
 ```text
-integrations/server-sdk/sdks/oauth/python/
+example/
 ├─ requirements.txt
 ├─ .env
 └─ app.py
@@ -39,6 +39,8 @@ integrations/server-sdk/sdks/oauth/python/
 python-dotenv==1.0.1
 requests==2.32.3
 ```
+
+示例使用已获得授权的访问令牌；第三方 OAuth 令牌访问用户资料需要 `profile` scope，访问余额记录需要 `balance:read` scope。具体资源权限仍由服务端控制。请将 `.env` 排除在版本控制之外。
 
 ## `.env`
 
@@ -61,7 +63,7 @@ api_base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
 access_token = os.getenv("ACCESS_TOKEN", "")
 
 response = requests.get(
-    f"{api_base_url}/api/user/profile",
+    f"{api_base_url}/v1/users/me",
     headers={"Authorization": f"Bearer {access_token}"},
     timeout=15,
 )
@@ -229,7 +231,7 @@ def call_appserver(
 def get_user_profile(base_url: str, token: str) -> Any:
     return call_appserver(
         base_url=base_url,
-        path="/api/user/profile",
+        path="/v1/users/me",
         token=token,
     ).data
 ```
@@ -253,9 +255,9 @@ print("profile =>", profile)
 
 history = call_appserver(
     base_url=base_url,
-    path="/api/user/balance-history",
+    path="/v1/balance/transactions",
     token=access_token,
-    params={"page": 1, "pageSize": 20},
+    params={"limit": 20, "offset": 0},
 )
 print("balance history =>", history.data)
 ```
