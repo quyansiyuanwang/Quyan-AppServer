@@ -94,8 +94,7 @@
 适用场景：
 
 - 某个终端存在异常登录
-- 同一用户的某台设备需要被单独断开
-- 想保留其他会话，只终止其中一个连接
+- 需要撤销某个会话对应的认证会话
 
 ### 强制某个用户全部下线
 
@@ -114,6 +113,8 @@
 - CSV
 - JSON
 
+导出会按详情中的日期范围请求所有匹配的时间线页，而不仅是当前页。JSON 还包含用户详情、筛选范围和导出时间；导出文件包含 IP、设备信息等敏感数据，请妥善保管。
+
 导出内容通常包含：
 
 - `sessionId`
@@ -129,7 +130,7 @@
 
 尤其要注意：
 
-- 强制某个 session 下线，只影响对应会话。
+- 强制某个 session 下线会关闭该记录并撤销其关联的认证会话；共享同一认证会话的其他连接也可能受到影响。
 - 强制某个用户下线，会影响该用户当前所有活跃会话。
 - 如果操作命中了当前操作者自己的登录会话，系统会把当前操作者也登出。
 
@@ -141,7 +142,7 @@
 2. 通过关键字、状态、IP 或地域筛选目标记录。
 3. 打开目标用户的详情抽屉。
 4. 根据在线会话卡片或离线时间线判断问题范围。
-5. 需要保留其他连接时，只强制某个 session 下线。
+5. 需要缩小影响范围时，选择目标 session，并确认可能受影响的认证会话。
 6. 需要完全清场时，再对整个用户执行强制下线。
 7. 如需留档或交叉分析，导出 CSV 或 JSON。
 
@@ -167,7 +168,7 @@
 
 ## 相关页面
 
-- [`system-statistics`](/zh-CN/system-statistics)
-- [`system-logs`](/zh-CN/system-logs)
-- [`business-logs`](/zh-CN/business-logs)
-- [`ip-monitoring-dashboard`](/zh-CN/ip-monitoring-dashboard)
+- [系统统计]({{DOCS_BASE_URL}}/zh-CN/system-statistics)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
+- [IP 监控]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)

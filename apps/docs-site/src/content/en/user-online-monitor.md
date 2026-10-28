@@ -94,8 +94,7 @@ Each online session card can force one `sessionId` offline.
 Typical use cases:
 
 - a suspicious device is still logged in
-- one device should be disconnected without touching others
-- you want to keep the rest of the user's sessions
+- the authentication session associated with an entry needs to be revoked
 
 ### Force one user fully offline
 
@@ -114,6 +113,8 @@ The page supports exporting:
 - CSV
 - JSON
 
+Export requests all matching timeline pages for the selected date range, not just the visible page. JSON also includes user details, the selected range, and export time. The file contains sensitive data such as IP addresses and device information; store it securely.
+
 The export usually includes:
 
 - `sessionId`
@@ -129,7 +130,7 @@ Force-offline is a high-impact action and should be used carefully.
 
 Important behavior:
 
-- forcing one session offline only affects that session
+- forcing one session offline closes the selected record and revokes its associated authentication session; other connections sharing that authentication session may also be affected
 - forcing a user offline affects all active sessions for that user
 - if the action hits the operator's current session, the operator will also be logged out
 
@@ -141,7 +142,7 @@ That means you should confirm whether the target user is yourself, or whether th
 2. Filter by keyword, status, IP, or location.
 3. Open the target user's detail drawer.
 4. Use online cards and offline timeline entries to scope the issue.
-5. Force one session offline when the rest of the user's access should remain.
+5. To limit the scope, select the target session and check which authentication session may be affected.
 6. Force the whole user offline when a full reset is needed.
 7. Export CSV or JSON when you need records for analysis or handoff.
 
@@ -167,7 +168,7 @@ With read-only permission, users can typically inspect data but not terminate se
 
 ## Related pages
 
-- [`system-statistics`](/en/system-statistics)
-- [`system-logs`](/en/system-logs)
-- [`business-logs`](/en/business-logs)
-- [`ip-monitoring-dashboard`](/en/ip-monitoring-dashboard)
+- [System statistics]({{DOCS_BASE_URL}}/en/system-statistics)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
+- [IP monitoring]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
