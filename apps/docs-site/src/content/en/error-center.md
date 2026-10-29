@@ -1,34 +1,91 @@
 # Error center
 
-The error center aggregates browser runtime errors, Vue component errors, unhandled promises, and unexpected server errors for investigation by fingerprint.
+The error center groups unexpected frontend and backend errors by fingerprint. Use it to find recent errors, inspect stacks and context, and track handling status. Status changes record progress; they do not fix an error or stop collection.
 
 ## Requirements
 
-- The error-report read permission is required to open the page.
-- Browser reports redact some common sensitive fields and text patterns, and the server also masks some sensitive context fields. Redaction cannot identify every sensitive value; avoid putting passwords, tokens, or personal information in error messages.
-- Scheduled lifecycle cleanup deletes error groups whose last occurrence was more than 90 days ago, together with their occurrences. Cleanup depends on the schedule being enabled and running successfully; a group that keeps recurring can retain older occurrences for longer than 90 days.
+- Open **Error Center** on the core management site. Error-report read permission is required.
+- Group details, occurrences, and status updates require separate access. Opening the list or seeing a status button does not establish permission for the next operation.
+- Errors can contain business data. Browser reports redact some common sensitive fields and text patterns, and the server masks some sensitive context fields. Redaction cannot identify every sensitive value. Check messages, stacks, and context before sharing them.
 
-## What You Can See
+## Find an error group
 
-- Source, last-seen time, route, message, and occurrence count.
-- Error status: `open`, `acknowledged`, `resolved`, or `ignored`.
-- The fingerprint and message in group details, plus available stacks and context for each occurrence.
+1. Select a **Source** and **Status** as needed. Changing or clearing either filter queries immediately and returns to the first page.
+2. Enter a search term and press Enter. Search matches text in group messages, error types, routes, or fingerprints. It does not search occurrence stacks or context.
+3. Review results from most recently seen to oldest, then open the target group with its view button.
 
-## Investigation Flow
+Initially, all sources and statuses are included, with 20 groups per page. Times use the browser's local format. The page has no date-range filter or automatic refresh.
 
-1. Filter by source, status, or a search term. Changing source or status queries immediately; press Enter after typing a search term.
-2. Open a group and expand recent occurrences to inspect available stacks and context.
-3. If you obtain a request ID from context or another source, use it to find related records in [System logs]({{DOCS_BASE_URL}}/en/system-logs). The error center does not display the request ID as a separate field.
-4. After handling the issue, update its status if you have update permission.
+Clearing the search input alone does not run a query. Press Enter or click **Refresh**. The top **Refresh** uses the current form values to reload the current page; it does not reload occurrences in an open detail drawer. **Clear filters** clears the search, status, and source and returns to the first page.
 
-If opening details fails, the drawer may still show the summary from the list. Close and reopen it, and confirm details loaded successfully before updating the status. The detail view shows at most the 50 most recent occurrences in the group; it does not provide a way to page through older occurrences. Expand an occurrence to inspect its available stack and context. If occurrences fail to load, close the detail view and reopen the group. If the problem persists, check occurrence-read access or contact an administrator. The top **Refresh** reloads the current page with the current filters. **Clear filters** clears the search, status, and source and returns to the first page. If the list fails to load, use the retry action shown on the page.
+A failed list request shows a failure message and clears the results. Zero rows in this state do not mean that no errors exist. Use the retry action to load again.
 
-The client reporting endpoint is rate limited. Dropped reports never affect the original page action.
+## Inspect details and occurrences
 
-## IAM access to error groups and occurrences
+1. Open a group and confirm that its details loaded successfully.
+2. Review its error type, source, status, route, fingerprint, and message.
+3. Expand recent occurrences to inspect available stacks and context. Occurrences are ordered newest first, with times in the browser's local format.
+4. If context or another source provides a request ID, search for related records in [System logs]({{DOCS_BASE_URL}}/en/system-logs).
 
-With IAM enforcement enabled, each error group uses `acs:platform:*:platform:error-group/<groupId>`. `quyan:system:error_report:GetErrorGroup` reads the group summary; `quyan:system:error_report:ListErrorOccurrences` lists active occurrences belonging to that group, including stacks and bounded context. These are independent permissions: granting one does not grant the other. The occurrence list is authorized at the parent error group and its total includes only active occurrences in that group.
+One group can contain multiple similar errors. Grouping normalizes some numbers and identifiers in error text, so the same fingerprint does not guarantee identical messages or root causes. The group message keeps the first recorded summary; it may differ from the latest occurrence's original message.
 
-Operators must also have error-report reading eligibility from a platform global user group. Account ownership, private account groups, added user permissions, and wildcard policies cannot independently provide that eligibility. Role sessions use the role's policies and do not inherit group Allow grants.
+Details show at most the **50 most recent occurrences** in the group, with no page control for older records. The cumulative count can exceed the number displayed. Request ID, user ID, HTTP status, and client version have no separate display fields. An occurrence may have no stack or context.
 
-The server authorizes before loading report details and rechecks access and the error group before returning them. Revoked permissions, an expired or revoked role session, or an invalidated or changed group causes the read to fail. Group browsing uses `quyan:system:error_report:ListErrorGroups` on each error group. Results are filtered before pagination; page totals include only authorized active groups. List access does not grant group details or occurrence access. If an authorized group or access changes during a query, retry to retrieve current results. Newly reported groups beyond the query's initial boundary appear in the next query. Anonymous client reporting stays rate limited. Status updates use `quyan:system:error_report:UpdateErrorGroupStatus` on the selected error group. Because the API returns the updated group summary, it also requires `quyan:system:error_report:GetErrorGroup` on that same resource. The catalog lists this read requirement in `requiredActions`; granting the update action does not automatically grant read access. Operators need both error-report read and update eligibility from a platform global user group. Replay protection remains required. Changes to authorization data or the selected group can reject an update; authorization failure before commit rolls back the status change. The existing permissions and response remain in effect in legacy and shadow modes.
+If the group-details request fails, the drawer may retain the list summary and will not proceed to load occurrences. A summary or empty occurrence area does not establish that details loaded. Close and reopen the drawer to retry. Use the same method after a separate occurrence-loading failure, and check the relevant read access.
+
+## Update handling status
+
+Click a target status button in the detail drawer. The change submits immediately, with no additional save or confirmation. On success the list reloads; if the group no longer matches the status filter, it disappears from that list.
+
+| Status                        | Tracking purpose                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| Open (`open`)                 | Initial state for a new error; select it again to continue handling a group. |
+| Acknowledged (`acknowledged`) | The issue has been seen and is being investigated or scheduled for handling. |
+| Resolved (`resolved`)         | The operator considers the issue resolved.                                   |
+| Ignored (`ignored`)           | The group is not being followed up for now.                                  |
+
+You can switch directly between these states; there is no required sequence. **A resolved or ignored group does not automatically return to Open when the error recurs.** Its last-seen time and count still update. To investigate recurrence, include all statuses and check the latest occurrence time.
+
+Changing status does not delete records, disable reporting, retry failed requests, or roll back business operations. Reloading the list does not reload occurrences in the drawer. Close and reopen it for current details.
+
+## Collection scope and retention
+
+The center collects browser runtime errors, Vue component errors, unhandled promise rejections, and unexpected server exceptions connected to its reporters. It is not an inventory of every request or failed operation.
+
+- The browser briefly deduplicates similar reports and sends them in delayed batches. Network loss, page exit, browser storage limits, queue capacity, report size limits, or server rate limits can delay or lose reports.
+- Saving server errors can also fail. An absent record does not prove that an error did not occur.
+- Occurrence counts represent saved reports, rather than actual failures, failed requests, or affected users. One fingerprint can also merge errors with different parameters.
+- Text and context have length, depth, and item limits. Displayed content can be truncated or redacted and cannot reconstruct a complete request.
+
+When lifecycle scheduling runs successfully, it deletes **entire groups whose last occurrence was more than 90 days ago, together with their occurrences**. Retention is not applied separately to each occurrence: a recurring group can retain older records. Open, Resolved, and other handling statuses do not change this rule. Cleanup requires the schedule to be enabled and run successfully, so deletion is not guaranteed immediately at expiry. The page provides no delete or restore action.
+
+## IAM authorization
+
+With IAM enforcement enabled, the following actions are independent. The resource is the selected group, `acs:platform:*:platform:error-group/<groupId>`.
+
+| Task                   | Required action                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browse groups          | `quyan:system:error_report:ListErrorGroups`, evaluated for each group.                                                                            |
+| Read a group summary   | `quyan:system:error_report:GetErrorGroup`.                                                                                                        |
+| Read occurrences       | `quyan:system:error_report:ListErrorOccurrences`, authorized against the parent group.                                                            |
+| Change handling status | `quyan:system:error_report:UpdateErrorGroupStatus` and `quyan:system:error_report:GetErrorGroup` on the same resource to read the updated result. |
+
+List access does not grant details or occurrences. The page reads the group summary before loading occurrences, so investigation requires both read grants. Granting the update action does not automatically satisfy its read dependency; the action catalog lists it under `requiredActions`.
+
+Operators also need error-report read eligibility from a platform global user group, and both read and update eligibility to change status. Account ownership, private account groups, added user permissions, or wildcard policies alone cannot replace that eligibility. Role sessions use role policies and do not inherit group Allow grants. These management operations do not accept OAuth access tokens.
+
+Lists are filtered before pagination; totals include only authorized active groups. Occurrence totals include only active records in the parent group. Revoked access, expired or revoked role sessions, invalid groups, or data changing during a query can fail a request. Refresh and retry. New groups beyond the query's initial boundary appear in the next query.
+
+Status updates also require replay protection. If authorization rechecks fail before commit, the status change is rolled back. Legacy and shadow modes retain their existing permission and response behavior.
+
+## Troubleshooting
+
+| Symptom                                                     | Action                                                                                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A group is listed but details or occurrences cannot be read | Check summary and occurrence access separately, then close and reopen the drawer.                                  |
+| Recurring errors are missing after a fix                    | Clear the status filter and refresh. A resolved group retains that status when it recurs.                          |
+| The count increases but detail records stay unchanged       | Close and reopen details. The top Refresh updates only the list.                                                   |
+| A status update reports an error                            | Reopen details to check the current state. Check update and summary-read grants; sign in again if needed.          |
+| Older occurrences cannot be found                           | Details show only the latest 50. If the entire group was removed by retention cleanup, the page cannot restore it. |
+
+Related: [System logs]({{DOCS_BASE_URL}}/en/system-logs), [Business operation logs]({{DOCS_BASE_URL}}/en/business-logs), and [Data lifecycle]({{DOCS_BASE_URL}}/en/data-lifecycle).
