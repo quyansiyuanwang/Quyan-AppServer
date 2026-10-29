@@ -1,91 +1,95 @@
 # Carpool operations
 
-This page is for operators with carpool permissions. Use it to maintain carpool packages, accept submitted orders, and complete delivery or failure refunds.
+Operators maintain purchasable packages in **Carpool package management** and use **Carpool operations workspace** to accept submitted orders, deliver resources, or refund failed orders.
 
-## Package management
+## Before you start
 
-A package defines the deliverable monthly-pass template, quota, validity, member limit, formation deadline, selling price, and cost. You can:
+- Opening package management requires `CARPOOL_TEMPLATE_WRITE`; querying packages also requires `CARPOOL_TEMPLATE_READ`. Creation and editing require an available monthly-pass template that you may reference.
+- Opening order management requires `CARPOOL_ORDER_READ`. Acceptance, delivery-channel queries, delivery, and failure refunds also require `CARPOOL_ORDER_FULFILL`.
+- With IAM enforcement enabled, each operation also needs its Action and resource grants, plus the global management group qualification configured by the deployment administrator. An account policy or account-owned group cannot grant that qualification. A visible button does not authorize an operation.
 
-- create, edit, or duplicate a package;
-- publish a package so users can create carpools;
-- unpublish a package to stop new orders;
-- softly archive a package that is no longer used.
+## Create and publish a package
 
-When creating or editing a package, the member limit is 1–100 and the formation deadline is 1–720 hours (72 by default). The selling price must be greater than zero and cost cannot be negative. The list shows the full-car per-seat selling price, per-seat cost, total cost, and estimated gross margin to support pricing review. Edits, publishing changes, and archival affect **new orders only**. Existing orders continue settlement and delivery using their creation snapshot.
+1. Open **Carpool package management** and select **Create package**.
+2. Enter the name and description and choose a **Delivery monthly-pass template**. Quota, validity, quota unit and window, and model and channel restrictions come from that template.
+3. Set the total selling price, total cost, member limit, and formation deadline. Check the full-car estimate and select **Save**.
+4. The new package is saved as a draft. Review it and select **Publish** in the list before users can create orders from the catalog.
 
-## Order workbench
+| Setting                | Range or meaning                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Name and description   | Name is required, up to 100 characters; description is up to 1000 characters                                                    |
+| Selling price and cost | Price must be positive; cost cannot be negative. The form accepts up to four decimal places                                     |
+| Member limit           | 1–100 members; the create form defaults to two                                                                                  |
+| Formation deadline     | An integer from 1–720 hours, default 72; measured from user order creation                                                      |
+| Full-car estimate      | Per-seat price and cost use the member limit; total gross margin is selling price minus cost. Actual shares depend on the order |
 
-The workbench prioritizes pending work by default and provides state, keyword, and paginated filters. Open an order to review:
+Cost is for operator planning and is not shown to ordinary users. The monthly-pass selector loads the first batch of up to 100 permitted templates. If a template is missing, check its status, read permission, and list range before proceeding.
 
-- package and delivery snapshots;
-- member allocation, confirmations, and reserved/charged/refunded funds;
-- current state, failure reason, and immutable event timeline;
-- the selected delivery-channel summary.
+## Edit, copy, or stop sales
 
-Users invite, allocate, and confirm while an order is open. The owner submits the carpool only after all required conditions are met; operations then continues the workflow.
+- **Edit** and save changes. Saving reads the selected monthly-pass template's current delivery configuration again. Check quota, validity, and restrictions even when changing only the price.
+- **Duplicate** creates a new draft with the source package's delivery snapshot. Review and edit it as needed before publication.
+- **Take offline** changes a package to “Draft / offline” and stops new orders from the catalog. It can be published again later.
+- **Archive** removes the package from the management list and user catalog after confirmation. The page has no restore action; check before confirming.
 
-The operations list uses `quyan:carpool:ListAdminOrders`; operations details use the separate `quyan:carpool:GetAdminOrder`. Both evaluate `acs:platform:*:platform:carpool-order/<orderId>` and require the deployment's global management group qualification for order reads.
+Package creation or editing saves a delivery snapshot; user order creation then saves an order snapshot. Later template changes do not automatically update the package snapshot. Editing, unpublishing, or archiving a package does not change existing orders' prices, quotas, validity, or restrictions, or automatically cancel or refund them.
 
-Records, pagination totals and state counters include only permitted orders. A selected state filters the table; counters still cover all permitted orders matching the current keyword. Denied orders reveal no names, costs, members or events and do not contribute to counts. List authorization does not grant detail access, and the member-facing `quyan:carpool:GetOrder` does not grant operations details. Refresh and retry if identity or authorization changes during a read.
+Package searches match name and description. Press Enter or select **Search** after entering or clearing the keyword. Changing publication status queries again from page one.
 
-Accepting an order uses `quyan:carpool:AcceptOrder` against the same order ARN and requires the global management group's order-processing qualification. Only a submitted order can be accepted. Listing, details and acceptance are authorized independently. Changes to identity, policies, qualification or order contents during acceptance refuse the operation and roll back both the state transition and its event. Concurrent acceptance of one order succeeds once.
+## Find orders to process
 
-## Delivery dialog and order changes
+1. Open **Carpool operations workspace** and select the awaiting-acceptance or delivery-in-progress state.
+2. To locate an order, search by package name, order ID, or owner username, then press Enter or select **Search**. Changing state queries immediately from page one. Clearing the keyword still requires a search.
+3. Open **Details** and check the state, formation deadline, total quota and selling price, member states, payable and reserved amounts, and timeline. Failed orders also show a failure reason.
 
-When an operator opens the delivery dialog, the page reloads the latest detail by order ID before loading channels allowed by that order snapshot. Confirmation and post-delivery refresh use the same order ID. If the order was already processed, deleted, or changed state, the dialog closes, the list refreshes, and the page asks the operator to refresh and retry. The server still validates existence, the accepted state, the channel snapshot, and channel eligibility.
+The default query includes all states, so completed orders may appear alongside pending work. Use the state filter to find work to process. State counters cover orders matching the current keyword, before the table's state filter. With IAM enforcement, records, totals, and counters include only permitted orders. List and detail access are granted separately.
 
-## Accept, deliver, and fail with refund
+A reserved amount of zero does not prove that no payment was taken: submission converts reservations into debits, and refunded amounts are no longer reserved. Check order state, events, and members' balance history to establish the funds outcome.
 
-1. **Accept** a submitted order.
-2. Choose an eligible Relay channel within that order and confirm delivery. The channel picker only shows channels the server considers deliverable, and the server checks eligibility again during delivery; a browser cannot bypass this by forging a channel ID.
-3. If delivery fails, choose **Fail and refund** and provide a clear failure reason. The reason is stored in the order event history for user and operator review.
+## Accept and deliver
 
-With IAM enforcement enabled, delivery uses `quyan:carpool:FulfillOrder` and separately checks the order, channel, source package, source monthly-pass template, every recipient, and each generated monthly pass and Relay token. Generated resources use `acs:platform:*:platform:monthly-pass/<userId>/<passId>` and `acs:platform:*:platform:relay-token/<userId>/<tokenId>`. Denying any resource or losing authority rolls back all recipients’ entitlements, state and delivery event. Concurrent attempts deliver once. Accepted orders keep their original quotas and validity even if source templates are later disabled or unpublished.
+1. Select **Accept** on an order awaiting acceptance and confirm. The order moves to delivery in progress. Users were charged at submission; acceptance does not charge again.
+2. After completing procurement and delivery preparations, select **Complete purchase and deliver** for that order. The dialog reloads the latest order before querying channels allowed by its snapshot.
+3. Search channels by name or ID and check other pages as needed. Choose an eligible channel: it must be enabled, approved, have provider service enabled, and satisfy the order's channel restrictions.
+4. Check the order and selected channel, select **Complete purchase and deliver**, and confirm again. Success marks the order fulfilled and gives each participating member their own monthly pass and Relay Token. Monthly-pass validity starts at delivery.
 
-With IAM enforcement enabled, refunds use the separate `quyan:carpool:FailOrder` Action. It checks the order ARN, each participating member's `acs:platform:*:platform:user/<userId>` and `acs:platform:*:platform:balance-account/<userId>`, and each generated `acs:platform:*:platform:balance-transaction/<userId>/<transactionId>`. Reading or accepting an order does not grant refund authority.
+If no channel is available, check search terms, other pages, channel status, snapshot restrictions, and permissions. Editing a package does not relax an existing order's restrictions. Order or channel changes before delivery can cause refusal; reopen and check the order before proceeding. Later disabling or unpublishing a source template does not alter the order's original delivery shares.
 
-Denying any recipient, wallet or ledger entry rolls back all members' refunds, reservation changes, order state and event for that attempt. Refunds use current locked balances. Departed members are excluded from that refund attempt; disabled users can still receive refunds of captured payments. Concurrent duplicate refunds complete once.
+## Refund a failed order
 
-Every sensitive operation requires confirmation. Never put Relay tokens, upstream keys, or other credentials in notes, event descriptions, or external tickets.
+Failure refunds are available only before delivery, from the awaiting-acceptance or delivery-in-progress state. They cannot reverse a fulfilled order.
 
-With IAM enforcement enabled, the channel picker uses `quyan:carpool:ListDeliveryChannels`. It checks the selected order ARN and each `acs:platform:*:platform:relay-channel/<channelId>`. Pagination and totals include only allowed eligible channels within the accepted order’s snapshot. This permission does not grant delivery authority. Changes to authorization or qualification require refreshing and retrying.
+1. Once you confirm that delivery is impossible, select **Fail and refund** on the target order.
+2. Enter a nonblank reason of 1–1000 characters and confirm. Members can see this reason, so explain the business issue without including Relay tokens, upstream keys, or other credentials.
+3. Success closes the order as failed and returns each participating member's captured payment to their own balance. Check the reason, timeline, and relevant balance history.
 
-## Required permissions
+Waiting for processing or passing the formation deadline does not automatically refund a submitted order. Background expiry only closes unsubmitted orders and releases reservations. Disabled member accounts can still receive refunds of their captured payments.
 
-| Action                                                           | Required permission      |
-| ---------------------------------------------------------------- | ------------------------ |
-| View and filter packages                                         | `CARPOOL_TEMPLATE_READ`  |
-| Create, edit, duplicate, publish, unpublish, or archive packages | `CARPOOL_TEMPLATE_WRITE` |
-| View carpool orders and details                                  | `CARPOOL_ORDER_READ`     |
-| Accept, deliver, or fail with refund                             | `CARPOOL_ORDER_FULFILL`  |
+## Operation permissions and IAM resources
 
-## IAM package authorization
+Each Action below has the prefix `quyan:carpool:` and is authorized separately. Read, acceptance, or channel-query access does not automatically grant delivery or refund access.
 
-When IAM enforcement is enabled, package administration uses these distinct operations:
+| Operation                      | Action suffix                                             | Main resource scope                                                                                    |
+| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Package list                   | `ListTemplates`                                           | Permitted packages                                                                                     |
+| Create or edit                 | `CreateTemplate`, `UpdateTemplate`                        | Creation control or target package, source monthly-pass template; creation also checks the new package |
+| Duplicate                      | `DuplicateTemplate`                                       | Source package, creation control, new package                                                          |
+| Publish, unpublish, archive    | `PublishTemplate`, `UnpublishTemplate`, `ArchiveTemplate` | Target package                                                                                         |
+| Order list, detail, acceptance | `ListAdminOrders`, `GetAdminOrder`, `AcceptOrder`         | Target order                                                                                           |
+| Delivery-channel query         | `ListDeliveryChannels`                                    | Selected order and candidate channels                                                                  |
+| Delivery                       | `FulfillOrder`                                            | Order, channel, source package and monthly-pass template, each recipient, new passes and Relay tokens  |
+| Failure refund                 | `FailOrder`                                               | Order, each participating user and balance account, new refund transactions                            |
 
-| Operation                 | Action                            | Evaluated resources                                         |
-| ------------------------- | --------------------------------- | ----------------------------------------------------------- |
-| List management templates | `quyan:carpool:ListTemplates`     | Each package template                                       |
-| Create                    | `quyan:carpool:CreateTemplate`    | Creation control, source monthly-pass template, new package |
-| Edit                      | `quyan:carpool:UpdateTemplate`    | Target package, source monthly-pass template                |
-| Duplicate                 | `quyan:carpool:DuplicateTemplate` | Source package, creation control, new package               |
-| Publish                   | `quyan:carpool:PublishTemplate`   | Target package                                              |
-| Unpublish                 | `quyan:carpool:UnpublishTemplate` | Target package                                              |
-| Archive                   | `quyan:carpool:ArchiveTemplate`   | Target package                                              |
+Resources share the deployment ARN prefix `acs:platform:*:platform:`. Common suffixes are `carpool-template/<templateId>`, `carpool-template-control`, `monthly-pass-template/<templateId>`, `carpool-order/<orderId>`, `relay-channel/<channelId>`, `user/<userId>`, `balance-account/<userId>`, `balance-transaction/<userId>/<transactionId>`, `monthly-pass/<userId>/<passId>`, and `relay-token/<userId>/<tokenId>`.
 
-Package ARNs use `acs:platform:*:platform:carpool-template/<templateId>`. Source monthly-pass templates use `acs:platform:*:platform:monthly-pass-template/<templateId>`; creation control uses `acs:platform:*:platform:carpool-template-control`. Copies preserve their source package's delivery snapshot. Creation and editing use the currently authorized monthly-pass template.
+Member-facing detail access does not grant operator detail access. Explicit Deny takes priority. If any resource required for delivery or refund is denied, the whole attempt fails; delivery and refunds succeed for all affected members together.
 
-Page records and totals include only permitted packages. Denied packages expose no names, costs or delivery snapshots. Viewing does not grant editing; updating does not grant publication or archival. Explicit Deny takes priority. Denying the generated resource rolls back creation or duplication.
+## Failed operations and uncertain outcomes
 
-These templates are shared deployment resources. IAM grants also require the global management group qualification configured by the deployment administrator. An account policy or account-owned group cannot grant that qualification. Refresh and retry if authorization, qualification or source terms change during the operation. Existing orders continue to use their original snapshots.
-
-## Notes
-
-- The formation deadline is configured per package and defaults to 72 hours. Expiry closes only orders that have not been submitted and releases reserved funds.
-- A delivery-failure refund is allowed only from `submitted` or `accepted`, and must retain a failure reason.
-- Package cost is an operator-only planning value; the ordinary user experience does not expose upstream cost.
+Old list or detail data may remain after a refresh failure. After a timeout, a success notice followed by a refresh failure, or an order-changed warning, query the order's state and timeline again. Also check balance history for refunds. Establish the result before retrying; a refresh failure alone is not a reason to repeat delivery or refund. Contact the deployment administrator if permissions, management qualification, or channel conditions have changed.
 
 ## Related pages
 
 - [Carpools]({{DOCS_BASE_URL}}/en/carpools)
 - [Monthly pass management]({{DOCS_BASE_URL}}/en/monthly-pass-management)
+- [Balance history]({{DOCS_BASE_URL}}/en/balance-history)
