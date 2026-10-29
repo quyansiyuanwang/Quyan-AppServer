@@ -35,6 +35,8 @@ Use this page to maintain API keys for OJ submitter workflows.
 ## Notes
 
 - In IAM enforcement mode, reading key metadata and revealing its credential are separate permissions. Without `quyan:oj:RevealApiKey`, creation or list responses may omit the key and the page cannot copy it. With reveal permission, the list can return the credential again, so restrict access carefully.
+- You can select an expiry time and channel when creating or editing a key. A blank expiry means no expiration. Clearing the expiry while editing removes the existing expiry; clearing the channel removes its binding.
+- Leaving the name blank when editing does not clear the existing name. Enter a new name to rename the key.
 - OJ API keys are separate from general account access keys.
 - Usage anomalies are easier to investigate with the usage-statistics page.
 
