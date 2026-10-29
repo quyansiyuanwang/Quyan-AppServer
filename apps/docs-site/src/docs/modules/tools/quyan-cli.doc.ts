@@ -4,13 +4,13 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'quyan-cli',
-  updatedAt: '2026-10-02',
+  updatedAt: '2026-10-30',
   category: { en: 'Tools', 'zh-CN': '工具' },
   title: { en: 'Quyan CLI', 'zh-CN': 'Quyan CLI' },
   summary: {
     en: 'Install, authenticate, and use the Quyan terminal client.',
     'zh-CN': '安装、认证并使用 Quyan 终端客户端。',
   },
-  tags: ['cli', 'relay', 'router', 'models', 'json-endpoints'],
+  tags: ['cli', 'relay', 'models', 'json-endpoints'],
   content: { en: contentEn, 'zh-CN': contentZh },
 })
