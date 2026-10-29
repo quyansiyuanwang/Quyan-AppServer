@@ -21,7 +21,7 @@ The invitation page does not guess order details before acceptance. After signin
 3. The owner generates an invitation link from the order detail and selects 1, 24, or 72 hours; the default is 24 hours. If the formation deadline is earlier, the link expires at that deadline.
 4. Send the link to a trusted member. Each invitation can be accepted once; generate a separate link for each member. Historical invitation links are not displayed again in the order timeline. If automatic copying fails, copy the link manually from the dialog.
 
-The invitation page explains the next action after joining. You cannot join if the link has expired or been used, or if the order is full or closed. Expired and used links may show the same invalid-invitation message.
+The invitation page explains the next action after joining. You cannot join if the link has expired or been used, or if the order is full or closed. Expired and used links may show the same invalid-invitation message. If the acceptance request is interrupted or its result is uncertain, return to **My carpools** and refresh the order list. Check the state filter, search terms, and other pages to see whether you already joined before asking the owner for another invitation.
 
 ## Allocation and confirmation
 
