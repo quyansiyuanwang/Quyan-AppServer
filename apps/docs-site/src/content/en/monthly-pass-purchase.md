@@ -36,6 +36,7 @@ Viewing plans uses `quyan:monthly_pass:ListPublishedTemplates` and evaluates eac
 
 ## Common issues
 
+- Request timeout or connection interruption: the outcome may be unknown. Reload the page and check **View My Monthly Passes** and balance history for the purchase before retrying. Contact an administrator if the result remains unclear.
 - Insufficient balance: check your balance and the converted purchase price.
 - Purchase limit reached: wait for the configured purchase window to expire or ask an administrator to review the limit.
 - Permission denied: ask an administrator to check identity, template and generated-pass policies, including explicit Deny.
