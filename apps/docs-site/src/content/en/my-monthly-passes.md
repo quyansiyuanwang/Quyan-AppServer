@@ -19,7 +19,7 @@ Review the monthly-pass benefits assigned to your account, or switch to **Monthl
 
 ### Limits and availability
 
-- Daily quota.
+- Quota windows and their limits.
 - Allowed channels.
 - Allowed models.
 - Mobile-friendly card layout when space is limited.
@@ -34,7 +34,7 @@ Review the monthly-pass benefits assigned to your account, or switch to **Monthl
 ## Notes
 
 - A pass can be visible before it becomes active if it has a future start time.
-- Quota limits can apply to both the full pass period and daily windows.
+- Limits can apply to the full validity period and to quota windows measured in amount, requests, or tokens. A window counts usage over its configured number of hours backward from the current time. For example, a 24-hour window does not reset at midnight; its available quota recovers as earlier usage leaves the window.
 - A `-` in the header balance can mean a zero balance or a failed balance lookup. Check the actual amount in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history).
 - If something looks wrong, compare this page with balance and usage history.
 - The page currently loads only the first 100 assigned passes; the status filter applies to those loaded records.
