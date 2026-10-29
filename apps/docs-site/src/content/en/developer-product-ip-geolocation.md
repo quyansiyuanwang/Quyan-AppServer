@@ -19,6 +19,10 @@ Authorization: Bearer sk-dpk-...
 
 The response supplies country, region, city, ASN, carrier, and data source where the provider has data. The Baidu adapter may also return a full address. Missing data may be `null`, and fields differ between providers. Do not treat a lookup as proof of a user's identity, precise location, or sole authorization signal.
 
+## Test in the console
+
+In the IP Geolocation product console’s test card, enter a product API key with lookup permission and a public IP, then select Lookup IP to view the result. The test card displays the response data; in a direct API response it is in the `data` field. Enter the key only on a trusted device. Test requests use real permissions and quota.
+
 ## Validation, quota, and privacy
 
 Private, loopback, reserved, and malformed addresses are rejected inside the platform. They do not call a third-party provider or consume quota. Operations can set daily free quota, instance limits, and overage billing per account; call audits support reconciliation. Query only addresses required by your business and follow applicable data-protection rules.
