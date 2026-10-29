@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '登录 / 注册',
   },
   summary: {
-    en: 'Sign in, register, consent to policies, and enter with passkey when available.',
-    'zh-CN': '说明登录、注册、政策同意，以及可用时的 passkey 登录。',
+    en: 'Register an account, choose a sign-in method, and troubleshoot authentication or browser problems.',
+    'zh-CN': '注册账号、选择登录方式，并排查认证或浏览器问题。',
   },
-  tags: ['login', 'register', 'passkey'],
+  tags: ['login', 'register', 'passkey', 'qr', 'repair'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
