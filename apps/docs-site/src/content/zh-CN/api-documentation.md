@@ -199,7 +199,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       'Content-Type': 'application/json',
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     credentials: 'include',
   })
 
@@ -236,6 +236,8 @@ export async function listOAuthAppsForReview(token: string) {
 ```
 
 ### 3. 审核操作示例
+
+调用此函数会实际通过或拒绝应用。请先核对目标应用及审核资料；只有 `pending` 状态可以审核，调用者需要审核更新权限。调用中断且结果不确定时，先重新查询应用状态，再决定是否操作。
 
 ```ts
 export async function reviewOAuthApp(

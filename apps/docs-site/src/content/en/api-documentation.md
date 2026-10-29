@@ -199,7 +199,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       'Content-Type': 'application/json',
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     credentials: 'include',
   })
 
@@ -236,6 +236,8 @@ export async function listOAuthAppsForReview(token: string) {
 ```
 
 ### 3. Review action example
+
+Calling this function approves or rejects an application. Check the target and its review details first; only applications in `pending` status can be reviewed, and the caller needs review-update permission. If the request is interrupted and its outcome is unknown, query the application status before deciding whether to act again.
 
 ```ts
 export async function reviewOAuthApp(
