@@ -30,6 +30,8 @@ Root slugs resolve only from the global URL. Namespaced URLs resolve only non-ro
 
 For signature access, the management UI stores only the Ed25519 SPKI PEM **public key**. The caller must retain the private key and must never upload it or put it in frontend configuration.
 
+Select signature access in the edit form and generate a key pair. Copy or download the private key from the dialog and store it securely before closing it; the dialog cannot show it again after closing. Generation fills the public key in the form, but you must save the endpoint to apply it. Before replacing a public key in use, ensure callers can use the new private key, then verify access after saving.
+
 ## Ed25519 signing format
 
 Signature access protects `GET` requests. UTF-8 encode these five lines, then sign them with the Ed25519 private key:
