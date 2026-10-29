@@ -8,15 +8,15 @@ The system supports TOTP-based 2FA using authenticator apps (Google Authenticato
 
 ### Enabling 2FA
 
-1. Go to Account Settings → Security → Two-factor authentication.
-2. Click "Enable". A QR code and setup key will be shown.
-3. Scan the QR code with your authenticator app.
+1. Open **Settings → Account Security** and find the two-factor authentication section.
+2. Select the enable action to display a QR code and setup key.
+3. Scan the QR code with your authenticator app, or enter the setup key manually in the app. Do not share the QR code or key.
 4. Enter the 6-digit code from your app to confirm.
 5. Before closing the recovery-code dialog, save the displayed codes somewhere safe. Use **Copy**, or record them manually if copying fails. After closing the dialog, follow the prompt about signing in again.
 
 ### Recovery codes
 
-When you enable 2FA, a set of recovery codes is generated (10 by default, depending on server configuration). Each code can be used **once** to bypass 2FA if you lose access to your authenticator device.
+When you enable 2FA, a set of recovery codes is generated (10 by default, depending on server configuration). If you lose access to your authenticator device, a recovery code can complete second-factor verification. Each code can be used **once**.
 
 - Store recovery codes offline (print or write them down).
 - Do not store them on the same device as your authenticator app.
@@ -24,7 +24,11 @@ When you enable 2FA, a set of recovery codes is generated (10 by default, depend
 
 ### Disabling 2FA
 
-Disabling 2FA requires either a valid TOTP code or a recovery code. The system will send a notification confirming the status change.
+1. In the two-factor authentication section of **Settings → Account Security**, select the disable action.
+2. Enter a valid TOTP code, or switch to recovery codes and enter an unused code. Email codes are not accepted for this action.
+3. After submission succeeds, follow the prompt to sign in again.
+
+Disabling 2FA invalidates the authenticator setup and recovery codes, clears trusted-device records, and revokes existing sign-in sessions. It also triggers a status-change notification; email or other delivery depends on notification settings and channel availability. To enable 2FA again, set up the authenticator again and save the new recovery codes.
 
 ## Passkeys
 
@@ -38,11 +42,12 @@ Passkeys let you sign in without a password using your device's biometric sensor
 
 ### Managing passkeys
 
-1. Go to Account Settings → Security → Passkeys.
-2. View registered passkeys and their creation dates.
-3. Add a new passkey by following the browser prompt.
-4. Remove passkeys you no longer use.
-5. Optionally toggle "require 2FA even for passkey login" for stricter security.
+1. Open passkey management in **Settings → Account Security** to review existing credentials.
+2. Select **Register** to open the authentication site and follow its registration prompts. You return to Account Security when finished.
+3. Delete passkeys you no longer use. Before deleting, confirm that another sign-in method is available.
+4. With 2FA enabled, use the two-factor authentication section to change whether passkey sign-in also requires 2FA. After saving, follow the prompt to sign in again.
+
+This switch only changes second-factor policy for passkey sign-in. It does not register or delete passkeys or disable account 2FA. Even with the switch enabled, devices within the trust window may skip regular sign-in verification; high-risk actions retain their own verification requirements.
 
 See [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management) for the full field reference and notes on backed-up passkeys.
 
