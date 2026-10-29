@@ -75,7 +75,7 @@ The detail drawer is also split into:
 - current online session cards
 - historical offline timeline entries
 
-The online cards are better for handling live sessions. The offline timeline is better for historical reconstruction.
+The online cards are better for handling live sessions. The offline timeline is better for historical reconstruction. Both groups split the current timeline page only; they do not represent all sessions for the user. Check other pages for additional records.
 
 ## Actions inside the detail view
 
@@ -86,6 +86,8 @@ The detail view supports filtering by date range so you can:
 - inspect activity in one time window
 - review sessions around an incident
 - export only part of the history
+
+When reopening details, the date control may retain the previous selection, but the initial timeline load does not apply it. Select the range again or clear it, and wait for the list to update before reviewing. Export uses the range currently shown in the control.
 
 ### Force one session offline
 
