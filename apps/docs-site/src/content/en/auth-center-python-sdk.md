@@ -249,6 +249,6 @@ Authorization codes are single-use and a successful refresh rotates the refresh 
 
 ## Recommended follow-up reading
 
-- `Auth Center App Management`
-- `Auth Center Node SDK`
-- `Auth Center Browser / SPA Example`
+- [Manage Auth Center applications](/en/auth-center-client-management)
+- [Auth Center Node SDK](/en/auth-center-node-sdk)
+- [Browser SPA example](/en/auth-center-browser-spa-example)

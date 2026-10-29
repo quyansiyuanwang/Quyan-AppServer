@@ -321,9 +321,9 @@ def get_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwa
 
 ## 推荐联动阅读
 
-- `API Documentation`
-- Swagger
-- `OAuth Demo`（如果后续需要做第三方登录）
+- [API 文档](/zh-CN/api-documentation)
+- [API 参考]({{SWAGGER_DOCS_URL}})
+- [OAuth 授权码示例](/zh-CN/oauth-demo)（用于第三方登录）
 
 <div class="docs-jump-grid">
     <a class="docs-jump-card" href="/zh-CN/node-sdk">

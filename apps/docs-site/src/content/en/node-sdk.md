@@ -310,9 +310,9 @@ console.log('balance history =>', usage.data)
 
 ## Recommended follow-up reading
 
-- `API Documentation`
-- Swagger
-- `OAuth Demo` if you later need third-party login
+- [API documentation](/en/api-documentation)
+- [API reference]({{SWAGGER_DOCS_URL}})
+- [OAuth authorization-code example](/en/oauth-demo) for third-party login
 
 <div class="docs-jump-grid">
   <a class="docs-jump-card" href="/en/python-sdk">

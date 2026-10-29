@@ -249,6 +249,6 @@ if token_set.get("refresh_token"):
 
 ## 推荐继续阅读
 
-- `认证中心应用管理`
-- `认证中心 Node SDK`
-- `Browser / SPA 示例`
+- [认证中心应用管理](/zh-CN/auth-center-client-management)
+- [认证中心 Node SDK](/zh-CN/auth-center-node-sdk)
+- [浏览器单页应用示例](/zh-CN/auth-center-browser-spa-example)
