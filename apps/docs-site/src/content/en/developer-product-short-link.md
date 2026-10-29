@@ -4,7 +4,7 @@ Short Link maps a controlled destination URL to a compact code. It is suited to 
 
 ## Create and publish
 
-Provide a complete HTTP(S) target URL. You may use a platform-generated code or a custom 3-80 character lowercase letter, digit, and hyphen alias. An optional expiry automatically disables campaign links. Links can be paused, resumed, retargeted, or permanently removed.
+Provide a complete HTTP(S) target URL. You may use a platform-generated code or a custom 3-80 character lowercase letter, digit, and hyphen alias. An optional expiry makes the link stop working at that time. After creation, select Copy in the list to obtain the full public URL. You can pause or resume a link and edit its destination or expiry, but you cannot change its code in the edit dialog. Deletion requires confirmation and makes the link unusable.
 
 The public address is `GET /s/{code}`. It returns a native `302` redirect without an API key or JSON response wrapper. Paused, expired, and missing codes do not redirect. Public redirects count toward the product instance’s usage. Available quota, overage prices, and balance requirements depend on the current product configuration; a disabled instance or product, insufficient quota, and other restrictions can also prevent redirects.
 
