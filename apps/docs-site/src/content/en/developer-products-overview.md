@@ -6,7 +6,7 @@ Developer products provide separate instance, permission, quota, and audit bound
 
 1. Create an instance in the product Console. An instance isolates resources and credentials.
 2. Create a `sk-dpk-` API key for the RAM principal that will make calls, selecting only actions that principal currently has.
-3. Send `Authorization: Bearer sk-dpk-...` from a server-side environment. Never ship the key in a browser, mobile application, or public repository.
+3. Send `Authorization: Bearer sk-dpk-...` from a server-side environment. Never embed the key in frontend code, a mobile application, or a public repository. The console’s built-in test tools require entering a key in the browser; use them only on a trusted device.
 4. Use the Console to inspect instances, quota, and audit records. Disable the instance or revoke a key to stop calls.
 
 New product API keys use the `sk-dpk-` prefix; existing `dpk_` credentials remain supported. The full key is shown only when it is created.
