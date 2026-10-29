@@ -4,7 +4,7 @@ Carpools let you purchase deliverable monthly-pass quota with trusted friends th
 
 ## Guided page flow
 
-The My carpools page presents the flow as “choose a package → invite members → member confirmation → submit to depart → delivery complete”. The order list highlights its current state and next action; mobile uses stacked cards while the detail page remains the source of truth for server state.
+In **My carpools**, follow “choose a package → invite members → member confirmation → submit to depart → delivery complete”. The order list shows the current state and next action. Open the order details to check member shares, confirmations, and the event timeline.
 
 The invitation page does not guess order details before acceptance. After signing in, accept the invitation; the server validates it and returns an order summary before you continue to the detail page.
 
@@ -25,7 +25,7 @@ The invitation page explains the next action after joining. You cannot join if t
 
 ## Allocation and confirmation
 
-The default is an **equal split**: payment and quota ratios are recalculated for every active member by the server. When someone joins or leaves, previous confirmations are cleared and each member must confirm again.
+The default is an **equal split**: payment and quota ratios are recalculated for every active member by the server. The per-person price on a package card assumes the maximum member count; check your share in the order details for the actual payable amount. For example, a package priced at 100 with up to four members shows an estimate of 25 per person. With only two current members, each pays 50 under an equal split. When someone joins or leaves, previous confirmations are cleared and each member must confirm again.
 
 The owner may open **advanced custom allocation** and set payment and quota ratios separately. Each set must total exactly 100%. Saving a custom allocation releases prior reservations, clears all confirmations, and asks members to reconfirm. When a member joins or leaves under custom allocation, reservations and confirmations are cleared, but ratios are not automatically redistributed; the owner should review and adjust them as needed. Switching back to equal allocation immediately recalculates the ratios, releases reservations, and clears confirmations, so members must confirm again.
 
@@ -40,7 +40,7 @@ Before the deadline:
 
 ## Submit and delivery
 
-Once every active member has confirmed and both the payment and quota ratios total 100%, the owner can submit the carpool. Submission deducts each reserved share from the member’s balance. If a balance has changed and the deduction cannot be made, submission fails; follow the displayed instructions. Operations then accepts the order and purchases and delivers it; the page shows the current stage and next step.
+Once every active member has confirmed and both the payment and quota ratios total 100%, the owner can submit the carpool without waiting to reach the maximum member count. Submission deducts each reserved share from the member’s balance. If a balance has changed and the deduction cannot be made, submission fails; follow the displayed instructions. Operations then accepts the order and purchases and delivers it; the page shows the current stage and next step.
 
 After delivery, members can use their normal monthly-pass and Relay Token secure entry points. The carpool page shows only a channel or delivery summary; it **never displays the Relay token in plaintext**.
 
