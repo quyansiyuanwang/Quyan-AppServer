@@ -32,7 +32,13 @@ Use this page to maintain platform user accounts, status, and core profile data.
 1. Search or paginate to the target user.
 2. Open edit to change profile details or account status.
 3. Use password reset during recovery or handover scenarios.
-4. Use impersonation only when you need to reproduce a user issue and have permission.
+4. To help a user, verify the target, select **Enter Account**, and confirm the prompt. The banner shows the target username and impersonation mode; actions in act mode are performed on the user’s behalf. Check the mode before acting, and select **Exit Impersonation** in the banner when finished to restore your session.
+
+## Impersonation modes and exit
+
+View mode blocks write requests; act mode permits actions on the target user’s behalf. The system selects a mode according to the authorized permissions. Either impersonation permission can make **Enter Account** visible, but the button alone does not guarantee act mode. Actions are recorded in the audit log.
+
+An impersonation session lasts one hour and has no refresh token. **Exit Impersonation** attempts to restore the original session. If restoration fails, refresh as prompted and confirm your current identity before continuing. For IAM enforcement requirements and ongoing checks, see “User impersonation by resource” below.
 
 ## Level hierarchy rules
 
