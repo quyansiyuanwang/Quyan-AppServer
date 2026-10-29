@@ -23,7 +23,7 @@ A card per trusted device, showing:
 
 ### Actions
 
-- **Refresh** — reloads the current list of trusted devices (paginated).
+- **Refresh** — returns to the first page and reloads the trusted-device list. Navigate to another page again if needed.
 - **Delete a device** — removes it after a confirmation prompt. If you delete the device you are currently using, the locally stored trust cookie is cleared as well.
 
 ## Common actions
