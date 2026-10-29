@@ -18,10 +18,10 @@ The invitation page does not guess order details before acceptance. After signin
 
 1. Choose a published package in **My carpools** and create a carpool.
 2. Review the formation deadline, member count, and estimated full-car equal split.
-3. The owner generates an invitation link from the order detail and chooses how long the link remains valid. An invitation cannot outlive the order formation deadline.
+3. The owner generates an invitation link from the order detail and selects 1, 24, or 72 hours; the default is 24 hours. If the formation deadline is earlier, the link expires at that deadline.
 4. Send the link to a trusted member. Each invitation can be accepted once; generate a separate link for each member. Historical invitation links are not displayed again in the order timeline.
 
-The invitation page explains the next action after joining. It also explains why joining is unavailable when a link is expired or used, the order is full, or the order is closed.
+The invitation page explains the next action after joining. You cannot join if the link has expired or been used, or if the order is full or closed. Expired and used links may show the same invalid-invitation message.
 
 ## Allocation and confirmation
 
