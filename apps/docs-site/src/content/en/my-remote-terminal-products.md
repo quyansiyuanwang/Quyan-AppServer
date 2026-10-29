@@ -30,7 +30,7 @@ Use this page to browse published remote terminal product plans, purchase or cla
 ### My devices tab
 
 - Table of registered devices with hostname, device ID, entitlement, platform, and last seen time.
-- **Connect device** action to open a terminal session.
+- **Connect device** action to open the remote terminal console. Select the device and shell there, then connect.
 - **Revoke** action with an unbind reminder dialog showing allowance, cooldown, and used count.
 
 ## Common actions
