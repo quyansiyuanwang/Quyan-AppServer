@@ -20,6 +20,8 @@ Incident records support refresh, server-side filtering, sorting, and pagination
 
 The rule table supports multi-select editing, enable/disable, and batch observation mode. CSV imports are previewed before application. Overwrite mode updates matches by rule ID or `type + direction + pattern` and never deletes rules outside the CSV.
 
+The import preview lists potential creates and updates. Changing the **Overwrite existing rules** checkbox does not refresh the preview. The current checkbox value is used when you confirm: if it is unchecked, updates to matching existing rules in the preview are not applied. The preview update count therefore may differ from the number actually applied. Check the CSV and overwrite setting before confirming.
+
 Users and administrators can export the current scope as JSON policy or CSV rules. Exports do not include API keys, tokens, matched source text, or complete request/response payloads.
 
 ## System policy
