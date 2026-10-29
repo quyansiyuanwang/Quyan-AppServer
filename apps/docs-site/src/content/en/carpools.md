@@ -29,6 +29,8 @@ The default is an **equal split**: payment and quota ratios are recalculated for
 
 The owner may open **advanced custom allocation** and set payment and quota ratios separately. Each set must total exactly 100%. Saving a custom allocation releases prior reservations, clears all confirmations, and asks members to reconfirm. When a member joins or leaves under custom allocation, reservations and confirmations are cleared, but ratios are not automatically redistributed; the owner should review and adjust them as needed. Switching back to equal allocation immediately recalculates the ratios, releases reservations, and clears confirmations, so members must confirm again.
 
+After entering custom mode and editing the ratios, select **Save allocation** to submit the changes. Until then, the payable amounts and quotas shown are the previously saved results. After saving and reloading successfully, check each member’s amount, quota, and confirmation status before asking members to confirm. If saving or reloading fails, reopen the order details and check the server state before continuing.
+
 Before the deadline:
 
 - Each member confirms their own share; the system reserves that member's payable amount.
