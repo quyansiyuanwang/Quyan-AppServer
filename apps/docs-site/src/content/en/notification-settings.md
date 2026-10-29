@@ -33,7 +33,9 @@ Use this page to manage how the system contacts you about important events, and 
 ### Inbox messages
 
 - Filter messages by unread status, mark them individually as read, or mark all as read.
-- Confirm messages opened through email to mark them as read in bulk.
+- Use **Confirm opened emails as read** to mark unread messages whose email tracking image was loaded.
+
+**Mark all as read** and **Confirm opened emails as read** apply to eligible messages belonging to you, across pages. In IAM enforcement mode, each action only processes messages it is authorized to update. Email open status depends on a tracking image: an email client that blocks images may prevent recording, while automatic image loading can create a record. It is not reliable proof that the recipient read the email. Loading the image alone does not mark the inbox message as read; use the confirmation action or mark it individually.
 
 ## Common actions
 
