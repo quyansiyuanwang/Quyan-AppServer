@@ -78,7 +78,7 @@ The resolved member determines the upstream, model capabilities, and billing mul
 
 - Create token.
 - Edit token (including quota windows and IP whitelist).
-- Clone token (duplicates all settings into a new token).
+- Clone token (copies settings into a new token with a new credential, zero usage, and enabled status).
 - Refresh token value (rotates the secret; the old value is immediately invalidated).
 - Enable or disable token.
 - Delete token.
@@ -93,7 +93,7 @@ The resolved member determines the upstream, model capabilities, and billing mul
 4. Fill in the IP whitelist if you want to restrict which sources can use the token.
 5. Review quota usage regularly to avoid unexpected throttling.
 6. Disable a token first if you want to stop traffic without losing the record.
-7. Use import / export when migrating or backing up token configurations in bulk.
+7. Use import / export when migrating or backing up token configurations in bulk. Exported JSON contains the selected token credentials; store and transfer it like a password, and securely delete it when no longer needed.
 
 ## Call AI after creating a token
 
@@ -117,6 +117,7 @@ When a token uses an automatic proxy pool, you can block members that should not
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.
 - **Quota windows vs. the overall cap**: the optional `quotaLimit` caps cumulative spending; leaving it empty means no overall cap, and accumulated usage does not reset with a time window. Quota windows instead measure spending, requests, or tokens over a recent duration. Both can be enabled: when the overall cap is reached, edit it to increase or remove the limit; when a window is full, wait for older usage to leave it or adjust the rule. Other permission, balance, and channel restrictions still apply.
 - Bulk import appends new entries and does not overwrite existing tokens.
+- On mobile, **Select all** selects the tokens currently displayed. In paginated mode it does not include other pages; check the selection before a batch action.
 - Show-all mode is useful for audits but can be heavier to scan.
 
 ## Composite tokens: ordered members from your own tokens
