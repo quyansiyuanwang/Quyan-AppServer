@@ -1334,7 +1334,9 @@ onBeforeUnmount(() => {
 }
 
 .article-panel {
+  min-width: 0;
   padding: 24px 28px;
+  overflow-wrap: break-word;
 }
 
 .article-panel.is-embedded {
@@ -1491,9 +1493,11 @@ onBeforeUnmount(() => {
 }
 
 .article-panel :deep(table) {
+  display: block;
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
-  overflow: hidden;
+  overflow-x: auto;
   border-radius: 6px;
   background: var(--docs-table-bg);
 }
