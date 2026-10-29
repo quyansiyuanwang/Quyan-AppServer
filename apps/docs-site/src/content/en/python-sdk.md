@@ -22,7 +22,7 @@ Best for Python backends, scripts, automation services, and internal integration
 
 ## Smallest use case
 
-If you only need to call the API directly from Python, this is the shortest path. Use Python 3.10 or later for all examples on this page.
+If you only need to call the API directly from Python, this is the shortest path. The examples use `requests` and a wrapper you can maintain; no platform-specific SDK package is required. Use Python 3.10 or later for all examples on this page.
 
 ## Suggested structure
 

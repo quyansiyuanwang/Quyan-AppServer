@@ -8,7 +8,7 @@ Choose an example for your integration. Before starting, confirm your deployment
 - [Python SDK](/en/python-sdk): call APIs from Python and handle responses and errors.
 - [API documentation](/en/api-documentation): learn about addresses, authentication, requests, and error handling. Use the API reference for endpoint fields.
 
-These pages provide integration code examples. Keep tokens in server-side environment variables or other secure storage and out of version control.
+The Node and Python pages provide HTTP client examples and wrappers you can maintain; they do not require a platform-specific SDK package. Keep tokens in server-side environment variables or other secure storage and out of version control.
 
 ## Third-party authorization
 

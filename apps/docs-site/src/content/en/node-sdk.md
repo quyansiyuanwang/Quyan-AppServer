@@ -2,6 +2,8 @@
 
 Best for Node.js backends, TypeScript / JavaScript integrations, and server-side jobs.
 
+This page provides API examples and a wrapper you can maintain using Node.js `fetch`; it does not require a platform-specific SDK package.
+
 <div class="docs-jump-grid">
   <a class="docs-jump-card current" href="/en/node-sdk">
     <span class="docs-jump-eyebrow">Current page</span>

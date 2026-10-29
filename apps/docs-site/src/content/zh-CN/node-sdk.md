@@ -2,6 +2,8 @@
 
 适合：Node.js 服务端、TypeScript / JavaScript API 集成、后台任务调用。
 
+本页提供基于 Node.js `fetch` 的 API 调用示例和可自行维护的封装代码；无需安装平台专用 SDK 包。
+
 <div class="docs-jump-grid">
   <a class="docs-jump-card current" href="/zh-CN/node-sdk">
     <span class="docs-jump-eyebrow">当前页</span>
