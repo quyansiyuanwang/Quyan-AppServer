@@ -21,7 +21,7 @@ The error center aggregates browser runtime errors, Vue component errors, unhand
 3. If a request ID is available, use it to find related records in [System logs]({{DOCS_BASE_URL}}/en/system-logs).
 4. After handling the issue, update its status if you have update permission.
 
-The detail view shows at most the 50 most recent occurrences in the group; it does not provide a way to page through older occurrences. The top **Refresh** reloads the current page with the current filters. **Clear filters** clears the search, status, and source and returns to the first page. If the list fails to load, use the retry action shown on the page.
+The detail view shows at most the 50 most recent occurrences in the group; it does not provide a way to page through older occurrences. Expand an occurrence to inspect its available stack and context. If occurrences fail to load, close the detail view and reopen the group. If the problem persists, check occurrence-read access or contact an administrator. The top **Refresh** reloads the current page with the current filters. **Clear filters** clears the search, status, and source and returns to the first page. If the list fails to load, use the retry action shown on the page.
 
 The client reporting endpoint is rate limited. Dropped reports never affect the original page action.
 
