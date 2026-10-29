@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'permission-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '权限管理',
   },
   summary: {
-    en: 'Inspect effective permissions and adjust user-level overrides.',
-    'zh-CN': '说明生效权限查看与用户级覆盖调整。',
+    en: 'Inspect permission sources, edit or clear user overrides, and understand IAM and hierarchy limits.',
+    'zh-CN': '查看权限来源、编辑或清空用户覆盖项，了解 IAM 授权和等级限制。',
   },
-  tags: ['permission', 'rbac', 'override'],
+  tags: ['permission', 'rbac', 'override', '授权', '权限', '诊断', '覆盖'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
