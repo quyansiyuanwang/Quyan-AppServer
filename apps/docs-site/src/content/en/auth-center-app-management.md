@@ -267,6 +267,8 @@ Common endpoints used by integrators:
 
 Authorization preview and decision require a signed-in platform identity and return preview data and a callback URL respectively; they are APIs, not pages to open directly. The built-in OAuth authorization page uses separate OAuth APIs. JWKS and discovery responses use the `{ code, message, data }` envelope; the issuer is determined by deployment configuration.
 
+The discovery document constructs `authorization_endpoint`, `token_endpoint`, and `jwks_uri` from the configured issuer, so they may differ from the `/v1/auth-center/` paths listed above. Before integrating, confirm with the deployment administrator that those URLs are reachable through the proxy. If they are not, use the API address supplied for the deployment with the paths above, and set the expected JWT issuer separately to the exact configured issuer. The authorization endpoint still requires an interface with a signed-in platform identity.
+
 Local JWT validation cannot immediately detect revocation of an already issued access token; account for token lifetime and your integration’s authorization policy.
 
 ## Minimum integration checklist
