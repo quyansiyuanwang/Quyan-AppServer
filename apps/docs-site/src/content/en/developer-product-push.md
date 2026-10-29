@@ -12,7 +12,9 @@ After you select a Secret Vault instance and alias, deliveries use its value as 
 
 Open a Push product instance and use the online test if you have send permission. Enter a product API key with send permission, select channels, and provide a title and content before sending. The test sends real messages and counts toward product usage; use a trusted device and suitable test channels.
 
-Each send uses a new idempotency key, so sending again creates new deliveries. A request-success message does not mean every channel delivered successfully. Check the returned channel statuses and, if authorized, the delivery logs.
+Each send uses a new idempotency key, so sending again creates new deliveries. A request-success message does not mean every channel delivered successfully. Check the returned channel statuses and, if authorized, the delivery logs. If sending times out or the connection is interrupted, the message may already have been delivered. Check the destination and any visible delivery logs before deciding whether to send again.
+
+If channels or delivery logs fail to load, the previous list may remain visible, including after switching instances. Select **Retry** in the relevant error message and confirm the current instance and successful load before editing channels or judging delivery status.
 
 ## Unified send API
 
