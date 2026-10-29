@@ -25,8 +25,9 @@ Sign in to use the ticket page. Submitting, viewing your own tickets, editing, a
 
 ### Ticket list
 
-- Searchable by keyword.
-- Filterable by workflow status (`pending`, `processing`, `accepted`, `rejected`, `completed`) and type.
+- Enter a keyword and select **Search** or press Enter; clearing the keyword also runs a search.
+- Filter by workflow status (`pending`, `processing`, `accepted`, `rejected`, `completed`) and type. Changing a filter immediately queries the first page.
+- Use pagination to browse other results. If a ticket is missing, reset the filters and search again.
 - Each entry shows title, type badge, status badge, priority, and last reply time.
 - Click **View detail** to open the full detail drawer.
 
