@@ -39,7 +39,7 @@ Viewing plans uses `quyan:monthly_pass:ListPublishedTemplates` and evaluates eac
 - Insufficient balance: check your balance and the converted purchase price.
 - Purchase limit reached: wait for the configured purchase window to expire or ask an administrator to review the limit.
 - Permission denied: ask an administrator to check identity, template and generated-pass policies, including explicit Deny.
-- Plan changed during confirmation: refresh and review its current price and conditions before purchasing again.
+- Plan changed during confirmation: reload the entire page, then review the price and conditions shown in the purchase center. The refresh button at the top updates the header balance and plan data, but does not refresh the plan cards currently shown in the purchase center.
 
 ## Related pages
 
