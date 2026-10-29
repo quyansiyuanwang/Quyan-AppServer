@@ -21,7 +21,7 @@ The overview area usually includes:
 - active sessions
 - average session duration
 
-These metrics help you judge whether an issue is isolated or system-wide.
+On mobile, the top cards show only online users and active sessions. Use these metrics to get an initial sense of the issue’s scope.
 
 ### Filter area
 
@@ -52,11 +52,11 @@ The list usually shows:
 - ended time
 - session duration
 
-Desktop uses a table layout, while mobile compresses the same information into cards.
+Desktop uses a table; mobile uses cards that omit the start time. Use the desktop user details to see the latest start time.
 
 ### Detail drawer
 
-Clicking view detail opens a user detail drawer. It usually shows:
+On desktop, clicking view detail opens a user detail drawer. Mobile has the button but currently does not display the drawer; use desktop to inspect details, export, or force sessions offline. The drawer usually shows:
 
 - current session count
 - total session count
