@@ -32,6 +32,13 @@ This section explains how to use conversations on desktop and mobile.
 - Edit, resend, regenerate, or delete messages.
 - Start from the empty state when no conversation exists.
 
+### Edit or delete messages
+
+- Editing or resending a user message uses it as the new point of continuation, removes the messages after it, and requests a new reply. Press Enter to submit an edit or Esc to cancel it.
+- Regenerating an assistant reply resends the preceding user message, removes the messages after that user message, and generates a new reply. A preceding user message is required.
+- Deleting a message also removes every message after it. Save any content you need to keep before proceeding.
+- Editing, resending, and regenerating start a new regular chat request and may incur additional usage and charges.
+
 ### Selecting a model and billing
 
 - Pick a relay token first; the available model list is automatically filtered to that token's "allowed models" configuration — different tokens can be scoped to different models.
