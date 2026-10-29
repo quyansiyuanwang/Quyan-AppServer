@@ -27,16 +27,16 @@ Use this page to create and maintain access keys for account-level programmatic 
 
 ## Common actions
 
-1. Create a new key with a clear name.
-2. Copy the newly generated key immediately and store it safely.
-3. Review last-used time and request count to spot stale or active keys.
-4. Delete keys that should no longer be trusted.
+1. Choose to create a key, give it a recognizable name, and optionally select an expiry time. If left blank, the key does not expire automatically; an expired key cannot authenticate requests.
+2. Complete the security verification requested on the page and confirm creation.
+3. Copy the full key from the success dialog and store it safely. After closing the dialog, you cannot retrieve it from the list.
+4. Review last-used time and request count to identify stale or active keys, and delete keys you no longer need or trust.
 
 ## Notes
 
-- Newly created secret values are often shown only once.
+- The full key is shown only when creation succeeds.
 - Existing keys remain listable for identification and lifecycle management, but not re-readable in full.
-- Some creation flows can require a verification step.
+- Creating a key requires security verification, as described below.
 - Treat access keys like passwords and never expose them in shared screenshots or chats.
 
 ## Creation permissions and security verification
@@ -56,7 +56,7 @@ When IAM enforcement is enabled, creating a key requires `quyan:ram:CreateAccess
 
 Replace the placeholders with the current account and executing user IDs. Neither action is automatically granted. Creation does not grant listing or revocation, nor does it permit creating keys for another user. A matching Deny takes precedence.
 
-Without two-factor authentication, creation requires a valid, unused email code. A code can complete only one creation; code consumption and key insertion commit or roll back together. With two-factor authentication enabled, the existing security challenge still applies, but no additional email code is required or sent.
+Without two-factor authentication, creation requires a valid, unused email code. A used code cannot be reused. If creation fails and the code has expired or been used, request a new code before trying again. With two-factor authentication enabled, the existing security challenge still applies, but no additional email code is required or sent.
 
 If email, two-factor settings, account state, or the role session changes during verification, authenticate again and restart the flow. Conflicts do not create a key. Third-party OAuth applications may still create keys subject to the `accesskey` scope, user authorization, and these IAM permissions; this does not permit reading or deleting existing keys. The full new key is returned only on successful creation, so save it immediately.
 
