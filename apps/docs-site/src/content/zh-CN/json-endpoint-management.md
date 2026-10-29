@@ -67,7 +67,7 @@ JSON_ENDPOINT_URL=https://api.example.com/v1/json/alice/config?locale=zh-CN
 JSON_ENDPOINT_PRIVATE_KEY_PATH=/secure/path/json-endpoint.ed25519.pem
 ```
 
-以下代码可直接使用 Node.js 20+ 运行：
+将以下代码保存为 `signed-request.mjs`，在已设置上述环境变量的终端中运行 `node signed-request.mjs`。`.mjs` 后缀使 Node.js 将文件作为 ES 模块执行；请将示例地址和私钥路径替换为实际值。
 
 ```js
 import { readFile } from 'node:fs/promises'
@@ -112,7 +112,7 @@ console.log(await response.json())
 
 ## 浏览器 Web Crypto 示例
 
-浏览器调用必须先满足目标服务的 CORS 配置。私钥不应嵌入公开网页；只应从用户受控的安全存储或一次性导入流程取得。
+浏览器调用必须先满足目标服务的 CORS 配置，并在支持 Ed25519 Web Crypto 的安全上下文中运行。私钥不应嵌入公开网页；只应从用户受控的安全存储或一次性导入流程取得。以下 `privateKeyPem` 是占位符，运行前须用安全导入的 PKCS#8 PEM 私钥替换，并将地址替换为实际端点。
 
 ```js
 const endpoint = new URL('https://api.example.com/v1/json/alice/config?locale=zh-CN')
@@ -166,6 +166,7 @@ const response = await fetch(endpoint, {
     'X-Json-Signature': signature,
   },
 })
+if (!response.ok) throw new Error(`${response.status} ${await response.text()}`)
 console.log(await response.json())
 ```
 

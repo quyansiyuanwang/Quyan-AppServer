@@ -67,7 +67,7 @@ JSON_ENDPOINT_URL=https://api.example.com/v1/json/alice/config?locale=en
 JSON_ENDPOINT_PRIVATE_KEY_PATH=/secure/path/json-endpoint.ed25519.pem
 ```
 
-This code runs directly on Node.js 20+:
+Save the following code as `signed-request.mjs`, then run `node signed-request.mjs` in a terminal with the environment variables set. The `.mjs` extension tells Node.js to run it as an ES module. Replace the example URL and private-key path with your own values.
 
 ```js
 import { readFile } from 'node:fs/promises'
@@ -112,7 +112,7 @@ console.log(await response.json())
 
 ## Browser Web Crypto example
 
-Browser callers must satisfy the target service's CORS policy. Never embed a private key in a public web page; load it only from user-controlled secure storage or an explicit one-time import flow.
+Browser callers must satisfy the target service's CORS policy and run in a secure context with Ed25519 Web Crypto support. Never embed a private key in a public web page; load it only from user-controlled secure storage or an explicit one-time import flow. The `privateKeyPem` value below is a placeholder: replace it with a securely imported PKCS#8 PEM private key and use your actual endpoint URL before running the example.
 
 ```js
 const endpoint = new URL('https://api.example.com/v1/json/alice/config?locale=en')
@@ -166,6 +166,7 @@ const response = await fetch(endpoint, {
     'X-Json-Signature': signature,
   },
 })
+if (!response.ok) throw new Error(`${response.status} ${await response.text()}`)
 console.log(await response.json())
 ```
 
