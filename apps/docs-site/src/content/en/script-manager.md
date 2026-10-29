@@ -15,13 +15,12 @@ Use this page to write, save, and run your own JavaScript scripts and inspect th
 
 - Script names and selection state.
 - Security warning and acknowledgement checkbox.
-- Bulk select controls.
+- Bulk selection controls on desktop; mobile runs scripts individually.
 
 ### Execution actions
 
-- Run selected scripts.
-- Terminate all scripts.
-- Clear results.
+- Run selected scripts, terminate all scripts, and clear results on desktop.
+- Stop an individual running script on desktop or mobile.
 - Per-script run, edit, history, and delete actions.
 
 ### Results area
@@ -32,7 +31,7 @@ Use this page to write, save, and run your own JavaScript scripts and inspect th
 ## Common actions
 
 1. Acknowledge the security warning.
-2. Select one or more scripts.
+2. On desktop, select one or more scripts to run together, or run one individually. On mobile, use the run button for each script.
 3. Run only the scripts you trust and understand.
 4. Monitor live output and stop scripts if they behave unexpectedly.
 5. Review history when comparing repeated runs.
@@ -52,7 +51,8 @@ Users with the appropriate permissions can write and save their own scripts. Bef
 ## Notes
 
 - Scripts execute in a Web Worker in your current browser and may make network requests; they cannot directly manipulate the page DOM. Review the code and request destinations first, avoid scripts of unknown origin, and do not output credentials or sensitive data.
-- Bulk execution is convenient but raises the risk of accidental side effects.
+- On desktop, **Select all** selects the entire script list, including scripts on other pages. Bulk execution starts the selected scripts concurrently; check the selection and possible side effects first.
+- Leaving the script manager terminates scripts that are still running. Network requests already sent and other external actions may not be reversible.
 - After a run finishes, the page attempts to save a code snapshot and output as history. History may be missing if saving fails, the worker errors, or the run is manually terminated. Clearing results terminates active scripts and clears the current page results, but does not delete saved history.
 
 ## Related pages
