@@ -368,9 +368,14 @@ const asciiAliasPattern = /^[a-z0-9][a-z0-9 +./:-]*$/i
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const setHeadingAnchors = (html: string) => {
+  const usedIds = new Set<string>()
   return html.replace(/<h([23])>(.*?)<\/h\1>/g, (_match, level, rawText) => {
     const text = String(rawText).replace(/<[^>]+>/g, '')
-    const id = slugify(text)
+    const baseId = slugify(text)
+    let id = baseId
+    let suffix = 1
+    while (usedIds.has(id)) id = `${baseId}-${suffix++}`
+    usedIds.add(id)
     return `<h${level} id="${id}">${rawText}</h${level}>`
   })
 }
