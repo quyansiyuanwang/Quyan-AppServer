@@ -35,7 +35,7 @@ The main area is a multi-tab terminal. Each tab maps to one device session and s
 - Shell-type selection (bash / sh / powershell, etc., depending on the agent).
 - Connect, disconnect, and reconnect actions.
 - Full xterm.js experience (colors, cursor, scroll history).
-- Optional paste-on-reconnect: content typed while disconnected is sent when the session resumes.
+- Right-click copies selected text, or attempts to paste from the clipboard when nothing is selected. Connect the terminal before pasting; a disconnected paste is not queued for reconnection.
 
 ## Common actions
 
