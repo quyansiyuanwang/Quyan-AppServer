@@ -2,6 +2,8 @@
 
 JSON endpoints publish accessible JSON content. An endpoint can be public, protected with a static password, or protected with an Ed25519 signature.
 
+The JSON editor supports visual and code modes. In code mode, move focus out of the text box and confirm there is no parsing error before saving. If parsing fails, saving may submit the previous valid content instead of the current text. Quick templates replace the current draft.
+
 ## Endpoint URLs
 
 Regular endpoints scope a slug to its owner:

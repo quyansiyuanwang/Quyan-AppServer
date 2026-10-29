@@ -6,6 +6,8 @@ The JSON Endpoints product gives each product instance one editable JSON documen
 
 Create a JSON Endpoint instance in the Developer Products console, then edit its JSON content on the instance page. With update permission, select **Save** to publish changes. A new instance starts with `{}` and is public by default: anyone with its address can read it, so check that content contains no secrets before saving. The product editor does not configure access protection. For password or signature protection, use the [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management) workflow with the required permissions. Product permissions, instance limits, and daily quotas follow the current server configuration.
 
+The editor supports visual and code modes. In code mode, move focus out of the text box and confirm there is no JSON parsing error before saving. If parsing fails, saving may submit the previous valid content instead of the current text. Quick templates replace the current draft, so save anything you need to keep first.
+
 ## Access methods
 
 - Use a product API key with `GET /v1/products/json-endpoints` to read and `PUT /v1/products/json-endpoints` to update. The update body is `{ "jsonContent": <JSON value> }`. `DELETE` clears the content to `{}` without deleting the instance. Writes also require replay protection.
