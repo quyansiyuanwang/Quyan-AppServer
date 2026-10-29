@@ -18,6 +18,8 @@ The page labels the counts as users, but they are sessions rather than distinct 
 
 Select or enter a page path, a time range, and either clicks or scroll stops, then select **Query**. The page loads the target in an embedded frame and overlays heat points; stronger red indicates greater relative density. The background may not appear if the target cannot be embedded or loaded, and no points appear without matching collected data. Changing the path immediately changes the background, but points update only after another successful query. A failed query may leave the previous points visible; do not treat them as results for the new criteria.
 
+Points are grouped by nearby proportional coordinates. The count below the map is the number of returned aggregated locations, not the number of clicks or users; a query returns at most 2,000 locations. Click coordinates use the viewport proportions at collection time, while scroll-stop coordinates use the page-height proportion. Different device sizes, scroll positions, or layout changes can make points appear misaligned with the current background. Interpret the map alongside the page version and other data.
+
 ## Permission requirements
 
 Viewing these reports requires `ANALYTICS_READ`; IAM enforcement also requires the separate grants below.
