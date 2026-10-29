@@ -8,7 +8,7 @@ Reads require the KV read action; writes and deletion require KV write. Keys may
 
 ## Manage entries in the console
 
-Open a KV product instance and select New. Enter a key, a valid JSON value, and an optional TTL in seconds, then save. The list shows keys, versions, and expiry times. Selecting Edit first reads the current value; the key cannot be changed in the edit dialog. Deletion requires confirmation. Viewing and saving require read and write permissions respectively.
+Open a KV product instance and select New. Enter a key, a valid JSON value, and an optional TTL in seconds, then save. Writing an existing key overwrites its value and resets its expiry, so check the key before saving. The list shows keys, versions, and expiry times. Selecting Edit first reads the current value; the key cannot be changed in the edit dialog. Deletion requires confirmation. Viewing and saving require read and write permissions respectively.
 
 When editing an expiring entry, the form fills in the remaining seconds at the time it opens. Saving recalculates expiry from the time of saving, so check the TTL again if the dialog has been open for a while. Saving with an empty TTL removes the expiry.
 
