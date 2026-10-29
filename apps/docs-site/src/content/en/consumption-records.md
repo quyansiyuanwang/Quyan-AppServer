@@ -2,6 +2,8 @@
 
 Use this page to review API, chat, and monthly-pass-covered usage. Open Account balance for balance, redemption, and transfer activity.
 
+After signing in, open **Consumption records** on the account site. This page queries records for your current account. In IAM enforcement mode, quota summaries and transaction queries have separate authorization checks; an unavailable section does not mean there was no consumption.
+
 ## Overview
 
 The summary shows:
@@ -26,6 +28,8 @@ The loaded range defaults to the last day. Date and other filters apply only to 
 
 The model filter matches a case-sensitive substring of the displayed model name; for example, `gpt` matches names containing `gpt`. Token and channel filters match the selected names exactly. The 1-, 7-, and 30-day ranges count backward from the current time rather than using calendar days.
 
+The server currently returns only transactions from the last 30 days. All records does not retrieve the complete history since account creation. Local caches may retain older records, but cannot guarantee complete history. Ask an administrator to help reconcile earlier consumption.
+
 Use Clear filters to clear the type, token, channel, model, and date conditions; adjust the loaded range separately.
 
 ## Review details
@@ -37,6 +41,15 @@ The list supports table and chart views. Expand a record to inspect available mo
 One relay API request can produce both a monthly pass coverage record and an API usage record. The coverage record describes the covered portion without deducting balance; the API usage record describes the balance charge for the uncovered portion. A fully covered request may have only a coverage record, while a request with no applicable pass is charged to balance.
 
 Use the time, model, channel, and available request identifiers to find related records. Do not assume the two record types represent two separate requests. The charge for purchasing a pass appears in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history).
+
+## Troubleshooting
+
+| Situation                                                     | What to do                                                                                                                                                  |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No records appear after setting dates                         | Clear the filters, expand the loaded range, and wait for loading to finish. Records outside the server's last-30-days query window cannot be fetched again. |
+| A token or channel is missing from the filter                 | Options come from loaded consumption records, not a directory of all tokens or channels. Expand the loaded range and check again.                           |
+| Filtering does not change the request count at the top        | The request statistics use API usage records in the loaded range and do not follow list filters. The quota summary is also independent of the loaded range. |
+| Monthly pass coverage appears but the request count seems low | Records containing only monthly pass coverage do not count toward the API request summary. That number does not represent all completed requests.           |
 
 ## Notes
 
