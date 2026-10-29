@@ -13,11 +13,12 @@ Use this page to review request volume, token usage, and cost details for the si
 ### Filters and summary
 
 - Date-range filters.
-- Summary stats for requests, tokens, cost, and average tokens.
+- Summary stats for requests, tokens, cost, and average tokens cover all of the current user’s records in the selected period, not just the current list page.
+- Average tokens are total tokens divided by request count, rounded to the nearest integer; the value is 0 when there are no records.
 
 ### Usage list
 
-- Table or card list.
+- Table or card list, ordered by record time from newest to oldest; the initial request asks for 20 records per page.
 - Model, question, token, and cost fields.
 - Pagination controls; the current API does not return the total record count, so the page may not provide access to later records.
 
