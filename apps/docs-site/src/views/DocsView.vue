@@ -592,19 +592,17 @@ const renderedContent = computed(() => {
 })
 
 const tocItems = computed<TocItem[]>(() => {
-  const content = pageMarkdown.value
-  const items: TocItem[] = []
+  if (typeof document === 'undefined') return []
 
-  for (const line of content.split('\n')) {
-    const headingMatch = /^(#{2,3})\s+(.+)$/.exec(line.trim())
-    if (!headingMatch) continue
-
-    const level = headingMatch[1]!.length as 2 | 3
-    const label = headingMatch[2]!.replace(/[`*_>]/g, '').trim()
-    items.push({ id: slugify(label), label, level })
-  }
-
-  return items
+  const container = document.createElement('div')
+  container.innerHTML = renderedContent.value
+  return Array.from(container.querySelectorAll<HTMLHeadingElement>('h2[id], h3[id]')).map(
+    (heading) => ({
+      id: heading.id,
+      label: heading.textContent?.trim() ?? '',
+      level: Number(heading.tagName.slice(1)) as 2 | 3,
+    }),
+  )
 })
 
 const openPage = async (slug: DocsSlug) => {
