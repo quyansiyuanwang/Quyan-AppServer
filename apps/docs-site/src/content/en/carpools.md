@@ -19,7 +19,7 @@ The invitation page does not guess order details before acceptance. After signin
 1. Choose a published package in **My carpools** and create a carpool.
 2. Review the formation deadline, member count, and estimated full-car equal split.
 3. The owner generates an invitation link from the order detail and selects 1, 24, or 72 hours; the default is 24 hours. If the formation deadline is earlier, the link expires at that deadline.
-4. Send the link to a trusted member. Each invitation can be accepted once; generate a separate link for each member. Historical invitation links are not displayed again in the order timeline.
+4. Send the link to a trusted member. Each invitation can be accepted once; generate a separate link for each member. Historical invitation links are not displayed again in the order timeline. If automatic copying fails, copy the link manually from the dialog.
 
 The invitation page explains the next action after joining. You cannot join if the link has expired or been used, or if the order is full or closed. Expired and used links may show the same invalid-invitation message.
 
@@ -27,7 +27,7 @@ The invitation page explains the next action after joining. You cannot join if t
 
 The default is an **equal split**: payment and quota ratios are recalculated for every active member by the server. When someone joins or leaves, previous confirmations are cleared and each member must confirm again.
 
-The owner may open **advanced custom allocation** and set payment and quota ratios separately. Each set must total exactly 100%. Saving a custom allocation releases prior reservations, clears all confirmations, and asks members to reconfirm.
+The owner may open **advanced custom allocation** and set payment and quota ratios separately. Each set must total exactly 100%. Saving a custom allocation releases prior reservations, clears all confirmations, and asks members to reconfirm. When a member joins or leaves under custom allocation, reservations and confirmations are cleared, but ratios are not automatically redistributed; the owner should review and adjust them as needed. Switching back to equal allocation immediately recalculates the ratios, releases reservations, and clears confirmations, so members must confirm again.
 
 Before the deadline:
 
