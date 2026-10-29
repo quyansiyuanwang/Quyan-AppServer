@@ -43,6 +43,8 @@ Use this page to browse published remote terminal product plans, purchase or cla
 
 ## Notes
 
+- If a purchase or renewal times out or the connection is interrupted, its outcome may be unknown. Use the page’s top **Refresh** action, check the balance and the new or updated entitlement under **My entitlements**, then refresh account transactions in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history). Confirm the result before deciding whether to retry; contact an administrator if it remains unclear. A failed refresh may leave old data visible, so check again after a successful refresh.
+
 - In IAM enforcement mode, the entitlement list does not return token secrets. An authorized rotation obtains a new token, which the page attempts to copy. Even if it reports that copying succeeded, verify in a secure location that the clipboard contains the new token. If you did not obtain the secret, rotate again and use the latest token.
 - Merge mode lets you upgrade an existing entitlement instead of purchasing a new one.
 - Free plans (zero estimated price) can be claimed without cost.
