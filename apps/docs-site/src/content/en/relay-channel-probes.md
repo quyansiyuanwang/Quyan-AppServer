@@ -2,6 +2,16 @@
 
 Channel balance probes use a minimal model request to compare upstream balance movement, actual usage, and the current channel multiplier. They are for operators with channel-management access. Balance-workflow credentials are never shown or exported to the browser.
 
+## Probe a standalone channel for the first time
+
+1. Find the standalone channel on the balance probes page, select **Manage probe**, and open **Probe profile**.
+2. Enable the profile, select a request format and probe model compatible with the channel, and review the model endpoint and other request settings. The minimal model request uses the channel's saved upstream address and authentication.
+3. Configure the **Balance workflow** to read the upstream balance, and enter a field path to a numeric balance in one step. Enter any secrets or passwords needed by the workflow under **Probe credentials**; plaintext is not shown again after saving.
+4. Save the profile, return to the channel list, and select **Run probe**. The task is queued. Balance reads and model requests may incur upstream charges, but do not create a user bill.
+5. Check the latest probe status in the list. Select **Manage probe** and open **Runs** to inspect the balance change, usage, suggested multiplier, or failure reason. Suggestions are not applied automatically; a user with multiplier-adjustment permission can apply one after reviewing the result and its conditions.
+
+For pooled members, see “Working with pooled channels” below. For permissions, see “Prerequisites and notes”.
+
 ## Working with pooled channels
 
 A pool remains one logical channel, but can be expanded to inspect each physical account. Every account has its own credential status, latest probe, and run action. A probe always stays on the selected account and never rotates through other members during the same task.
