@@ -29,7 +29,7 @@ Use this page to create and maintain access keys for account-level programmatic 
 
 1. Choose to create a key, give it a recognizable name, and optionally select an expiry time. If left blank, the key does not expire automatically; an expired key cannot authenticate requests.
 2. Complete the security verification requested on the page and confirm creation.
-3. Copy the full key from the success dialog and store it safely. After closing the dialog, you cannot retrieve it from the list.
+3. Copy the full key from the success dialog and store it safely. The copy-success message does not guarantee the clipboard was updated; paste into trusted secret storage and verify it, or select and copy the read-only text manually if needed. After closing the dialog, you cannot retrieve it from the list.
 4. Review last-used time and request count to identify stale or active keys, and delete keys you no longer need or trust.
 
 ## Notes
