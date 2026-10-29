@@ -8,7 +8,7 @@ Choose a time range and refresh to see page event totals, distinct sessions (lab
 
 ## Funnel
 
-1. Enter at least two event names, adding, removing, or reordering steps as needed.
+1. Enter at least two event names, adding, removing, or reordering steps as needed. Suggestions come from popular events in the last 90 days, not a complete event catalog. You can still type an event name that was collected even if it is not suggested.
 2. Choose a time range and select **Analyze**.
 3. Review the session count and conversion rate for each step. The system matches events in sequence within each session; each rate is relative to the previous step, with the first shown as 100%.
 
