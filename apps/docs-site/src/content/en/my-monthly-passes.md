@@ -35,8 +35,10 @@ Review the monthly-pass benefits assigned to your account, or switch to **Monthl
 
 - A pass can be visible before it becomes active if it has a future start time.
 - Quota limits can apply to both the full pass period and daily windows.
+- A `-` in the header balance can mean a zero balance or a failed balance lookup. Check the actual amount in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history).
 - If something looks wrong, compare this page with balance and usage history.
 - The page currently loads only the first 100 assigned passes; the status filter applies to those loaded records.
+- A failed pass-list load shows an error; an initial failure may also leave the list empty. Reload the page and confirm it loads successfully before concluding there are no passes.
 
 ## IAM permissions
 
