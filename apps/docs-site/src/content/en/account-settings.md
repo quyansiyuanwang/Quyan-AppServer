@@ -22,7 +22,15 @@ Adjust appearance and clear locally cached data.
 
 - Toggle light or dark theme.
 - Switch display language.
-- Clear LocalStorage, SessionDB, or all cached data.
+- Select individual LocalStorage and SessionDB items to clear from the browser.
+
+#### Clear local cache
+
+1. In Preferences, choose **Clear Cache** to see the items available for clearing and their sizes.
+2. Select the items or groups you want to clear, then choose **Clear selected**. At least one item must be selected.
+3. Clearing sign-in data such as authentication tokens prompts a sign-out and reloads the page. Clearing certain other items, including theme, language, or cached user information, also reloads the page. Save unsubmitted work first.
+
+This clears only the selected local data in the current browser; it does not delete account data on the server. Browser data not listed in the dialog is outside its scope.
 
 ### Account Security
 
@@ -45,7 +53,7 @@ Configure notification preferences, email delivery, and webhooks. See [Notificat
 ## Notes
 
 - Email and password changes may require a verification step or an active 2FA challenge.
-- Clearing cached data can reset temporary UI state such as theme and language preferences, and may sign you out.
+- Clearing theme or language cache can reset those local preferences; clearing authentication tokens requires you to sign in again.
 - Access keys, passkeys, and trusted devices open in drawers within the Account Security page. See [Access key management]({{DOCS_BASE_URL}}/en/access-key-management), [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management), and [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management) for details.
 
 ## Personal profile permissions and resource scope
