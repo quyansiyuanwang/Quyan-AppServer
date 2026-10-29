@@ -27,7 +27,20 @@ Disabling an instance prevents external calls. Requests using a product API key 
 
 Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. When the product overage price is zero, calls are free and unrestricted by that quota, though usage is still recorded. When the price is positive, calls beyond the free quota require overage billing to be enabled and sufficient account balance. When a product request fails after metering, it enters a quota refund process that may require retries. Contact an administrator if usage or charges are not restored. A successful verification send means the channel accepted the request, not that final delivery is guaranteed. See each product guide for its metering and limits.
 
-Refer to each product page for request details and use the least-privileged RAM action for every integration.
+## Choose a product guide
+
+Each guide covers operations, limits, and request examples. Use the least-privileged RAM actions for your integration.
+
+| Goal                                                 | Guide                                                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| Store lightweight JSON data                          | [KV storage]({{DOCS_BASE_URL}}/en/developer-product-kv)                 |
+| Create and analyze sharing links                     | [Short Link]({{DOCS_BASE_URL}}/en/developer-product-short-link)         |
+| Store third-party credentials                        | [Secret Vault]({{DOCS_BASE_URL}}/en/developer-product-secret)           |
+| Check service availability and publish a status page | [Status Monitoring]({{DOCS_BASE_URL}}/en/developer-product-status)      |
+| Send and verify codes                                | [Verification]({{DOCS_BASE_URL}}/en/developer-product-verification)     |
+| Look up a public IP address                          | [IP Geolocation]({{DOCS_BASE_URL}}/en/developer-product-ip-geolocation) |
+| Send messages to webhooks or bots                    | [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push)         |
+| Publish readable JSON content                        | [JSON endpoint]({{DOCS_BASE_URL}}/en/developer-product-json-endpoint)   |
 
 ## Reading quota override administration
 

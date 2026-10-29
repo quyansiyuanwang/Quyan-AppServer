@@ -27,7 +27,20 @@ Key 绑定一个 RAM 主体，且调用时实时取该主体的有效权限。�
 
 每日免费额度按账号在单个产品内汇总，不会因创建多个实例而增加。产品超额单价为零时，调用免费且不受该额度限制，系统仍记录用量；单价大于零时，超过免费额度后需要启用超额扣费且账户余额充足。产品接口在计量后失败时会进入额度退回流程，退回可能需要重试；如果用量或费用未恢复，请联系管理员核查。验证码发送成功表示渠道已受理，不保证最终送达。具体计量和限制见各产品指南。
 
-各产品页面提供具体操作、限制和请求示例。请使用与目标操作相匹配的最小 RAM 权限。
+## 选择产品指南
+
+各产品指南提供具体操作、限制和请求示例。请使用与目标操作相匹配的最小 RAM 权限。
+
+| 需求                        | 指南                                                                 |
+| --------------------------- | -------------------------------------------------------------------- |
+| 存储轻量 JSON 数据          | [KV 存储]({{DOCS_BASE_URL}}/zh-CN/developer-product-kv)              |
+| 创建和统计分享链接          | [短链接]({{DOCS_BASE_URL}}/zh-CN/developer-product-short-link)       |
+| 托管第三方凭据              | [密钥托管]({{DOCS_BASE_URL}}/zh-CN/developer-product-secret)         |
+| 检查服务可用性并发布状态页  | [状态监控]({{DOCS_BASE_URL}}/zh-CN/developer-product-status)         |
+| 发送和校验验证码            | [验证码]({{DOCS_BASE_URL}}/zh-CN/developer-product-verification)     |
+| 查询公网 IP 的位置          | [IP 定位]({{DOCS_BASE_URL}}/zh-CN/developer-product-ip-geolocation)  |
+| 向 Webhook 或机器人发送消息 | [推送聚合]({{DOCS_BASE_URL}}/zh-CN/developer-product-push)           |
+| 发布可读取的 JSON 内容      | [JSON 端点]({{DOCS_BASE_URL}}/zh-CN/developer-product-json-endpoint) |
 
 ## 配额覆盖管理读取
 
