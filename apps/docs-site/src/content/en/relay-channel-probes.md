@@ -1,6 +1,6 @@
 # Channel balance probes
 
-Channel balance probes use a minimal model request to compare upstream balance movement, actual usage, and the current channel multiplier. They are for operators with channel-management access. Balance-workflow credentials are never shown or exported to the browser.
+Channel balance probes use model requests to compare upstream balance movement, actual usage, and the current channel multiplier. They are for operators with channel-management access. Balance-workflow credentials are never shown or exported to the browser.
 
 ## Probe a standalone channel for the first time
 
@@ -11,6 +11,12 @@ Channel balance probes use a minimal model request to compare upstream balance m
 5. Check the latest probe status in the list. Select **Manage probe** and open **Runs** to inspect the balance change, usage, suggested multiplier, or failure reason. Suggestions are not applied automatically; a user with multiplier-adjustment permission can apply one after reviewing the result and its conditions.
 
 For pooled members, see “Working with pooled channels” below. For permissions, see “Prerequisites and notes”.
+
+## Sampling and costs
+
+Set **Samples** in the profile to 1–10; a task performs the measurements in sequence, and a new profile defaults to 3. Each measurement reads the balance and sends a model request, so one task may incur multiple upstream charges. With **Warm then measure cache hit**, each sample also sends a warm-up request first; its cost is recorded separately and excluded from the suggested multiplier. Requests already sent may incur charges even if the task fails or is interrupted.
+
+**Strict calibration validation** is disabled by default. In that mode, one comparable sample can produce a suggestion, and a `verified` calibration status does not mean multi-sample stability was checked. When enabled, at least three valid samples are required; the system discards outliers and checks variation. Review the sample count, validation setting, and sample details before deciding whether to apply a suggestion.
 
 ## Working with pooled channels
 
@@ -42,7 +48,7 @@ Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, p
 
 In IAM enforcement mode, applying a probe result uses `quyan:relay:ApplyProbeRun`. It requires platform multiplier-management qualification and grants on the run, channel, profile and physical member ARNs. A logical pool multiplier affects the entire pool, so every affected current member must also be authorized; access to only one member is insufficient. This operation does not read or return profile credentials, upstream keys, balance ledgers or probe samples.
 
-Only successful, stability-verified, unapplied results from the past 24 hours are eligible. The current channel multiplier and pricing snapshot must still match the measurement. Changes to model pricing, mappings, target overrides, endpoints or time/context multipliers require a new probe. Large changes normally need another stable result with the same current pricing snapshot, and that confirmation run must also be authorized. Explicit large-change confirmation bypasses only the second-result requirement, never resource authorization, expiry or pricing validation.
+Only successful, unapplied results with a `verified` calibration status from the past 24 hours are eligible. The current channel multiplier and pricing snapshot must still match the measurement. Changes to model pricing, mappings, target overrides, endpoints or time/context multipliers require a new probe. Large changes normally need another result with a `verified` calibration status and the same current pricing snapshot, and that confirmation run must also be authorized. Explicit large-change confirmation bypasses only the second-result requirement, never resource authorization, expiry or pricing validation.
 
 Each result commits independently. The multiplier update and applied marker share a transaction; revocation or a concurrent conflict rolls both back, while other successful results remain applied. Shadow mode previews resource scopes and executes the existing application flow once.
 
@@ -66,7 +72,7 @@ Queued or running work blocks binding changes. Authorization is checked after th
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.
 
-A member result never changes pricing automatically. An operator with multiplier-adjustment permission must select and confirm a result before its suggestion is applied to the parent logical pool's public multiplier. Large changes still need another stable result from the same account unless the operator explicitly forces the confirmation.
+A member result never changes pricing automatically. An operator with multiplier-adjustment permission must select and confirm a result before its suggestion is applied to the parent logical pool's public multiplier. Large changes still need another result with a `verified` calibration status from the same account unless the operator explicitly forces the confirmation.
 
 The overview uses `quyan:relay:ListProbeOverview` on each channel. Denied or invisible channels and members are omitted, including their customer-facing pool labels. Profile content additionally requires `quyan:relay:GetProbeProfile`; latest results require `quyan:relay:ListLatestProbeRuns`, with the same resource checks as their dedicated read endpoints. These components can be omitted independently without hiding an otherwise authorized channel. Target overrides require `quyan:relay:GetProbeTargetConfig` on the parent channel, target channel and profile. If an override binds a shared account, that Action must also allow the account ARN; otherwise neither the override nor its account-derived credential status is shown. Strict pool membership takes precedence even when every strict member is denied or unavailable.
 
