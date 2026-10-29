@@ -11,7 +11,7 @@ The debug page provides build information and troubleshooting tools, primarily f
 
 ## Test a relay request
 
-Enter a compatible Base URL, API key, model, and message. The test sends a real request from the browser to `Base URL + /chat/completions` and displays the response or error. It sends the key as a Bearer credential to the entered destination and may consume quota or incur charges. Verify the destination is trusted and avoid sending sensitive content. Browser cross-origin restrictions can also cause a request to fail.
+Enter a compatible Base URL, API key, model, and message. The test sends a real request from the browser to `Base URL + /chat/completions` and displays the response or error. It sends the key as a Bearer credential to the entered destination and may consume quota or incur charges. Verify the destination is trusted and avoid sending sensitive content. Include the API version path in the Base URL and omit the trailing `/`, for example `https://api.openai.com/v1`. The page does not validate the model name; if the request fails, check that the target supports it. Browser cross-origin restrictions can also cause a request to fail.
 
 ## April preview
 
