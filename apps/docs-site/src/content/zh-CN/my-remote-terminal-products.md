@@ -43,7 +43,7 @@
 
 ## 说明
 
-- IAM 强制模式下，权益列表不返回 Token 明文，需要相应权限轮换以获取新 Token。轮换成功后页面会尝试复制新 Token。
+- IAM 强制模式下，权益列表不返回 Token 明文，需要相应权限轮换以获取新 Token。轮换成功后页面会尝试复制新 Token。即使显示复制成功，也请在安全位置确认剪贴板中的内容确实是新 Token；如果未取得明文，可再次轮换并使用最新 Token。
 - 合并模式允许在已有权益的基础上升级，而非重新购买。
 - 免费方案（预估价格为 0）可零成本领取。
 - Token 轮换后旧 Token 立即失效，需同步更新 Agent 配置。
@@ -55,7 +55,7 @@
 
 启用 IAM 强制模式后，解绑使用 `quyan:remote_terminal:RevokeMyDeviceBinding`，查看解绑提示使用 `quyan:remote_terminal:GetMyUnbindReminder`。两个操作均需获准访问本人绑定的 `acs:remote-terminal:*:<accountId>:product-binding/<userId>/<bindingId>` 和所属权益的 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`；访问其他用户的绑定始终拒绝。已登录用户可查看自己的解绑提示，解绑仍需对应权限。次数限制按权益共享，并发解绑也不会超过剩余额度；操作期间授权或次数配置发生变化会使操作失败。
 
-本人注册令牌轮换使用 `quyan:remote_terminal:RotateMyRegistrationToken`，同时检查权益 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>` 和令牌 `acs:remote-terminal:*:<accountId>:product-registration-token/<userId>/<entitlementId>/<tokenId>`。登录身份保留本人轮换能力，匹配的显式拒绝仍会阻止操作；首次创建可对当前权益下的令牌使用 `*`。轮换失败会保留原令牌，成功后需用新令牌更新 Agent 配置。
+本人注册令牌轮换使用 `quyan:remote_terminal:RotateMyRegistrationToken`，同时检查权益 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>` 和令牌 `acs:remote-terminal:*:<accountId>:product-registration-token/<userId>/<entitlementId>/<tokenId>`。登录身份保留本人轮换能力，匹配的显式拒绝仍会阻止操作；首次创建可对当前权益下的令牌使用 `*`。服务端明确拒绝轮换时原令牌保留；如果请求超时或连接中断，轮换结果可能不确定，请再次轮换以取得最新令牌，再更新 Agent 配置。
 
 安装令牌签发使用 `quyan:remote_terminal:GetMyInstallToken`，资源为 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`。已登录用户保留本人权益的签发能力，匹配的显式拒绝仍会阻止操作；其他用户权益或设备额度为零时不能签发。服务端在返回令牌前复查权益和授权，操作期间变化时不返回凭据。安装令牌仍按响应中的到期时间失效，安装协议保持不变。
 
