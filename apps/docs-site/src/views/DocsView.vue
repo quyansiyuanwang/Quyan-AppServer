@@ -568,15 +568,16 @@ const renderedContent = computed(() => {
     linkGlossaryTerms: true,
     glossaryEntries: currentGlossaryEntries.value,
   })
-  if (!isEmbedded.value || typeof window === 'undefined') return html
+  if (typeof window === 'undefined') return html
 
-  // Relative links need the current route as their base when the page changes.
-  const base = new URL(route.fullPath, window.location.origin)
+  // Resolve relative links against the canonical page path, even when the URL ends in a slash.
+  const base = new URL(`/${locale.value}/${currentSlug.value}`, window.location.origin)
   const container = document.createElement('div')
   container.innerHTML = html
   for (const link of container.querySelectorAll<HTMLAnchorElement>('a[href]')) {
     const href = link.getAttribute('href')
     if (!href || href.startsWith('#') || link.hasAttribute('download') || link.target) continue
+    if (!isEmbedded.value && !href.startsWith('./')) continue
     let destination: URL
     try {
       destination = new URL(href, base)
@@ -585,7 +586,7 @@ const renderedContent = computed(() => {
     }
     const match = /^\/(?:zh-CN|en)\/([^/]+)\/?$/.exec(destination.pathname)
     if (destination.origin !== base.origin || !match || !docsRegistry.hasPage(match[1])) continue
-    destination.searchParams.set('embed', '1')
+    if (isEmbedded.value) destination.searchParams.set('embed', '1')
     link.setAttribute('href', `${destination.pathname}${destination.search}${destination.hash}`)
   }
   return container.innerHTML
