@@ -15,7 +15,9 @@ New product API keys use the `sk-dpk-` prefix; existing `dpk_` credentials remai
 
 Every key is bound to a RAM principal and evaluated against that principal's current permissions on every call. Removing a RAM permission immediately removes the matching key capability. Account owners may delegate only to principals in their own account; RAM users may create keys only for themselves.
 
-The raw key is shown once after creation. Store it in deployment-time secret management; the Console subsequently shows only its prefix, permissions, expiry, and last-use time.
+The raw key is shown once after creation. Store it in deployment-time secret management; the Console list subsequently shows its name, prefix, actions, and expiry.
+
+In the instance details, select Create Key and provide a name, principal, actions, and optional expiry. Copy the full key when it is created; it cannot be viewed again after closing the dialog. To stop a key, select Revoke in the same list and confirm. Calls can no longer use the revoked key.
 
 ## Instance states and responses
 
