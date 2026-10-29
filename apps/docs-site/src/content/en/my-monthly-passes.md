@@ -26,7 +26,7 @@ Review the monthly-pass benefits assigned to your account, or switch to **Monthl
 
 ## Common actions
 
-1. Reload the page if a new pass is missing. The page’s refresh button updates purchase plans and balance, not the assigned-pass list.
+1. Reload the entire page if a new pass is missing. The top refresh button updates the header balance, but does not refresh the assigned-pass list or the purchase center plan cards.
 2. Filter by status to distinguish active, pending, expired, and disabled passes.
 3. Compare remaining quota with recent usage before heavy workloads.
 4. Check allowed channels and models before troubleshooting a request restriction.
@@ -36,7 +36,6 @@ Review the monthly-pass benefits assigned to your account, or switch to **Monthl
 - A pass can be visible before it becomes active if it has a future start time.
 - Quota limits can apply to both the full pass period and daily windows.
 - If something looks wrong, compare this page with balance and usage history.
-
 - The page currently loads only the first 100 assigned passes; the status filter applies to those loaded records.
 
 ## IAM permissions
