@@ -26,6 +26,8 @@ A card per trusted device, showing:
 - **Refresh** — returns to the first page and reloads the trusted-device list. Navigate to another page again if needed.
 - **Delete a device** — removes it after a confirmation prompt. If you delete the device you are currently using, the locally stored trust cookie is cleared as well.
 
+If the list fails to load, the page may still show devices from the last successful load. Do not rely on that list for their current trust status. The page reloads automatically after a deletion; if the deletion succeeds but the list does not update, select **Refresh** and check whether the device is still listed.
+
 ## Common actions
 
 1. Periodically review the list and remove devices you no longer own or use.
