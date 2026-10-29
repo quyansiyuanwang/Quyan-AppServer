@@ -40,6 +40,17 @@ Use this page to write, save, and run your own JavaScript scripts and inspect th
 
 Users with the appropriate permissions can write and save their own scripts. Before running, acknowledge the safety notice and confirm execution. The page asks for another confirmation when it detects certain common network APIs, but that detection cannot identify every risk.
 
+## Wait for asynchronous work
+
+Top-level script code can use `await`. Wait for any asynchronous work that must finish: the Worker is terminated after the script completes, so an unawaited timer or other background callback may not run. For example:
+
+```js
+await new Promise((resolve) => setTimeout(resolve, 1000))
+console.log('Wait complete')
+```
+
+Output includes `console.log`, `console.warn`, and `console.error` messages. Calling `console.error` alone does not mark the execution as failed; throw an exception when execution should stop and be marked as failed. Check both the output and execution status.
+
 ## Permission requirements
 
 | Action              | Required permission |
