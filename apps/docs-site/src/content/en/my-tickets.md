@@ -47,6 +47,8 @@ Sign in to use the ticket page. Submitting, viewing your own tickets, editing, a
 ## Notes
 
 - The title and contact information can each contain up to 200 characters, and the source page up to 500. The description, reproduction steps, and each reply can each contain up to 5000 characters.
+- While editing, **Reset** restores the form to its default values but does not exit editing for the current ticket. Choose **Cancel edit** to discard changes, or select edit again to reload the saved content.
+- When saving an edit, leaving contact information, source page, or reproduction steps blank clears the corresponding saved field.
 - Tickets in **rejected** or **completed** status cannot be edited or replied to.
 - Public comments are visible to the submitter and reviewers authorized to view the ticket. Internal review notes are not shown to the submitter. Avoid including unnecessary private information in comments.
 
