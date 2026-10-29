@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'json-endpoint-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': 'JSON 端点管理',
   },
   summary: {
-    en: 'Publish JSON endpoints with public or protected access.',
-    'zh-CN': '说明 JSON 端点的发布、公开访问和保护访问。',
+    en: 'Create and edit shared JSON, configure password or signature access, and delegate management.',
+    'zh-CN': '创建与编辑 JSON 分享端点，配置密码或签名保护，并委派管理权限。',
   },
   tags: ['json', 'endpoint', 'publish'],
   content: {
