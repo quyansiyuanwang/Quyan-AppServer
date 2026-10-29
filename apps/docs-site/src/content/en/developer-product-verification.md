@@ -14,7 +14,17 @@ Content-Type: application/json
 { "channel": "email", "recipient": "user@example.com", "purpose": "signup" }
 ```
 
-Verification requires a separate Verification verify action. Call `POST /v1/products/verification/verify`, adding a six-digit `code` while keeping the same `channel`, `recipient`, and `purpose`. A response with `data.valid` equal to `true` means the code was accepted and cannot be used again; `false` means verification failed, for example because the code is incorrect, expired, or already used.
+Verification requires a separate Verification verify action. Use the same `channel`, `recipient`, and `purpose` as the send request, and replace `code` with the six-digit code the user received:
+
+```http
+POST /v1/products/verification/verify
+Authorization: Bearer sk-dpk-...
+Content-Type: application/json
+
+{ "channel": "email", "recipient": "user@example.com", "purpose": "signup", "code": "123456" }
+```
+
+A response with `data.valid` equal to `true` means the code was accepted and cannot be used again; `false` means verification failed, for example because the code is incorrect, expired, or already used. Send the code as a string and preserve any leading zero. If the verification request is interrupted without a definite result, the code may already have been consumed; do not treat an unknown outcome as successful verification. To continue, send a new code and verify that one.
 
 Codes are valid for 10 minutes and allow up to five incorrect attempts. When a new code is sent to the same recipient for the same purpose in an instance, the previous code is invalidated, even if the channel differs.
 

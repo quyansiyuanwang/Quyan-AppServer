@@ -14,7 +14,17 @@ Content-Type: application/json
 { "channel": "email", "recipient": "user@example.com", "purpose": "signup" }
 ```
 
-校验需要独立的验证码校验权限。调用 `POST /v1/products/verification/verify`，在相同的 `channel`、`recipient` 和 `purpose` 基础上追加 6 位 `code`。响应中的 `data.valid` 为 `true` 表示校验成功，该验证码不可再次使用；`false` 表示未通过，例如验证码错误、过期或已使用。
+校验需要独立的验证码校验权限。使用与发送时相同的 `channel`、`recipient` 和 `purpose`，并将 `code` 替换为用户收到的六位验证码字符串：
+
+```http
+POST /v1/products/verification/verify
+Authorization: Bearer sk-dpk-...
+Content-Type: application/json
+
+{ "channel": "email", "recipient": "user@example.com", "purpose": "signup", "code": "123456" }
+```
+
+响应中的 `data.valid` 为 `true` 表示校验成功，该验证码不可再次使用；`false` 表示未通过，例如验证码错误、过期或已使用。验证码是字符串，请保留前导零。校验请求中断、未收到明确结果时，验证码可能已被消耗；不要将结果不确定视为验证成功。如需继续验证，请重新发送并使用新验证码。
 
 验证码有效期为 10 分钟，最多允许 5 次错误尝试。同一实例中，向同一接收方发送相同用途的新验证码后，旧验证码失效，即使发送渠道不同。
 
