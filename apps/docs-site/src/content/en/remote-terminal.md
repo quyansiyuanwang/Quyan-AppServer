@@ -37,6 +37,12 @@ The main area is a multi-tab terminal. Each tab maps to one device session and s
 - Full xterm.js experience (colors, cursor, scroll history).
 - Right-click copies selected text, or attempts to paste from the clipboard when nothing is selected. Connect the terminal before pasting; a disconnected paste is not queued for reconnection.
 
+## Shortcuts and quick commands
+
+Below the terminal, you can manage shortcuts and quick commands. Select an online device to add or change its preferences; saving requires permission to update that device’s preferences. Restoring default shortcuts resets shortcuts but keeps quick commands.
+
+When the terminal is connected, selecting a quick command immediately sends it to the current terminal. If the content has no newline, the page appends Enter, which may execute it immediately. Check the active tab, device, and command before sending. Commands cannot be sent while disconnected.
+
 ## Common actions
 
 1. Click a device card to select it.
