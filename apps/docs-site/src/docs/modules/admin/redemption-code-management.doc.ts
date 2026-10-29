@@ -13,11 +13,11 @@ export default defineDocsPage({
     'zh-CN': '兑换码管理',
   },
   summary: {
-    en: 'Create, distribute, and track redemption codes.',
-    'zh-CN': '说明兑换码的创建、发放和状态追踪。',
+    en: 'Generate balance codes, copy complete values, verify redemption, and remove obsolete codes.',
+    'zh-CN': '生成余额兑换码、复制完整码、核对领取状态与删除后果。',
   },
   tags: ['redemption', 'code', 'balance', 'iam'],
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   content: {
     en: contentEn,
     'zh-CN': contentZh,
