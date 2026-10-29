@@ -25,11 +25,11 @@ The assistant can provide guidance, but cannot change accounts, permissions, bil
 
 An administrator can enable both **Allow users to use their own platform balance** and **Allow users to use Relay Tokens they own**. The user-funded option appears in the support window only when both controls are enabled.
 
-1. Open **Use your own Relay Token and balance**.
+1. Expand **Use your own Relay Token and balance** and turn on **Use my token for this conversation**.
 2. Enter the Relay Base URL shown in your console, a model name, and your own Relay Token.
 3. Send the message.
 
-The token is used for the current request only and is not stored in the support conversation. The server verifies that the token belongs to the signed-in user and that the Base URL is on a trusted platform domain. Both planning and final-answer calls use that token, so normal Relay channel, model, quota, original-client-IP allowlist, and balance rules apply. Use only a token you own and are authorized to use.
+The token is not stored in the server-side support conversation. While the panel remains open, the token stays in the input field and is reused for later messages sent in user-funded mode. **Clear** does not empty the token field; remove the token manually when you no longer need it. The server verifies that the token belongs to the signed-in user and that the Base URL is on a trusted platform domain. Both planning and final-answer calls use that token, so normal Relay channel, model, quota, original-client-IP allowlist, and balance rules apply. Use only a token you own and are authorized to use.
 
 ## Administrator configuration
 
@@ -47,7 +47,7 @@ With IAM enforcement enabled, configuration reads and updates require `quyan:sup
 
 ## Service capacity and stream failures
 
-Support AI shares server resource budgets with chat and relay requests. Busy requests may receive HTTP 429; retry later. Output limits or upstream failures can interrupt an answer without a success-completion marker. User-funded relay usage is still settled according to relay usage records; a stream failure does not imply a free request.
+Support AI shares server resource budgets with chat and relay requests. Busy requests may receive HTTP 429; retry later. Output limits or upstream failures can interrupt an answer. The panel removes the incomplete answer and displays an error, while the question remains in the window. User-funded relay usage is still settled according to relay usage records; a stream failure does not imply a free request.
 
 Input and conversation context use the live server input, message-count and byte budgets. A message count of 0 disables only the count limit. Over-budget requests are rejected without silently deleting or shortening history; clear the support conversation before trying again if needed. Agent prompts and tool results also count toward the context budget.
 
