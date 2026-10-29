@@ -9,7 +9,7 @@ Sign in to the AI Relay Console and make sure you have an available channel or a
 ## Call AI in four steps
 
 1. Open Relay token management and select Create token.
-2. Choose channels or an automatic proxy pool, save the token, then copy the **Relay Base URL** and token value shown in the creation drawer.
+2. Copy the **Relay Base URL** at the top of the creation drawer, choose channels or an automatic proxy pool, and save. After creation, find the new token in the list and copy its credential. If the credential is unavailable, check [credential disclosure permissions]({{DOCS_BASE_URL}}/en/relay-token-management).
 3. Store the token in the caller's server-side environment. Do not commit it or expose it in browser code.
 4. Request `Relay Base URL + /v1/models`, choose a model from the response, then use a request format enabled for that model.
 
