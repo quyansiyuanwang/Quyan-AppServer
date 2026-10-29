@@ -69,10 +69,11 @@ Each token can control the `/v1` prefix forwarded upstream. This setting is inde
 
 Each token uses exactly one routing mode:
 
+- `Composite Token`: references your own tokens in order and supports nesting. See “Composite tokens” below for configuration and limits.
 - `Ordered channels`: maintains a channel order and its failover configuration.
 - `Automatic proxy pool`: selects one shared automatic proxy pool and does not retain an ordered channel list. Administrators or automation maintain the pool members centrally. A token may exclude individual pool members without changing the pool's global membership.
 
-The resolved member determines the upstream, model capabilities, and billing multiplier. Token users can view members to exclude them for their own token, but cannot edit the pool's global membership.
+The resolved pool member determines the upstream, model capabilities, and billing multiplier. Token users can view members to exclude them for their own token, but cannot edit the pool's global membership.
 
 ### Management actions
 
@@ -88,7 +89,7 @@ The resolved member determines the upstream, model capabilities, and billing mul
 ## Common actions
 
 1. Create a token with a recognizable name.
-2. Configure channel order and failover behavior. When an Anthropic upstream needs compatibility handling, enable request normalization for that token in the edit drawer.
+2. Choose a routing mode: configure ordered channels and failover, select an automatic proxy pool, or add composite-token members. When an Anthropic upstream needs compatibility handling, enable request normalization for that token in the edit drawer.
 3. Enable quota windows and set per-window limits if rate limiting is required.
 4. Fill in the IP whitelist if you want to restrict which sources can use the token.
 5. Review quota usage regularly to avoid unexpected throttling.
