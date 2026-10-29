@@ -19,6 +19,8 @@ This section explains how to use conversations on desktop and mobile.
 - Create a new conversation.
 - Rename or delete an existing conversation.
 - Select a conversation from the list or mobile drawer.
+- If **Load more** appears at the bottom of the list, select it to see more conversations. Conversations not yet loaded do not appear in the current list.
+- Deleting a conversation requires confirmation. After deletion, the conversation and its messages are no longer accessible from the chat list; save any content you need first.
 
 ## Message area
 
