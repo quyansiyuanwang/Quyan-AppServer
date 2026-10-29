@@ -26,7 +26,7 @@ The left sidebar shows devices bound to the current user with an active entitlem
 - **Terminal quota**: active sessions / total terminal limit.
 - **Device quota**: active devices / total device limit.
 
-When a quota is reached, the connect button is disabled with an explanation.
+When the terminal session quota is reached, the connect button is disabled with an explanation. It is also unavailable when no online device is selected or a connection is in progress. The device quota limits bound devices; the server still checks each connection.
 
 ### Terminal area
 
