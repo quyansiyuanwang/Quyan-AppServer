@@ -26,7 +26,7 @@ Use this page to create, copy, and track redemption codes.
 ## Common actions
 
 1. Set the amount per code and the count. Each amount must be between 0.01 and 100000; the management page creates 1 to 100 codes at a time. Choose an expiry if the codes should have a time limit.
-2. After creation, the page returns to the first list page. Click each code in the list to copy it, then share it with its intended recipient. Listing requires separate read permission; create permission alone does not grant it.
+2. After creation, the page returns to the first list page. A batch can span multiple pages, so check the pagination. Click each code to copy it. The success message does not guarantee the clipboard was updated; paste into a trusted location to verify before sharing, or select and copy the text manually if needed. Share the full code only with its intended recipient. Listing requires separate read permission; create permission alone does not grant it.
 3. Check the status first when a user reports that a code cannot be redeemed.
 4. Delete incorrectly created or obsolete codes. The page submits deletion immediately, so check the target first; an unused code cannot be redeemed after deletion.
 
