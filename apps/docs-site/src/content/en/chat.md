@@ -45,6 +45,8 @@ Agent mode uses a remote machine and workspace for conversation tasks. You need 
 3. Create a workspace on the machine page and select its machine. Return to chat, select the workspace, relay token, and model, then send a message.
 4. If a task fails, check the error in chat and the machine's connection status and last heartbeat on the machine page.
 
+Before sending, make sure a workspace is selected. Without one, the send button may still be available and the input is cleared, but no task is created. Create or select a workspace, then enter the message again.
+
 In Agent mode, **Stop** stops the page from receiving output but does not guarantee that the remote task has been cancelled. Switching conversations or leaving the page also stops receiving the current output; do not assume the remote task has ended.
 
 ## Mobile notes
