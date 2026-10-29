@@ -6,6 +6,12 @@ KV storage is intended for frontend configuration, lightweight counters, feature
 
 Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. A serialized JSON value is limited to 64 KiB, and each instance to 1,000 entries. TTL ranges from 1 second to 30 days. Expired values behave as absent.
 
+## Manage entries in the console
+
+Open a KV product instance and select New. Enter a key, a valid JSON value, and an optional TTL in seconds, then save. The list shows keys, versions, and expiry times. Selecting Edit first reads the current value; the key cannot be changed in the edit dialog. Deletion requires confirmation. Viewing and saving require read and write permissions respectively.
+
+When editing an expiring entry, the form fills in the remaining seconds at the time it opens. Saving recalculates expiry from the time of saving, so check the TTL again if the dialog has been open for a while. Saving with an empty TTL removes the expiry.
+
 ## API
 
 Product API requests use `Authorization: Bearer sk-dpk-...`. Call the API from a trusted backend and protect the key. To provide configuration to a browser, have your backend authorize the request and return only the needed data; do not embed the product key in frontend code or browser storage.
