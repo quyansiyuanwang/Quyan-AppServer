@@ -6,6 +6,12 @@ Push Aggregation delivers one business message to generic webhooks, DingTalk bot
 
 Create each channel in the Console with a name, type, HTTP(S) endpoint, and optional secret alias. Channels can be independently enabled, edited, or deleted. Channel management and delivery-log read are separate RAM actions, allowing least-privileged assignments for operations and applications.
 
+## Test in the console
+
+Open a Push product instance and use the online test if you have send permission. Enter a product API key with send permission, select channels, and provide a title and content before sending. The test sends real messages and counts toward product usage; use a trusted device and suitable test channels.
+
+Each send uses a new idempotency key, so sending again creates new deliveries. A request-success message does not mean every channel delivered successfully. Check the returned channel statuses and, if authorized, the delivery logs.
+
 ## Unified send API
 
 Sending needs the Push send action:
