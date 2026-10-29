@@ -12,6 +12,8 @@ Open a KV product instance and select New. Enter a key, a valid JSON value, and 
 
 When editing an expiring entry, the form fills in the remaining seconds at the time it opens. Saving recalculates expiry from the time of saving, so check the TTL again if the dialog has been open for a while. Saving with an empty TTL removes the expiry.
 
+If the list fails to load, it may still show the previous list, including after switching instances; an empty list does not establish that the current instance has no entries. Select Retry in the error message and wait for a successful load before acting. Refresh can also fail after a save or deletion, even if a success message appears. Retry loading and read the entry to check the result before repeating the operation.
+
 ## API
 
 Product API requests use `Authorization: Bearer sk-dpk-...`. Call the API from a trusted backend and protect the key. To provide configuration to a browser, have your backend authorize the request and return only the needed data; do not embed the product key in frontend code or browser storage.

@@ -12,6 +12,8 @@ Open a Secret Vault instance, select Write secret, enter an alias and value, and
 
 Deletion requires confirmation. Before deleting, check whether any channels reference the alias.
 
+If the list fails to load, it may still show the previous list, including after switching instances; an empty list does not establish that the current instance has no secrets. Select Retry in the error message and wait for a successful load before acting. Refresh can also fail after writing, rotating, or deleting a secret, even if a success message appears. Retry and check the alias and version before repeating the operation. Secret values cannot be read back; verify the credential through a channel that uses it if needed.
+
 ## Lifecycle and permissions
 
 Creating or rotating needs Secret write, deletion needs Secret manage, and metadata listing needs Secret read. Deletion is permanent; subsequent deliveries fail if a push channel still references the alias. The platform encrypts the secret using a dedicated master key and stores the ciphertext, IV, and authentication tag.
