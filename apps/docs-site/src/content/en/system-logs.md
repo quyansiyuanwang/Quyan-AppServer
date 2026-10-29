@@ -54,12 +54,6 @@ Use this page to inspect API logs, log statistics, and server log files.
 - Log expansion is useful for trace analysis; file search works better for recurring patterns.
 - This page is central for diagnosing relay, auth, billing, and monitoring issues.
 
-## Related pages
-
-- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
-- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
-- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
-
 ## Server log resource permissions
 
 IAM `enforce` mode authorizes individual server log files:
@@ -95,3 +89,9 @@ Listing also requires either `API_LOG_READ` or `SYSTEM_LOG_READ` in a global gro
 IAM `enforce` mode uses the independent `quyan:system:log:GetLogStatistics` Action on each API log ARN. Only authorized records contribute to totals, unique users and IPs, daily series, status and method distributions, and top paths. List or detail permissions alone do not grant statistics access. If no matching records are authorized, the report contains zero requests.
 
 The same active global-group qualification (`API_LOG_READ` or `SYSTEM_LOG_READ`) is required. Existing filters and date-range behavior are retained. Statistics use a fixed time boundary and verify contributing records and grants before returning; newer logs appear on the next request, and changes to existing contributions or authorization cause a permission denial. `legacy` and `shadow` preserve the original report, with IAM resource decisions additionally recorded in `shadow`.
+
+## Related pages
+
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
+- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)

@@ -67,12 +67,6 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 - IP-ban and decay changes should be coordinated with monitoring data.
 - The captcha trust window (`trustWindowMinutes`) controls how long a verified session can skip repeated captcha checks.
 
-## Related pages
-
-- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
-- [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings)
-- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
-
 ## AI resource protection (advanced)
 
 Groups cover admission and memory, stream parsing and conversion, chat and support, audit, connection pools, images and probes, and compiled rules. Suggested values, units and valid ranges come from the server. Saving the complete configuration retains system-config permissions, step-up verification and replay protection; no restart is needed.
@@ -82,3 +76,9 @@ Running requests keep their content budgets; lowering concurrency does not termi
 Oversized request bodies receive 413 before an upstream call and are not charged. Capacity failures do not retry another channel. Non-stream text and image responses are size-checked before success is sent, so an image may start arriving later than the upstream first byte.
 
 Ordinary same-protocol streams are not stopped solely because cumulative forwarded bytes exceed the retained-text capacity. Frame parsing, protocol conversion, content review and chat storage still have their own capacities. Overflow detected before response headers receives 413. Once SSE has started, its HTTP status cannot change; clients must check `error` / `response.failed` events. A server capacity failure then produces an explicit error, no successful completion marker and no user charge; any persisted partial chat message remains failed. Partial output from an upstream failure or a client-initiated stop keeps the existing settlement rules.
+
+## Related pages
+
+- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
+- [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings)
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)

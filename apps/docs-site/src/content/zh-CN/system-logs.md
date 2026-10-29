@@ -55,12 +55,6 @@
 - 展开单行适合链路分析，文件搜索更适合查找反复出现的问题模式。
 - 这是诊断转发、认证、计费或监控问题的核心页面之一。
 
-## 相关页面
-
-- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
-- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
-- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)
-
 ## 服务端日志的资源权限
 
 在 IAM `enforce` 模式下，服务端日志使用文件级资源：
@@ -96,3 +90,9 @@ IAM `enforce` 模式使用 `quyan:system:log:GetLogDetail` 读取指定日志，
 IAM `enforce` 模式使用独立的 `quyan:system:log:GetLogStatistics` Action，逐条评估 API 日志 ARN。只有授权通过的记录参与总数、用户与 IP 去重、每日趋势、状态码与方法分布，以及热门路径统计。仅有列表或详情权限不能读取统计。没有匹配的已授权记录时，报表请求数为零。
 
 读取统计同样要求当前用户在有效全局组中具备 `API_LOG_READ` 或 `SYSTEM_LOG_READ`。现有筛选与日期范围规则保留。统计请求固定时间边界，并在返回前复核参与计算的记录及授权；更新的日志在下次请求出现，已有统计记录或授权发生变化时返回权限拒绝。`legacy` 和 `shadow` 保留原统计结果，`shadow` 同时记录 IAM 资源决策。
+
+## 相关页面
+
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
+- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)

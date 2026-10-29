@@ -67,12 +67,6 @@ IAM 强制授权下，SMTP 密码、中继 API Key、社交登录 Client Secret 
 - IP 封禁和衰减调整应结合 IP 监控数据进行。
 - 验证码信任窗口（`trustWindowMinutes`）表示通过 Captcha 后多长时间内无需再次验证。
 
-## 相关页面
-
-- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)
-- [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)
-- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
-
 ## AI 资源保护（高级配置）
 
 面板按准入与内存、流解析与转换、聊天与客服、审计、连接池、图片与探针、编译规则缓存分组，显示服务端建议值、单位和合法范围。保存整份配置沿用系统配置权限、二次验证和重放保护，不需要重启。
@@ -82,3 +76,9 @@ IAM 强制授权下，SMTP 密码、中继 API Key、社交登录 Client Secret 
 超大的请求正文会在调用上游前返回 413，不计费，也不会为容量错误切换渠道重试。非流式文本和图片响应先完成大小检查，再返回成功；图片开始返回的时间因此可能晚于上游首字节。
 
 普通同协议流不会仅因累计转发字节超过文本保留容量而中断；单帧解析、协议转换、内容审核和聊天存储仍受各自容量约束。响应开始前发现超限时返回 413。SSE 已开始后，HTTP 状态无法改写，客户端必须检查 `error` / `response.failed` 事件：运行中触发本站容量保护时发送明确错误，不发送成功完成标记，也不向用户扣费；已产生的聊天消息保留为失败状态。上游故障或客户端主动停止的部分输出仍沿用原有结算规则。
+
+## 相关页面
+
+- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)
+- [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)

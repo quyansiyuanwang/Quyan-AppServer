@@ -45,14 +45,14 @@ Upstream API keys can only be written, replaced, or cleared; read APIs never ret
 
 With IAM enforcement enabled, configuration reads and updates require `quyan:support:GetConfig` and `quyan:support:UpdateConfig` respectively on `acs:platform:*:platform:config/support-ai`. Operators must also belong to an active global management group that retains AI Support configuration permission; account-created groups and wildcard policies cannot obtain platform management eligibility. Read permission does not grant updates, and explicit Deny takes precedence. All settings save together: revoked grants, concurrent configuration edits or invalid role sessions reject the entire update rather than leaving partially changed settings. Keys remain encrypted, and audit events record only the names of changed settings.
 
-## Related pages
-
-- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
-- [AI relay quick start]({{DOCS_BASE_URL}}/en/ai-relay-quickstart)
-- [My tickets]({{DOCS_BASE_URL}}/en/my-tickets)
-
 ## Service capacity and stream failures
 
 Support AI shares server resource budgets with chat and relay requests. Busy requests may receive HTTP 429; retry later. Output limits or upstream failures can interrupt an answer without a success-completion marker. User-funded relay usage is still settled according to relay usage records; a stream failure does not imply a free request.
 
 Input and conversation context use the live server input, message-count and byte budgets. A message count of 0 disables only the count limit. Over-budget requests are rejected without silently deleting or shortening history; clear the support conversation before trying again if needed. Agent prompts and tool results also count toward the context budget.
+
+## Related pages
+
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [AI relay quick start]({{DOCS_BASE_URL}}/en/ai-relay-quickstart)
+- [My tickets]({{DOCS_BASE_URL}}/en/my-tickets)

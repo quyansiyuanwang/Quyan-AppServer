@@ -45,14 +45,14 @@ AI 只能提供指引，不能替你修改账户、权限、计费或基础设�
 
 启用 IAM 强制授权后，配置读取和更新分别需要 `quyan:support:GetConfig` 与 `quyan:support:UpdateConfig`，资源固定为 `acs:platform:*:platform:config/support-ai`。操作者还必须属于保留 AI 客服配置权限的有效全局管理组；账户内自建组或通配符策略不能取得平台管理资格。读取权限不自动授予更新权限，显式 Deny 优先。保存时所有设置一起提交，权限撤销、配置并发修改或角色会话失效会拒绝整次更新，不会留下部分新配置。密钥保持加密存储，审计仅记录发生变化的配置项名称。
 
-## 相关页面
-
-- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
-- [调用 AI 快速开始]({{DOCS_BASE_URL}}/zh-CN/ai-relay-quickstart)
-- [我的工单]({{DOCS_BASE_URL}}/zh-CN/my-tickets)
-
 ## 服务容量与流式失败
 
 客服 AI 与聊天、中转共享服务器资源预算；繁忙时可能返回 429，请稍后重试。输出容量或上游异常可能中断回答，此时不会显示成功完成标记。用户自付中转仍按实际中转用量记录结算，不能把流式失败视为免费请求。
 
 输入与会话上下文受服务器配置中的输入、消息条数和上下文字节预算控制。消息条数设为 0 可取消条数限制，字节预算仍生效。超过预算会明确拒绝，不会自动删除或截短旧消息；可主动清空客服会话后再试。Agent 的提示词与工具结果也计入上下文预算。
+
+## 相关页面
+
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [调用 AI 快速开始]({{DOCS_BASE_URL}}/zh-CN/ai-relay-quickstart)
+- [我的工单]({{DOCS_BASE_URL}}/zh-CN/my-tickets)

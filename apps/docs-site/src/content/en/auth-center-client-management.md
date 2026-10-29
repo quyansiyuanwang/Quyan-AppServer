@@ -200,13 +200,6 @@ Submitting for review belongs to the app maintenance flow. The final approve/rej
 - When using `authorization_code`, redirect URI precision and PKCE requirements should be checked carefully.
 - If an app is rejected, fix the reviewer feedback before submitting again.
 
-## Related pages
-
-- [`auth-center-app-management`](/en/auth-center-app-management)
-- [Auth Center application review](/en/auth-center-client-review-management)
-- [`oauth-app-management`](/en/oauth-app-management)
-- [API documentation](/en/api-documentation)
-
 ## IAM resource scope
 
 When IAM enforcement is enabled, the application list includes only your own applications allowed by `quyan:auth_center:ListClients`. Opening an application also requires `quyan:auth_center:GetClient`; list access does not automatically grant detail access.
@@ -222,3 +215,10 @@ Editing an application requires `quyan:auth_center:UpdateClient` on its resource
 Calling application management APIs with an OAuth bearer token requires the grantable `auth_center_client` scope, or its equivalent Auth Center client read-permission scope. This scope permits entry to the management APIs and does not replace IAM authorization. Reads, edits, deletion, review submission, and secret rotation each check their operation permission and resource scope. A role session cannot use the signed-in user's permissions outside that role to grant a scope.
 
 Creating an application requires `quyan:auth_center:CreateClient` on the authenticated user's parent resource, `acs:quyan:*:<accountId>:user/<userId>`. Read or edit access to an existing application does not grant creation. The server generates the record ID and public client identifier, with an initial draft review state. A confidential client's new secret is returned only in the successful creation response. Creation does not automatically grant subsequent reads, edits, or deletion; configure those permissions on the application ARN separately.
+
+## Related pages
+
+- [`auth-center-app-management`](/en/auth-center-app-management)
+- [Auth Center application review](/en/auth-center-client-review-management)
+- [`oauth-app-management`](/en/oauth-app-management)
+- [API documentation](/en/api-documentation)
