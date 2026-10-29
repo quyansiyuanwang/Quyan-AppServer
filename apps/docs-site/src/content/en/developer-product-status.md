@@ -4,7 +4,7 @@ Status Monitoring periodically checks public HTTP(S) services and exposes a publ
 
 ## Configure monitors
 
-Set a name, HTTP(S) target URL, method, interval, accepted status codes, and an alert delay (1 to 1,440 minutes; 5 minutes by default) in the Console. The interval must be between 60 and 86,400 seconds. Requests pass SSRF protection: only HTTP(S) is allowed, private, loopback, and link-local targets are rejected. Status checks follow up to five HTTP redirects, validating every destination again, and reject redirect loops and non-HTTP schemes such as `file://`.
+Set a name, HTTP(S) target URL, method, interval, accepted status codes, and an alert delay (1 to 1,440 minutes; 5 minutes by default) in the Console. The interval must be between 60 and 86,400 seconds; a new target defaults to 60 seconds. The default accepted status code is only `200`. Separate multiple codes with commas, for example `200, 201, 204`. The form ignores unrecognized values and values outside 100–599; it may save if at least one valid code remains, so check every entry before saving. Requests pass SSRF protection: only HTTP(S) is allowed, private, loopback, and link-local targets are rejected. Status checks follow up to five HTTP redirects, validating every destination again, and reject redirect loops and non-HTTP schemes such as `file://`.
 
 Optional response-body matching supports “contains” or “equals”. When enabled, both the status code and response body must match for the check to be healthy. `HEAD` does not support body matching. `POST`, `PUT`, `PATCH`, and `DELETE` can include a request body; a nonempty body must be valid JSON. Scheduled and manual checks send requests to the target. Before using a method that may change data, confirm that the target endpoint permits repeated calls. In the edit form, switching to a method without request-body support clears the body; switching to `HEAD` also clears response-body matching. Saving applies these removals, so check the settings before switching methods.
 
@@ -18,7 +18,7 @@ The console reloads data after creating, editing, deleting, or manually checking
 
 ## Public status page
 
-After publication, the page is available at `/status/{slug}` and shows enabled monitors’ current state, recent latency, status code, and recent check history. Availability is the proportion of successful results among the latest 30 checks at most, not time-based uptime; the page displays 0% when there are no checks. Turning publication off removes public access; disabling the product or instance also makes the page unavailable. Publishing has its own RAM action, separate from monitor read, write, and delete actions.
+Select **Publish status page** on the instance page. Once published, select **Open status page** to view and share it. The public URL is `/status/{slug}`; select **Unpublish status page** when it should no longer be public. The page shows enabled monitors’ current state, recent latency, status code, and recent check history. Availability is the proportion of successful results among the latest 30 checks at most, not time-based uptime; the page displays 0% when there are no checks. Turning publication off removes public access; disabling the product or instance also makes the page unavailable. Publishing has its own RAM action, separate from monitor read, write, and delete actions.
 
 ## Monitor resource authorization
 
