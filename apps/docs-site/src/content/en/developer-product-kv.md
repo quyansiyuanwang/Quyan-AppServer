@@ -1,6 +1,6 @@
 # KV storage
 
-KV storage is intended for frontend configuration, lightweight counters, feature flags, and short-lived JSON data. Keys are unique only within the current instance and values are stored as JSON. It is not a file store, relational database, or high-throughput queue.
+KV storage is intended for frontend configuration, feature flags, and short-lived JSON data. Keys are unique only within the current instance and values are stored as JSON. It is not a file store, relational database, or high-throughput queue. For counters and other read-modify-write operations, the application must coordinate concurrent updates to prevent them from overwriting one another.
 
 ## Permissions and limits
 
