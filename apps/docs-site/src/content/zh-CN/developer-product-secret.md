@@ -20,4 +20,4 @@
 
 项目密钥管理可按别名授予 `quyan:developer:ListSecrets`、`PutSecret` 和 `DeleteSecret`，资源为 `acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`。新增、轮换、删除分别检查对应操作与具体别名，同账户委派保留项目所有者。项目权限不会自动覆盖全部别名。
 
-`GET /v1/developer/projects/{projectId}/secrets/page` 接受 page/pageSize，返回逐别名过滤后的 items、page、pageSize、hasNext；空页可能有后续页，没有 total。enforce 下旧数组接口只返回默认第一页。返回的 resourceArn 可直接用于策略，所有返回值只包含元数据。更多授权与资源组规则见 [RAM 管理](./ram-management)。
+`GET /v1/developer/projects/{projectId}/secrets/page` 接受 page/pageSize，返回逐别名过滤后的 items、page、pageSize、hasNext；空页可能有后续页，没有 total。enforce 下旧数组接口只返回默认第一页。返回的 resourceArn 可直接用于策略，所有返回值只包含元数据。更多授权与资源组规则见 [RAM 管理]({{DOCS_BASE_URL}}/zh-CN/ram-management)。

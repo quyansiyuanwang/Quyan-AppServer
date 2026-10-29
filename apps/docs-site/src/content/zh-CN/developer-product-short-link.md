@@ -22,4 +22,4 @@
 
 `GET /v1/developer/projects/{projectId}/short-links/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。先分页同账户有效项目中的候选，再逐链接过滤；空页可能有后续页，没有未授权资源的 total。enforce 下旧数组列表只返回默认第一页。暂停或过期的链接仍可被有权限的主体管理，已禁用的数据行和跨账户资源不能访问。
 
-短链接可以加入资源组；移除成员后下一次授权即时变化。委派保留原项目所有者，目标地址校验仍会阻止内网地址或含凭据的 URL。legacy/shadow 保留个人项目所有权，enforce 使用资源策略。产品实例管理和公开跳转各自使用原有身份与权限入口。更多规则见 [RAM 管理](./ram-management)。
+短链接可以加入资源组；移除成员后下一次授权即时变化。委派保留原项目所有者，目标地址校验仍会阻止内网地址或含凭据的 URL。legacy/shadow 保留个人项目所有权，enforce 使用资源策略。产品实例管理和公开跳转各自使用原有身份与权限入口。更多规则见 [RAM 管理]({{DOCS_BASE_URL}}/zh-CN/ram-management)。
