@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'getting-started',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Intro',
     'zh-CN': '入门',

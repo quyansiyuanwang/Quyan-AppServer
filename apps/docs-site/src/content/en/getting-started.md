@@ -15,9 +15,17 @@ If you forgot your password, see [Reset your password]({{DOCS_BASE_URL}}/en/forg
 
 ## Choose a console
 
-Products and management functions use separate sites. The site switcher groups user sites, product consoles, user consoles, and operations, and shows only entries you are permitted to access. The public home page also offers a site overview.
+Products and management functions use separate sites. The site switcher groups user sites, product consoles, user consoles, and operations. The public home page also offers a site overview.
 
-After you sign in, each site's overview shows relevant statistics and common actions according to the site and your permissions. Cross-site actions open the appropriate site. Known legacy links and pages opened on the wrong site redirect to the correct location while retaining filters and anchors.
+1. After signing in, select the menu button at the top left of the application to open the site switcher.
+2. Choose a destination from a group or your recently visited sites. Sites open in a new tab by default; the actual behavior follows your saved preference.
+3. Choose the feature you need from the destination site's navigation.
+
+Entries adjust after permissions load, while the current site and public site remain available in the switcher. More entries may appear temporarily before permissions finish loading. A visible entry does not guarantee access to its pages or actions. If a feature is missing, check which account you signed in with, then ask an administrator to check your permissions.
+
+After you sign in, each site's overview shows relevant statistics and common actions according to the site and your permissions. If it reports that some data failed to load, use the overview's refresh button to retry. Missing statistics do not mean zero.
+
+Cross-site entries open the appropriate site. Recognized legacy links and pages opened on the wrong site redirect to the correct location, usually retaining filters and anchors. Some sensitive parameters are removed, so you may need to sign in or start the action again.
 
 ## Common tasks
 
@@ -35,4 +43,4 @@ After you sign in, each site's overview shows relevant statistics and common act
 
 Search covers titles, tags, and article text. Try a feature name or terms such as “password”, “balance”, or “permission”. Search matches the complete text entered; if there are no results, try a shorter phrase or a different term. Select a result or press Enter in the search box to open the first match. Results remain above the article until you select **Clear** in the results area. A narrow embedded window may hide navigation and search; use a wider window or the standalone documentation site to browse. Available features, quotas, and management actions may depend on your permissions and the current service configuration.
 
-In the application, hover over your avatar to view account information and balance. On desktop, the shortcut bar on the right provides common actions according to your permissions. You can also continue to the [application]({{APP_BASE_URL}}) or [API reference]({{SWAGGER_DOCS_URL}}).
+After signing in, hover over the avatar at the top of a non-embedded application page to view account information and balance. On desktop, sites other than the public site also provide a shortcut bar on the right; its entries adjust after permissions load. You can also continue to the [application]({{APP_BASE_URL}}) or [API reference]({{SWAGGER_DOCS_URL}}).
