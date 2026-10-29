@@ -183,21 +183,21 @@ export async function callAppServer({
 
   const requestHeaders = {
     Accept: 'application/json',
-    ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...headers,
   }
 
-  const response = await withTimeout(
-    (signal) =>
-      fetch(url, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-        signal,
-      }),
-    timeoutMs,
-  ).catch((error) => {
+  const { response, payload } = await withTimeout(async (signal) => {
+    const response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
+    })
+    const payload = await parseJsonSafe(response)
+    return { response, payload }
+  }, timeoutMs).catch((error) => {
     if (error?.name === 'AbortError') {
       throw new AppServerApiError(`Request timeout after ${timeoutMs}ms`, {
         status: 408,
@@ -207,7 +207,6 @@ export async function callAppServer({
     throw error
   })
 
-  const payload = await parseJsonSafe(response)
   const requestId = response.headers.get('x-request-id') || undefined
 
   if (!response.ok) {
@@ -222,8 +221,8 @@ export async function callAppServer({
     )
   }
 
-  if (!payload || typeof payload !== 'object') {
-    throw new AppServerApiError('Response payload is empty', {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new AppServerApiError('Response payload is not a JSON object', {
       status: response.status,
       payload,
       requestId,
