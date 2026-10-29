@@ -47,6 +47,7 @@ Use this page to inspect API logs, log statistics, and server log files.
 
 ## Notes
 
+- If statistics or server-file content fails to load, the page may retain the last successful result. Check the error, retry, and verify the filters, filename, and displayed search term before using the result.
 - List, detail, and statistics access may be authorized separately; an absent record does not prove a request did not occur. Request and response content may be redacted, truncated, or not captured, and can still contain sensitive operational data. Share it carefully.
 - Response-header logging helps debug CORS, cache, and rate-limit header issues.
 - Log expansion is useful for trace analysis; file search works better for recurring patterns.
