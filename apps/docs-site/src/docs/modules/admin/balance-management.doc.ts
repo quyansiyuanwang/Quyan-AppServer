@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'balance-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '余额管理',
   },
   summary: {
-    en: 'Search user balances, adjust values, and inspect transaction history.',
-    'zh-CN': '说明用户余额查询、调整和交易历史检查。',
+    en: 'Find users, apply balance adjustments, and verify recent transactions and access scope.',
+    'zh-CN': '查询用户余额、提交增减调整，核对近期交易及权限范围。',
   },
   tags: ['balance', 'finance', 'admin'],
   content: {
