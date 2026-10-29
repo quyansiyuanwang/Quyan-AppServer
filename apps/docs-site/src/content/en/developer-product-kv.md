@@ -6,6 +6,8 @@ KV storage is intended for frontend configuration, feature flags, and short-live
 
 Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. A serialized JSON value is limited to 64 KiB, and each instance to 1,000 entries. TTL ranges from 1 second to 30 days. Expired values behave as absent.
 
+Expired records can still count toward the 1,000-entry limit until cleaned up, so creating a new key can fail at capacity. With read access, reload the KV list in the product instance console or call the product API `GET /v1/products/kv/entries` to clear expired records for that instance, then retry. Product API calls count toward usage. If the instance is still at capacity, delete entries you no longer need. The IAM-enforced JWT project list described below does not perform this cleanup.
+
 ## Manage entries in the console
 
 Open a KV product instance and select New. Enter a key, a valid JSON value, and an optional TTL in seconds, then save. Writing an existing key overwrites its value and resets its expiry, so check the key before saving. The list shows keys, versions, and expiry times. Selecting Edit first reads the current value; the key cannot be changed in the edit dialog. Deletion requires confirmation. Viewing and saving require read and write permissions respectively.

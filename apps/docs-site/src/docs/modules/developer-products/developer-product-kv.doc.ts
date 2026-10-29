@@ -7,6 +7,6 @@ export default defineDocsPage({
   title: { en: 'KV Storage API', 'zh-CN': 'KV 存储 API' },
   summary: { en: 'Store JSON values with optional TTL.', 'zh-CN': '保存带可选 TTL 的 JSON 值。' },
   tags: ['kv'],
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
