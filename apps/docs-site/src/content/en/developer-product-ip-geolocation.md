@@ -23,6 +23,8 @@ The response supplies country, region, city, ASN, carrier, and data source where
 
 In the IP Geolocation product console’s test card, enter a product API key with lookup permission and a public IP, then select Lookup IP to view the result. The test card displays the response data; in a direct API response it is in the `data` field. Enter the key only on a trusted device. Test requests use real permissions and quota.
 
+After changing inputs, the card may still show the previous lookup result. It also retains that result if the current input fails client-side validation. Correct the error and run the lookup again before relying on the new result.
+
 ## Validation, quota, and privacy
 
 Private, loopback, reserved, and malformed addresses are rejected inside the platform without calling a third-party provider. The product API meters the request first and enters a quota refund process on failure. Refunds may require retries; contact an administrator if usage or charges are not restored. Operations can set daily free quota, instance limits, and overage billing per account; call audits support reconciliation. Query only addresses required by your business and follow applicable data-protection rules.

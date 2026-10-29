@@ -24,6 +24,8 @@ Codes are valid for 10 minutes and allow up to five incorrect attempts. When a n
 2. Select Send verification. After receiving the message, enter the six-digit code in the same card and select Verify code.
 3. Check `valid` in the test card result; in a direct API response, the field is `data.valid`. A request-success message means the API request completed; it does not by itself mean the code was valid.
 
+After changing inputs, the card may still show the previous result. It also retains that result if the current input fails client-side validation. Correct the error and submit again, then use the new `valid` value to judge this verification.
+
 Test sends are subject to the same rate limits and billing rules. Use a recipient you control and protect the API key.
 
 ## Channels, rate limits, and billing
