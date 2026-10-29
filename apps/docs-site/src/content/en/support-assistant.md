@@ -2,24 +2,30 @@
 
 The AI Support Agent is available from the right-hand tool bar after sign-in. It combines visible controls on the current page with published product documentation to help with navigation, configuration, and API integration. Account-specific work can still be escalated to a human ticket.
 
-## How the Agent works
+## Ask a question and read the answer
 
-Each question can use up to the administrator-configured number of planning rounds. In a round, the assistant may:
+1. Open the business page where you need help and check it for information you do not want to send to the model.
+2. Open AI Support from the right-hand toolbar. Describe what you want to do, the problem, and any error message.
+3. Select the confirmation button beside the input, or press Enter to send. Shift+Enter inserts a new line.
+4. Wait for the answer and follow its instructions. When documentation references appear, select them to check the original articles.
 
-- search documentation titles and paths;
-- inspect the section outline of matched documents;
-- read only a few relevant sections from that outline;
-- generate the final answer from the excerpts and current-page evidence.
-
-The full documentation corpus is never sent to the model, and the assistant cannot read an excerpt that was not authorized by both a preceding search result and a document outline. The window shows Planning, Searching, Reading, and Generating states, and lists the documentation actually cited in an answer.
-
-## Conversation and human handoff
-
-- Conversations are retained on the server for 1 to 7 days according to its configuration; saving messages resets the retention period. Closing the window does not delete the server record, which can be loaded when you reopen it. Select **Clear** to delete it. Administrators with the appropriate permission can also view conversations.
-- When you send a question, the page also sends the current page title, address path, and up to 16,000 characters of visible text as context for the model. This can include business information displayed on the page, as well as buttons and fields. Check the page for information you do not want to share before sending. Page text is not treated as an execution instruction.
-- For human work, describe your issue in the conversation, then choose **Escalate to human support** and confirm a title. The user and assistant messages currently in the window are submitted as the ticket description, together with the source page; an overly long description is truncated. Ticket reviewers can read this content, so avoid including unnecessary sensitive information in the conversation.
+While you wait, the window may show Planning, Searching, Reading, and Generating states. A question may require multiple rounds of documentation lookup, up to the limit set by the administrator.
 
 The assistant can provide guidance, but cannot change accounts, permissions, billing, or infrastructure for you.
+
+## Conversation history and page information
+
+- Conversations are retained on the server for 1 to 7 days according to its configuration; saving messages resets the retention period. Closing the window does not delete the server record, which can be loaded when you reopen it. Select **Clear** to delete it. Administrators with the appropriate permission can also view conversations.
+- The same user shares one support conversation across business pages. Changing pages does not start a new conversation. Save anything you need before clearing; cleared messages cannot be restored from the support window.
+- When you send a question, the page also sends the current page title, address path, and up to 16,000 characters of visible text as context for the model. This can include business information displayed on the page, as well as buttons and fields. Check the page for information you do not want to share before sending. Page text is not treated as an execution instruction.
+
+## Escalate to human support
+
+1. Send a message describing the issue that needs human help. An empty conversation cannot create a valid ticket.
+2. Select **Escalate to human support** and enter or confirm the ticket title.
+3. After submitting, open [My tickets]({{DOCS_BASE_URL}}/en/my-tickets), find the ticket by its title, and check for replies. The support window does not automatically open the ticket details.
+
+The user and assistant messages currently in the window are submitted as the ticket description, together with the source page; an overly long description is truncated. Ticket reviewers can read this content, so avoid including unnecessary sensitive information. If the submission result is uncertain, check **My tickets** before submitting again to avoid duplicates. If you cannot view your tickets, ask an administrator to check your permissions.
 
 ## Use your own Relay quota
 
@@ -41,7 +47,9 @@ Operators with AI Support configuration permission can configure:
 - retention, and estimated pricing for the platform-hosted mode;
 - whether users may use their own balance and Relay Tokens.
 
-Upstream API keys can only be written, replaced, or cleared; read APIs never return the plain value. Raising the round or output limit can increase the model calls and cost of a question.
+Select **Save** after changing settings. Upstream API keys are never displayed in plaintext: leave the key field empty with the clear checkbox unchecked to keep the existing key, enter a new key to replace it, or select **Clear configured key** to delete it when saving. Avoid entering a new key and selecting clear at the same time; clearing takes precedence. After a successful save, the key input is emptied. Check the **A key is configured; leave blank to retain it** placeholder to confirm its status.
+
+Raising the round or output limit can increase the model calls and cost of a question.
 
 With IAM enforcement enabled, configuration reads and updates require `quyan:support:GetConfig` and `quyan:support:UpdateConfig` respectively on `acs:platform:*:platform:config/support-ai`. Operators must also belong to an active global management group that retains AI Support configuration permission; account-created groups and wildcard policies cannot obtain platform management eligibility. Read permission does not grant updates, and explicit Deny takes precedence. All settings save together: revoked grants, concurrent configuration edits or invalid role sessions reject the entire update rather than leaving partially changed settings. Keys remain encrypted, and audit events record only the names of changed settings.
 

@@ -3,7 +3,7 @@ import contentZh from '@/content/zh-CN/support-assistant.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   slug: 'support-assistant',
   category: {
     en: 'Tools',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': 'AI 客服 Agent',
   },
   summary: {
-    en: 'Use the documentation-aware support agent, human handoff, and optional user-funded Relay mode.',
-    'zh-CN': '说明文档 Agent、转人工以及可选的用户自费中转模式。',
+    en: 'Ask for help, manage support history, create a human-support ticket, and configure Relay funding.',
+    'zh-CN': '提问与查看回答、管理客服会话、转人工工单及配置自费中转。',
   },
   tags: ['support', 'agent', 'relay', 'ticket'],
   content: {
