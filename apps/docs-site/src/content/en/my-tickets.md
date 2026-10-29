@@ -47,8 +47,8 @@ Sign in to use the ticket page. Submitting, viewing your own tickets, editing, a
 ## Notes
 
 - If opening details fails, the drawer may still show the previous ticket. Close it and reopen the intended ticket; confirm that loading succeeded and the title is correct before editing or replying.
+- Switching tickets or closing the detail drawer does not clear an unsent reply. Check the current ticket and reply before submitting; select **Reset** in the reply area to clear a draft you no longer need.
 - After creating a ticket or posting a reply, the page reloads the list and details. Old content may remain if loading fails. Use the refresh action in the list or detail view, then check the saved result before deciding whether to submit again.
-
 - The title and contact information can each contain up to 200 characters, and the source page up to 500. The description, reproduction steps, and each reply can each contain up to 5000 characters.
 - While editing, **Reset** restores the form to its default values but does not exit editing for the current ticket. Choose **Cancel edit** to discard changes, or select edit again to reload the saved content.
 - When saving an edit, leaving contact information, source page, or reproduction steps blank clears the corresponding saved field.
