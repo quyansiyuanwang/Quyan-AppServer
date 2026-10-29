@@ -7,16 +7,21 @@ Choose a published plan in the **Monthly Pass Purchase Center** tab on My Monthl
 - The template must be enabled, published and available for balance redemption.
 - Review its price, validity, total quota, quota windows and permitted channels and models. A pass does not guarantee coverage for every request; uncovered costs can still be charged to balance. See [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes).
 - Your balance must cover the purchase, and you must remain within the template's per-user purchase limit.
-- Price conversion and purchase limits follow current server rules. Template changes may require you to confirm again.
+- The balance debit is the discounted price multiplied by the server's current conversion ratio, rounded to four decimal places. The discounted price on the card can differ from the actual debit. Original price, discount, pass quota, and balance debit describe different values.
+- Confirmation submits only the template ID and does not lock the card or dialog quote. The server calculates the debit under the rules in effect when it processes the request. Template or conversion-ratio changes can make the actual amount differ from the preview. Review the plan before buying, check the actual debit after success, and ask an administrator about discrepancies.
 
 ## Purchase steps
 
-1. Open My Monthly Passes, select **Monthly Pass Purchase Center**, and choose a plan.
-2. Review the debit information in the confirmation dialog and confirm.
+1. Open My Monthly Passes, select **Monthly Pass Purchase Center**, review a plan, and select **Redeem with Balance**.
+2. Review the debit information and select **Confirm Redemption**.
 3. Check the actual debit amount after success.
 4. Reload the page, review the new pass under **View My Monthly Passes**, and check its ledger entry under balance history.
 
-The debit, ledger entry and new pass succeed together. Failed authorization, changed quotes or purchase-limit refusal leave no debit or new pass from that attempt. Free plans remain subject to purchase limits.
+The pass starts immediately on purchase, with validity measured from the purchase time. The purchase page cannot schedule later activation. Buying again creates another pass rather than automatically extending an existing one.
+
+The debit, ledger entry, and new pass succeed together. Free plans neither debit balance nor create a purchase-debit entry. Failed authorization or purchase-limit checks leave no debit or new pass from that attempt. With IAM enforcement, template or conversion-ratio changes during purchase processing can also cause refusal; this does not lock a quote displayed earlier in the page.
+
+Purchase limits count a user's assignments for the same template over the configured number of preceding days, including disabled passes and assignments obtained without balance purchases. Free plans count too. This is a rolling window, without a shared midnight reset; retry when relevant older assignments have left the window.
 
 ## IAM permissions
 
