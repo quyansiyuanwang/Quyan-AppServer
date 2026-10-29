@@ -38,7 +38,7 @@ Use this page to browse published remote terminal product plans, purchase or cla
 1. Browse plans and adjust the purchase form to match your needs.
 2. Claim a free plan or purchase a paid plan — confirm the estimated price before proceeding.
 3. If you need a long-term registration token, copy it when the list provides the secret or rotate it; rotation invalidates the old token.
-4. Open the install agent dialog to generate the correct command for your OS and architecture.
+4. Open the install agent dialog, select the OS, architecture, and version, then copy the generated command. It uses a newly issued install token by default; you can also choose a long-term registration token when one is available in the list. If token issuance or version loading fails, resolve the error or retry and confirm the command contains a valid token and version before running it. The command contains credentials; do not share it publicly.
 5. Revoke a device you no longer need, respecting the cooldown and allowance limits.
 
 ## Notes
