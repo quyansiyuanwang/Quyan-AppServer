@@ -9,7 +9,7 @@ The article reader lets you browse published site content. When signed out, it s
 3. Select a title to read its content, author, date, and view count. Categories appear as tags.
 4. Use the table of contents to jump to a section.
 
-If the list is empty, check your search, sign-in state, and article access permissions. If an article fails to load, retry or ask an administrator whether it remains available. Selecting an article in the list does not generate a direct link to that article.
+Search filters the list only; it does not automatically change or hide the current article. If the list is empty, check your search, sign-in state, and article access permissions. If switching articles fails, the previous article remains visible. Check the error and article title, then select the target again or ask an administrator whether it remains available. Selecting an article in the list does not generate a direct link to that article.
 
 ## Related pages
 
