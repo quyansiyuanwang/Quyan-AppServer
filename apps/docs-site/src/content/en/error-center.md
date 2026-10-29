@@ -10,15 +10,15 @@ The error center aggregates browser runtime errors, Vue component errors, unhand
 
 ## What You Can See
 
-- Source, last-seen time, route, message, occurrence count, and affected users.
+- Source, last-seen time, route, message, and occurrence count.
 - Error status: `open`, `acknowledged`, `resolved`, or `ignored`.
-- Stack traces, request IDs, browser version, and bounded context for each fingerprint.
+- The fingerprint and message in group details, plus available stacks and context for each occurrence.
 
 ## Investigation Flow
 
 1. Filter by source, status, or a search term. Changing source or status queries immediately; press Enter after typing a search term.
-2. Open a group and inspect recent occurrences and request IDs.
-3. If a request ID is available, use it to find related records in [System logs]({{DOCS_BASE_URL}}/en/system-logs).
+2. Open a group and expand recent occurrences to inspect available stacks and context.
+3. If you obtain a request ID from context or another source, use it to find related records in [System logs]({{DOCS_BASE_URL}}/en/system-logs). The error center does not display the request ID as a separate field.
 4. After handling the issue, update its status if you have update permission.
 
 If opening details fails, the drawer may still show the summary from the list. Close and reopen it, and confirm details loaded successfully before updating the status. The detail view shows at most the 50 most recent occurrences in the group; it does not provide a way to page through older occurrences. Expand an occurrence to inspect its available stack and context. If occurrences fail to load, close the detail view and reopen the group. If the problem persists, check occurrence-read access or contact an administrator. The top **Refresh** reloads the current page with the current filters. **Clear filters** clears the search, status, and source and returns to the first page. If the list fails to load, use the retry action shown on the page.

@@ -11,6 +11,6 @@ export default defineDocsPage({
     'zh-CN': '查看聚合错误，并通过 IAM 控制错误组列表、详情、发生记录及状态更新。',
   },
   tags: ['errors', 'diagnostics', 'retention', 'iam', 'authorization'],
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
