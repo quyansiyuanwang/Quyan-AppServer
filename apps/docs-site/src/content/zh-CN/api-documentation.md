@@ -54,9 +54,12 @@ curl "https://relay.example.com/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-enabled-model",
-    "messages": [{"role": "user", "content": "你好"}]
+    "messages": [{"role": "user", "content": "你好"}],
+    "max_tokens": 256
   }'
 ```
+
+示例使用 `max_tokens` 限制输出；如模型要求 `max_completion_tokens`，请使用该字段。令牌将 Chat Completions 转换为 Anthropic 时必须提供其中一个正数。
 
 中转令牌只用于中转请求，不用于登录管理后台。令牌所属渠道、启用模型、请求格式、额度、IP 白名单和状态都会影响实际能否调用；遇到 `401`、`403` 或模型不可用时，先在中转令牌管理页面检查这些配置。
 

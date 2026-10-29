@@ -54,9 +54,12 @@ curl "https://relay.example.com/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-enabled-model",
-    "messages": [{"role": "user", "content": "Hello"}]
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 256
   }'
 ```
+
+The example limits output with `max_tokens`; use `max_completion_tokens` instead if your model requires it. When the token converts Chat Completions to Anthropic, one of these fields must contain a positive number.
 
 A Relay Token is only for relay requests, not for signing in to the admin site. Its channels, enabled models, request formats, quotas, IP allowlist, and status determine whether a request can run. For `401`, `403`, or unavailable-model errors, inspect those settings in Relay token management first.
 

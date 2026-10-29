@@ -21,8 +21,10 @@
 curl "https://relay.example.com/v1/chat/completions" \
   -H "Authorization: Bearer <relay_token>" \
   -H "Content-Type: application/json" \
-  -d '{"model":"your-enabled-model","messages":[{"role":"user","content":"你好"}]}'
+  -d '{"model":"your-enabled-model","messages":[{"role":"user","content":"你好"}],"max_tokens":256}'
 ```
+
+示例使用 `max_tokens` 限制输出；如模型要求 `max_completion_tokens`，请使用该字段。令牌将 Chat Completions 转换为 Anthropic 时必须提供其中一个正数。
 
 OpenAI Responses 格式使用 `/v1/responses` 和 `input` 字段。渠道、模型、请求格式、令牌状态、额度窗口和 IP 白名单都会影响调用结果。
 

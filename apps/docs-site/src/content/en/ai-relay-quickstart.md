@@ -21,8 +21,10 @@ Replace the example domain with the Relay Base URL displayed by your console:
 curl "https://relay.example.com/v1/chat/completions" \
   -H "Authorization: Bearer <relay_token>" \
   -H "Content-Type: application/json" \
-  -d '{"model":"your-enabled-model","messages":[{"role":"user","content":"Hello"}]}'
+  -d '{"model":"your-enabled-model","messages":[{"role":"user","content":"Hello"}],"max_tokens":256}'
 ```
+
+The example limits output with `max_tokens`; use `max_completion_tokens` instead if your model requires it. When the token converts Chat Completions to Anthropic, one of these fields must contain a positive number.
 
 OpenAI Responses uses `/v1/responses` and an `input` field. Channels, models, request formats, token status, quota windows, and IP allowlists can affect whether a request succeeds.
 
