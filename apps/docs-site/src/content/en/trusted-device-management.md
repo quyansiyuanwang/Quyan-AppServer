@@ -4,9 +4,9 @@ A trusted device is a browser/device the system remembers for a limited time win
 
 ## Page purpose
 
-- View the list of devices currently within the trust window.
+- View device records currently within the trust window.
 - Remove a single device you no longer trust.
-- Remove device records individually, checking all pages if you suspect account compromise.
+- Remove device records individually, checking each page if you suspect account compromise.
 
 ## What you will see
 
@@ -26,7 +26,7 @@ A card per trusted device, showing:
 - **Refresh** — returns to the first page and reloads the trusted-device list. Navigate to another page again if needed.
 - **Delete a device** — removes it after a confirmation prompt. If you delete the device you are currently using, the locally stored trust cookie is cleared as well.
 
-If the list fails to load, the page may still show devices from the last successful load. Do not rely on that list for their current trust status. The page reloads automatically after a deletion; if the deletion succeeds but the list does not update, select **Refresh** and check whether the device is still listed.
+The list reads at most 200 device records at a time, and pagination covers only those results. If there are more devices, checking every page may not show all of them; refresh and continue checking after deleting devices. The list can also be empty when device storage is unavailable, so an empty list does not prove there are no trusted devices. If you suspect account compromise, contact an administrator for help. If the list fails to load, the page may still show devices from the last successful load. Do not rely on that list for their current trust status. The page reloads automatically after a deletion; if the deletion succeeds but the list does not update, select **Refresh** and check whether the device is still listed.
 
 ## Common actions
 
