@@ -5,7 +5,7 @@ Passkeys let you sign in without typing a password, using your device's biometri
 ## Page purpose
 
 - Register a new passkey for this device or browser on the authentication site.
-- View all passkeys registered to your account.
+- View account passkeys that your current identity is authorized to access.
 - Remove passkeys you no longer use or do not recognize.
 
 ## What you will see
@@ -36,7 +36,7 @@ A table (or card list on mobile) of registered passkeys, each showing:
 - Viewing, registering, and deleting passkeys requires sign-in and is subject to account permission policies. Registration and deletion also require `passkey:manage`. If an action is denied, contact your account administrator to check your authorization.
 - If your account has 2FA enabled, signing in with a passkey may still require a second verification depending on the account’s passkey verification policy and whether the current device is within the [trusted-device]({{DOCS_BASE_URL}}/en/trusted-device-management) window. When 2FA is enabled, some high-risk actions still require fresh verification.
 - Deleting the last passkey does not disable 2FA if TOTP or recovery codes are still configured — passkeys are one authentication method among several, not a replacement for 2FA.
-- If registration is cancelled or fails, check the list. If no new record appears, try registering again.
+- If registration is cancelled or fails, refresh the list and check the result. With IAM enforcement, the list includes only authorized credentials; a missing record may also indicate insufficient read permission. Check authorization before deciding whether to register again.
 
 ## Related pages
 
