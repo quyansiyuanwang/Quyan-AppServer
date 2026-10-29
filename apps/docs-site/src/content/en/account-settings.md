@@ -30,7 +30,7 @@ Adjust appearance and clear locally cached data.
 2. Select the items or groups you want to clear, then choose **Clear selected**. At least one item must be selected.
 3. Clearing sign-in data such as authentication tokens prompts a sign-out and reloads the page. Clearing certain other items, including theme, language, or cached user information, also reloads the page. Save unsubmitted work first.
 
-This clears only the selected local data in the current browser; it does not delete account data on the server. Browser data not listed in the dialog is outside its scope.
+This clears only the selected local data in the current browser; it does not delete account data on the server. Browser data not listed in the dialog is outside its scope. Items are cleared individually. If an error occurs, items already cleared are not restored automatically. Reopen the dialog to check what remains before retrying; if sign-in data was cleared, you may need to sign in again.
 
 ### Account Security
 
