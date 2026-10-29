@@ -23,7 +23,7 @@ Pricing uses exact model lookup. Filling in Provider does not add or strip a pre
 
 ## Understand prices and multipliers
 
-**Input/output prices are calculated in qu per million tokens. The page currently labels them qu/token, which differs from the server calculation. Enter prices per million tokens.**
+**Input/output prices are calculated in qu per million tokens. Enter prices per million tokens.**
 
 | Parameter                 | Effect                                         | New-form default |
 | ------------------------- | ---------------------------------------------- | ---------------- |
