@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'access-key-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Account',
     'zh-CN': '账号',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '访问密钥管理',
   },
   summary: {
-    en: 'Create, copy, review, and remove account access keys.',
-    'zh-CN': '说明账号访问密钥的创建、复制、查看和删除。',
+    en: 'Create and save account access keys, review authorized keys, and replace or revoke credentials.',
+    'zh-CN': '创建并保存账号访问密钥，查看已授权密钥，并更换或撤销凭据。',
   },
   tags: ['access-key', 'security', 'key', 'iam'],
   content: {
