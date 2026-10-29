@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'user-online-monitor',
+  updatedAt: '2026-10-30',
   category: {
     en: 'System',
     'zh-CN': '系统',
@@ -13,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '用户在线监控',
   },
   summary: {
-    en: 'View online sessions, inspect user detail timelines, force sessions offline, and export history.',
-    'zh-CN': '说明在线会话查看、用户详情时间线、强制下线和历史导出。',
+    en: 'Find sessions, interpret online metrics, inspect user timelines, export records, and scope force-offline actions.',
+    'zh-CN': '查找会话、理解在线统计、查看用户时间线、导出记录并确认强制下线范围。',
   },
   tags: ['session', 'online', 'monitor', 'force-offline', 'export'],
   content: {
