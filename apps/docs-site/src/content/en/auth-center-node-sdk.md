@@ -4,9 +4,9 @@ Best for Node.js backends that want to trust this platform as an auth center.
 
 Related pages:
 
-- **Current:** `Auth Center Node SDK`
-- **Switch stack:** [`Auth Center Python SDK`](/en/auth-center-python-sdk)
-- **Browser flow:** [`Browser / SPA Example`](/en/auth-center-browser-spa-example)
+- **Current:** Auth Center Node SDK
+- **Switch stack:** [Auth Center Python SDK](/en/auth-center-python-sdk)
+- **Browser flow:** [Browser SPA example](/en/auth-center-browser-spa-example)
 
 ## When to use this page
 

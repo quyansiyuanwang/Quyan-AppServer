@@ -218,7 +218,7 @@
 
 ## 相关页面
 
-- [`auth-center-app-management`](/zh-CN/auth-center-app-management)
+- [认证中心应用接入](/zh-CN/auth-center-app-management)
 - [认证中心应用审核](/zh-CN/auth-center-client-review-management)
-- [`oauth-app-management`](/zh-CN/oauth-app-management)
+- [OAuth 应用管理](/zh-CN/oauth-app-management)
 - [API 文档](/zh-CN/api-documentation)

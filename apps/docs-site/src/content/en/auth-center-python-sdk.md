@@ -4,9 +4,9 @@ Best for Python backends, automation jobs, and internal services that treat this
 
 Related pages:
 
-- **Switch stack:** [`Auth Center Node SDK`](/en/auth-center-node-sdk)
-- **Current:** `Auth Center Python SDK`
-- **Browser flow:** [`Browser / SPA Example`](/en/auth-center-browser-spa-example)
+- **Switch stack:** [Auth Center Node SDK](/en/auth-center-node-sdk)
+- **Current:** Auth Center Python SDK
+- **Browser flow:** [Browser SPA example](/en/auth-center-browser-spa-example)
 
 ## Recommended dependencies
 

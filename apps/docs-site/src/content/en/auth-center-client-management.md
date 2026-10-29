@@ -218,7 +218,7 @@ Creating an application requires `quyan:auth_center:CreateClient` on the authent
 
 ## Related pages
 
-- [`auth-center-app-management`](/en/auth-center-app-management)
+- [Auth Center integration](/en/auth-center-app-management)
 - [Auth Center application review](/en/auth-center-client-review-management)
-- [`oauth-app-management`](/en/oauth-app-management)
+- [OAuth application management](/en/oauth-app-management)
 - [API documentation](/en/api-documentation)

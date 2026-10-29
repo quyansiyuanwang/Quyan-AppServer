@@ -4,9 +4,9 @@
 
 相关页面：
 
-- **切换语言栈：** [`认证中心 Node SDK`](/zh-CN/auth-center-node-sdk)
-- **当前页：** `认证中心 Python SDK`
-- **前端场景：** [`Browser / SPA 示例`](/zh-CN/auth-center-browser-spa-example)
+- **切换语言栈：** [认证中心 Node SDK](/zh-CN/auth-center-node-sdk)
+- **当前页：** 认证中心 Python SDK
+- **前端场景：** [浏览器单页应用示例](/zh-CN/auth-center-browser-spa-example)
 
 ## 推荐依赖
 
