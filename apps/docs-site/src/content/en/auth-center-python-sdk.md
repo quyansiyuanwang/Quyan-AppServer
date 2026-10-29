@@ -188,6 +188,8 @@ Important:
 
 ## 6. Combined example
 
+Put the imports and functions from sections 1–5 and the combined example in one Python file, and install the dependencies above. The examples require Python 3.10 or later. Set the environment variables for your deployment and keep the `.env` file containing your client secret out of version control. The authorization code and PKCE verifier are placeholders: replace them with the code returned by a real authorization and the verifier saved for that same flow. Validate `state` in the callback before exchanging the code; this example does not implement the complete callback.
+
 ```python
 import os
 

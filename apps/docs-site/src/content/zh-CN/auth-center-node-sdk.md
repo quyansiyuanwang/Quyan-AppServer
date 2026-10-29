@@ -214,6 +214,8 @@ export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }
 
 ## 6. 组合示例
 
+将第 1–5 节的函数合并保存为 `auth-center-client.js`，与组合示例放在同一目录，并安装上述依赖。填写本部署的环境变量；不要提交包含客户端密钥的 `.env`。示例中的授权码和 PKCE verifier 是占位符，必须替换为同一次真实授权返回的授权码和发起时保存的 verifier。交换前还需在回调中校验 `state`；此处未实现完整的授权回调。
+
 ```js
 import 'dotenv/config'
 import {

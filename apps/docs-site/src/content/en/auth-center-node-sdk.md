@@ -218,6 +218,8 @@ Important:
 
 ## 6. Combined example
 
+Combine the functions from sections 1–5 into `auth-center-client.js` alongside the combined example, and install the dependencies above. Set the environment variables for your deployment and keep the `.env` file containing your client secret out of version control. The authorization code and PKCE verifier are placeholders: replace them with the code returned by a real authorization and the verifier saved for that same flow. Validate `state` in the callback before exchanging the code; this example does not implement the complete callback.
+
 ```js
 import 'dotenv/config'
 import {
