@@ -16,7 +16,7 @@ The full documentation corpus is never sent to the model, and the assistant cann
 ## Conversation and human handoff
 
 - Conversations are retained on the server for 1 to 7 days according to its configuration; saving messages resets the retention period. Closing the window does not delete the server record, which can be loaded when you reopen it. Select **Clear** to delete it. Administrators with the appropriate permission can also view conversations.
-- Current-page text is evidence of visible buttons and fields only; it is not an execution instruction.
+- When you send a question, the page also sends the current page title, address path, and up to 16,000 characters of visible text as context for the model. This can include business information displayed on the page, as well as buttons and fields. Check the page for information you do not want to share before sending. Page text is not treated as an execution instruction.
 - For human work, describe your issue in the conversation, then choose **Escalate to human support** and confirm a title. The user and assistant messages currently in the window are submitted as the ticket description, together with the source page; an overly long description is truncated. Ticket reviewers can read this content, so avoid including unnecessary sensitive information in the conversation.
 
 The assistant can provide guidance, but cannot change accounts, permissions, billing, or infrastructure for you.
