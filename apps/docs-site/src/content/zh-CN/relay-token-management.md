@@ -157,9 +157,7 @@ Content-Type: application/json
 
 各层显示的是同一调用在不同令牌上的归因，**不能把组合和成员的用量相加作为总费用**。财务总额以消费流水为准。历史普通令牌记录仍可正常查询，无需回填。
 
-### 与 Quyan CLI 本地 Router 配合
-
-组合令牌可以直接作为一个 Router Profile：先创建组合令牌，再运行 `quyan router profile add --token-id <组合令牌ID> --yes`，刷新模型目录即可。修改服务端组合成员和优先级无需重启已接入本地 Router 的 Agent；模型目录变更后使用 `quyan router models --refresh` 更新本地缓存。
+### 复制与导入
 
 复制组合令牌保留同一用户的合法成员引用；导入只接受目标用户已经存在且能验证的成员 ID，不按名称猜测或自动创建缺失成员。
 

@@ -157,9 +157,7 @@ The entry composition, executed intermediate compositions and leaf token each re
 
 Each level shows attribution of the same call, so **do not add composition and member usage together as total spending**. Financial totals come from consumption transactions. Historical ordinary-token records remain queryable without backfilling.
 
-### Using the Quyan CLI local Router
-
-A composite token works directly as a Router Profile: create it, then run `quyan router profile add --token-id <composite-token-id> --yes` and refresh the catalog. Changing server-side members or their order does not require restarting an Agent already connected to the local Router. Refresh local catalog caches with `quyan router models --refresh` after changing models.
+### Copy and import
 
 Copying preserves valid same-owner references. Import accepts only existing, verifiable member IDs belonging to the target owner; it never guesses by name or creates missing members.
 
