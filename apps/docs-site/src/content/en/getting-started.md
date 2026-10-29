@@ -7,7 +7,9 @@ Find guidance for account, product, and administration tasks. Browse the navigat
 1. If you do not have an account, start with [Sign in and register]({{DOCS_BASE_URL}}/en/login-register).
 2. After signing in, choose a console from the site switcher in the application. Available entries depend on your permissions.
 3. Choose a topic from the documentation navigation or search for an action. Switching languages keeps you on the current article.
-4. To share guidance, use the copy page link action.
+4. To share guidance, use the copy page link action. It links to the article in the current language without search criteria, section anchors, or embedded state.
+
+The copy button requires browser clipboard access. If copying fails or the button is hidden in a narrow embedded window, open the standalone documentation site and copy the browser address. To share a section, select its table-of-contents link first, then copy the address from the browser.
 
 If you forgot your password, see [Reset your password]({{DOCS_BASE_URL}}/en/forgot-password).
 
