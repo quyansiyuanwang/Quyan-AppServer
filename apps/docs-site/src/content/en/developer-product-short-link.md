@@ -6,6 +6,8 @@ Short Link maps a controlled destination URL to a compact code. It is suited to 
 
 Provide a complete HTTP(S) target URL. You may use a platform-generated code or a custom 3-80 character lowercase letter, digit, and hyphen alias. An optional expiry makes the link stop working at that time. After creation, select Copy in the list to obtain the full public URL, and wait for the copy-success message before sharing. If copying fails, check browser clipboard permission or retry in a secure environment that supports clipboard access. You can pause or resume a link and edit its destination or expiry, but you cannot change its code in the edit dialog. Clearing the expiry and saving removes the expiry limit, so the link will no longer expire at its previous time. Deletion requires confirmation and makes the link unusable.
 
+The page reloads the list after creating, editing, enabling, disabling, or deleting a link. If loading fails, the list may still be stale even if an operation-success message appears. Select **Retry** in the error message and check the result before taking further action. If a request times out or the connection is interrupted, its outcome may be unknown; reload the list and verify it before retrying, and contact an administrator if you cannot confirm it.
+
 The public address is `GET /s/{code}`. It returns a native `302` redirect without an API key or JSON response wrapper. Paused, expired, and missing codes do not redirect. Public redirects count toward the product instance’s usage. Available quota, overage prices, and balance requirements depend on the current product configuration; a disabled instance or product, insufficient quota, and other restrictions can also prevent redirects.
 
 ## Analytics and privacy
