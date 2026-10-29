@@ -49,6 +49,12 @@ If you reach a limit, wait as directed on the page before trying again.
 3. Enter the requested code.
 4. Submit and wait for the protected action to continue.
 
+### Choose a code method
+
+- For an authenticator app, enter its six-digit code. If the app is unavailable, select **Use a recovery code instead** under that method and enter a saved recovery code; each recovery code can be used once.
+- For email verification, switch to the email method, select **Send email code**, and submit the six-digit code you receive. After a successful send, the button has a 60-second cooldown; sending may first require a captcha.
+- The verification screen for disabling 2FA accepts an authenticator code or recovery code and does not offer the email method.
+
 ## Notes
 
 - The overlay can appear during login, registration, disabling 2FA, email changes, or step-up security checks. After step-up verification, pending requests resume on the same page without remounting it.
