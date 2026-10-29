@@ -55,6 +55,7 @@ Time, user, model, and channel filters only change the report contents; they do 
 
 - Leaving a dimension with no selected options does not restrict results by that dimension. Select options and click **Apply filters** to update the report. Tags show the current selections, which may differ from the report before it is refreshed; refreshing or changing the date also submits the current selections and reloads the report.
 - After searching within a filter, the select-all, invert-selection, and clear controls affect only the current search results; other selections remain. Clear the search to operate on all available options.
+- After a refresh or date change, the page removes selections that are no longer in the returned choices and may query again. Check the selected scope once loading finishes. If a query fails, the report may still show an earlier result or an intermediate result before synchronization completes; retry and confirm loading succeeds before using the data.
 - Too many active filters can hide the broader trend, so widen them when totals look suspicious.
 - This page is useful for both performance analysis and cost investigation.
 - For single-user financial correction, continue into balance management or business logs.
