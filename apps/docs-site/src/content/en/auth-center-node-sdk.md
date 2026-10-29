@@ -47,7 +47,9 @@ The examples below use native `fetch` from modern Node.js. If your runtime is ol
 
 ```js
 export async function fetchJwks(baseUrl) {
-  const response = await fetch(`${baseUrl}/v1/auth-center/.well-known/jwks.json`)
+  const response = await fetch(
+    `${baseUrl.replace(/\/+$/, '')}/v1/auth-center/.well-known/jwks.json`,
+  )
   if (!response.ok) {
     throw new Error(`Failed to load JWKS: ${response.status}`)
   }
@@ -125,7 +127,7 @@ export async function exchangeAuthorizationCode({
   redirectUri,
   codeVerifier,
 }) {
-  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -165,7 +167,7 @@ Expected result:
 
 ```js
 export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refreshToken }) {
-  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -191,7 +193,7 @@ export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refr
 
 ```js
 export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }) {
-  const response = await fetch(`${baseUrl}/v1/auth-center/token`, {
+  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/auth-center/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

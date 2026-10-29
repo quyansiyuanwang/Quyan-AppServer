@@ -34,7 +34,7 @@ import requests
 
 
 def fetch_jwks(base_url: str) -> dict:
-    response = requests.get(f"{base_url}/v1/auth-center/.well-known/jwks.json", timeout=15)
+    response = requests.get(f"{base_url.rstrip('/')}/v1/auth-center/.well-known/jwks.json", timeout=15)
     response.raise_for_status()
     payload = response.json()
     if payload.get("code") != 0 or not isinstance(payload.get("data", {}).get("keys"), list):
@@ -102,7 +102,7 @@ def exchange_authorization_code(
     code_verifier: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/v1/auth-center/token",
+        f"{base_url.rstrip('/')}/v1/auth-center/token",
         json={
             "grant_type": "authorization_code",
             "client_id": client_id,
@@ -142,7 +142,7 @@ def refresh_access_token(
     refresh_token: str,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/v1/auth-center/token",
+        f"{base_url.rstrip('/')}/v1/auth-center/token",
         json={
             "grant_type": "refresh_token",
             "client_id": client_id,
@@ -168,7 +168,7 @@ def get_machine_token(
     scope: str | None = None,
 ) -> dict:
     response = requests.post(
-        f"{base_url}/v1/auth-center/token",
+        f"{base_url.rstrip('/')}/v1/auth-center/token",
         json={
             "grant_type": "client_credentials",
             "client_id": client_id,
