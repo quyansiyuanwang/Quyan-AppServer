@@ -11,7 +11,7 @@ The summary shows:
 - Average TPM (tokens per minute).
 - Average RPM (requests per minute).
 
-The list below contains consumption records only. It does not include redemptions, transfers, or other account-balance transactions.
+The list below contains consumption records only. It does not include redemptions, transfers, or other account-balance transactions. The quota summary is fetched separately and does not change with the list filters or loaded range. Request count, average TPM, and average RPM use API usage records in the loaded range; type, token, channel, model, and date filters do not change these figures.
 
 ## Filter consumption records
 
