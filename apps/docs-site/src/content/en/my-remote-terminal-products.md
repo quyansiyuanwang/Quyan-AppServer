@@ -41,6 +41,8 @@ Use this page to browse published remote terminal product plans, purchase or cla
 4. Open the install agent dialog, select the OS, architecture, and version, then copy the generated command. It uses a newly issued install token by default; you can also choose a long-term registration token when one is available in the list. If token issuance or version loading fails, resolve the error or retry and confirm the command contains a valid token and version before running it. The command contains credentials; do not share it publicly.
 5. Revoke a device you no longer need, respecting the cooldown and allowance limits.
 
+In bash/sh on Linux or macOS, the `RTC_REGISTRATION_TOKEN="..."` assignment at the start of the generated command applies only to the downloader, not the agent launched afterward. Before running it, change that assignment to `export RTC_REGISTRATION_TOKEN="..."` and run it separately, then run the download and launch command. Run `unset RTC_REGISTRATION_TOKEN` when finished. Use a trusted terminal and remember that shell history may retain the token.
+
 ## Notes
 
 - If a purchase or renewal times out or the connection is interrupted, its outcome may be unknown. Use the page’s top **Refresh** action, check the balance and the new or updated entitlement under **My entitlements**, then refresh account transactions in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history). Confirm the result before deciding whether to retry; contact an administrator if it remains unclear. A failed refresh may leave old data visible, so check again after a successful refresh.
