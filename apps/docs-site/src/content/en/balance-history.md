@@ -12,7 +12,7 @@ Use this page to manage account balance, redeem codes, and send balance. API usa
 
 ## Redeem a code
 
-Enter a valid code to add its balance to your account. Administrator codes and balance gift codes created by other users use the same redemption entry point. You cannot redeem a gift code that you created yourself.
+Enter a valid code to add its balance to your account. Administrator codes and balance gift codes created by other users use the same redemption entry point. You cannot redeem a gift code that you created yourself. After a successful redemption, the page updates your balance; use the refresh button in the account transactions section to see the corresponding transaction.
 
 ## Create a balance gift code
 
@@ -40,7 +40,7 @@ Account transactions help you reconcile balance changes. The loaded range defaul
 ## Notes
 
 - The top refresh button updates the balance. The refresh button in the transfer section reloads configuration and the current gift-code page; account transactions have a separate refresh button.
-- If creating a gift code or making a transfer times out or the connection is interrupted, the outcome may be unknown. Refresh the balance, gift-code list, and account transactions and check whether the operation completed before retrying. Contact an administrator if the result remains unclear.
+- If redeeming, creating, or cancelling a code, or making a direct transfer times out or the connection is interrupted, the outcome may be unknown. Refresh the balance and account transactions; for gift-code creation or cancellation, refresh **My gift codes** as well. Check whether the operation completed before retrying. Contact an administrator if the result remains unclear.
 - Creating a gift code and making a direct transfer can require an additional security challenge.
 - Feature availability, fee rates, and fee-refund rates are controlled by the current server configuration.
 - Amounts shown before submission are previews. Final debits and refunds are determined by the server result.
