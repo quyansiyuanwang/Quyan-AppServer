@@ -13,11 +13,11 @@ export default defineDocsPage({
     'zh-CN': '月卡管理',
   },
   summary: {
-    en: 'Manage monthly-pass templates, publishing, and user assignments.',
-    'zh-CN': '说明月卡模板、发布状态和用户分配管理。',
+    en: 'Create plans, assign or extend passes, and verify quotas, coverage, and usage records.',
+    'zh-CN': '创建月卡方案、单个或批量发放与续期，核对额度、覆盖范围和使用流水。',
   },
   tags: ['monthly-pass', 'template', 'assignment'],
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   content: {
     en: contentEn,
     'zh-CN': contentZh,
