@@ -104,6 +104,9 @@ def call_api(path: str, token: str, method: str = "GET", json_body=None):
     )
     payload = response.json()
 
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected response format (HTTP {response.status_code})")
+
     if response.status_code >= 400 or payload.get("code") != 0:
         raise RuntimeError(payload.get("message", "Request failed"))
 
@@ -193,19 +196,19 @@ def call_appserver(
             request_id=request_id,
         ) from exc
 
+    if not isinstance(payload, dict):
+        raise AppServerApiError(
+            "Response payload is not a JSON object",
+            status=response.status_code,
+            payload=payload,
+            request_id=request_id,
+        )
+
     if response.status_code >= 400:
         raise AppServerApiError(
             payload.get("message") or f"HTTP request failed with status {response.status_code}",
             status=response.status_code,
             code=payload.get("code"),
-            payload=payload,
-            request_id=request_id,
-        )
-
-    if not isinstance(payload, dict):
-        raise AppServerApiError(
-            "Response payload is empty",
-            status=response.status_code,
             payload=payload,
             request_id=request_id,
         )
