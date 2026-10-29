@@ -1,85 +1,105 @@
 # Legal policy management
 
-Use this page to maintain legal-policy versions such as terms and privacy notices.
+Use legal policy management to maintain the terms of service and privacy policy that users read and accept when registering or signing in. Policies apply across the deployment. Creator and updater names identify operators, not accounts that own a separate policy.
 
-## Page purpose
+## Prerequisites
 
-- Maintain terms of service and privacy policy separately.
-- Create, edit, publish, and unpublish versions.
-- Control what legal text users see during registration or use.
+Open legal policy management in the management site. Viewing, creating, editing, deleting, and publishing require separate permissions. Seeing a list entry does not grant access to its content or allow changes.
 
-## What you will see
+| Action                         | Required permission    |
+| ------------------------------ | ---------------------- |
+| List versions and read content | `LEGAL_POLICY_READ`    |
+| Create a draft                 | `LEGAL_POLICY_CREATE`  |
+| Edit a draft                   | `LEGAL_POLICY_UPDATE`  |
+| Delete a draft                 | `LEGAL_POLICY_DELETE`  |
+| Publish or unpublish           | `LEGAL_POLICY_PUBLISH` |
 
-### Type switch
+## View types and version states
 
-- Terms of service.
-- Privacy policy.
+The page initially shows terms of service. Switch to privacy policy as needed; TOS and PP identify these types on mobile. Switching types filters the loaded list without fetching it again. Entries show title, version, summary, updater, update time, and publication state; desktop also shows publication time.
 
-### Version list
+| State                               | Meaning                          | Available content actions                                                          |
+| ----------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| Draft                               | Never published, or unpublished  | Edit, publish, delete                                                              |
+| Published without the current badge | Retained historical publication  | Unpublish before editing or deleting                                               |
+| Published with the current badge    | Text currently provided to users | Replace by publishing another draft, or unpublish when a published fallback exists |
 
-- Version records with published status.
-- Current active-version marker.
-- Retained historical versions.
+**Each type has at most one current version, but may retain multiple published historical versions.** Check the current badge rather than relying on a version number or the Published label alone. The page has no search, pagination, export, or automatic refresh.
 
-### Management actions
+## Create and edit drafts
 
-- Create version (Markdown editor).
-- Edit version content.
-- Publish or unpublish (only one version per type can be active at a time).
-- Delete version.
+1. Select a policy type and choose Create.
+2. Confirm the type, then enter a title, optional summary, and Markdown content. A new form is empty; it does not copy the current version.
+3. Preview the content. Desktop defaults to a split editor and preview with a single-pane option; mobile uses editor and preview tabs.
+4. Submit the form. A newly created version is a draft and does not replace the current text.
 
-## Policy consent flow
+Titles must contain 1–200 characters after trimming. Summaries allow up to 2,000 characters, and content cannot be empty. The system assigns increasing version numbers for each type; numbers cannot be chosen manually or reused after deleting a draft.
 
-Publishing a new version triggers a **forced re-consent** check:
+You cannot create another draft while an undeleted draft of that type exists. Handle the existing draft first. A version's type cannot be changed when editing. Published versions reject edits and deletion even if those buttons are visible. Normally, create a new version to revise live content.
 
-- On the next login or action, the system compares the user's last accepted policy version against the current published version.
-- If the user is behind, they are redirected to a consent page after login and must explicitly agree to the new version before continuing.
-- Refusing blocks login completion.
-- Consent endpoint: `POST /auth/accept-policy-consent` — the final access token is only issued after the policy token is submitted.
+Clearing an existing summary in the form and saving retains the old summary. To remove it, an authorized integration can explicitly submit an empty string through the update API and read the result again to confirm.
 
-> Because of this, **confirm all content with legal or operations before publishing**. Once published, all existing users will be required to re-read and accept the new version on their next login.
+Failed submission retains your input. Closing or canceling clears it. There is no autosave, content comparison, or historical-content recovery feature. If loading details fails after the editor opens, an empty form does not mean the stored content is empty. Close and retry before making changes.
 
-## Common actions
+## Publish and verify the current text
 
-1. Switch to the policy type you need to maintain.
-2. Create or edit the target version with the Markdown editor.
-3. Preview the formatted output to confirm layout and content are correct.
-4. Publish the new version when it is ready — it immediately becomes the active text.
-5. Delete old versions that no longer need to be retained.
+1. Check the target draft's type, version, title, and complete content.
+2. Choose Publish and confirm.
+3. Verify that it shows Published with the current badge.
+4. Check both terms of service and privacy policy, ensuring each has current text.
 
-## Permission requirements
+Publishing immediately replaces the current version of the same type. The previous version remains published but loses its current badge. Publishing one type does not replace the other. Finish your content review before confirming; the page has no separate approval workflow.
 
-| Action                      | Required permission    |
-| --------------------------- | ---------------------- |
-| View policy versions        | `LEGAL_POLICY_READ`    |
-| Create version              | `LEGAL_POLICY_CREATE`  |
-| Edit version                | `LEGAL_POLICY_UPDATE`  |
-| Delete version              | `LEGAL_POLICY_DELETE`  |
-| Publish / unpublish version | `LEGAL_POLICY_PUBLISH` |
+Registration and combined policy loading require both types to be published. A missing type can prevent registration or policy loading. This does not establish that all existing users are blocked from signing in.
 
-## IAM version read access
+## Unpublish and delete
 
-With IAM enforcement, the management list and detail APIs require `LEGAL_POLICY_READ` eligibility in an actual deployment-wide group. Listing uses `quyan:legal_policy:ListVersions`; details use `quyan:legal_policy:GetVersion`. Both authorize the actual version resource `acs:platform:*:platform:legal-policy/<version-id>`. The creator is an audit actor, not an account owner for the policy.
+Choose Unpublish and confirm to return the target version to Draft and clear its publication time.
 
-The version list includes only authorized versions and loads summaries without draft content. Details require a separate Allow before loading content. A matching Deny takes priority. Missing, deleted or unauthorized detail resources return 403 in enforce mode. Results are withheld if a version, qualification, policy or role session changes during the read. AssumeRole uses role grants. Public published-policy and consent flows retain their existing access rules.
+- Unpublishing a historical version does not change the current text.
+- Unpublishing the current version makes the highest-numbered remaining published version current. The fallback retains its original publication time.
+- You cannot unpublish a current version if no published fallback exists.
+- The system selects the fallback. Check historical content before confirming. Unpublishing can also leave multiple drafts of the same type, preventing another draft from being created.
 
-## IAM draft changes
+Deletion requires confirmation and applies only to drafts. The page has no restore action. Unpublish a historical publication before deleting it. Retain historical versions when their publication records are needed.
 
-In enforce mode, creating a draft uses `quyan:legal_policy:CreateVersion` on `acs:platform:*:platform:legal-policy-control/<policy-type>` and on the generated version's actual ARN before commit. The supported types are `terms_of_service` and `privacy_policy`. Updating and deleting use `quyan:legal_policy:UpdateVersion` and `quyan:legal_policy:DeleteVersion` on `acs:platform:*:platform:legal-policy/<version-id>`. Each operation also requires its existing management permission in a real deployment-wide group.
+## When users must accept again
 
-A matching Deny or invalid identity, group, role session or version rolls back the change. Published versions remain immutable. Deleting a draft retains its version number; later drafts receive a new number. An active unpublished draft must be edited, published or deleted before another draft of that type can be created. Replay protection remains required.
+When both current policies are available, login completion checks whether the user has accepted those specific versions. If either has not been accepted, the user must follow the login page prompts to read the policies, select agreement, and continue. Policies appear in a dialog on the login page. Closing it or declining confirmation does not complete that login.
 
-## IAM publication changes
+Publishing does not sign out all existing sessions or recheck acceptance on every business operation. Acceptance is tracked for specific versions rather than by a simple version-number comparison. Reverting to a version the user previously accepted may require no further confirmation.
 
-Publishing uses `quyan:legal_policy:PublishVersion`; unpublishing uses `quyan:legal_policy:UnpublishVersion`. The operation requires the existing `LEGAL_POLICY_PUBLISH` eligibility in a real deployment-wide group, plus authorization for every affected version ARN.
+A consent session lasts 10 minutes. Restart login if it expires or becomes invalid, or if a failed confirmation cannot be continued. Integrations use `POST /v1/auth/accept-policy-consent` with a valid `challengeToken` and `agreedToLegalPolicies: true`, following the endpoint's replay-protection requirements.
 
-Publishing checks the target and the current version it replaces. Unpublishing a current version checks the target and the latest remaining published fallback. If that fallback is denied, the operation fails; it does not choose an older version to bypass Deny. Missing fallback protection remains in place. The affected set and grants are rechecked inside one transaction; Deny, revocation, or concurrent changes roll back all publication changes. Public active-policy reads continue to return the committed current version.
+## IAM authorization scope
 
-## Notes
+With IAM enforcement, management operations require the corresponding management eligibility in a real deployment-wide group as well as the actions below. Version resources use `acs:platform:*:platform:legal-policy/<version-id>`.
 
-- Only one version per type can be published at a time; publishing a new version automatically archives the previous one.
-- All users who have not yet accepted the new version will be prompted at their next login.
-- Policy changes usually require coordination with legal or operations before going live.
+| Operation    | IAM action                            | Authorized resources                          |
+| ------------ | ------------------------------------- | --------------------------------------------- |
+| List         | `quyan:legal_policy:ListVersions`     | Actual versions in the list                   |
+| Read content | `quyan:legal_policy:GetVersion`       | Target version                                |
+| Create       | `quyan:legal_policy:CreateVersion`    | Type control resource and new version         |
+| Edit         | `quyan:legal_policy:UpdateVersion`    | Target draft                                  |
+| Delete       | `quyan:legal_policy:DeleteVersion`    | Target draft                                  |
+| Publish      | `quyan:legal_policy:PublishVersion`   | Target and the current version being replaced |
+| Unpublish    | `quyan:legal_policy:UnpublishVersion` | Target and any version becoming the fallback  |
+
+The create control resource is `acs:platform:*:platform:legal-policy-control/<policy-type>`, where the type is `terms_of_service` or `privacy_policy`.
+
+The list returns authorized version summaries; list visibility does not grant content access. Missing, deleted, or unauthorized details may all return 403 in enforce mode. Management APIs do not accept OAuth access tokens. Role sessions use the role's own grants, and matching Deny takes priority.
+
+Publishing and unpublishing require authorization for every affected version. If the selected fallback is denied, the operation fails rather than skipping to an older version. Revoked grants, changed version states, or concurrent changes can also fail the operation. Refresh and verify before retrying. Management writes require replay protection; public policy reads and user consent follow their own endpoint rules.
+
+## Troubleshooting
+
+| Symptom                                                 | What to do                                                                                                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Success is followed by a list-loading error             | The operation may have completed. Reopen the page and verify state before resubmitting                                          |
+| Old entries remain after list loading fails             | The previous list can remain visible. Reload before deciding to publish, unpublish, or delete                                   |
+| Creation reports an existing draft                      | Check drafts of that type. Permission filtering may hide another draft; contact an administrator with the necessary read access |
+| A listed version cannot be opened, edited, or published | Check content and mutation grants, including every affected version; list visibility alone is insufficient                      |
+| Unpublishing the current version fails                  | Check for a published fallback and permission to perform the unpublish action on it                                             |
 
 ## Related pages
 

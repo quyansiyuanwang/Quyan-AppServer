@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'legal-policy-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '法律政策管理',
   },
   summary: {
-    en: 'Maintain terms, privacy versions, and publishing status.',
-    'zh-CN': '说明条款、隐私版本和发布状态维护。',
+    en: 'Create policy drafts, publish current versions, manage fallbacks, and understand login consent.',
+    'zh-CN': '创建协议草稿、发布生效版本，了解历史回退、登录同意和权限要求。',
   },
-  tags: ['legal', 'policy', 'privacy'],
+  tags: ['legal', 'policy', 'privacy', 'consent', '协议', '隐私', '发布', '同意'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
