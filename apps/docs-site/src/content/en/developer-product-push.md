@@ -4,7 +4,9 @@ Push Aggregation delivers one business message to generic webhooks, DingTalk bot
 
 ## Configure channels
 
-Create each channel in the Console with a name, type, HTTP(S) endpoint, and optional secret alias. Channels can be independently enabled, edited, or deleted. Channel management and delivery-log read are separate RAM actions, allowing least-privileged assignments for operations and applications.
+Create each channel in the Console with a name, type, HTTP(S) endpoint, and optional secret alias. Channels can be independently enabled, edited, or deleted. Choose the channel type when creating it; editing can change its name, endpoint, and secret reference. Channel management and delivery-log read are separate RAM actions, allowing least-privileged assignments for operations and applications.
+
+After you select a Secret Vault instance and alias, deliveries use its value as a Bearer credential. You can also save a credential securely from the channel editor; its alias is selected automatically and its plaintext cannot be viewed again. This writes to the vault immediately. An existing alias is updated, which can affect other channels or applications that reference it. Cancelling the channel editor afterwards does not undo the credential write; save the channel separately to apply the reference.
 
 ## Test in the console
 
