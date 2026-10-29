@@ -33,6 +33,15 @@ Sign-in, registration, password recovery, social-login callbacks, two-factor ver
 2. Read and accept the policies shown on the page, then submit.
 3. If a CAPTCHA or two-factor verification is required, follow the prompts.
 
+### Sign in with a QR code
+
+If QR sign-in is enabled for your deployment, you can approve a sign-in request from another device signed in to your account:
+
+1. Select **QR sign-in** on the login page and scan the displayed code with the other device.
+2. If that device is not signed in, sign in to the account you want to use and return to the approval page.
+3. Check the requesting device summary, IP address, and approximate location. If you initiated the request, select **Allow this sign-in**; otherwise, select **Deny this sign-in**.
+4. Return to the original login page and follow any prompts for policy consent or two-factor verification. If the code expires, select **Refresh** on the original login page to generate a new one.
+
 ### Register
 
 1. Choose **Register**. If registration is unavailable, ask an administrator whether it is enabled.
