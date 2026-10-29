@@ -12,6 +12,8 @@ Investigate AI inference requests by user, token, model, request ID, execution o
 
 The main search matches request IDs, user/token names or IDs, models, error summaries and saved content. Advanced filters include format, HTTP status, execution outcome, streaming, failure stage, content completeness, IP and duration ranges. Results are paginated on the server, without downloading every body for filtering.
 
+After changing filters, select **Search** to apply them and return to the first page. The top **Refresh** button queries the current form values and page. Default and shortcut time ranges are fixed when selected; refreshing does not move the end time forward. To see the latest logs, select a shortcut again or adjust the time range and search. **Reset** clears the other filters, sets a new last-24-hours range, and searches immediately.
+
 Identity comes from server-side token recognition, never a user identifier in the request body. Unnamed tokens show their ID. Previously unrecorded identities remain marked as not recorded and are not automatically backfilled.
 
 ## Read details on demand
