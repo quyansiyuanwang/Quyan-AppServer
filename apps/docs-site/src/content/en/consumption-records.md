@@ -22,7 +22,7 @@ Narrow the results by:
 - Start and end date.
 - Loaded range: 1 day, 7 days, 30 days, or all records.
 
-The loaded range defaults to the last day. Date and other filters apply only to consumption records and charts within the loaded range; token and channel options also come from loaded records. To view older data, first expand the range and wait for it to load, then set the filters. The page may ask for confirmation when you first select all records.
+The loaded range defaults to the last day. Date and other filters apply only to consumption records and charts within the loaded range; token and channel options also come from loaded records. To view older data, first expand the range and wait for background loading, then set the filters. The page may ask for confirmation when you first select all records. Cached records may appear first; if loading or refresh fails, the records, filter options, and statistics may be incomplete. Try switching to a shorter range and expanding it again; ask an administrator to verify the data if you are still unsure.
 
 Use Clear filters to clear the type, token, channel, model, and date conditions; adjust the loaded range separately.
 
