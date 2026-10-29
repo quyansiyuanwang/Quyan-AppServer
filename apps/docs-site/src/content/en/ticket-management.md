@@ -43,6 +43,8 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 4. Assign the item to a responsible team member or adjust auto-assignment rules.
 5. Set status to `completed` when the issue is resolved. API callers can use `startTime` and `endTime` to restrict the time range.
 
+If ticket details fail to load, the drawer may retain the previous ticket and review form. Close the drawer and reopen the intended ticket; confirm the load succeeded and the title is correct before saving or replying. If assignment rules fail to load, old rules may also remain. Close and reopen the rules drawer, and confirm the load succeeded before editing and saving.
+
 When you switch tickets, an unsubmitted reply and its visibility may remain in the form. Before submitting, check the current ticket, content, and visibility. Resetting the reply form or successfully submitting a reply clears the content and restores public visibility. Select internal visibility again when adding an internal note.
 
 ## Permission requirements
