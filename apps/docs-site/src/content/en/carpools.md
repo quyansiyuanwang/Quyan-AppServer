@@ -11,8 +11,9 @@ The invitation page does not guess order details before acceptance. After signin
 ## Before you start
 
 - The package, quota, validity, maximum members, and formation deadline shown on the page are the current server configuration.
-- When an order is created, its price, cost, quota, model and channel restrictions, monthly-pass template, and formation deadline are saved as an order snapshot. Later package edits do not change existing orders.
+- When an order is created, its price, quota, validity, model and channel restrictions, monthly-pass template, and formation deadline are saved as an order snapshot. Later package edits do not change existing orders.
 - Accepting an invitation does not charge you immediately. After you confirm your share, only your payable amount is reserved until the order advances or closes.
+- After signing in, you still need the relevant package, order, and operation permissions. An invitation lets you join a specific order; it does not grant account permissions. Seeing an order or button does not authorize every action. Contact an administrator if permission is denied.
 
 ## Create and invite
 
@@ -36,15 +37,15 @@ Before the deadline:
 - Each member confirms their own share; the system reserves that member's payable amount.
 - A non-owner member who has not confirmed may leave. A confirmed member cannot leave directly; ask the owner to adjust the allocation first, resetting confirmations and releasing reservations, then leave.
 - Only the owner may cancel an open carpool; cancellation releases all amounts that have not been charged.
-- After the formation deadline, an unsubmitted order closes automatically and releases reservations.
+- After the formation deadline, an unsubmitted order no longer accepts invitations, confirmations, or submission. A background process periodically closes expired orders and releases reservations, so the status and amounts may update later. Refresh to check them; contact an administrator if reservations remain unreleased.
 
 ## Submit and delivery
 
 Once every active member has confirmed and both the payment and quota ratios total 100%, the owner can submit the carpool without waiting to reach the maximum member count. Submission deducts each reserved share from the member’s balance. If a balance has changed and the deduction cannot be made, submission fails; follow the displayed instructions. Operations then accepts the order and purchases and delivers it; the page shows the current stage and next step.
 
-After delivery, members can use their normal monthly-pass and Relay Token secure entry points. The carpool page shows only a channel or delivery summary; it **never displays the Relay token in plaintext**.
+After delivery, each participating member receives their own monthly pass and Relay Token, with quota based on their confirmed share. The monthly pass validity starts at delivery, rather than order creation, share confirmation, or submission. Use the monthly-pass and Relay Token links in the order details to view these resources. The carpool page shows only a channel or delivery summary; it **never displays the Relay token in plaintext**.
 
-If delivery fails, the system records a reason and refunds through the order's funds workflow. Check the order detail for the reason and event timeline.
+After submission, neither members nor the owner can leave, cancel the order, or request a refund themselves. Waiting for acceptance or delivery does not trigger an automatic refund. If operations confirms that delivery is impossible, an authorized operator must mark the order as failed and refund each member's captured payment to their own balance. Check the failure reason and timeline in the order details and verify the refund in balance history. Delivered orders cannot use this failure-refund flow.
 
 ## When an operation has an uncertain outcome
 
