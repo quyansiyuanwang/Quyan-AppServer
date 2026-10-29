@@ -17,7 +17,7 @@ export default defineDocsPage({
     'zh-CN': '查看已使用额度、请求吞吐指标和可筛选的 API 消费记录。',
   },
   tags: ['consumption', 'usage', 'quota', 'api', 'transaction'],
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   content: {
     en: contentEn,
     'zh-CN': contentZh,
