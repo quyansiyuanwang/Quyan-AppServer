@@ -84,7 +84,7 @@
 - 返回短期 JWT 访问令牌
 - 按应用配置可同时返回刷新令牌
 - 至少需要一个已登记回调地址
-- 公共客户端建议启用 PKCE
+- 公共客户端必须启用 PKCE；授权请求需提供 `code_challenge`，换取令牌时需提供对应的 `code_verifier`
 
 ### `refresh_token`
 
@@ -139,7 +139,7 @@
 - 桌面客户端
 - 浏览器扩展
 
-对于使用 `authorization_code` 的公共客户端，应启用 PKCE。
+使用 `authorization_code` 的公共客户端必须启用 PKCE。授权请求提供 `code_challenge`，换取令牌时提供对应的 `code_verifier`。
 
 ## JWT + JWKS 校验模型
 

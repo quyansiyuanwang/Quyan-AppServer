@@ -84,7 +84,7 @@ Behavior:
 - returns a short-lived JWT access token
 - may return a refresh token if enabled for the app
 - requires at least one registered redirect URI
-- public clients should use PKCE
+- public clients must use PKCE: send `code_challenge` in the authorization request and the corresponding `code_verifier` when exchanging the code
 
 ### `refresh_token`
 
@@ -139,7 +139,7 @@ Typical examples:
 - desktop app
 - browser extension
 
-For public clients using `authorization_code`, PKCE should be enabled.
+Public clients using `authorization_code` must enable PKCE. Send `code_challenge` in the authorization request and the corresponding `code_verifier` when exchanging the code.
 
 ## JWT and JWKS verification model
 
