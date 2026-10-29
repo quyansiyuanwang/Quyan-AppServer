@@ -10,7 +10,7 @@ The public address is `GET /s/{code}`. It returns a native `302` redirect withou
 
 ## Analytics and privacy
 
-Successfully processed redirects record the click time, visitor IP, referrer host, User-Agent, and country/region supplied by the request. The analytics page shows total clicks, trends for the latest 30 calendar days, IP and source rankings, and paginated visit details. Dates use UTC+8. Click details are cleaned up after 90 days, so total clicks can differ from the number of recent records. Analytics contains visitor information; grant access only to identities that need it.
+Successfully processed redirects record the click time, visitor IP, referrer host, User-Agent, and country/region supplied by the request. The analytics page shows lifetime clicks and, for the latest 30 calendar days including today up to the query time, visit counts, distinct IP counts, daily and hourly trends, IP and source rankings, and paginated visit details. Times use UTC+8. Distinct IPs are deduplicated by IP address and do not equal distinct people. Lifetime clicks are not limited to this 30-day window; click details are cleaned up after 90 days, so lifetime clicks can differ from recent record counts. Analytics contains visitor information; grant access only to identities that need it.
 
 Short Link read, write, and delete operations are controlled by separate RAM actions.
 
