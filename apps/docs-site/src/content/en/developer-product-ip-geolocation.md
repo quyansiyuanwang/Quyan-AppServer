@@ -4,7 +4,7 @@ IP Geolocation normalizes a public IP into country, region, city, ASN, carrier, 
 
 ## Data sources
 
-The platform first uses the generic HTTP(S) provider configured by `IP_GEOLOCATION_ENDPOINT`. When that endpoint is empty and `BAIDU_IP_LOCATION_AK` is configured, it uses the Baidu IP Geolocation adapter. The key does not need to be sent to the client or stored in a product instance. If neither is configured, lookups fail; a configured provider failure does not automatically fall back to Baidu.
+The platform first uses the generic HTTP(S) provider configured by `IP_GEOLOCATION_ENDPOINT`. When that endpoint is empty and `BAIDU_IP_LOCATION_AK` is configured, it uses the Baidu IP Geolocation adapter. The key does not need to be sent to the client or stored in a product instance. If neither is configured, lookups fail; a configured provider failure does not automatically fall back to Baidu. Cached results may continue to show the previous data source until the cache expires.
 
 The Baidu adapter returns China, province, city, and a full address when supplied by Baidu. Baidu does not provide ASN or carrier data in this response, so those normalized fields are `null` and the data source is `baidu`.
 
@@ -25,4 +25,4 @@ In the IP Geolocation product console’s test card, enter a product API key wit
 
 ## Validation, quota, and privacy
 
-Private, loopback, reserved, and malformed addresses are rejected inside the platform. They do not call a third-party provider or consume quota. Operations can set daily free quota, instance limits, and overage billing per account; call audits support reconciliation. Query only addresses required by your business and follow applicable data-protection rules.
+Private, loopback, reserved, and malformed addresses are rejected inside the platform without calling a third-party provider. The product API meters the request first and enters a quota refund process on failure. Refunds may require retries; contact an administrator if usage or charges are not restored. Operations can set daily free quota, instance limits, and overage billing per account; call audits support reconciliation. Query only addresses required by your business and follow applicable data-protection rules.
