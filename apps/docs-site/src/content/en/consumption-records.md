@@ -32,6 +32,12 @@ Use Clear filters to clear the type, token, channel, model, and date conditions;
 
 The list supports table and chart views. Expand a record to inspect available model, token, billing, channel, and request-ID details. The visible fields depend on the request type and billing data captured at that time.
 
+### Reconcile monthly pass coverage
+
+One relay API request can produce both a monthly pass coverage record and an API usage record. The coverage record describes the covered portion without deducting balance; the API usage record describes the balance charge for the uncovered portion. A fully covered request may have only a coverage record, while a request with no applicable pass is charged to balance.
+
+Use the time, model, channel, and available request identifiers to find related records. Do not assume the two record types represent two separate requests. The charge for purchasing a pass appears in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history).
+
 ## Notes
 
 - Request count, TPM, and RPM use loaded API usage records, excluding zero-charge upstream errors from their totals. TPM sums input and output tokens only. The averages use the time span between the first and last loaded API usage records, including those zero-charge errors, with a minimum of one minute. These averages are not server-side rate-limit settings.

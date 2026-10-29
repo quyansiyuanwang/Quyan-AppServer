@@ -5,7 +5,7 @@ Choose a published plan in the **Monthly Pass Purchase Center** tab on My Monthl
 ## Before purchasing
 
 - The template must be enabled, published and available for balance redemption.
-- Review its price, validity, total quota, quota windows and permitted channels and models.
+- Review its price, validity, total quota, quota windows and permitted channels and models. A pass does not guarantee coverage for every request; uncovered costs can still be charged to balance. See [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes).
 - Your balance must cover the purchase, and you must remain within the template's per-user purchase limit.
 - Price conversion and purchase limits follow current server rules. Template changes may require you to confirm again.
 
