@@ -35,6 +35,8 @@ Use this page to maintain site articles and knowledge content.
 
 When editing an existing article, clearing the category, summary, or permission requirement leaves those empty fields out of the save request, so the previous values may remain. In particular, making an article public while it has an existing permission requirement can fail because the requirement remains. Check the save result and the access settings after reloading.
 
+Before editing, confirm that the title and content loaded correctly. If loading fails, the edit dialog may remain open with empty fields; close it, check the error, and reopen the article instead of saving an empty form as its existing content. Keep a draft in another secure location before submitting: the editor may reset the form after a failed request. If the result is uncertain, refresh the list and reopen the article to check saved content before retrying.
+
 ## Permission requirements
 
 | Action                             | Required permission |
