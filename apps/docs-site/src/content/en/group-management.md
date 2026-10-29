@@ -26,7 +26,7 @@ Use this page to maintain user groups and the permission sets assigned to them. 
 ## Common actions
 
 1. Create a group with the required identifier and level; name and description are optional. The level ranges from 0 to 100 and defaults to 50, subject to the hierarchy rules below.
-2. After creation, edit the name, level, or description as needed. The edit form does not offer an identifier change.
+2. After creation, edit the name, level, or description as needed. The edit form does not offer an identifier change. Saving with a blank name or description preserves the existing value; it does not clear it.
 3. Open the permission editor, select the permissions the group should have, and save. Adding and removing permissions require their respective permissions; mixed changes require both.
 4. Before deletion, handle the users in the group: a group with users cannot be deleted. System-protected groups cannot be deleted either.
 
