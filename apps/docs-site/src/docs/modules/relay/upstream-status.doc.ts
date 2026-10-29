@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '上游状态',
   },
   summary: {
-    en: 'Monitor upstream health, heartbeat history, and latency indicators.',
-    'zh-CN': '说明上游健康度、心跳历史和延迟指标。',
+    en: 'Check visible upstream monitors and distinguish current status, uptime, and latency.',
+    'zh-CN': '查看可见上游监控，区分当前状态、在线率和延迟，并排查数据异常。',
   },
   tags: ['upstream', 'status', 'monitoring'],
   content: {
