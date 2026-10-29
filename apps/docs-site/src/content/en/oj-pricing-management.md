@@ -1,76 +1,94 @@
 # OJ pricing management
 
-Use this page to maintain provider and model pricing used by OJ submitter workflows.
+Use OJ pricing management to maintain model rates and cache multipliers for the submitter. Pricing is shared across the deployment by model. Changes affect later requests using that pricing. Provider is descriptive; it does not configure upstream credentials or enable a model automatically.
 
-## Page purpose
+## Prerequisites
 
-- Add pricing records.
-- Edit existing provider or model rates.
-- Remove outdated pricing entries.
-- Maintain multipliers for token-cost calculations.
+Open OJ pricing management. Reads require `OJ_PRICING_READ`; creation, editing, and deletion require `OJ_PRICING_UPDATE`. IAM enforcement also checks separate resource actions. Writes require replay protection.
 
-## What you will see
+The list shows model, provider, input and output prices, the overall multiplier, and cache creation/read multipliers, newest creation first. There is no search, pagination, import, export, or automatic refresh. Reopen the page to load current data.
 
-### Pricing list
+## Add model pricing
 
-- Provider.
-- Model.
-- Input and output prices.
-- Multiplier values.
-- Cache-creation and cache-read multipliers.
+1. Choose Add Model.
+2. Enter the exact model name sent by the submitter, with an optional provider.
+3. Check input/output prices and all three multipliers, then save.
+4. Verify the entry and check charges using a real request and [Usage statistics]({{DOCS_BASE_URL}}/en/oj-usage-statistics).
 
-### Management actions
+Model names must contain 1–200 characters after trimming; providers allow up to 100 characters. Input/output prices must be nonnegative, and each multiplier ranges from 0 to 100. Page number controls use two decimal places.
 
-- Add model pricing.
-- Edit pricing.
-- Delete pricing.
+New forms default input and output prices to 0, the overall multiplier to 1, cache creation to 1.25, and cache read to 0.1. Check these initial values against your intended charging rules rather than treating a new form as a correct quote.
 
-## Common actions
+Pricing uses exact model lookup. Filling in Provider does not add or strip a prefix. Billing uses the client's requested model name; channel mapping to another upstream model does not automatically select that model's pricing. Requests fail without an active pricing entry. Creating pricing alone does not establish that a channel supports the model.
 
-1. Add a pricing entry for a new provider or model.
-2. Review all rate fields carefully before saving.
-3. Update multipliers when billing logic changes.
-4. Before deleting an entry, confirm it is no longer needed. A deleted pricing record cannot be directly recreated for the same model; edit the existing record if you only need to change its rates.
+## Understand prices and multipliers
 
-## What the multipliers mean
+**Input/output prices are calculated in qu per million tokens. The page currently labels them qu/token, which differs from the server calculation. Enter prices per million tokens.**
 
-Each pricing record has three multipliers applied on top of the base input/output token price:
+| Parameter                 | Effect                                         | New-form default |
+| ------------------------- | ---------------------------------------------- | ---------------- |
+| Overall multiplier        | Adjusts ordinary input and output token costs  | 1                |
+| Cache creation multiplier | Applies to cache creation tokens × input price | 1.25             |
+| Cache read multiplier     | Applies to cache read tokens × input price     | 0.1              |
 
-- **Multiplier** — a general adjustment applied to both input and output token costs (default `1.0`, i.e. no adjustment). Use this to mark a model up or down relative to its base rate.
-- **Cache-creation multiplier** — applied to tokens written into the provider's prompt cache for the first time (default `1.25`, i.e. 25% more expensive than a normal input token). Creating a cache entry costs slightly more than a regular request.
-- **Cache-read multiplier** — applied to tokens served from an existing prompt cache (default `0.1`, i.e. 90% cheaper than a normal input token). Reusing cached content is billed as substantially discounted.
-
-The server treats input and output prices as **曲 per million tokens** (the page currently labels the unit as 曲/token). A request's cost is:
+The request cost is the sum below, rounded down to four decimal places.
 
 ```text
-(input tokens × input price × multiplier
- + output tokens × output price × multiplier
- + cache-creation tokens × input price × cache-creation multiplier
- + cache-read tokens × input price × cache-read multiplier) / 1,000,000
+(input tokens × input price × overall multiplier
+ + output tokens × output price × overall multiplier
+ + cache creation tokens × input price × cache creation multiplier
+ + cache read tokens × input price × cache read multiplier) / 1,000,000
 ```
 
-The result is rounded down to four decimal places. Cache charges use their own multipliers and are not multiplied again by the general multiplier; actual cache token counts depend on the upstream usage response.
+Cache costs do not also use the overall multiplier. Setting the overall multiplier to 0 does not guarantee zero cost for a request with cache usage. Check both cache multipliers separately. Counts come from upstream usage fields. The usage page's total tokens includes input plus output without listing cache tokens separately.
 
-## IAM pricing read access
+For calculation only: input price 2, output price 8, overall multiplier 1.5, input 1,000 tokens, output 200 tokens, cache creation 400 tokens, and cache reads 600 tokens. With default cache multipliers, the result is 0.00652 qu and the saved cost is 0.0065 qu. These are illustrative values, not current rates.
 
-With IAM enforcement, management reads require `OJ_PRICING_READ` eligibility in a real deployment-wide group. Listing uses `quyan:oj:ListPricing` and details use `quyan:oj:GetPricing`. The resource is `acs:platform:*:platform:oj-pricing/<record-id>`, where the ID comes from the actual pricing record. Model names, including provider prefixes, locate records and never become ARN identifiers.
+Requests use pricing read when they start. Saved historical usage retains its original cost and is not recalculated after edits. Even zero-cost pricing does not remove other OJ conditions, such as a positive balance; a zero price alone does not establish that a call will succeed.
 
-The list loads display prices only after each record is authorized. A matching Deny overrides Allow. Missing, deleted or unauthorized detail records return 403 in enforce mode. Price, qualification, policy or role-session changes during a read prevent returning the result. AssumeRole uses its role's grants. Internal billing calculations retain their existing pricing lookup flow.
+## Edit pricing
 
-## IAM pricing write permissions
+1. Choose Edit on the target model.
+2. Check every price and multiplier, make changes, and save.
+3. Query again and verify the entry and charges for new requests.
 
-Creating, updating, and deleting require eligibility from a real global group with `OJ_PRICING_UPDATE`, using `quyan:oj:CreatePricing`, `quyan:oj:UpdatePricing`, and `quyan:oj:DeletePricing` respectively. Creation checks both `acs:platform:*:platform:oj-pricing-control/default` and the actual new record ARN. Updates and deletions check the actual record ARN. Model names are lookup inputs and cannot change the authorization scope.
+The model name cannot be changed in the editor. Leaving Provider blank retains its previous value. To clear it, an integration with update access can explicitly submit an empty string through the update API and verify the result.
 
-A matching Deny blocks the entire operation. If identity, eligibility, policies, role sessions, or the target price change before saving, the operation fails without partially saving price changes. Deleted models cannot be directly recreated. Missing or unauthorized mutation targets return 403 in IAM enforcement mode. Replay protection applies to all three write endpoints.
+The editor uses all rates loaded in the list and submits those values. Reload after another administrator changes pricing to avoid overwriting new rates. Failed saves retain input. Closing or reopening does not establish that input was saved. There is no autosave, approval, scheduled activation, or historical-price rollback.
 
-## Notes
+## Delete pricing
 
-- When editing a price, saving with the provider field blank retains the existing provider; this form cannot clear it. Check the list after saving.
-- Pricing changes affect later request calculations. Existing usage records retain their recorded cost and are not recalculated using new prices.
-- Review usage statistics after large pricing updates to confirm outputs look reasonable.
-- Permissions may restrict who can add or edit pricing.
+Choose Delete and confirm to stop using the entry as active model pricing. Existing usage records remain, but new requests can fail because pricing is missing.
+
+**Deleted models cannot simply be added again, and the page has no restore action.** Edit existing entries to adjust charges rather than deleting and recreating the same model. If creation reports a duplicate absent from your list, a deleted record may retain the model name or authorization may hide an existing entry. Ask an appropriate administrator to check.
+
+## IAM resource scope
+
+With IAM enforcement, reads require `OJ_PRICING_READ` eligibility in a real deployment-wide group; writes require `OJ_PRICING_UPDATE`. Individual additions or a policy Allow alone cannot replace that group eligibility.
+
+| Operation | IAM action               | Resource                        |
+| --------- | ------------------------ | ------------------------------- |
+| List      | `quyan:oj:ListPricing`   | Each actual pricing record      |
+| Details   | `quyan:oj:GetPricing`    | Target record                   |
+| Create    | `quyan:oj:CreatePricing` | Control resource and new record |
+| Edit      | `quyan:oj:UpdatePricing` | Target record                   |
+| Delete    | `quyan:oj:DeletePricing` | Target record                   |
+
+Records use `acs:platform:*:platform:oj-pricing/<record-id>`; creation also uses `acs:platform:*:platform:oj-pricing-control/default`. Model and provider names do not replace actual record IDs as authorization resources.
+
+The list returns allowed records only. List access does not grant detail or mutation access. Missing, deleted, or unauthorized detail/mutation targets return 403 in enforce mode. Management APIs do not accept OAuth access tokens. Role sessions use role grants, and matching Deny takes priority. Changed grants, identity, or pricing during an operation can cause failure; writes do not partially save. Internal request billing still looks up active model pricing independently of an administrator's list visibility.
+
+## Troubleshooting
+
+| Symptom                                                              | What to do                                                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Old rates remain after a list-loading error                          | Reopen and verify current values before editing                                     |
+| Save succeeds but loading then fails                                 | The write may have completed. Query again before creating duplicates or overwriting |
+| Edit/Delete is visible but denied                                    | Check the action, global-group eligibility, and record grant                        |
+| Cache costs do not change proportionally with the overall multiplier | Cache costs use independent multipliers; check the full formula                     |
+| Historical costs remain unchanged after edits                        | History retains original charges; verify using new requests                         |
 
 ## Related pages
 
-- [OJ API key management]({{DOCS_BASE_URL}}/en/oj-api-key-management)
+- [OJ API Key management]({{DOCS_BASE_URL}}/en/oj-api-key-management)
 - [OJ usage statistics]({{DOCS_BASE_URL}}/en/oj-usage-statistics)
