@@ -45,7 +45,7 @@
 
 1. 填写接收通知的邮箱，选择需要的事件，并按需设置阈值和冷却时间。
 2. 点击“保存偏好”（移动端为“保存”）提交通知偏好；更改表单不会自动保存。
-3. 如需向自动化系统发送通知，添加并保存 Webhook。
+3. 如需向自动化系统发送通知，添加并保存 Webhook。编辑已有 Webhook 时，签名密钥不会回显：如果接收方需要签名，请重新填写密钥后保存；留空保存会清除原有密钥。
 4. 使用测试动作验证已保存的邮箱或 Webhook。测试会实际发送通知，因此修改目标后请先保存。
 5. 通知未送达时查看投递日志中的状态和错误提示，并检查接收邮箱或 Webhook 目标。
 
@@ -81,7 +81,7 @@
 - IAM 强制模式下，查看、新增、修改和删除分别使用 `quyan:notification:ListWebhooks`、`quyan:notification:CreateWebhook`、`quyan:notification:UpdateWebhook` 和 `quyan:notification:DeleteWebhook`，需要明确授权，登录本身不授予这些能力。旧通知管理权限兼容这些操作；JSON 策略中的其他 Action 不会自动扩展为这些操作。
 - 新增 Webhook 的资源为执行用户本人：`acs:quyan:*:<accountId>:user/<userId>`。获准创建时，系统可以同时初始化缺少的通知偏好；已有偏好和订阅保持原样。创建 Webhook 不授予读取或修改通知偏好的能力。
 - 已有 Webhook 的资源为 `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>`，可单独授权或通过资源组限定范围。只能管理执行用户本人的目标；通配符授权也不会切换到其他用户。
-- 列表只返回获准的 Webhook，显式 Deny 优先。签名 Secret 不会返回，`hasSecret` 仅表示是否已配置；显式设为 `null` 可清除 Secret，未提交该字段则保留原值。
+- 列表只返回获准的 Webhook，显式 Deny 优先。签名密钥不会返回，`hasSecret` 仅表示是否已配置。通过 API 更新时，显式设为 `null` 会清除密钥，省略该字段则保留原值；页面编辑表单留空保存会发送 `null`，因此会清除原密钥。
 - 身份、通知偏好或角色会话失效时不能继续管理；目标在授权后发生变化时，请刷新后重试。删除会停用该目标。测试投递需要独立授权，见下文。
 
 ## 测试投递的权限

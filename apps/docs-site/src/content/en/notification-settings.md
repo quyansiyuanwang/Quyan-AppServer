@@ -45,7 +45,7 @@ These defaults initialize preferences that have not yet been created; they do no
 
 1. Enter the notification email address, select the events you need, and set thresholds and a cooldown as appropriate.
 2. Select **Save Preferences** (**Save** on mobile); changes in the form are not saved automatically.
-3. To send notifications to an automated system, add and save a webhook.
+3. To send notifications to an automated system, add and save a webhook. When editing an existing webhook, the signing secret is not displayed. If the receiver requires a signature, enter the secret again before saving; saving a blank field clears the existing secret.
 4. Use the test action to check the saved email or webhook. A test sends a real notification, so save a changed destination first.
 5. When alerts do not arrive, check the status and error message in delivery logs, as well as the destination email or webhook.
 
@@ -81,7 +81,7 @@ Signed-in users can view their own inbox and mark messages as read. In IAM enfor
 - In IAM enforce mode, listing, creating, updating and deleting use `quyan:notification:ListWebhooks`, `quyan:notification:CreateWebhook`, `quyan:notification:UpdateWebhook` and `quyan:notification:DeleteWebhook` respectively. Each requires an explicit grant; signing in alone does not grant access. Legacy notification-management permission maps to these operations; other Actions in JSON policies do not expand automatically.
 - Creation targets the executing user's own `acs:quyan:*:<accountId>:user/<userId>`. An authorized creation can initialize missing notification preferences while preserving existing preferences and subscriptions. Creating a Webhook does not grant permission to read or update preferences.
 - Existing Webhooks use `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>` and can be individually authorized or scoped through resource groups. Only the executing user's targets are accessible; wildcard grants cannot switch to another user.
-- Lists return only authorized Webhooks, with explicit Deny taking precedence. Signing secrets are never returned; `hasSecret` only indicates whether one is configured. An explicit `null` clears the secret; omitting the field preserves it.
+- Lists return only authorized Webhooks, with explicit Deny taking precedence. Signing secrets are never returned; `hasSecret` only indicates whether one is configured. When updating through the API, an explicit `null` clears the secret and omitting the field preserves it. The page sends `null` when the edit field is saved blank, clearing the existing secret.
 - Inactive identities, preferences or role sessions cannot manage Webhooks. If a target changes after authorization, refresh and retry. Deleting a target disables it. Delivery tests require their own grants, described below.
 
 ## Test-delivery permissions
