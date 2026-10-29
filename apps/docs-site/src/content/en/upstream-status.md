@@ -33,6 +33,8 @@ Use this page to review the health and availability of upstream services.
 ## Notes
 
 - A service can be reachable but still degraded because of high latency.
+- The overall indicator uses the current status of visible monitors, not their uptime percentages. For an upstream monitoring source, the current status comes from the latest heartbeat; a monitor without a heartbeat is treated as down.
+- If the monitoring source is unavailable and static fallback data is configured, the page can successfully display that data without identifying it as a fallback. Static data may not reflect the current service status; check the monitoring source or other diagnostics when you need a live assessment.
 - Upstream latency comes from the corresponding heartbeat. User-to-server latency is measured when the page loads or refreshes; it is not a historical measurement for each heartbeat. A failed measurement displays `N/A`.
 - A failed refresh displays an error and may leave the previous overall indicator visible. Use the result of a successful refresh.
 - Heartbeat visuals can help identify intermittent failures.
