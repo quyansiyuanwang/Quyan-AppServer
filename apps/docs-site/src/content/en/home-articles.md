@@ -9,7 +9,15 @@ The article reader lets you browse published site content. When signed out, it s
 3. Select a title to read its content, author, date, and view count. Categories appear as tags.
 4. Use the table of contents to jump to a section.
 
-Search filters the list only; it does not automatically change or hide the current article. If the list is empty, check your search, sign-in state, and article access permissions. An initial loading failure can also leave the list or article area empty; reload the page and check your network, then contact an administrator if the problem persists. If switching articles fails, the previous article remains visible. Check the error and article title, then select the target again or ask an administrator whether it remains available. Selecting an article in the list does not generate a direct link to that article.
+Search filters the list only; it does not automatically change or hide the current article. Selecting an article in the list does not generate a direct link to that article.
+
+## Cannot find or open an article
+
+| Symptom                                                   | What to do                                                                                                                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The article is missing from the list                      | Clear the search and check your sign-in state. If it is still missing, ask an administrator to check its publication and access conditions.                            |
+| The list or content is empty on first load                | Check the error message and network, then reload the page. Contact an administrator if the problem persists.                                                           |
+| The content does not change after selecting another title | A failed switch leaves the previous article visible. Check the title and error, select the target again, and ask an administrator to check its availability if needed. |
 
 ## Related pages
 
