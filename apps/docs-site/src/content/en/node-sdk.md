@@ -262,7 +262,7 @@ export async function getUserProfile({ baseUrl, token }) {
 }
 ```
 
-### `index.js`
+### `index.js` (using the helper)
 
 ```js
 import 'dotenv/config'

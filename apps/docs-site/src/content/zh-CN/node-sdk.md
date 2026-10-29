@@ -262,7 +262,7 @@ export async function getUserProfile({ baseUrl, token }) {
 }
 ```
 
-### `index.js`
+### `index.js`（调用封装）
 
 ```js
 import 'dotenv/config'

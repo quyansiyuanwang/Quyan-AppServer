@@ -241,7 +241,7 @@ def get_user_profile(base_url: str, token: str) -> Any:
     ).data
 ```
 
-### `app.py`
+### `app.py` (using the helper)
 
 ```python
 import os
