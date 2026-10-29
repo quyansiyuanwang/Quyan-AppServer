@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'user-management',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '用户管理',
   },
   summary: {
-    en: 'Create, edit, reset, and maintain user accounts.',
-    'zh-CN': '说明用户账号的新建、编辑、重置和维护。',
+    en: 'Find and create users, edit profiles and status, reset passwords, and use account impersonation.',
+    'zh-CN': '查找和创建用户、编辑资料与状态、重置密码，了解账户模拟和 IAM 限制。',
   },
-  tags: ['user', 'admin', 'account'],
+  tags: ['user', 'admin', 'account', '用户', '密码', '禁用', '模拟', 'impersonation'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
