@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'account-settings',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Account',
     'zh-CN': '账号',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '设置',
   },
   summary: {
-    en: 'Profile, password, email, theme, language, and security controls.',
-    'zh-CN': '说明资料、密码、邮箱、主题、语言与安全控制。',
+    en: 'Update your profile, email and password, manage external account bindings, and clear selected local data.',
+    'zh-CN': '修改资料、邮箱和密码，管理外部账号绑定，并按项清理本地数据。',
   },
   tags: ['settings', 'profile', 'security'],
   content: {
