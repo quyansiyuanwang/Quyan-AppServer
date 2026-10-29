@@ -112,6 +112,8 @@ export async function verifyAccessToken({ token, jwks, issuer, audience }) {
 }
 ```
 
+The function above verifies the signature, issuer, audience, expiry, and token use, but does not check the scopes required by your application. Before authorizing an operation using the returned claims, check that its required scopes are present.
+
 ## 3. Exchange authorization code for tokens
 
 ```js

@@ -108,6 +108,8 @@ export async function verifyAccessToken({ token, jwks, issuer, audience }) {
 }
 ```
 
+上面的函数验证签名、签发者、受众、过期时间和令牌用途，但不会检查业务所需的 scope。请在使用返回的 claims 授权操作之前，单独检查 scope 是否包含该操作要求的值。
+
 ## 3. 用授权码换取令牌
 
 ```js

@@ -84,6 +84,8 @@ def verify_access_token(
     return claims
 ```
 
+上面的函数验证签名、签发者、受众、过期时间和令牌用途，但不会检查业务所需的 scope。请在使用返回的 claims 授权操作之前，单独检查 scope 是否包含该操作要求的值。
+
 ## 3. 使用授权码换取令牌
 
 ```python
@@ -188,7 +190,7 @@ def get_machine_token(
 
 ## 6. 组合示例
 
-将第 1–5 节的导入和函数与下面的组合示例放在同一 Python 文件中，并安装上述依赖；示例需要 Python 3.10 或更高版本。填写本部署的环境变量；不要提交包含客户端密钥的 `.env`。示例中的授权码和 PKCE verifier 是占位符，必须替换为同一次真实授权返回的授权码和发起时保存的 verifier。交换前还需在回调中校验 `state`；此处未实现完整的授权回调。
+将第 1–5 节的导入和函数与下面的组合示例放在同一 Python 文件中，并安装上述依赖；将第 2 节的 `from __future__ import annotations` 放在文件最开头。示例需要 Python 3.10 或更高版本。填写本部署的环境变量；不要提交包含客户端密钥的 `.env`。示例中的授权码和 PKCE verifier 是占位符，必须替换为同一次真实授权返回的授权码和发起时保存的 verifier。交换前还需在回调中校验 `state`；此处未实现完整的授权回调。
 
 ```python
 import os
