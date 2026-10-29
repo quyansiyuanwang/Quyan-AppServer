@@ -1,10 +1,16 @@
 # Secret Vault
 
-Secret Vault stores deployment-time credentials such as third-party API keys and webhook secrets. An alias is unique within an instance and its value is write-only: after creation or rotation, the Console shows only the alias, version, update time, and last-use time, never the plaintext.
+Secret Vault stores deployment-time credentials such as third-party API keys and webhook secrets. An alias is unique within an instance and its value is write-only: after creation or rotation, the Console list shows only the alias, version, and last-use time, never the plaintext.
 
 ## How it is used
 
 Aliases must be 1–100 characters, start with an uppercase letter, and then contain only uppercase letters, digits, and underscores, for example `OPENAI_KEY`. Secret values must be 1–20,000 characters. When configuring a channel in [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push), select a Secret Vault instance and alias belonging to the same storage owner. During delivery, the platform reads the secret and sends it to the channel endpoint as a Bearer credential; bind it only to an endpoint you trust. Configuring the reference may also require separate permission to use the secret; see the Push Aggregation guide.
+
+## Manage secrets in the console
+
+Open a Secret Vault instance, select Write secret, enter an alias and value, and save. Writing an existing alias replaces its value and increments the version; first make sure dependent services are ready to use the new credential. You can also select Rotate in the list and save a new value under the same alias. The old value cannot be retrieved from the console.
+
+Deletion requires confirmation. Before deleting, check whether any channels reference the alias.
 
 ## Lifecycle and permissions
 
