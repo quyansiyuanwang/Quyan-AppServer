@@ -12,7 +12,7 @@ The system supports TOTP-based 2FA using authenticator apps (Google Authenticato
 2. Click "Enable". A QR code and setup key will be shown.
 3. Scan the QR code with your authenticator app.
 4. Enter the 6-digit code from your app to confirm.
-5. Save your recovery codes in a safe place.
+5. Before closing the recovery-code dialog, save the displayed codes somewhere safe. Use **Copy**, or record them manually if copying fails. After closing the dialog, follow the prompt about signing in again.
 
 ### Recovery codes
 
