@@ -43,6 +43,10 @@ Below the terminal, you can manage shortcuts and quick commands. Select an onlin
 
 When the terminal is connected, selecting a quick command immediately sends it to the current terminal. If the content has no newline, the page appends Enter, which may execute it immediately. Check the active tab, device, and command before sending. Commands cannot be sent while disconnected.
 
+## Before connecting
+
+First obtain an active remote terminal entitlement by claiming or purchasing a plan or having an administrator assign one, then install and register the agent on the target device. Open the install agent dialog in [My remote terminal products]({{DOCS_BASE_URL}}/en/my-remote-terminal-products). It uses a newly issued install token by default; you can also select a long-term registration token when one is available in the list. Keep the command and token secret. On Linux or macOS, follow that page’s environment-variable instructions as well. Once the device is online and appears in the workspace, follow the steps below.
+
 ## Common actions
 
 1. Click a device card to select it.
@@ -53,7 +57,6 @@ When the terminal is connected, selecting a quick command immediately sends it t
 
 ## Notes
 
-- A device only appears after it has been registered using a registration token. Tokens are managed on the "My remote terminal plans" page.
 - Sessions use WebSocket; you can reconnect manually or automatically after a network drop.
 - The number of concurrent terminals is capped by your entitlement. Purchase a plan or ask an admin to assign one if you need more capacity.
 
