@@ -52,6 +52,7 @@ These defaults initialize preferences that have not yet been created; they do no
 ## Notes
 
 - If the event list or saved preferences do not load correctly, check permissions and connectivity and reload the page before reviewing and saving. Saving uses the currently loaded event list; saving with a missing list can overwrite existing subscriptions.
+- An inbox message is created before subscription and cooldown checks. Unsubscribing or an active cooldown does not prevent it from appearing in the inbox. Subscriptions and cooldowns affect email and webhook delivery; cooldowns are tracked separately for each user and event.
 - Webhooks should point to endpoints you control.
 - Event subscription changes take effect after a successful save; no restart is required.
 - Filter inbox messages by unread status, mark messages individually or mark all as read. Use the confirmation action to mark email-opened messages as read in bulk.
