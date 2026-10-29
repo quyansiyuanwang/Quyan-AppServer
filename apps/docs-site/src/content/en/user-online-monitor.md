@@ -68,6 +68,8 @@ Clicking view detail opens a user detail drawer. It usually shows:
 
 This layer is for single-user investigation rather than wide filtering.
 
+If loading details fails, the drawer may still show the previously viewed user and sessions. Close the drawer and reopen the intended user’s details. Before forcing a session offline or exporting, make sure the load succeeds and the username in the title is correct. Timeline filtering or pagination can also leave old records visible if loading fails; reload before drawing conclusions.
+
 ### Timeline area
 
 The detail drawer is also split into:
