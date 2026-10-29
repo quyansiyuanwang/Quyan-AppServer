@@ -1,138 +1,114 @@
 # Article management
 
-Use this page to maintain site articles and knowledge content.
+Use Article Management to create, edit, and publish site articles, adjust reading order, and select a default article. Readers use [Home / Articles]({{DOCS_BASE_URL}}/en/home-articles). Publish legal agreements through [Legal policy management]({{DOCS_BASE_URL}}/en/legal-policy-management).
 
-## Page purpose
+## Prerequisites and page scope
 
-- Create and edit articles.
-- Control publish state.
-- Set a default article.
-- Maintain ordering and categories.
+Open **Article Management** on the management site. Page and operation permissions apply separately: list visibility, content retrieval, editing, publishing, deletion, and reordering are distinct grants. Seeing an article does not grant every operation.
 
-## What you will see
+| Task                                    | Page permission identifier |
+| --------------------------------------- | -------------------------- |
+| Read content                            | `ARTICLE_READ`             |
+| Create a draft                          | `ARTICLE_CREATE`           |
+| Edit, reorder, set or clear the default | `ARTICLE_UPDATE`           |
+| Publish or unpublish                    | `ARTICLE_PUBLISH`          |
+| Delete                                  | `ARTICLE_DELETE`           |
 
-### Article list
+Desktop rows show the title, Slug, categories, publication state, author, views, and creation time; a star marks the default. Mobile uses cards. There is no search, pagination, export, or polling. Articles sort by saved order, then newest creation time. Refresh to reload. A failed load may retain the old list, and an empty list may mean no resources are visible.
 
-- Title, slug, and category.
-- Published/default markers.
-- Reorder affordances.
+## Create a draft
 
-### Edit actions
+1. Select **Create Article** and enter a title, Slug, and Markdown content.
+2. Optionally add categories and a summary, and configure public access and required permissions.
+3. Check headings, links, and content in **Preview**. Desktop also offers a split preview; mobile uses editor and preview tabs.
+4. Select **Confirm** to save. New articles always start as drafts and require a separate publish operation.
 
-- Create article.
-- Edit article.
-- Publish or unpublish.
-- Set or clear default.
-- Delete article.
+| Field                | Requirement or effect                                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Title                | 1–200 characters after trimming surrounding whitespace                                                                                             |
+| Slug                 | 1–200 lowercase letters, digits, underscores, or hyphens; unique across the deployment, including identifiers held by deleted or inactive articles |
+| Categories           | Multiple tags saved as a comma-separated value of at most 100 characters in total; does not create a separate category-management directory        |
+| Summary              | Up to 500 characters                                                                                                                               |
+| Content              | Required on creation; Markdown editor and preview                                                                                                  |
+| Public access        | Off by default for new articles; publication is still needed for anonymous reading                                                                 |
+| Required permissions | Optional additional reading condition for non-public articles; saved permission field limited to 100 characters                                    |
 
-## Common actions
+The current reading check treats the permission field as one complete permission value. Select only one valid permission. Multiple selections do not implement an “any” or “all” match and may make the article unreadable.
 
-1. Create an article with a title, slug, and Markdown content; category and summary are optional.
-2. Choose its access: published public articles can be read by signed-out visitors; non-public articles can require permissions.
-3. Preview and save in the editor, then publish the article.
-4. Set a published article as the default when it should appear first. Readers must still meet its access conditions.
-5. Drag items in the desktop list to adjust their order.
+The editor has no autosave, version history, or draft recovery. Keep content in another secure location before submitting. Cancelling, closing, or a failed submission may clear the form. After a lost response, refresh and check whether the article was created before creating it again.
 
-When editing an existing article, clearing the category, summary, or permission requirement leaves those empty fields out of the save request, so the previous values may remain. In particular, making an article public while it has an existing permission requirement can fail because the requirement remains. Check the save result and the access settings after reloading.
+## Edit an existing article
 
-Before editing, confirm that the title and content loaded correctly. If loading fails, the edit dialog may remain open with empty fields; close it, check the error, and reopen the article instead of saving an empty form as its existing content. Keep a draft in another secure location before submitting: the editor may reset the form after a failed request. If the result is uncertain, refresh the list and reopen the article to check saved content before retrying.
+1. Select **Edit** on the row or card and wait for the title, content, and access settings to load successfully. Content retrieval has separate requirements; being allowed to list another author's draft does not guarantee that the editor can read it.
+2. Edit and preview. Saving a published article updates its current content directly, without creating a separate version awaiting publication. Unpublish first if changes need review before readers see them.
+3. Select **Confirm**, refresh, and reopen to check the result.
 
-## Permission requirements
+After a loading failure, the dialog may remain open with an empty form. Close it, resolve the error, and reopen. A failed submission can also reset the form; do not rely on the window retaining your draft. For uncertain outcomes, inspect saved server content before retrying.
 
-| Action                             | Required permission |
-| ---------------------------------- | ------------------- |
-| View articles                      | `ARTICLE_READ`      |
-| Create article                     | `ARTICLE_CREATE`    |
-| Update, reorder, set/clear default | `ARTICLE_UPDATE`    |
-| Delete article                     | `ARTICLE_DELETE`    |
-| Publish / unpublish                | `ARTICLE_PUBLISH`   |
+Clearing categories, summary, or required permissions omits those empty fields from the save request, so old values may remain. Switching to public access also does not explicitly clear an existing permission requirement and may be rejected. An authorized maintainer must explicitly submit an empty string through the article update API when clearing old conditions, then verify the result. An empty selector does not prove removal. A public article cannot retain a nonempty permission condition.
 
-## Resource-scoped management listing
+Changing the Slug breaks links that locate the article by its old Slug; the platform does not automatically redirect the old identifier. Saving does not replace the author or change publication state, the default flag, or view counts.
 
-In IAM enforce mode, the management list uses the independent `quyan:article:ListArticles` Action to authorize article metadata within the current account, one article at a time. Grants can target one article, article ARN patterns or resource groups, including explicitly authorized drafts by other authors in the same account. Database queries first isolate active accounts, authors and articles, then evaluate bounded batches. Unallowed, explicitly denied, inactive, foreign or changed resources are omitted. An empty array means no visible resources, not account-wide authority.
+## Publish, withdraw, and control access
 
-```json
-{
-  "Version": "1",
-  "Statement": {
-    "Effect": "Allow",
-    "Action": "quyan:article:ListArticles",
-    "Resource": "acs:article:*:account-id:article/article-id"
-  }
-}
-```
+| State                 | Who can read                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| Draft                 | No anonymous reading; signed-in content retrieval also has author and permission conditions |
+| Published, non-public | Requires sign-in, content-read authorization, and any additional permission condition       |
+| Published, public     | Can be read anonymously through public reading endpoints                                    |
 
-Replace the account and article IDs. Listing only returns metadata: it does not load or return article content or expose an unfiltered global total. A JSON grant for `quyan:article:Read` does not implicitly grant this independent list Action; editing, publishing, deletion and reading endpoints retain their own rules. An account ARN grant does not authorize every article in that account. The compatible array response remains sorted, with bounded database batches processed internally.
+Review the content and access scope before selecting **Publish**. It submits immediately without another confirmation. Public articles may then be read by signed-out visitors. Changing an already-published article to public and saving can also immediately widen access without publishing again.
 
-Additional article-specific access requirements still apply. Legacy `ARTICLE_READ` grants in enforce mode preserve own-draft or published-article listing and do not automatically authorize peer drafts. Legacy removals remain global explicit Deny. Legacy/shadow modes retain the previous permission and draft checks; shadow comparison does not replace legacy enforcement. Management menus retain separate permission-display checks: a resource-scoped list grant does not mean global menu permission.
+**Unpublish** immediately returns the article to draft. It does not delete content, reset views, clear the default flag, or retract copies readers already made. Publishing again updates the publication time. If the default flag remains and another default selection has not replaced it, the article may appear as the default again. Publishing and unpublishing use the same permission without granting editing or deletion.
 
-## Creation and account scope
+## Set the default article
 
-In IAM enforce mode, article creation uses `quyan:article:Create` on the trusted current account, `acs:quyan:*:<accountId>:account`. An article ID does not exist before creation: a grant for an existing article ARN does not grant creation, and resource or resource-group authorizations do not automatically expand into account creation permission.
+1. Select **Set Default** on a published article. It submits immediately and clears other active articles' default flags.
+2. To remove the selection, use **Clear Default** on the starred article. This clears the deployment's active default selection without deleting or unpublishing content.
+3. Check the reader page both signed in and signed out. When the default article is unavailable to the reader, the page tries the first listed article without relaxing access requirements.
 
-```json
-{
-  "Version": "1",
-  "Statement": {
-    "Effect": "Allow",
-    "Action": "quyan:article:Create",
-    "Resource": "acs:quyan:*:account-id:account"
-  }
-}
-```
+The default applies to the entire deployment, rather than one selection per user or account. Confirm its effect on other readers. Setting it uses the update action on the target article; clearing it uses the update action on an account resource. These are different grant scopes, so resource-specific editing does not guarantee permission to clear the site default.
 
-Replace the account ID with your actual account. The author is always the executing user, including AccessKey and role-session requests. A role session uses role grants, not the caller's own creation permission. Only title, slug, category, summary, content, public visibility and access requirements are accepted. New articles always start as drafts; creation cannot select the site default or override managed status or counters. Creation does not grant subsequent editing, deletion, publishing or default-article management.
+## Reorder and delete articles
 
-Slugs are globally unique, including inactive articles. A public article cannot have a nonempty permission requirement. Persistence rechecks active authorship and account ownership: changed identities are denied, while database concurrency conflicts require refreshing and retrying. Legacy/shadow modes retain their previous creation permission checks, with the same input isolation and draft defaults.
+On desktop, drag the handle on the left of the list. Releasing it submits automatically without a separate save. Mobile has no drag-reordering entry. Every submission includes all articles in the current list and requires reorder permission on each; permission on only the moved article may be insufficient.
 
-## Resource-scoped publishing
+In IAM enforce mode, the entire reorder succeeds or fails together, with at most 500 articles per request. This interface cannot reorder the complete list when it exceeds that limit. A failure attempts to reload the list. If reloading also fails, the displayed order may still be unsaved; confirm after a successful refresh. Reordering does not change content, authors, access, publication, or the default selection.
 
-In IAM enforce mode, publishing and retracting use the same sensitive native Action, `quyan:article:Publish`, on an exact article resource:
+Deletion requires confirmation and removes the article from available lists and reading endpoints. The console has no restore operation. Deletion does not release its Slug, delete other articles, or clear their default flags. Save a copy first if needed; unpublish when you only need to stop reading temporarily.
 
-`acs:article:*:<accountId>:article/<articleId>`
+Views count content reads, including repeat visits and editor loading. Asynchronous updates may be delayed or fail. This is not a unique-visitor, complete-reading, or read-confirmation count, and the management list does not continually refresh it.
 
-A grant can target articles by other authors within your account, or use a resource-group scope. Another account's articles, inactive articles/authors/accounts, and noncanonical IDs are rejected even with a wildcard policy. Explicit Deny overrides Allow. Group membership removal applies to the next request.
+## IAM resource authorization reference
 
-```json
-{
-  "Version": "1",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "quyan:article:Publish",
-      "Resource": "acs:article:*:account-id:article/article-id"
-    }
-  ]
-}
-```
+IAM enforce mode supports management of specific resources within one account. Article ARNs use `acs:article:*:<accountId>:article/<articleId>`. Creation and clearing the default use `acs:quyan:*:<accountId>:account`. Use actual account and article IDs; an account ARN cannot substitute for a specific article grant.
 
-Replace the placeholders with your account and article identifiers. An explicit account ARN alone is not an article grant. Historical `ARTICLE_PUBLISH` permissions retain their account-wide compatibility scope; legacy/shadow rollout modes still enforce the historical permission check.
+| Operation                | Action                          | Resource                                                   |
+| ------------------------ | ------------------------------- | ---------------------------------------------------------- |
+| List management metadata | `quyan:article:ListArticles`    | Each visible article                                       |
+| Read content             | `quyan:article:Read`            | Target article, also subject to content-reading conditions |
+| Create a draft           | `quyan:article:Create`          | Current account                                            |
+| Edit or set the default  | `quyan:article:Update`          | Target article                                             |
+| Clear the default        | `quyan:article:Update`          | Current account                                            |
+| Publish or unpublish     | `quyan:article:Publish`         | Target article                                             |
+| Delete                   | `quyan:article:Delete`          | Target article                                             |
+| Reorder a batch          | `quyan:article:ReorderArticles` | Every article in the submission                            |
 
-Publishing can make already-public articles accessible anonymously. Check content, public visibility and access restrictions before confirming. The publish response contains the existing full article DTO, including content. The server rechecks active ownership and the authorized publication snapshot before writing; if state or visibility changed, reload and authorize again. This grant does not authorize creating/editing/deleting articles or changing the site-wide default. Article listing/menu visibility still uses its separate permissions during migration; public reading is unchanged.
+Lists return authorized metadata without content or an unfiltered global total. Grants can target another author in the same account or use resource groups. Additional article permission conditions still affect listing; foreign-account or unavailable articles, authors, and accounts do not become accessible. `Read` does not imply `ListArticles`, `Update` does not imply the separate `ReorderArticles`, and creation does not grant later operations. Successful edit, publish, and set-default responses can include complete content; grant their actual capabilities accordingly.
 
-## Resource-scoped editing and deletion
+Removing resource-group membership affects subsequent requests, and matching Deny takes priority. Role sessions use the role's own grants while authorship remains the executing user. Create and update APIs accept content and access settings, without replacing the author, publication state, or counters; use the appropriate dedicated operation.
 
-In enforce mode, `quyan:article:Update` and `quyan:article:Delete` independently authorize the same concrete article ARN. A policy can delegate an exact same-account peer article, or restrict it to a resource group. The server checks current article/author/account availability and rechecks the authorized snapshot in the write transaction. Cross-account resources, identity aliases, explicit Deny, missing policies and stale targets fail closed.
+For legacy-permission compatibility, `ARTICLE_READ` lists the executing user's drafts or published articles. `ARTICLE_UPDATE` and `ARTICLE_DELETE` retain author-only editing/deletion, while historical reordering and publishing keep their own scopes. An identity with delegation authority must explicitly grant resource actions to manage other authors' articles in the same account. Legacy removed permissions still deny first. Legacy/shadow deployments retain their earlier checks. Menu visibility, lists, and content retrieval cannot replace one another.
 
-Editing does not grant publication, deletion or site-default management. The edit response includes the full article DTO. Only title, slug, category, summary, content, public visibility and access requirement are editable: a request cannot replace the author, change publication state/default selection, or overwrite status/counters. Making an already-published article public can expose its contents anonymously; clear any permission requirement explicitly in the same edit. Slugs remain site-wide unique, including inactive articles.
+Concurrent resource or ownership changes may reject an operation. Reload and check before resubmitting. See [RAM management]({{DOCS_BASE_URL}}/en/ram-management) for policy configuration.
 
-Deletion marks the selected article unavailable; it neither deletes another article nor clears other articles' default flags. The deleted article immediately stops being eligible for resource-group grants. Legacy/shadow modes retain historical permissions and author-only editing/deletion; resource-scoped delegation is enforced after switching to enforce. List/menu permissions remain separate while migration continues.
+## Troubleshooting
 
-Migration does not automatically widen editing/deletion. `ARTICLE_UPDATE`/`ARTICLE_DELETE` from user additions, groups, legacy bindings or historical backfilled versions remain limited to the executing user’s authored articles in enforce mode. Legacy role and AssumeRole grants use that same executing-user boundary. To manage another same-account author’s article, an authorized delegator must explicitly publish a resource-scoped JSON policy; legacy removals remain global explicit Deny. Historical reorder and publication were not author-only and keep their own scopes. Legacy author authority alone cannot publish or delegate an unconditioned article-management grant.
-
-## Atomic resource-scoped reordering
-
-In enforce mode, reordering requires `quyan:article:ReorderArticles` on **every** requested article. The server resolves all stored article identities within your account, evaluates the full batch, rechecks every authorized snapshot, then writes all ordering changes in one transaction. A denied, missing, inactive, foreign-account or changed member rejects the whole operation; a later database failure rolls back earlier writes.
-
-Submit each article ID only once and provide a nonnegative integer order within the database integer range. A request is bounded by the server IAM batch limit (currently 500 resources). Resource-group membership and trusted request Conditions apply separately to every member. Editing-only JSON grants do not authorize this separate Action; existing policy drafts that used `quyan:article:Update` for sorting must explicitly add `quyan:article:ReorderArticles`. Historical `ARTICLE_UPDATE` fields still map to both capabilities during migration. Reorder changes only ordering, not author, content, visibility, publication or default selection. It retains the historical edit permission in legacy/shadow mode; listing and site-wide default management remain separate concerns.
-
-## Notes
-
-- The reading-side page is usually `home-articles`.
-- Before publishing, review heading hierarchy and important links.
-- The default article can affect what users see first.
-
-## Related pages
-
-- [Home / Articles]({{DOCS_BASE_URL}}/en/home-articles)
-- [Legal policy management]({{DOCS_BASE_URL}}/en/legal-policy-management)
+| Symptom                                                 | Action                                                                                                          |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Readers cannot see a newly saved article                | Check draft state, public access, and reader permissions; saving is separate from publishing                    |
+| Listed article fails to load in the editor              | Check content-read grants, draft authorship, and additional conditions; close the empty dialog before retrying  |
+| Clearing permissions or switching to public still fails | The interface may omit removal of the old condition; explicitly clear it and verify the saved result            |
+| Some readers cannot see the default                     | Default selection does not bypass publication and access conditions; check identity and public access           |
+| Dragged order reverts                                   | Check grants for the complete list, the 500-article limit, and refresh results                                  |
+| The list stays old after a success notice               | Writing and subsequent loading may succeed or fail separately; refresh successfully before repeating the action |
