@@ -35,7 +35,8 @@ Use this page to inspect API logs, log statistics, and server log files.
 - Server log file list organized by type.
 - File content viewer.
 - Search within the file.
-- Returned-line limit (1–2000) and truncation notice.
+- Returned-line limit (1–2000, default 200) and truncation notice.
+- Search matches individual lines in the selected file without case sensitivity and returns only the last matching lines up to the limit. Without a search term, the viewer shows the end of the file.
 
 ## Common actions
 
