@@ -1,38 +1,42 @@
 # Trusted device management
 
-A trusted device is a browser/device the system remembers for a limited time window after you successfully complete two-factor verification. While within that window, regular operations on that device can skip repeated verification. This page views and manages those device records — it is the standalone management view for the same feature surfaced as an entry point on the Settings page.
+A trusted device is a browser/device the system remembers for a limited time window after you successfully complete two-factor verification. Within that window, regular operations on the device can skip repeated verification. Open trusted-device management in the two-factor authentication section of **Settings → Account Security** to review or delete these records.
 
-## Page purpose
+## Prerequisites
 
-- View device records currently within the trust window.
-- Remove a single device you no longer trust.
-- Remove device records individually, checking each page if you suspect account compromise.
+- Sign in to your account. The management entry appears in Account Security when 2FA is enabled.
+- Viewing and deleting devices are subject to separate account authorization policies. View access does not guarantee delete access. If denied, ask an administrator to check authorization.
 
-## What you will see
-
-### Device list
+## Review device records
 
 A card per trusted device, showing:
 
 - **Device label** — IP address if available, otherwise the browser User-Agent, otherwise a shortened device ID.
 - **IP address** — the source IP recorded when the device was marked trusted.
 - **Browser / User-Agent** — helps you recognize the device.
-- **Trusted at** — when the device was first marked trusted.
-- **Last used at** — the most recent time this device skipped verification using its trust.
+- **Trusted at** — when trust was established for the device.
+- **Last used at** — the most recent successful check of this device's trust record. High-risk actions can still require 2FA after a trust match; this timestamp does not mean the action succeeded.
 - **Expires in** — the time remaining when the list was loaded (shown in up to two units: days, hours, minutes, or seconds). Refresh the list for an updated value.
 
-### Actions
+The top **Refresh** button returns to the first page and fetches current data. Navigate to other pages again as needed. The list reads at most 200 records at a time, and pagination covers only those results; checking every page may not show all devices.
 
-- **Refresh** — returns to the first page and reloads the trusted-device list. Navigate to another page again if needed.
-- **Delete a device** — removes it after a confirmation prompt. If you delete the device you are currently using, the locally stored trust cookie is cleared as well.
+## Delete a device you no longer trust
 
-The list reads at most 200 device records at a time, and pagination covers only those results. If there are more devices, checking every page may not show all of them; refresh and continue checking after deleting devices. The list can also be empty when device storage is unavailable, so an empty list does not prove there are no trusted devices. If you suspect account compromise, contact an administrator for help. If the list fails to load, the page may still show devices from the last successful load. Do not rely on that list for their current trust status. The page reloads automatically after a deletion; if the deletion succeeds but the list does not update, select **Refresh** and check whether the device is still listed.
+1. Check the device label, IP, browser information, and timestamps to identify an unused or unrecognized device.
+2. Select **Delete** for that record, check the confirmation prompt, and confirm.
+3. Wait for the list to reload and check that the record was removed. Deleting the current browser also clears its trust cookie.
 
-## Common actions
+Deletion removes the ability to skip repeated verification; it does not end existing sign-in sessions on that device. If you suspect account compromise, check all pages, delete suspicious records individually, change your password immediately, and contact an administrator for further investigation. Refresh and continue checking after deletion. Whether later verification creates a new trust record depends on the verification flow.
 
-1. Periodically review the list and remove devices you no longer own or use.
-2. If you suspect account compromise, remove suspicious devices individually, check other pages, and change your password immediately. Whether a new trust record is created when you sign in again depends on the verification flow.
-3. If a device's "last used at" timestamp looks wrong and you did not use it, remove it immediately and review your account security settings.
+## Troubleshooting
+
+| Symptom                                        | Action                                                                                                                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The list is empty                              | Records may have expired, or device storage may be unavailable. An empty list does not guarantee that the account has no trusted devices.                              |
+| Loading failed but devices remain visible      | The page may retain the last successful result. Retry the current page with the refresh button beside the error, or use the top refresh button to retry from page one. |
+| Deletion succeeded but the list did not update | Reloading the list may have failed. Use the top refresh button and check the result before retrying deletion.                                                          |
+| The device is still signed in after deletion   | This is expected: the next action requiring verification cannot skip it using the old trust record. Revoking trust does not sign the device out.                       |
+| The last-used time is unexpected               | Check the device, browser, and IP together. If you cannot recognize the activity, delete the record and review account security.                                       |
 
 ## Notes
 
