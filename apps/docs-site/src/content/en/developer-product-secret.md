@@ -12,7 +12,7 @@ Open a Secret Vault instance, select Write secret, enter an alias and value, and
 
 Deletion requires confirmation. Before deleting, check whether any channels reference the alias.
 
-Last-use time reflects when the platform read the secret, not whether a push was delivered successfully. The platform also reads the secret to check a reference when creating or editing a push channel; a delivery can still fail after the secret is read. To check delivery, inspect the channel statuses in the send result and any delivery logs available to you.
+Last-use time reflects when the platform read the secret, not whether a push was delivered successfully. When a push channel is created or edited through the product console with a secret reference, the platform also reads the secret to check the reference, which may update last-use time. In IAM enforcement mode, the JWT project-management API checks only reference metadata and does not update that time for this check. A delivery can still fail after the secret is read. To check delivery, inspect the channel statuses in the send result and any delivery logs available to you.
 
 If the list fails to load, it may still show the previous list, including after switching instances; an empty list does not establish that the current instance has no secrets. Select Retry in the error message and wait for a successful load before acting. Refresh can also fail after writing, rotating, or deleting a secret, even if a success message appears. Retry and check the alias and version before repeating the operation. Secret values cannot be read back; verify the credential through a channel that uses it if needed.
 
