@@ -33,7 +33,7 @@ Use this page when you can identify your account but can no longer sign in with 
 ## Notes
 
 - The code validity period follows the email and server configuration. If the code is invalid or expired, request another one. The page displays a 60-second cooldown after sending; the server may also impose additional limits or require a verification challenge.
-- If resetting fails after submission, the code may already have been used. Follow the page’s guidance to request a new code and submit the new password again; wait for the send-button cooldown if it is still running.
+- If the connection is interrupted after submission or the result is uncertain, the reset may have completed. Return to sign-in and try the new password first. If submission failed or you still need to reset it, the code may already have been used; request a new code before submitting again. Wait for the send-button cooldown if it is still running.
 - If the email does not arrive, check your spam folder and confirm you entered the bound address. If it still does not arrive, ask an administrator to check the email service. Contact an administrator if you cannot access the bound mailbox.
 - The username and email must belong to the same account.
 - The **Reset** button clears the form. Use the submit button to change the password.
