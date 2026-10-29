@@ -22,7 +22,7 @@
 
 ## 基础地址
 
-以线上环境为例：
+以下地址仅为示例。调用前请替换为当前部署提供的 API 地址；认证站地址可能不同：
 
 ```text
 API Base URL: https://api.qysyw.cn
@@ -30,7 +30,7 @@ Swagger:      https://api.qysyw.cn/docs
 OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
 ```
 
-如果只是临时调试，可先用 Swagger；如果要真正接入业务，建议直接参考下面的代码模板。
+可以使用 Swagger 查看和调试接口。访问 OpenAPI JSON 可能需要身份认证及相应权限，详见下方的“生成的 OpenAPI 规范访问”。
 
 ## AI 中转快速接入
 
@@ -283,7 +283,7 @@ for item in payload["data"]["items"]:
 
 ## OAuth 授权码流程 Demo
 
-使用授权码流程前，请先创建应用并登记回调地址；应用需要通过审核。完整流程见 [OAuth 示例](/zh-CN/oauth-demo)。
+使用授权码流程前，请先创建应用并登记回调地址；应用需要通过审核。将示例中的站点地址、客户端信息和回调地址替换为实际值，并使用随机生成的 `state` 和 PKCE verifier 计算对应的 S256 challenge。完整流程见 [OAuth 示例]({{DOCS_BASE_URL}}/zh-CN/oauth-demo)。
 
 ### 第一步：跳转到授权页
 

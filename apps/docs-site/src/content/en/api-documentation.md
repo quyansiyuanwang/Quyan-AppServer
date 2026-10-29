@@ -22,7 +22,7 @@ Learn about endpoint addresses, authentication, request examples, and error hand
 
 ## Base URLs
 
-Example production endpoints:
+The following addresses are examples. Replace them with the API address for your deployment before making requests; the identity site may use a different address:
 
 ```text
 API Base URL: https://api.qysyw.cn
@@ -30,7 +30,7 @@ Swagger:      https://api.qysyw.cn/docs
 OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
 ```
 
-Swagger is suitable for inspection and quick testing. For real integration work, the templates below are usually more valuable.
+Use Swagger to inspect and test endpoints. Access to the OpenAPI JSON may require authentication and permissions; see “Generated OpenAPI specification access” below.
 
 ## AI relay quick start
 
@@ -283,7 +283,7 @@ for item in payload["data"]["items"]:
 
 ## OAuth authorization-code demo
 
-Before using this flow, create an application, register its callback URI, and obtain approval. See the [OAuth example](/en/oauth-demo) for the complete flow.
+Before using this flow, create an application, register its callback URI, and obtain approval. Replace the example site addresses, client information, and callback URI with your own values. Generate a random `state` and PKCE verifier, then derive the S256 challenge from the verifier. See the [OAuth example]({{DOCS_BASE_URL}}/en/oauth-demo) for the complete flow.
 
 ### Step 1: Redirect to the authorization page
 
