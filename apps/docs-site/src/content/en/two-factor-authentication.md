@@ -20,7 +20,7 @@ When you enable 2FA, a set of recovery codes is generated (10 by default, depend
 
 - Store recovery codes offline (print or write them down).
 - Do not store them on the same device as your authenticator app.
-- You can regenerate recovery codes from the 2FA settings page (requires current 2FA verification).
+- The current settings page has no recovery-code regeneration action. An authorized API caller can use `POST /v1/users/me/2fa/recovery-codes/regenerate` with a valid authenticator or recovery code; the request must also satisfy replay protection. Regeneration replaces the previous codes, so securely save the new set immediately.
 
 ### Disabling 2FA
 
