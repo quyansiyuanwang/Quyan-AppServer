@@ -21,7 +21,7 @@ Time, user, model, and channel filters only change the report contents; they do 
 
 - Date-range filter.
 - Multi-select filters for users, models, channels, and relay tokens (support keyword search and regex).
-- Active filter tags.
+- Tags for the current selections.
 
 ### Summary and charts
 
@@ -53,7 +53,7 @@ Time, user, model, and channel filters only change the report contents; they do 
 
 ## Notes
 
-- Leaving a dimension with no selected options does not restrict results by that dimension. To narrow the report, select the desired options and click **Apply filters**.
+- Leaving a dimension with no selected options does not restrict results by that dimension. Select options and click **Apply filters** to update the report. Tags show the current selections, which may differ from the report before it is refreshed; refreshing or changing the date also submits the current selections and reloads the report.
 - After searching within a filter, the select-all, invert-selection, and clear controls affect only the current search results; other selections remain. Clear the search to operate on all available options.
 - Too many active filters can hide the broader trend, so widen them when totals look suspicious.
 - This page is useful for both performance analysis and cost investigation.
