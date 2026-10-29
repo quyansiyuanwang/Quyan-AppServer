@@ -36,6 +36,7 @@ A table (or card list on mobile) of registered passkeys, each showing:
 - Viewing, registering, and deleting passkeys requires sign-in and is subject to account permission policies. Registration and deletion also require `passkey:manage`. If an action is denied, contact your account administrator to check your authorization.
 - If your account has 2FA enabled, signing in with a passkey may still require a second verification depending on the account’s passkey verification policy and whether the current device is within the [trusted-device]({{DOCS_BASE_URL}}/en/trusted-device-management) window. When 2FA is enabled, some high-risk actions still require fresh verification.
 - Deleting the last passkey does not disable 2FA if TOTP or recovery codes are still configured — passkeys are one authentication method among several, not a replacement for 2FA.
+- Deleting a passkey from the account list removes the platform record; it does not automatically remove the credential saved on your device or in a password manager. To remove a local or synced copy, delete it separately from the device or password manager.
 - If registration is cancelled or fails, refresh the list and check the result. With IAM enforcement, the list includes only authorized credentials; a missing record may also indicate insufficient read permission. Check authorization before deciding whether to register again.
 
 ## Related pages
