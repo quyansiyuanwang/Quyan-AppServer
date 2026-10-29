@@ -39,9 +39,9 @@ Streaming and non-streaming inference both capture recognized identity. HTTP sta
 
 ## Retention and archive
 
-Hot storage defaults to 90 days and can be adjusted in Data Archive. Older records are archived to OSS; AI request log archives do not automatically expire.
+Hot retention defaults to 90 days and can be adjusted in Data Archive. Records past the retention period are removed from hot storage only after an archive task successfully processes them. Older records may still be in hot storage if the policy is disabled, the task has not run, or execution failed. AI request log archives do not automatically expire.
 
-This page searches hot storage only. For older investigations, download the gzip NDJSON artifact from the corresponding archive run. Uploaded artifacts are verified before hot data is deleted.
+This page searches hot storage only. For older investigations, first adjust the time range here. If the records have been archived, check the run result in [Data archive and cleanup]({{DOCS_BASE_URL}}/en/data-lifecycle) and download the corresponding gzip NDJSON file. Uploads are verified before hot data is deleted; if a run fails, check its actual archive and deletion counts.
 
 ## IAM access to log collections and details
 
