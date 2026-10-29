@@ -10,6 +10,12 @@ Optional response-body matching supports “contains” or “equals”. When en
 
 Check records include status code, latency, and a sanitized error summary. A target can be paused, resumed, or checked manually; a manual check only affects the selected row. A subsequent check triggers one outage notification after the detected outage has lasted for the configured delay. A recovery notification is sent only if an outage notification was previously sent. Notifications use the platform notification/webhook system and existing notification preferences.
 
+## Loading and operation failures
+
+If the console shows a loading error, the monitor list and publication status may still reflect the previous successful load, including after switching instances. Select Retry in the error message and wait for loading to succeed before acting on the displayed state. An empty list after a loading failure does not establish that there are no monitors.
+
+The console reloads data after creating, editing, deleting, or manually checking a monitor, and after changing publication status. If the operation request completed but the refresh failed, retry loading and check the result before repeating the operation. A repeated manual check sends another request to the target.
+
 ## Public status page
 
 After publication, the page is available at `/status/{slug}` and shows enabled monitors’ current state, recent latency, status code, and recent check history. Availability is the proportion of successful results among the latest 30 checks at most, not time-based uptime; the page displays 0% when there are no checks. Turning publication off removes public access; disabling the product or instance also makes the page unavailable. Publishing has its own RAM action, separate from monitor read, write, and delete actions.
