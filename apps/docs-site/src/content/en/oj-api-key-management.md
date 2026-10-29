@@ -28,7 +28,7 @@ Use this page to maintain API keys for OJ submitter workflows.
 ## Common actions
 
 1. Create a key with a name that identifies the submitter or scenario.
-2. Copy the key immediately after creation and store it securely.
+2. After creation, copy and securely store the credential if it appears in the dialog. If the copy button fails, select and copy it from the read-only field. If the field is empty, do not use an empty value; check the reveal permission described below.
 3. Check bound channel and expiry before troubleshooting failed requests.
 4. To replace a credential, create and save a new key, update the submitter configuration, and confirm it works before deleting the old key. Deletion requires step-up verification; the old key then stops working.
 
