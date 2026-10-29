@@ -22,6 +22,8 @@ Balance transactions are never automatically archived or deleted.
 4. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
 5. Run history reports candidate, archived, and deleted counts. Incomplete source data is retained after a failure; batches already archived and deleted are not rolled back.
 
+To run a batch in the page, select the datasets in the policy table, choose **Run batch**, and confirm the dataset and candidate totals. The preview reflects the time it was queried; data or policies can change before execution. Check run history for actual counts.
+
 Manual archiving requires `quyan:system:data_lifecycle:RunPolicy` on the target dataset. Batch archiving requires the separate `quyan:system:data_lifecycle:RunBatch` action. Both use `acs:platform:*:platform:lifecycle-dataset/<dataset>` and require lifecycle management eligibility from a platform global user group. Policy updates, preview, download, and history permissions do not grant execution permission. Execution still requires two-factor verification and replay protection.
 
 An explicit batch selection is authorized in full before archiving starts. An omitted or empty dataset array processes only the enabled policies selected for that request. Denial on any target prevents execution. During processing, the server repeatedly checks the user, group, role session, policy version, and authorization. Revocation interrupts the request and stops subsequent datasets.
