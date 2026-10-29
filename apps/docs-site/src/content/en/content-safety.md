@@ -2,6 +2,13 @@
 
 Content safety is managed from dedicated AI console pages instead of being embedded in relay settings. Request and response directions are configured independently, and policies, rules, and incidents use server-side pagination.
 
+## Configure your policy
+
+1. Open **Content Safety** in the AI console and expand **Policy settings**. Review the default action, maximum action, and AI audit settings separately for **User requests** and **Upstream responses**. Select **Inherit** to use the parent setting. See “Actions and inheritance” below for how the action cap works.
+2. Select **Save** at the top of the page to submit your policy. To restore the system defaults, select **Restore system defaults**; this immediately saves the inheritance settings.
+3. To define your own matching conditions, expand **Dangerous rules**, select **Add rule**, and enter the name, type, pattern, direction, action, and other settings. Save in the dialog. Rule creation and edits are submitted separately from the policy save button at the top of the page.
+4. Expand **My incidents** and filter the records as needed to check matched rules and outcomes. Token settings can override the user policy, subject to the maximum action cap.
+
 ## Actions and inheritance
 
 Rule or AI matches can allow content, replace sensitive text (`blackhole`), or block with an error (`unreachable`). “Maximum action” is the direction-level safety cap; the effective action can never exceed it. The effective cap is the lowest configured value across system, user, and token scopes in `allow < blackhole < unreachable` order. User and token settings can inherit the parent cap; a lower value further limits the final action, while a higher value cannot exceed the parent cap. For example, if the system cap is `blackhole`, a user cap of `unreachable` still permits at most `blackhole`, while a user cap of `allow` limits matches to allowing content.
