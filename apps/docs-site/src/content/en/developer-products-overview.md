@@ -25,7 +25,7 @@ Disabling an instance prevents external calls. Requests using a product API key 
 
 ## Quota and billing
 
-Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. When the product overage price is zero, calls are free and unrestricted by that quota, though usage is still recorded. When the price is positive, calls beyond the free quota require overage billing to be enabled and sufficient account balance. Validation failures, private-IP lookups, and failed verification sends do not result in a charge. A successful send means the channel accepted the request, not that final delivery is guaranteed. See each product guide for its metering and limits.
+Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. When the product overage price is zero, calls are free and unrestricted by that quota, though usage is still recorded. When the price is positive, calls beyond the free quota require overage billing to be enabled and sufficient account balance. When a product request fails after metering, it enters a quota refund process that may require retries. Contact an administrator if usage or charges are not restored. A successful verification send means the channel accepted the request, not that final delivery is guaranteed. See each product guide for its metering and limits.
 
 Refer to each product page for request details and use the least-privileged RAM action for every integration.
 
