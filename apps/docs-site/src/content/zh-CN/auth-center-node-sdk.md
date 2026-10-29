@@ -77,6 +77,15 @@ function jwkToPublicKey(jwk) {
 }
 
 export async function verifyAccessToken({ token, jwks, issuer, audience }) {
+  if (
+    typeof issuer !== 'string' ||
+    !issuer.trim() ||
+    typeof audience !== 'string' ||
+    !audience.trim()
+  ) {
+    throw new Error('Expected issuer and audience are required')
+  }
+
   const decoded = jwt.decode(token, { complete: true })
   if (!decoded || typeof decoded !== 'object') {
     throw new Error('JWT 格式无效')

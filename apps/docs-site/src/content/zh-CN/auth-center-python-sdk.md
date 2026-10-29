@@ -60,6 +60,9 @@ def verify_access_token(
     issuer: str,
     audience: str,
 ) -> dict[str, Any]:
+    if not isinstance(issuer, str) or not issuer.strip() or not isinstance(audience, str) or not audience.strip():
+        raise ValueError("Expected issuer and audience are required")
+
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
     if not kid:
@@ -202,7 +205,7 @@ load_dotenv()
 base_url = os.getenv("AUTH_CENTER_BASE_URL", "http://localhost:10001")
 client_id = os.getenv("AUTH_CENTER_CLIENT_ID", "")
 client_secret = os.getenv("AUTH_CENTER_CLIENT_SECRET", "")
-issuer = os.getenv("AUTH_CENTER_ISSUER", "http://localhost:10001/auth-center")
+issuer = os.getenv("AUTH_CENTER_ISSUER", "")
 
 jwks = fetch_jwks(base_url)
 
