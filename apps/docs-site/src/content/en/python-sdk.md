@@ -89,14 +89,16 @@ python app.py
 
 ## Suggested helper wrapper
 
+Pass `base_url` (for example, from the loaded `APPSERVER_BASE_URL`) and an API path beginning with `/` to this standalone helper.
+
 ```python
 import requests
 
 
-def call_api(path: str, token: str, method: str = "GET", json_body=None):
+def call_api(base_url: str, path: str, token: str, method: str = "GET", json_body=None):
     response = requests.request(
         method,
-        f"http://localhost:10001{path}",
+        f"{base_url.rstrip('/')}{path}",
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",

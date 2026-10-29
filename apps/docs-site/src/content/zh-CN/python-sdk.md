@@ -89,14 +89,16 @@ python app.py
 
 ## 推荐封装
 
+以下独立封装需要调用方传入 `base_url`（例如从已加载的 `APPSERVER_BASE_URL` 读取）和以 `/` 开头的 API 路径。
+
 ```python
 import requests
 
 
-def call_api(path: str, token: str, method: str = "GET", json_body=None):
+def call_api(base_url: str, path: str, token: str, method: str = "GET", json_body=None):
     response = requests.request(
         method,
-        f"http://localhost:10001{path}",
+        f"{base_url.rstrip('/')}{path}",
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",

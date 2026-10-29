@@ -95,9 +95,11 @@ pnpm dev
 
 ## Suggested helper wrapper
 
+Pass `baseUrl` (for example, from the loaded `APPSERVER_BASE_URL`) and an API path beginning with `/` to this standalone helper.
+
 ```js
-export async function callApi(path, token, init = {}) {
-  const response = await fetch(`http://localhost:10001${path}`, {
+export async function callApi(baseUrl, path, token, init = {}) {
+  const response = await fetch(new URL(path, baseUrl), {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,

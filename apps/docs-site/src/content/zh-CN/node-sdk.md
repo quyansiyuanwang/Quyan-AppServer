@@ -95,9 +95,11 @@ pnpm dev
 
 ## 建议封装一个小型调用器
 
+以下独立封装需要调用方传入 `baseUrl`（例如从已加载的 `APPSERVER_BASE_URL` 读取）和以 `/` 开头的 API 路径。
+
 ```js
-export async function callApi(path, token, init = {}) {
-  const response = await fetch(`http://localhost:10001${path}`, {
+export async function callApi(baseUrl, path, token, init = {}) {
+  const response = await fetch(new URL(path, baseUrl), {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
