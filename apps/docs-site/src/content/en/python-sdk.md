@@ -22,7 +22,7 @@ Best for Python backends, scripts, automation services, and internal integration
 
 ## Smallest use case
 
-If you only need to call the API directly from Python, this is the shortest path.
+If you only need to call the API directly from Python, this is the shortest path. Use Python 3.10 or later for all examples on this page.
 
 ## Suggested structure
 
@@ -44,6 +44,8 @@ These examples use an authorized access token. Third-party OAuth tokens need the
 
 ## `.env`
 
+Replace the example address and token with the API base URL for your deployment and an authorized access token.
+
 ```env
 APPSERVER_BASE_URL=http://localhost:10001
 ACCESS_TOKEN=your_access_token
@@ -63,7 +65,7 @@ api_base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
 access_token = os.getenv("ACCESS_TOKEN", "")
 
 response = requests.get(
-    f"{api_base_url}/v1/users/me",
+    f"{api_base_url.rstrip('/')}/v1/users/me",
     headers={"Authorization": f"Bearer {access_token}"},
     timeout=15,
 )
@@ -115,7 +117,7 @@ def call_api(path: str, token: str, method: str = "GET", json_body=None):
 
 ## Full shared response-unwrapping helper
 
-If Python will call several endpoints, move the shared logic into `appserver_client.py` instead of duplicating checks in every script.
+If Python will call several endpoints, save the following helper as `appserver_client.py` alongside `app.py`. Replace the earlier `app.py` with the complete example below before running it.
 
 ### `appserver_client.py`
 

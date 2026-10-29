@@ -22,7 +22,7 @@
 
 ## 最小使用场景
 
-如果你不是做 OAuth 登录，而只是想从服务端直接调用业务 API，那么可以先从这个模板开始。
+如果你不是做 OAuth 登录，而只是想从服务端直接调用业务 API，那么可以先从这个模板开始。运行以下命令需要 Node.js 20 或更高版本及 pnpm。
 
 ## 推荐目录
 
@@ -52,6 +52,8 @@ example/
 示例使用已获得授权的访问令牌；第三方 OAuth 令牌访问用户资料需要 `profile` scope，访问余额记录需要 `balance:read` scope。具体资源权限仍由服务端控制。请将 `.env` 排除在版本控制之外。
 
 ## `.env`
+
+将示例地址和令牌替换为当前部署的 API 基础地址及已获授权的访问令牌。
 
 ```env
 APPSERVER_BASE_URL=http://localhost:10001
@@ -114,7 +116,7 @@ export async function callApi(path, token, init = {}) {
 
 ## 完整版统一响应解包工具
 
-如果你的服务端会调用多个接口，建议直接抽成一个可复用文件，例如 `appserver-client.js`。
+如果你的服务端会调用多个接口，请将以下调用器保存为与 `index.js` 同目录的 `appserver-client.js`，并将前面的 `index.js` 替换为下方完整版，再运行示例。
 
 ### `appserver-client.js`
 

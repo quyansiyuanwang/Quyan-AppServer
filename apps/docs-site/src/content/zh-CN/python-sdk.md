@@ -22,7 +22,7 @@
 
 ## 最小使用场景
 
-如果你只需要从 Python 服务里直接调用 API，这一页就是最短路径。
+如果你只需要从 Python 服务里直接调用 API，这一页就是最短路径。本页所有示例需要 Python 3.10 或更高版本。
 
 ## 推荐目录
 
@@ -44,6 +44,8 @@ requests==2.32.3
 
 ## `.env`
 
+将示例地址和令牌替换为当前部署的 API 基础地址及已获授权的访问令牌。
+
 ```env
 APPSERVER_BASE_URL=http://localhost:10001
 ACCESS_TOKEN=your_access_token
@@ -63,7 +65,7 @@ api_base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
 access_token = os.getenv("ACCESS_TOKEN", "")
 
 response = requests.get(
-    f"{api_base_url}/v1/users/me",
+    f"{api_base_url.rstrip('/')}/v1/users/me",
     headers={"Authorization": f"Bearer {access_token}"},
     timeout=15,
 )
@@ -115,7 +117,7 @@ def call_api(path: str, token: str, method: str = "GET", json_body=None):
 
 ## 完整版统一响应解包工具
 
-如果 Python 侧要接多个接口，建议整理成一个 `appserver_client.py`，不要在每个脚本里重复写校验逻辑。
+如果 Python 侧要接多个接口，请将以下调用器保存为与 `app.py` 同目录的 `appserver_client.py`，并将前面的 `app.py` 替换为下方完整版，再运行示例。
 
 ### `appserver_client.py`
 

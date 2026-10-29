@@ -22,7 +22,7 @@ Best for Node.js backends, TypeScript / JavaScript integrations, and server-side
 
 ## Smallest use case
 
-If you do not need OAuth login and only want to call a business API from your backend, start here.
+If you do not need OAuth login and only want to call a business API from your backend, start here. Use Node.js 20 or later and install pnpm to run the commands below.
 
 ## Suggested structure
 
@@ -52,6 +52,8 @@ example/
 These examples use an authorized access token. Third-party OAuth tokens need the `profile` scope for user information and `balance:read` for balance history. Server-side resource permissions still apply. Exclude `.env` from version control.
 
 ## `.env`
+
+Replace the example address and token with the API base URL for your deployment and an authorized access token.
 
 ```env
 APPSERVER_BASE_URL=http://localhost:10001
@@ -114,7 +116,7 @@ export async function callApi(path, token, init = {}) {
 
 ## Full shared response-unwrapping helper
 
-If the service will call more than one endpoint, extract the client into a reusable file such as `appserver-client.js`.
+If the service will call more than one endpoint, save the following helper as `appserver-client.js` alongside `index.js`. Replace the earlier `index.js` with the complete example below before running it.
 
 ### `appserver-client.js`
 
