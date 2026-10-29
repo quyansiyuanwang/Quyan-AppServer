@@ -35,7 +35,7 @@ A completed direct transfer cannot be reversed. There is no user directory or fu
 
 ## Account transactions
 
-Account transactions help you reconcile balance changes. Use the date and loaded-range controls to inspect recent or longer history. API usage records are not shown here; open Consumption records to filter by model, channel, token, and usage type.
+Account transactions help you reconcile balance changes. The loaded range defaults to the last day; you can also select the last 7 days, 30 days, or all history. The date filter only applies to records in the loaded range. To find older transactions, first expand the range and wait for it to load, then set the date filter. API usage records are not shown here; open Consumption records to filter by model, channel, token, and usage type.
 
 ## Notes
 
