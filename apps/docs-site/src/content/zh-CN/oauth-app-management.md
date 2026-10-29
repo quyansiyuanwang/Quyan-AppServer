@@ -270,7 +270,7 @@ Scope 不是“登录成功就自动拥有全部权限”，而是“授权成�
 
 - 应用只有在 `approved` 后才能被正式用于授权流程。
 - 被拒绝后，应用所有者应根据审核意见修改资料后重新提交。
-- 已通过或已拒绝的应用一旦再次编辑，通常会回到 `draft`，等待重新提交。
+- 在控制台保存已通过或已拒绝的应用后，状态会回到 `draft`，原审核意见会清除；即使字段未改动也会如此。已通过的应用在再次审核通过前不能发起新的授权，请提前安排接入变更和重新提交审核。
 - 管理员侧可以看到审核理由，应用所有者也应能看到审核意见，便于整改。
 
 ## Redirect URI 配置建议
@@ -299,6 +299,6 @@ API 站点的令牌接口为 `POST /v1/oauth/token`。如果响应包含刷新�
 
 ## 相关页面
 
-- [`account-settings`](/zh-CN/account-settings)
-- [`api-documentation`](/zh-CN/api-documentation)
-- [`oauth-app-review-management`](/zh-CN/oauth-app-review-management)
+- [账户设置](/zh-CN/account-settings)
+- [API 文档](/zh-CN/api-documentation)
+- [OAuth 应用审核](/zh-CN/oauth-app-review-management)

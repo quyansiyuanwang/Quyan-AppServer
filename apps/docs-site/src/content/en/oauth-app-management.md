@@ -269,7 +269,7 @@ OAuth apps are no longer always “create and use immediately”. In many cases 
 
 - The app can only be used in the actual authorization flow after it reaches `approved`.
 - After rejection, the owner should revise the app based on the review comment and resubmit it.
-- If an approved or rejected app is edited again, it will typically return to `draft` and wait for re-submission.
+- Saving an approved or rejected app in the console returns it to `draft` and clears the previous review comment, even if the fields were unchanged. An approved app cannot start new authorizations until it passes review again; plan the integration change and resubmit it for review.
 - Review comments should be visible to both administrators and app owners so fixes can be made efficiently.
 
 ## Redirect URI configuration guidance
@@ -298,6 +298,6 @@ A granted scope does not bypass account permissions, resource authorization, or 
 
 ## Related pages
 
-- [`account-settings`](/en/account-settings)
-- [`api-documentation`](/en/api-documentation)
-- [`oauth-app-review-management`](/en/oauth-app-review-management)
+- [Account settings](/en/account-settings)
+- [API documentation](/en/api-documentation)
+- [OAuth app review](/en/oauth-app-review-management)
