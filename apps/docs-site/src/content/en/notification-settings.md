@@ -30,16 +30,10 @@ Use this page to manage how the system contacts you about important events, and 
 - Add, edit, and test webhook actions.
 - Paginated delivery log showing event, channel, status, time, and error message.
 
-### Admin: global notification config
+### Inbox messages
 
-Admins can change the following global defaults via the **server configuration** page (stored under `CONFIG_KEYS.NOTIFICATION`):
-
-| Setting                   | Meaning                                        |
-| ------------------------- | ---------------------------------------------- |
-| `defaultSubscribedEvents` | Default event subscriptions for new users      |
-| `defaultThresholds`       | Default balance alert thresholds for new users |
-
-These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
+- Filter messages by unread status, mark them individually as read, or mark all as read.
+- Confirm messages opened through email to mark them as read in bulk.
 
 ## Common actions
 
@@ -56,7 +50,10 @@ These defaults initialize preferences that have not yet been created; they do no
 - An inbox message is created before subscription and cooldown checks. Unsubscribing or an active cooldown does not prevent it from appearing in the inbox. Subscriptions and cooldowns affect email and webhook delivery; cooldowns are tracked separately for each user and event.
 - Webhooks should point to endpoints you control.
 - Event subscription changes take effect after a successful save; no restart is required.
-- Filter inbox messages by unread status, mark messages individually or mark all as read. Use the confirmation action to mark email-opened messages as read in bulk.
+
+## Admin: global notification defaults
+
+Administrators can set **Default Subscribed Events** and **Default Trigger Thresholds** in the notification section of [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration). These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
 
 ## Permissions and availability
 
