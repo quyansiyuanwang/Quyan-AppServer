@@ -1,8 +1,10 @@
 # Chat
 
-Use Chat to select a relay token and model, exchange messages, and manage conversations. You can also run Agent tasks on a remote machine.
+Use Chat to select a relay token and model, exchange messages, and manage conversations. The Agent controls support machine and workspace setup; this version cannot complete remote tasks through Chat.
 
 ## Before you start
+
+After signing in, you need the relevant permissions to view, create, and send to conversations and manage messages. These operations are authorized separately; opening the page does not authorize every action.
 
 Prepare your own token in [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) and check that it has available models. The server calculates the model list from the token, channel, and model configuration. If no model is available, check the token's model restrictions and channel configuration, or contact an administrator.
 
@@ -20,8 +22,8 @@ Prepare your own token in [Relay token management]({{DOCS_BASE_URL}}/en/relay-to
 
 ## Edit or delete messages
 
-- Editing or resending a user message uses it as the new point of continuation, removes the messages after it, and requests a new reply. Press Enter to submit an edit or Esc to cancel it.
-- Regenerating an assistant reply resends the preceding user message, removes the messages after that user message, and generates a new reply. A preceding user message is required.
+- Editing or resending a user message preserves earlier messages, removes the messages after it, and requests a new reply. Press Enter to submit an edit or Esc to cancel it.
+- Regenerating an assistant reply resends the immediately preceding user message, removes the messages after that user message, and generates a new reply. The previous message must be a user message.
 - Deleting a message also removes every message after it. Save any content you need to keep before proceeding.
 - Editing, resending, and regenerating use the **currently selected token and model** to start a new regular chat request and may incur additional usage and charges. They do not lock in the original reply's selection. Even with Agent mode enabled, these message actions do not create a remote Agent task.
 
@@ -29,7 +31,7 @@ Prepare your own token in [Relay token management]({{DOCS_BASE_URL}}/en/relay-to
 
 - Pick a relay token first, then choose one of its currently available models. Different tokens may provide access to different models.
 - When switching tokens, the first model in the new token’s list is selected if the current model is unavailable. If the list is empty, you cannot send a message; check the token’s model configuration.
-- Usage from sent messages is billed against the selected token's pricing rules and counted toward that token's quota — this is the same usage data shown on the [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) page.
+- Regular chat usage is billed against the selected token's pricing rules and counted toward that token's quota — this is the same usage data shown on the [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) page.
 - Your last-selected token and model are stored locally in the browser. If they are no longer available, the page selects currently available options.
 
 ## Stop output or handle failures
@@ -40,16 +42,22 @@ After an interruption, reopen the conversation and check its saved content befor
 
 ## Agent mode
 
-Agent mode uses a remote machine and workspace for conversation tasks. You need an available relay token, model, and workspace; the actions available depend on your account permissions and deployment configuration.
+**Current availability: you can register remote machines and create workspaces, but Chat tasks cannot complete remote execution yet.** Submitted Agent tasks in this version show “Remote Agent runtime is not connected”. An online machine or ready workspace does not establish task execution availability. Turn off Agent mode to use regular chat and ask an administrator about feature availability instead of repeatedly recreating machines or submitting tasks.
 
-1. Turn on **Agent mode** in the message input and use the settings button to open the remote machine page.
-2. Add a machine and connect the remote Agent using the environment variables and startup command shown on the page. The registration token is displayed only after creation; save it securely and do not share it.
-3. Create a workspace on the machine page and select its machine. Return to chat, select the workspace, relay token, and model, then send a message.
-4. If a task fails, check the error in chat and the machine's connection status and last heartbeat on the machine page.
+To prepare a machine and workspace:
 
-Before sending, make sure a workspace is selected. Without one, the send button may still be available and the input is cleared, but no task is created. Create or select a workspace, then enter the message again.
+1. Turn on **Agent mode** in the message input and use the settings button to open **AI Agent machines**.
+2. Select **Add machine** and enter a name of up to 120 characters. Save the registration token immediately after creation; the list cannot reveal it again after the dialog closes. If copying fails, copy the input field manually.
+3. Prepare the remote Agent program on a machine you control, then connect using the dialog's environment variables and command. The startup command requires an installed remote Agent and does not download it. Replace the machine-ID placeholder with a unique identifier and use the reachable endpoint supplied by your deployment administrator. Keep the token secure because it authorizes machine connections.
+4. On the machine page, select **Create workspace**, enter a name of up to 120 characters, and choose its machine. Check machine status, last heartbeat, and workspace status. Creation success does not establish readiness: `provisioning` means preparation or connection is pending; `failed` means preparation failed.
 
-In Agent mode, **Stop** stops the page from receiving output but does not guarantee that the remote task has been cancelled. Switching conversations or leaving the page also stops receiving the current output; do not assume the remote task has ended.
+Viewing and creating machines or workspaces, and removing machines, require the relevant permissions. Running tasks and reading their output require separate grants. Removing a machine requires confirmation and revokes its future connections. The page has no restore action; check before removing it. Removal does not uninstall the program on the remote machine.
+
+The workspace list loads when you enter Chat. Reopen Chat if a newly created workspace is missing. The input's **Create workspace** shortcut appears only when there are no workspaces. With exactly one visible machine it can create a workspace directly; otherwise it opens machine setup.
+
+Before sending, make sure a workspace is selected. Without one, the send button may still be available and the input is cleared, but no task is created. Message drafts displayed for the current failed task are not saved as regular chat messages. Copy anything you need instead of relying on reopening the conversation.
+
+In Agent mode, **Stop** only stops receiving output on the current page; it does not send a task cancellation request. Switching conversations or leaving the page also stops receiving output and does not prove cancellation. The current Chat interface has no task-approval controls either.
 
 ## Long conversations and capacity limits
 

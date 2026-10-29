@@ -13,8 +13,8 @@ export default defineDocsPage({
     'zh-CN': '聊天',
   },
   summary: {
-    en: 'Start chats, manage messages, understand retries and charges, and use Agent mode.',
-    'zh-CN': '开始聊天、管理消息，了解重试与计费规则及 Agent 模式。',
+    en: 'Start chats, manage messages, and understand charges and Agent setup limits.',
+    'zh-CN': '开始聊天、管理消息，了解计费规则与 Agent 配置的可用范围。',
   },
   tags: ['chat', 'conversation', 'message', 'agent', 'billing'],
   updatedAt: '2026-10-30',
