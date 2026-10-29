@@ -9,6 +9,8 @@ quyan relay token list
 quyan product json-endpoints get
 ```
 
+`quyan relay token list` returns only the first page, up to 50 tokens. To find more tokens, use pagination in the TUI’s AI Relay page.
+
 `sk-ak-` credentials are for account APIs (legacy `ak_` is accepted), `sk-rlt-` for AI Relay (legacy `rlt_` is accepted), and `sk-dpk-` for the JSON Endpoints product (legacy `dpk_` is accepted). Credentials are imported through stdin or interactive flows and stored in the operating system keychain.
 
 ## Browser OAuth login
@@ -17,7 +19,7 @@ When `quyan login --browser` runs, the CLI opens the system OAuth consent page. 
 
 Scope names, categories, and descriptions follow the selected locale. When an OAuth client is created or edited, only permissions the current operator can grant are selectable. High-risk permissions such as create, update, delete, token, key, or security operations show a warning, but the warning does not automatically block approval. Revoked permissions are shown as unavailable and the request must be denied.
 
-The `quyan-cli` scope set is controlled by its system client configuration. The CLI should request the smallest set of permissions it actually needs; do not add unknown scopes manually to the authorization URL.
+Browser login currently requests a fixed set of scopes: profile and balance read, plus Relay token read, create, update and delete, channel read, and usage read. The command line cannot select a subset. Review the actual permissions on the consent page before approving. Client configuration and account authorization may further limit what can be granted; contact an administrator if you need narrower authorization instead of editing the authorization URL.
 
 After approval, the CLI exchanges the code and saves credentials to the system keychain before redirecting to the identity site's result page. No authorization code or token is sent to that page: it only displays the result reported by the CLI. Close the tab and return to the terminal. The TUI automatically returns to its menu after success and retains errors on failure. If the loopback callback is unavailable, ensure the CLI is still waiting and start a new login rather than reusing an old authorization URL.
 
