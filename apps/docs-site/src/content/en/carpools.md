@@ -46,6 +46,10 @@ After delivery, members can use their normal monthly-pass and Relay Token secure
 
 If delivery fails, the system records a reason and refunds through the order's funds workflow. Check the order detail for the reason and event timeline.
 
+## When an operation has an uncertain outcome
+
+The detail page reloads after confirming a share, leaving, cancelling, or submitting. If the request is interrupted, or the detail reload fails after a success message, the page may still show the old state. Reopen the order and check its status, member confirmations, and reserved amounts; if a debit was involved, also check the balance and transaction history. Decide whether to retry only after checking the result. If it remains unclear, contact an administrator to avoid repeating the operation.
+
 ## Related pages
 
 - [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
