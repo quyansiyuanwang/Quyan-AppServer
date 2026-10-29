@@ -1,27 +1,88 @@
 # Short Link
 
-Short Link maps a controlled destination URL to a compact code. It is suited to campaigns, downloads, attribution, and shared links that need central expiry or suspension. Links are isolated by instance and are created, edited, and analyzed in the product Console.
+Short Link maps an HTTP(S) destination to a compact code for campaigns, downloads, and attribution. Manage links within an instance, update destinations, set expiry, and inspect access statistics.
 
-## Create and publish
+## Prerequisites
 
-Provide a complete HTTP(S) target URL. You may use a platform-generated code or a custom 3-80 character lowercase letter, digit, and hyphen alias. An optional expiry makes the link stop working at that time. After creation, select Copy in the list to obtain the full public URL, and wait for the copy-success message before sharing. If copying fails, check browser clipboard permission or retry in a secure environment that supports clipboard access. You can pause or resume a link and edit its destination or expiry, but you cannot change its code in the edit dialog. Clearing the expiry and saving removes the expiry limit, so the link will no longer expire at its previous time. Deletion requires confirmation and makes the link unusable.
+Create an enabled Short Link product instance and obtain the required permissions:
 
-The page reloads the list after creating, editing, enabling, disabling, or deleting a link. If loading fails, the list may still be stale even if an operation-success message appears. Select **Retry** in the error message and check the result before taking further action. If a request times out or the connection is interrupted, its outcome may be unknown; reload the list and verify it before retrying, and contact an administrator if you cannot confirm it.
+| Operation                              | Product permission          |
+| -------------------------------------- | --------------------------- |
+| List, copy URLs, and view statistics   | `product:short_link:read`   |
+| Create, edit, enable, or disable links | `product:short_link:write`  |
+| Delete links and manage instances/keys | `product:short_link:manage` |
 
-The public address is `GET /s/{code}`. It returns a native `302` redirect without an API key or JSON response wrapper. Paused, expired, and missing codes do not redirect. Public redirects count toward the product instance’s usage. Available quota, overage prices, and balance requirements depend on the current product configuration; a disabled instance or product, insufficient quota, and other restrictions can also prevent redirects.
+IAM enforcement mode also checks listing, creation, modification, deletion, and statistics separately. Statistics include visitor data; grant access only where needed. See [Developer products overview]({{DOCS_BASE_URL}}/en/developer-products-overview) for instances and authorization.
 
-## Analytics and privacy
+Management uses the console sign-in identity. Public access requires no product API key. Resources are managed by instance, but public codes are unique across the deployment; separate instances cannot reuse the same custom code.
 
-In the Short Link instance list, find the link and select Statistics to open its analytics page. Use Refresh on that page to update the data. Successfully processed redirects record the click time, visitor IP, referrer host, User-Agent, and country/region supplied by the request. The analytics page shows lifetime clicks and, for the latest 30 calendar days including today up to the query time, visit counts, distinct IP counts, daily and hourly trends, IP and source rankings, and paginated visit details. Times use UTC+8. Distinct IPs are deduplicated by IP address and do not equal distinct people. Lifetime clicks are not limited to this 30-day window; click details are cleaned up after 90 days, so lifetime clicks can differ from recent record counts. Analytics contains visitor information; grant access only to identities that need it.
+## Create and share
 
-Short Link read, write, and delete operations are controlled by separate RAM actions.
+1. Open the Short Link product console, open the target instance's details, and select Create Short Link.
+2. Enter a complete destination URL of up to 2,000 characters. Use HTTP or HTTPS without embedded username/password. The hostname must resolve; private or reserved addresses can be rejected.
+3. Optionally enter a custom code of 3–80 lowercase letters, digits, or hyphens. Leave it blank for a generated code. Choose another if it is already in use.
+4. Optionally set expiry. Use a future time for immediate availability; a past expiry creates a link that cannot redirect.
+5. Save, select Copy in the list, and wait for the copy-success message before sharing the complete URL.
 
-## JWT project management authorization
+The public entry point is `GET /s/{code}` on your deployment's API service. If copying fails, check clipboard permission and browser secure-context support. If the copied URL is invalid, ask an administrator to check the console API address configuration rather than guessing a domain.
 
-An individual Short Link uses `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`. The final segment is the stored link ID; the public code is not its IAM identity. Copy resourceArn from a response into a JSON policy.
+Enabled status represents the link switch only. It does not guarantee unexpired access or available quota. Test the URL before sharing; that test is a real access and counts toward product usage.
 
-`quyan:developer:CreateShortLink` controls creation on the project ARN without automatically granting management of the new link. `ListShortLinks`, `UpdateShortLink`, `DeleteShortLink`, and `GetShortLinkStats` independently check the specific link ARN. The statistical Action controls visitor details separately; listing alone never grants analytics access.
+## Edit, pause, and delete
 
-`GET /v1/developer/projects/{projectId}/short-links/page` accepts page/pageSize and returns items, page, pageSize, and hasNext. Candidates from the active same-account project are paginated before each link is filtered. Empty pages may have a next page, with no unauthorized total. The old array list returns only the default first page in enforce. Authorized identities can still manage paused or expired links, while disabled database rows and foreign-account resources are inaccessible.
+- **Edit**: change the destination or expiry while keeping the code. Clearing expiry and saving removes the old deadline. Editing uses loaded list data; reload first after leaving the page open for a long time.
+- **Disable or enable**: the button submits immediately, without another confirmation. Disabling blocks subsequent public redirects. Enabling does not remove expiry; adjust it separately for an expired link.
+- **Delete**: confirmation is required. Deletion removes the link and its click details, without console recovery. It does not permanently reserve the code. A later link with that code can give the original URL a destination again.
 
-Links may join resource groups; removal changes authorization on the next request. Delegation preserves the project owner, and URL validation continues to block internal addresses and credentials in URLs. legacy/shadow retain personal project ownership; enforce uses resource policies. Product-instance management and public redirects keep their existing identity and permission boundaries. See [RAM management]({{DOCS_BASE_URL}}/en/ram-management) for further rules.
+Changing the destination affects later requests to the same short URL; previous redirects cannot be recalled. An in-progress request may finish before disabling or deletion takes effect. To retain control of a code over time, disable the link and retain its record.
+
+Creating, editing, toggling, and deleting reload the list. If refreshing fails, old data can remain even with a success message. Select Retry in the error and check the result. There is no polling. The top-level refresh reloads only instances; close and reopen details to reload links.
+
+After a timeout or interrupted connection, reload and confirm the outcome before retrying. Repeating creation with a generated code can create multiple links. A timeout does not establish that creation failed.
+
+## Public redirects and charges
+
+Successful public access returns a native `302` with a `Location` destination, without a JSON success envelope or caller key. The platform does not proxy the destination's content. Returning a redirect does not prove the visitor opened the destination successfully.
+
+Paused, expired, deleted, instance-disabled, or product-disabled links do not redirect normally. Insufficient quota/balance or call-record failures can also block redirection. Being able to manage a link does not establish that its public URL is available.
+
+Public redirect processing is metered under Short Link product rules. Instances in the same account share daily quota, counted by the server's calendar date. Free quota, overage settings, and unit prices follow current product configuration. Repeat visits, previews, and automated requests can also generate usage. Requests are still counted at zero unit price; refunds after execution failures can be delayed.
+
+Console creation, editing, and statistics do not use public-redirect metering. Click records are saved before returning the redirect. Statistics can therefore exist even if the client receives no redirect or subsequent call logging fails. Do not treat click counts as people who reached the destination or as billed call counts.
+
+## View access statistics
+
+Select Statistics for a link in the instance list. The page covers the latest 30 calendar days, including today up to the query time, in UTC+8. It has no custom date range, export, or automatic refresh. Refresh reloads the current page and summaries.
+
+| Metric               | Meaning                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| Lifetime clicks      | Stored historical click count, beyond the 30-day window                              |
+| Period visits        | Click records within the latest 30 calendar days                                     |
+| Distinct IPs         | Different IP addresses in the period, not distinct people; missing IPs are excluded  |
+| Daily trend          | Aggregated by UTC+8 date; dates without records may be absent                        |
+| Hourly trend         | Aggregates all dates by hour of day, rather than a continuous 30-day hourly timeline |
+| Rankings and details | Up to 20 IPs and 10 referrer hosts; details have 25 records per page, newest first   |
+
+Sources retain only the Referer hostname, not the full path. Missing or unparsable sources appear as direct visits; this does not prove manual URL entry. Country/region comes from request-supplied information rather than verified IP geolocation. User-Agent and other fields can be absent or truncated.
+
+A statistics failure shows an error and hides the content. Refresh before reading it again. Pages and summaries use live queries; new visits during pagination can change results, so they are not a fixed snapshot.
+
+A background task removes click details older than 90 days; actual cleanup timing depends on task execution. Lifetime counts are retained. Deleting the link also deletes its details. Statistics include visitor IPs, times, and client information, so control access according to business needs.
+
+## Management API and granular authorization
+
+The instance console uses a sign-in session with `GET /v1/products/short_link/instances/{instanceId}/links`. It checks `quyan:developer:ListShortLinks` on the backing project and returns the instance's list without per-link filtering. Creation requires project-level `CreateShortLink`. Updates, deletion, and statistics check `UpdateShortLink`, `DeleteShortLink`, and `GetShortLinkStats` on the specific link.
+
+For a per-link filtered list, use `GET /v1/developer/projects/{projectId}/short-links/page`. It accepts `page` and `pageSize` and returns `items`, `page`, `pageSize`, and `hasNext`, without `total`. IAM enforcement mode paginates candidates before checking link authorization. An empty page can still have a next page. The old array list returns only the default first page.
+
+A link's ARN is `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`. The final segment is the link ID, not the public code. Prefer `resourceArn` from project-management responses. Creation does not automatically grant subsequent management of the new link; listing does not automatically grant visitor statistics. Authorized identities can still manage paused or expired links. See [RAM management]({{DOCS_BASE_URL}}/en/ram-management).
+
+## Troubleshooting
+
+| Symptom                                                   | Action                                                                                                |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Creation fails or code conflicts                          | Check deployment-wide code availability and destination format, resolution, and allowed address scope |
+| Enabled link fails to redirect                            | Check expiry, instance/product state, quota, and balance                                              |
+| Statistics are unavailable or denied                      | Check the separate statistics action; a visible list does not grant visitor details                   |
+| Lifetime clicks differ from period records                | Time ranges differ and old details may have been cleaned; counts also do not prove destination access |
+| A list remains after instance switching or failed refresh | It may be previous data; reload successfully before editing or deleting                               |
