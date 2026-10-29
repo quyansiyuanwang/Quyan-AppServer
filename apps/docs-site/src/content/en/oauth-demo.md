@@ -138,7 +138,7 @@ After authorization, the backend checks the one-time `state`, exchanges the code
 - This example is for local verification. For production, use HTTPS, persistent session storage, and secure cookies; configure trusted proxies appropriately for your deployment. The default in-memory session store is not suitable for production.
 - `Invalid or expired authorization response`: restart sign-in, allow session cookies, and use the same browser session that started the flow.
 - Token exchange fails: check approval, client type and secret, the exact registered callback URI, and the PKCE values for the same authorization attempt.
-- Profile lookup fails: confirm the application can request `profile`, the user granted it, and the account and resource permissions allow access.
+- Profile lookup fails: confirm the application can request `profile`, the user granted it, and the account and resource permissions allow access. After correcting the issue, restart authorization from `/login`: a successfully exchanged code is single-use, so refreshing the callback cannot reuse it. Also restart if the token-exchange request was interrupted and its result is uncertain.
 - Do not log authorization codes, tokens, client secrets, session cookies, or PKCE verifiers when troubleshooting.
 
 ## Related documentation
