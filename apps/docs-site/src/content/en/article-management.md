@@ -33,6 +33,8 @@ Use this page to maintain site articles and knowledge content.
 4. Set a published article as the default when it should appear first. Readers must still meet its access conditions.
 5. Drag items in the desktop list to adjust their order.
 
+When editing an existing article, clearing the category, summary, or permission requirement leaves those empty fields out of the save request, so the previous values may remain. In particular, making an article public while it has an existing permission requirement can fail because the requirement remains. Check the save result and the access settings after reloading.
+
 ## Permission requirements
 
 | Action                             | Required permission |
