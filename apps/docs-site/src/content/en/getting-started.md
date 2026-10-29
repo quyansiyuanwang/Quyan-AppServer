@@ -26,6 +26,9 @@ After you sign in, each site's overview shows relevant statistics and common act
 - [View balance history]({{DOCS_BASE_URL}}/en/balance-history): understand changes to your balance.
 - [Manage relay tokens]({{DOCS_BASE_URL}}/en/relay-token-management): configure relay access and quotas.
 - [Use Cloud Terminal]({{DOCS_BASE_URL}}/en/remote-terminal): learn how to use Cloud Terminal.
+- [Use developer products]({{DOCS_BASE_URL}}/en/developer-products-overview): choose a product such as KV storage or Short Link and create an instance.
+- [Use chat]({{DOCS_BASE_URL}}/en/chat): choose a model, manage conversations, and send messages.
+- [Submit and track tickets]({{DOCS_BASE_URL}}/en/my-tickets): report an issue and follow its progress.
 - [API documentation]({{DOCS_BASE_URL}}/en/api-documentation): find API integration guidance.
 
 ## Find help

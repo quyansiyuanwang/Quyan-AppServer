@@ -26,6 +26,9 @@
 - [查看余额记录]({{DOCS_BASE_URL}}/zh-CN/balance-history)：了解账户余额的变化。
 - [管理中转 Token]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)：配置中转访问和额度。
 - [使用云终端]({{DOCS_BASE_URL}}/zh-CN/remote-terminal)：了解云终端的使用方式。
+- [使用开发者产品]({{DOCS_BASE_URL}}/zh-CN/developer-products-overview)：选择 KV、短链接等产品并创建实例。
+- [使用聊天]({{DOCS_BASE_URL}}/zh-CN/chat)：选择模型、管理会话并发送消息。
+- [提交和跟踪工单]({{DOCS_BASE_URL}}/zh-CN/my-tickets)：报告问题并查看处理进度。
 - [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)：查找 API 接入说明。
 
 ## 查找帮助
