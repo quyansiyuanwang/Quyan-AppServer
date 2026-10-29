@@ -11,7 +11,7 @@
 ## 发起授权与处理回调
 
 1. 每次授权生成不可预测的 `state` 和 PKCE verifier，并计算其 S256 challenge。将 `state` 与 verifier 保存在当前授权会话中，不要在多个用户或浏览器会话之间共用。
-2. 通过部署提供的授权界面发起授权，提交应用 Client ID、已登记的回调地址、scope、`state` 和 PKCE challenge。用户登录并确认后，授权界面处理认证中心返回的回调地址。
+2. 通过部署提供的授权界面发起授权，提交应用 Client ID、已登记的回调地址、scope、`state`、`code_challenge` 和 `code_challenge_method=S256`。不要省略方法：服务端默认使用 `plain`，与 S256 challenge 不匹配。用户登录并确认后，授权界面处理认证中心返回的回调地址。
 3. 回调时在交换授权码**之前**核对返回的 `state` 与该会话中保存的值；缺失、不匹配或会话过期时停止流程并重新开始。每次授权只使用对应的 verifier，并在处理后清除临时数据。
 4. 由可信后端调用 `POST /v1/auth-center/token`，提交授权码、Client ID、完全一致的回调地址和 `code_verifier`。公共客户端不提交客户端密钥。令牌响应应保存在服务端，不要返回或记录刷新令牌。
 5. 后端按[令牌校验指南](/zh-CN/auth-center-node-sdk)校验签名、签发者、受众、有效期、令牌用途和所需 scope，再创建自己的应用会话。Cookie 应使用 `HttpOnly`、`Secure`、合适的 `SameSite` 策略，并配合服务端 CSRF 防护。
