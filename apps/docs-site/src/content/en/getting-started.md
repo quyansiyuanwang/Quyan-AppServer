@@ -28,6 +28,6 @@ After you sign in, each site's overview shows relevant statistics and common act
 
 ## Find help
 
-Search covers titles, tags, and article text. Try a feature name or terms such as “password”, “balance”, or “permission”. Available features, quotas, and management actions may depend on your permissions and the current service configuration.
+Search covers titles, tags, and article text. Try a feature name or terms such as “password”, “balance”, or “permission”. Search matches the complete text entered; if there are no results, try a shorter phrase or a different term. Available features, quotas, and management actions may depend on your permissions and the current service configuration.
 
 In the application, hover over your avatar to view account information and balance. On desktop, the shortcut bar on the right provides common actions according to your permissions. You can also continue to the [application]({{APP_BASE_URL}}) or [API reference]({{SWAGGER_DOCS_URL}}).
