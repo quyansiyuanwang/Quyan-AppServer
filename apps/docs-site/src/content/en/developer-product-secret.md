@@ -1,27 +1,77 @@
 # Secret Vault
 
-Secret Vault stores deployment-time credentials such as third-party API keys and webhook secrets. An alias is unique within an instance and its value is write-only: after creation or rotation, the Console list shows only the alias, version, and last-use time, never the plaintext.
+Secret Vault stores third-party API keys, webhook credentials, and similar values for supported platform features to reference by alias. The console and management APIs return only metadata such as alias, version, and timestamps; they do not read back plaintext. Currently, [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push) can use a vault secret as a channel's Bearer credential.
 
-## How it is used
+## Prerequisites
 
-Aliases must be 1–100 characters, start with an uppercase letter, and then contain only uppercase letters, digits, and underscores, for example `OPENAI_KEY`. Secret values must be 1–20,000 characters. When configuring a channel in [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push), select a Secret Vault instance and alias belonging to the same storage owner. During delivery, the platform reads the secret and sends it to the channel endpoint as a Bearer credential; bind it only to an endpoint you trust. Configuring the reference may also require separate permission to use the secret; see the Push Aggregation guide.
+Create an enabled Secret Vault instance and ask the administrator to configure vault encryption. Without that configuration, metadata may still be visible while writing or using secrets fails. See [Developer products overview]({{DOCS_BASE_URL}}/en/developer-products-overview) for instance management.
 
-## Manage secrets in the console
+| Operation                                  | Product permission                                                                        |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| View aliases, versions, and last-use times | `product:secret:read`                                                                     |
+| Add a secret or rotate its value           | `product:secret:write`                                                                    |
+| Bind a secret to a supported feature       | `product:secret:use`, plus that feature's configuration and required metadata permissions |
+| Delete a secret                            | `product:secret:manage`                                                                   |
 
-Open a Secret Vault instance, select Write secret, enter an alias and value, and save. The console converts aliases to uppercase as you type; check the alias before saving, since inputs differing only in case can identify the same secret. Writing an existing alias replaces its value, increments the version, and clears its last-use time; first make sure dependent services are ready to use the new credential. You can also select Rotate in the list and save a new value under the same alias. The old value cannot be retrieved from the console.
+Metadata access does not grant use, rotation, or deletion. These management operations use a sign-in session. Product API keys do not provide a general plaintext secret retrieval API.
 
-Deletion requires confirmation. Before deleting, check whether any channels reference the alias.
+## Write a secret
 
-Last-use time reflects when the platform read the secret, not whether a push was delivered successfully. When a push channel is created or edited through the product console with a secret reference, the platform also reads the secret to check the reference, which may update last-use time. In IAM enforcement mode, the JWT project-management API checks only reference metadata and does not update that time for this check. A delivery can still fail after the secret is read. To check delivery, inspect the channel statuses in the send result and any delivery logs available to you.
+1. Open the Secret Vault product console and the target instance's details.
+2. Select Write secret and enter an alias and value.
+3. Check the instance and alias, then select Save. After success, check the alias and version in the list.
 
-If the list fails to load, it may still show the previous list, including after switching instances; an empty list does not establish that the current instance has no secrets. Select Retry in the error message and wait for a successful load before acting. Refresh can also fail after writing, rotating, or deleting a secret, even if a success message appears. Retry and check the alias and version before repeating the operation. Secret values cannot be read back; verify the credential through a channel that uses it if needed.
+| Field | Requirement                                                                                                                                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alias | 1–100 characters, starting with an uppercase English letter, followed only by uppercase letters, digits, and underscores, such as `WEBHOOK_TOKEN` |
+| Value | 1–20,000 characters, saved as entered without trimming leading or trailing whitespace                                                             |
 
-## Lifecycle and permissions
+The console converts aliases to uppercase. Writing an existing alias replaces its value and increases the version without an additional overwrite confirmation. Check the alias before saving to avoid accidental replacement. Save results contain no plaintext value; preserve the original source in your own credential management process if needed.
 
-Creating or rotating needs Secret write, deletion needs Secret manage, and metadata listing needs Secret read. Deletion is permanent; subsequent deliveries fail if a push channel still references the alias. The platform encrypts the secret using a dedicated master key and stores the ciphertext, IV, and authentication tag.
+The list is sorted by alias, without pagination or polling. The top-level refresh reloads only instances. Close and reopen instance details to reload secret metadata.
 
-## JWT project management
+## Rotate and delete
 
-Project Secret management grants `quyan:developer:ListSecrets`, `PutSecret`, and `DeleteSecret` on `acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`. Creation, rotation, and deletion check the operation and exact alias; same-account delegation preserves the project owner. Project grants do not automatically cover all aliases.
+Select Rotate for an alias, enter a new value, and save. Rotation cannot change the alias and does not read the previous value. The first write has version 1; overwrites and rotations increment it and clear last-use time. There is no historical-version viewer or rollback. Restoring a previous credential requires writing the old value from your own records again.
 
-`GET /v1/developer/projects/{projectId}/secrets/page` accepts page/pageSize and returns alias-filtered items, page, pageSize, and hasNext. Empty pages may have a next page, with no total. In enforce, the old array endpoint returns only the default first page. Returned resourceArn values can be copied into policies, and every response contains metadata only. See [RAM management]({{DOCS_BASE_URL}}/en/ram-management) for authorization and resource-group rules.
+References identify an alias rather than a fixed version. After rotation, subsequent channel uses read the new value; an in-progress delivery may still use a value read earlier. Have the recipient accept the new credential first, then rotate and test dependent channels. Updating the vault does not create or revoke credentials at the third-party service.
+
+Deletion requires confirmation and is permanent. Remove or change channel references first, or later uses of the alias will fail. Disabling or deleting the whole vault instance also makes references unavailable. If you later write the same alias again, retained references may use the newly written value; this is not historical version recovery.
+
+## Reference a secret in a push channel
+
+1. In Push Aggregation channel configuration, select a vault instance with the same storage owner as the push resources.
+2. Select an alias, or write a secret through the channel form if you have write permission.
+3. Save the channel, send a test message, and inspect each channel's actual delivery result.
+
+At delivery time, the platform reads the value and sends it to the channel endpoint as `Authorization: Bearer ...`. Bind secrets only to endpoints you trust. A user able to configure channels with a secret reference can use that credential, even without reading it back; grant access accordingly.
+
+Instance and alias selection, writing values, and saving channels involve separate permissions. In IAM enforcement mode, the project-management API requires `quyan:developer:UseSecret` for the exact alias when saving a reference. The product console also checks read and use eligibility for the selected vault instance. See [Push Aggregation]({{DOCS_BASE_URL}}/en/developer-product-push) for full prerequisites.
+
+## Interpret last-use time
+
+Last-use time helps indicate whether the platform recently read a secret; it does not prove successful message delivery. Creating or editing a referenced push channel through the product console also reads the secret to validate the reference. A time may therefore appear before any message is sent. In IAM enforcement mode, the project-management API checks reference metadata only and does not update last-use time for that check.
+
+Delivery can still fail after reading the secret. Treat timestamp updates as a hint rather than a complete audit trail. Rotation clears the timestamp, so Never used does not establish that the alias has never been used historically. Check send results and available delivery logs to establish delivery outcomes.
+
+Writing, rotating, and listing metadata do not use the product call metering API. Pushes using a secret follow the push product's current quota and charging rules; see the Push Aggregation guide.
+
+## Project management API and authorization scope
+
+Management APIs return no secret values. Administrators can grant `quyan:developer:ListSecrets`, `PutSecret`, `DeleteSecret`, and reference-related `UseSecret` separately per alias. Project grants do not automatically cover all aliases. Alias resources use `acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`; prefer `resourceArn` from project-management responses when configuring policies.
+
+The instance console's `GET /v1/products/secret/instances/{instanceId}/secrets` checks `ListSecrets` on the backing project and returns instance metadata without per-alias filtering.
+
+For a granular list, use `GET /v1/developer/projects/{projectId}/secrets/page`. It accepts `page` and `pageSize`, returning `items`, `page`, `pageSize`, and `hasNext`, without `total`. IAM enforcement mode filters per alias. Empty pages can still have subsequent pages; follow `hasNext`. In enforcement mode, the old array endpoint returns only the default first page. See [RAM management]({{DOCS_BASE_URL}}/en/ram-management) for policy rules.
+
+## Troubleshooting
+
+| Symptom                                                 | Action                                                                                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Vault is not configured                                 | Ask an administrator to configure a dedicated encryption master key; ordinary users do not enter or obtain that key                                                            |
+| Invalid alias                                           | Start with an uppercase letter, use allowed characters, and check the normalized alias                                                                                         |
+| Write succeeds but the value cannot be viewed           | Expected behavior; test through a channel that uses the credential if needed                                                                                                   |
+| A list remains after loading fails                      | It may be a previous result, including another instance's data; select Retry in the error and wait for success before acting                                                   |
+| Rotation or deletion succeeds but the list is unchanged | The follow-up refresh may have failed; retry and check alias/version before repeating rotation                                                                                 |
+| Channel reference is unavailable or delivery fails      | Check that the vault instance is enabled, the alias exists, use is authorized, and the endpoint accepts the current credential                                                 |
+| Metadata loads but secret use cannot decrypt            | Ask an administrator to check encryption configuration; existing secrets depend on the original master key, and changing configuration alone does not re-encrypt existing data |
