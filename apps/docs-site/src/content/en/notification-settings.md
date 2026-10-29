@@ -1,105 +1,133 @@
 # Notification settings
 
-Use this page to manage how the system contacts you about important events, and for admins to set global notification defaults.
+Use **Settings → Event Center** to manage your notification email, event subscriptions and webhooks, and to review inbox messages and external delivery results. These settings apply to the signed-in user. Administrators maintain global defaults in Server configuration.
 
-## Page purpose
+## Before you begin
 
-- Configure notification email and cooldown behavior.
-- Set event subscriptions and alert thresholds.
-- Manage webhook delivery targets.
-- Review delivery history.
-- (Admins) Adjust global default subscribed events and balance thresholds.
+Wait for the event list and saved preferences to load. Reading preferences, saving preferences, managing webhooks, testing delivery and viewing history can be authorized separately. Opening the page does not grant every operation; see the permissions section below.
 
-## What you will see
+If events are missing or preferences look unexpected, check connectivity and permissions, then reload the page. Avoid saving an empty form: saving submits the current selections and thresholds and can overwrite existing settings.
 
-### Email settings
+## Configure notification preferences
 
-- Notification email preference (can differ from the account email).
-- Send test-email action.
-- Cooldown controls to prevent repeated alerts in a short window.
+1. In **Notification Preferences**, enter a **Notification Email**. It can differ from your account email. Saving it blank stops email notifications; it does not fall back to the account email.
+2. Select the events you want. **Select All** and **Clear All** only change the form until you save.
+3. Enter thresholds for supported events, using the table below.
+4. Set the cooldown using days and hours:minutes. For example, `0 days 01:00` means 60 minutes.
+5. Select **Save Preferences**, or **Save** on mobile. Changes take effect after a successful save, without restarting the service.
 
-### Event subscriptions
+When preferences are first created, the email comes from your account, the cooldown is 60 minutes, and subscriptions and thresholds come from server configuration. Later changes to your account email or global defaults do not directly overwrite saved preferences.
 
-- Event list with enable / disable toggles.
-- Threshold fields for alerts that depend on counts or balance limits.
-- Initial subscriptions and thresholds follow the server configuration when notification preferences are first created.
+Unsubscribing from a threshold event and saving also removes its saved custom threshold. Review the threshold when subscribing again.
 
-### Webhooks and delivery logs
+### How alert thresholds work
 
-- Webhook list (name, URL, format, and enabled status).
-- Add, edit, and test webhook actions.
-- Paginated delivery log showing event, channel, status, time, and error message.
+| Event                    | Trigger                                                                              | Example                                 |
+| ------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------- |
+| Low balance              | Balance falls below the threshold, in Qu                                             | `10`: notify below 10 Qu                |
+| Monthly pass quota low   | Remaining quota as a percentage of total is at or below the threshold                | `20`: notify with 20% or less remaining |
+| Monthly pass daily limit | Usage in the current quota window reaches or exceeds the threshold percentage        | `80`: notify at 80% window usage        |
+| Relay token quota low    | A token with a positive quota limit reaches or exceeds the threshold percentage used | `80`: notify at 80% used                |
 
-### Inbox messages
+Thresholds support two decimal places; the server accepts 0–100000. Percentages normally use 0–100. Balance and quota alerts are checked during relevant balance changes or usage settlement. Changing a threshold does not immediately scan historical data, and these alerts are not continuous real-time monitoring.
 
-- Filter messages by unread status, mark them individually as read, or mark all as read.
-- Use **Confirm opened emails as read** to mark unread messages whose email tracking image was loaded.
+The monthly pass daily-limit alert uses the pass's rolling window, which defaults to 24 hours, rather than resetting at midnight. The current alert calculates usage from amounts covered in that window. For passes measured in requests or tokens, do not rely on this alert alone to determine the usage percentage. It does not apply to passes without a daily quota.
 
-**Mark all as read** and **Confirm opened emails as read** apply to eligible messages belonging to you, across pages. In IAM enforcement mode, each action only processes messages it is authorized to update. Email open status depends on a tracking image: an email client that blocks images may prevent recording, while automatic image loading can create a record. It is not reliable proof that the recipient read the email. Loading the image alone does not mark the inbox message as read; use the confirmation action or mark it individually.
+### Effects of cooldowns and subscriptions
 
-## Common actions
+Each user and event shares one cooldown across email and all webhooks. Once an ordinary delivery starts, later events of that type can remain suppressed even if a channel fails. Changing a destination does not immediately clear an existing cooldown.
 
-1. Enter the notification email address, select the events you need, and set thresholds and a cooldown as appropriate.
-2. Select **Save Preferences** (**Save** on mobile); changes in the form are not saved automatically.
-3. To send notifications to an automated system, add and save a webhook. When editing an existing webhook, the signing secret is not displayed. If the receiver requires a signature, enter the secret again before saving; saving a blank field clears the existing secret.
-4. Use the test action to check the saved email or webhook. A test sends a real notification, so save a changed destination first.
-5. When alerts do not arrive, check the status and error message in delivery logs, as well as the destination email or webhook.
+**Use a cooldown greater than 0.** In the current version, setting it to 0 can leave a cooldown that does not expire after the first delivery, suppressing later ordinary notifications of the same type. If you previously saved 0, change it to a positive duration. If notifications do not resume, ask an administrator to check the existing cooldown state; changing the duration alone may not restore delivery.
 
-## Notes
+Unsubscribing stops the corresponding email and webhook notifications. Some events can still create inbox messages, but certain alerts, including balance and monthly-pass alerts, check subscriptions before creating a notification. The inbox therefore does not provide a complete record of all events. An event that enters notification delivery can also create only an inbox message before its external delivery is skipped by cooldown.
 
-- If the event list or saved preferences do not load correctly, check permissions and connectivity and reload the page before reviewing and saving. Saving uses the currently loaded event list; saving with a missing list can overwrite existing subscriptions.
-- If inbox messages or delivery logs fail to load, the list and counts may still show the last successful result even after the filter or page number changes. Use **Refresh** in the affected section and wait for a successful load before checking message status or delivery results.
-- An inbox message is created before subscription and cooldown checks. Unsubscribing or an active cooldown does not prevent it from appearing in the inbox. Subscriptions and cooldowns affect email and webhook delivery; cooldowns are tracked separately for each user and event.
-- Webhooks should point to endpoints you control.
-- Event subscription changes take effect after a successful save; no restart is required.
+## Add and maintain webhooks
 
-## Admin: global notification defaults
+1. In **Webhooks**, select **Add Webhook**, or **Create** on mobile.
+2. Enter a name and a destination URL you control. Choose Generic JSON, Discord, Slack, Feishu or WeCom format.
+3. Enter a signing secret if required by your receiver, and choose whether the target is **Enabled**. Names allow up to 100 characters, URLs 2048, and secrets 200.
+4. Select **Save**, then test from the list and check the receiving system.
 
-Administrators can set **Default Subscribed Events** and **Default Trigger Thresholds** in the notification section of [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration). These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
+Signing secrets are never displayed again. **When editing an existing webhook, re-enter any secret you still need, even if you are only changing its name. Saving a blank secret clears the existing value.** Through the API, omitting the secret field preserves it and explicitly sending `null` clears it. The page sends `null` for an empty edit field.
+
+Signatures use the `X-Webhook-Signature` header with a value of `sha256=<digest>`. The digest is HMAC-SHA256 of the actual JSON body using the configured secret. Selecting a robot format changes the message format; it does not automatically implement each robot platform's native signing protocol. Check compatibility if your receiver requires a different signature scheme.
+
+To pause ordinary delivery, edit the target, clear **Enabled** and save. Deletion requires confirmation and removes it as a delivery target. The page has no restore action; existing delivery history remains available. Disabled targets can still be tested manually.
+
+## Test saved destinations
+
+**Test** beside the email field or in the webhook list sends a real notification using the saved email, URL, format and secret. Testing inside an existing webhook's edit dialog also uses the previously saved version. Save new targets before testing.
+
+Tests use a simulated low-balance notification. Its balance and threshold are examples, not your actual balance. Tests bypass ordinary subscriptions and cooldowns; a test email also creates an inbox message for you. Tests do not create ordinary delivery-history entries, so history cannot establish whether a test ran.
+
+A successful result means the send request completed, not that a person received or read the message. Email can enter spam folders. A webhook receiver can return HTTP success while reporting a robot business error in its response body. Check for the actual message at the destination. A successful test also does not establish that ordinary events meet subscription, threshold and cooldown conditions.
+
+## View and mark inbox messages
+
+1. In **Inbox**, review titles, content, timestamps and read status, or enable **Unread only**. Unread messages appear first; pages contain 20 messages.
+2. Select **Mark as read** on a message, or **Mark all as read** to process all authorized unread messages belonging to you, across pages.
+3. If messages show that their emails were opened but await confirmation, select **Confirm opened emails as read** to mark eligible authorized messages as read.
+4. Use **Refresh** in this section for current messages and counts. The page does not poll automatically.
+
+Email-open status depends on a tracking image. Clients that block images can prevent recording, while automatic image loading can create a record. It is not proof that the recipient read the email. Loading the image alone does not mark an inbox message as read; confirmation or manual marking is required. The page has no action to mark read messages unread again.
+
+## Review notification history
+
+**Notification History** lists ordinary email and webhook deliveries with their event, title, channel, status, time and error. Pages contain 20 entries. Use the section's **Refresh** action to reload.
+
+| Status  | Meaning and next step                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------------- |
+| Success | The send request reported no transport error; still check the mailbox or receiving system                 |
+| Failed  | Review the error and check the address, server mail configuration, connectivity and receiver requirements |
+| Pending | No final result is available; refresh to check again. It does not mean delivered                          |
+
+The page has no retry or resend action for historical messages, and failed deliveries are not retried automatically. Cooldown suppression, unsubscribed events, missing external destinations and test deliveries can leave no ordinary history entry. An empty history does not prove that no event occurred.
+
+If inbox or history loading fails, old rows and counts can remain even after page or filter changes. Refresh and confirm a successful load before judging message status or delivery results.
+
+## Admin: set global defaults
+
+Set **Default Subscribed Events** and **Default Trigger Thresholds** in the notification section of [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration). They initialize preferences that do not yet exist and do not directly overwrite existing user settings.
+
+When new events are introduced, later preference reads may subscribe them automatically, so review your selections. Known events you explicitly unsubscribed from are not resubscribed by this synchronization.
 
 ## Permissions and availability
 
-- In legacy permission mode, notification preferences still require notification-management permission; signing in alone does not grant access.
-- In IAM enforcement mode, reading uses `quyan:notification:GetPreferences` and saving uses `quyan:notification:UpdatePreferences`. The operations can be granted separately.
-- The resource is the executing user's own identity: `acs:quyan:*:<accountId>:user/<userId>`. The server derives the account and user from authenticated context; supplying another user or ARN cannot change the target.
-- An explicit Deny for this resource overrides Allow. Group and role policies can participate; an assumed role uses its valid session permissions rather than the caller's direct policies.
-- The first authorized read may create default preferences; later reads synchronize newly introduced events. Events you explicitly unsubscribed from do not become subscribed again merely because they are already known. Inactive or disabled identities, role sessions and preference records cannot be read or modified.
-- These operations cover reading and saving preferences. Webhook, delivery history and event catalog permissions are described below. Delivery-test permissions are described below.
+In legacy permission mode, preferences, webhooks, tests and history require notification-management permission. Signed-in users can access their own event catalog and inbox.
 
-## In-app inbox permissions
+In IAM enforcement mode, operations are authorized separately. All Actions below start with `quyan:notification:`.
 
-Signed-in users can view their own inbox and mark messages as read. In IAM enforce mode, these operations retain a default grant limited to the executing user's messages. Explicit Deny can restrict individual messages.
+| Operation                                    | Action                                                          | Resource                                     |
+| -------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
+| Read or save preferences                     | `GetPreferences`, `UpdatePreferences`                           | Your user resource                           |
+| View event catalog                           | `ListEvents`                                                    | Your user resource; default self grant       |
+| Create webhook or test email                 | `CreateWebhook`, `TestEmail`                                    | Your user resource                           |
+| List, update, delete or test webhooks        | `ListWebhooks`, `UpdateWebhook`, `DeleteWebhook`, `TestWebhook` | Relevant webhook resource                    |
+| View delivery history                        | `ListDeliveryLogs`                                              | Relevant delivery-log resource               |
+| List inbox, mark read or confirm email opens | `ListInbox`, `MarkInboxRead`, `ConfirmPixelOpenedInboxRead`     | Relevant inbox resource; default self grants |
 
-- Listing messages uses `quyan:notification:ListInbox`.
-- Marking messages as read manually uses `quyan:notification:MarkInboxRead`.
-- Confirming messages opened through an email pixel uses `quyan:notification:ConfirmPixelOpenedInboxRead`.
-- Each message resource is `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`. The server determines the account and user; submitting another user's message ID does not grant access.
-- Messages are filtered by authorization before pagination. Total, unread, and opened-but-unconfirmed counts include only visible messages.
-- When selecting message IDs to mark as read, every target must be authorized. A missing, inactive, or denied target prevents the entire batch from updating. Duplicate IDs count once, and already-read messages do not count again.
-- Mark-all and email-open confirmation update only authorized messages belonging to the executing user. Denied messages remain unchanged. Fetching an email image does not bypass confirmation authorization.
+Resource formats use the account and user established by server authentication:
 
-## Webhook permissions
+- Your user: `acs:quyan:*:<accountId>:user/<userId>`.
+- Webhook: `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>`.
+- Delivery log: `acs:notification:*:<accountId>:delivery-log/<userId>/<logId>`.
+- Inbox message: `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`.
 
-- In IAM enforce mode, listing, creating, updating and deleting use `quyan:notification:ListWebhooks`, `quyan:notification:CreateWebhook`, `quyan:notification:UpdateWebhook` and `quyan:notification:DeleteWebhook` respectively. Each requires an explicit grant; signing in alone does not grant access. Legacy notification-management permission maps to these operations; other Actions in JSON policies do not expand automatically.
-- Creation targets the executing user's own `acs:quyan:*:<accountId>:user/<userId>`. An authorized creation can initialize missing notification preferences while preserving existing preferences and subscriptions. Creating a Webhook does not grant permission to read or update preferences.
-- Existing Webhooks use `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>` and can be individually authorized or scoped through resource groups. Only the executing user's targets are accessible; wildcard grants cannot switch to another user.
-- Lists return only authorized Webhooks, with explicit Deny taking precedence. Signing secrets are never returned; `hasSecret` only indicates whether one is configured. When updating through the API, an explicit `null` clears the secret and omitting the field preserves it. The page sends `null` when the edit field is saved blank, clearing the existing secret.
-- Inactive identities, preferences or role sessions cannot manage Webhooks. If a target changes after authorization, refresh and retry. Deleting a target disables it. Delivery tests require their own grants, described below.
+Operations without a default self grant require explicit authorization. Legacy notification-management permission maps to the corresponding operations; other Actions do not automatically expand access. Viewing or editing does not include testing, and creating a webhook does not grant preference access. An authorized preference read, webhook creation or email test may initialize missing preferences.
 
-## Test-delivery permissions
+Every operation is limited to the executing user. Wildcards, another user ID or a supplied ARN cannot change the target. Explicit Deny overrides Allow; conditions and resource groups can further restrict scope. Assumed roles use their valid session permissions. Inactive identities, sessions or preferences prevent operations. Refresh and retry after a concurrent change.
 
-- Testing a Webhook uses `quyan:notification:TestWebhook` on its concrete `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>`. Listing or updating Webhooks does not grant test-delivery permission.
-- Sending a test email uses `quyan:notification:TestEmail` on the executing user's `acs:quyan:*:<accountId>:user/<userId>`. Reading or updating preferences does not grant test-email permission.
-- Both operations require explicit grants and honor explicit Deny, conditions, resource-group scope and valid role sessions. Legacy notification-management permission maps to both; test delivery can be denied separately while retaining editing access.
-- Tests use your own saved destinations. Supplied email addresses, user IDs or Actions cannot replace the target. An authorized test email may initialize missing preferences; clearing the configured email prevents sending. Test email creates an inbox message for you.
-- Tests send real notifications. Changes to the target, identity or preferences before delivery can require refreshing and retrying. Delivery failures show a general message without signing secrets, SMTP credentials or upstream response content.
+Webhook, log and inbox lists are filtered by authorization before display. Message totals, unread counts and opened-but-unconfirmed counts include only visible messages. Mark-all and email confirmation process only messages authorized for that action, leaving denied messages unchanged. Through the API, a batch of explicit message IDs updates nothing if any target is missing, inactive or unauthorized. Duplicate IDs count once; already-read messages do not count again.
 
-## Delivery history and event catalog permissions
+## Troubleshooting
 
-- In IAM enforce mode, delivery logs use `quyan:notification:ListDeliveryLogs`. Logs may contain notification content and require a separate grant; signing in does not grant access. Legacy notification-management permission is mapped to this operation for compatibility.
-- Each log resource is `acs:notification:*:<accountId>:delivery-log/<userId>/<logId>`. Queries are limited to the executing user's records. Even a wildcard policy does not allow callers to change the target by supplying another user.
-- Logs are authorized individually before pagination, and totals include only authorized records. Explicit Deny can restrict individual logs or logs in a resource group. A list with no visible records is empty.
-- The event catalog uses `quyan:notification:ListEvents` on the executing user's own `acs:quyan:*:<accountId>:user/<userId>` resource. Authenticated identities retain a default grant to view event types, which explicit Deny can restrict. This action does not grant subscription changes, log access, or test delivery.
+| Problem                                                   | What to check                                                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Email test succeeds but ordinary alerts do not arrive     | Check saved subscriptions, thresholds and a positive cooldown, then confirm an event actually triggered        |
+| Testing after entering a new email still uses the old one | Save preferences first; an enabled Test button does not mean the new address was saved                         |
+| Webhook signature checks fail after editing               | Check whether saving a blank field cleared the secret, and whether the receiver supports this signature scheme |
+| Events or webhooks unexpectedly appear empty              | Check connectivity and read permissions, then reload; avoid overwriting saved preferences                      |
+| Editing works but testing is denied                       | Ask an administrator to check the separate test Action                                                         |
 
 ## Related pages
 
