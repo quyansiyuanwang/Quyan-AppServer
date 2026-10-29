@@ -12,11 +12,11 @@ Choose a time range and refresh to see page event totals, distinct sessions (lab
 2. Choose a time range and select **Analyze**.
 3. Review the session count and conversion rate for each step. The system matches events in sequence within each session; each rate is relative to the previous step, with the first shown as 100%.
 
-The page labels the counts as users, but they are sessions rather than distinct accounts. Funnel definitions cannot be saved on this page and must be entered again after leaving.
+The page labels the counts as users, but they are sessions rather than distinct accounts. Funnel definitions cannot be saved on this page and must be entered again after leaving. Select **Analyze** again after changing steps or the time range. If a query fails, the page may still show the last successful result.
 
 ## Heatmap
 
-Select or enter a page path, a time range, and either clicks or scroll stops, then select **Query**. The page loads the target in an embedded frame and overlays heat points; stronger red indicates greater relative density. The background may not appear if the target cannot be embedded or loaded, and no points appear without matching collected data.
+Select or enter a page path, a time range, and either clicks or scroll stops, then select **Query**. The page loads the target in an embedded frame and overlays heat points; stronger red indicates greater relative density. The background may not appear if the target cannot be embedded or loaded, and no points appear without matching collected data. Changing the path immediately changes the background, but points update only after another successful query. A failed query may leave the previous points visible; do not treat them as results for the new criteria.
 
 ## Permission requirements
 
@@ -36,7 +36,7 @@ These are deployment-level aggregate reports. Date, page and event filters selec
 
 ## Notes
 
-- Results depend on collected events and can be empty when tracking is disabled or there is no matching data.
+- Results depend on collected events and can be empty when tracking is disabled or there is no matching data. Retry failed queries and use the successfully returned results.
 - Page paths, time ranges, and event names select report data; they do not change the authorization scope.
 
 ## Related pages
