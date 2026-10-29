@@ -159,7 +159,7 @@
 
 ## 典型流程
 
-## 1. 用户登录 / 用户授权流程
+### 1. 用户登录 / 用户授权流程
 
 ```text
 用户 -> 部署提供的授权界面 -> Auth Center 授权预览 API
@@ -172,7 +172,7 @@ Auth Center -> access_token（以及按配置可返回 refresh_token）
 
 适合外部系统需要建立用户身份会话的场景。
 
-## 2. 刷新流程
+### 2. 刷新流程
 
 ```text
 接入应用 -> POST /v1/auth-center/token (refresh_token)
@@ -183,7 +183,7 @@ Auth Center -> 新的 access_token 和轮换后的 refresh_token
 
 适合外部系统的用户会话需要长于访问令牌生命周期的场景。
 
-## 3. 应用到应用流程
+### 3. 应用到应用流程
 
 ```text
 服务 A -> POST /v1/auth-center/token (client_credentials)

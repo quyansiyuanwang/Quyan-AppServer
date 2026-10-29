@@ -159,7 +159,7 @@ This gives you:
 
 ## Typical flows
 
-## 1. User login / user authorization flow
+### 1. User login / user authorization flow
 
 ```text
 User -> deployment authorization interface -> Auth Center authorization preview API
@@ -172,7 +172,7 @@ Integrating App verifies access_token with JWKS/public key
 
 Recommended when the external system needs a user identity session.
 
-## 2. Refresh flow
+### 2. Refresh flow
 
 ```text
 Integrating App -> POST /v1/auth-center/token (refresh_token)
@@ -183,7 +183,7 @@ Integrating App verifies new access_token locally
 
 Recommended when the app keeps a user session longer than the access token lifetime.
 
-## 3. App-to-app flow
+### 3. App-to-app flow
 
 ```text
 Service A -> POST /v1/auth-center/token (client_credentials)
