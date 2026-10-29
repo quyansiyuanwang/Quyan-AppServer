@@ -8,7 +8,7 @@ Aliases must be 1–100 characters, start with an uppercase letter, and then con
 
 ## Manage secrets in the console
 
-Open a Secret Vault instance, select Write secret, enter an alias and value, and save. Writing an existing alias replaces its value and increments the version; first make sure dependent services are ready to use the new credential. You can also select Rotate in the list and save a new value under the same alias. The old value cannot be retrieved from the console.
+Open a Secret Vault instance, select Write secret, enter an alias and value, and save. The console converts aliases to uppercase as you type; check the alias before saving, since inputs differing only in case can identify the same secret. Writing an existing alias replaces its value, increments the version, and clears its last-use time; first make sure dependent services are ready to use the new credential. You can also select Rotate in the list and save a new value under the same alias. The old value cannot be retrieved from the console.
 
 Deletion requires confirmation. Before deleting, check whether any channels reference the alias.
 
