@@ -65,6 +65,7 @@ A matching Deny blocks the entire operation. If identity, eligibility, policies,
 
 ## Notes
 
+- When editing a price, saving with the provider field blank retains the existing provider; this form cannot clear it. Check the list after saving.
 - Pricing changes affect later request calculations. Existing usage records retain their recorded cost and are not recalculated using new prices.
 - Review usage statistics after large pricing updates to confirm outputs look reasonable.
 - Permissions may restrict who can add or edit pricing.
