@@ -11,7 +11,7 @@ A package defines the deliverable monthly-pass template, quota, validity, member
 - unpublish a package to stop new orders;
 - softly archive a package that is no longer used.
 
-The list shows the full-car per-seat selling price, per-seat cost, total cost, and estimated gross margin to support pricing review. Edits, publishing changes, and archival affect **new orders only**. Existing orders continue settlement and delivery using their creation snapshot.
+When creating or editing a package, the member limit is 1–100 and the formation deadline is 1–720 hours (72 by default). The selling price must be greater than zero and cost cannot be negative. The list shows the full-car per-seat selling price, per-seat cost, total cost, and estimated gross margin to support pricing review. Edits, publishing changes, and archival affect **new orders only**. Existing orders continue settlement and delivery using their creation snapshot.
 
 ## Order workbench
 
@@ -84,3 +84,8 @@ These templates are shared deployment resources. IAM grants also require the glo
 - The formation deadline is configured per package and defaults to 72 hours. Expiry closes only orders that have not been submitted and releases reserved funds.
 - A delivery-failure refund is allowed only from `submitted` or `accepted`, and must retain a failure reason.
 - Package cost is an operator-only planning value; the ordinary user experience does not expose upstream cost.
+
+## Related pages
+
+- [Carpools]({{DOCS_BASE_URL}}/en/carpools)
+- [Monthly pass management]({{DOCS_BASE_URL}}/en/monthly-pass-management)
