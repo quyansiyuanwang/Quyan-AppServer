@@ -7,10 +7,10 @@ export default defineDocsPage({
   category: { en: 'Relay', 'zh-CN': '转发' },
   title: { en: 'Content safety', 'zh-CN': '内容安全' },
   summary: {
-    en: 'Manage scoped content safety policies, rules, imports, and exports.',
-    'zh-CN': '管理分级内容安全策略、规则、导入和导出。',
+    en: 'Configure content safety rules, inheritance, AI audit costs, streaming behavior, and incident review.',
+    'zh-CN': '配置内容安全规则与继承，了解 AI 审计费用、流式处理和命中记录。',
   },
   tags: ['relay', 'content safety', 'security'],
-  updatedAt: '2026-10-10',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
