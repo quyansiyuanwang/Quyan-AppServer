@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'oj-usage-statistics',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'OJ',
     'zh-CN': 'OJ',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': 'OJ 用量统计',
   },
   summary: {
-    en: 'Review OJ submitter requests, tokens, cost, and detailed records.',
-    'zh-CN': '说明 OJ 提交器请求、Token、费用和明细记录。',
+    en: 'Query your OJ usage, verify settled charges, and understand date and pagination limits.',
+    'zh-CN': '查询个人 OJ 用量，核对已结算费用，了解日期范围和分页限制。',
   },
-  tags: ['oj', 'usage', 'cost'],
+  tags: ['oj', 'usage', 'cost', '用量', '费用', 'Token', '分页'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
