@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'consumption-statistics',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'System',
     'zh-CN': '系统',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '消耗统计',
   },
   summary: {
-    en: 'Analyze usage by user, model, channel, and relay token.',
-    'zh-CN': '说明按用户、模型、渠道和转发 Token 分析使用量。',
+    en: 'Filter deployment spending reports and distinguish balance charges, pass coverage, and reporting limits.',
+    'zh-CN': '筛选部署范围消费报告，区分余额扣费、月卡覆盖及统计口径限制。',
   },
-  tags: ['consumption', 'analytics', 'usage'],
+  tags: ['consumption', 'analytics', 'usage', '消费', '扣费', '统计', '月卡'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
