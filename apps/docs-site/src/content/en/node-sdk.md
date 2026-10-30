@@ -1,330 +1,245 @@
-# Node SDK
+# Node.js API example
 
-Best for Node.js backends, TypeScript / JavaScript integrations, and server-side jobs.
+Call Quyan APIs from a Node.js service or background job with a copyable `fetch` wrapper. No platform-specific SDK package is required.
 
-This page provides API examples and a wrapper you can maintain using Node.js `fetch`; it does not require a platform-specific SDK package.
+## Prerequisites
 
-<div class="docs-jump-grid">
-  <a class="docs-jump-card current" href="/en/node-sdk">
-    <span class="docs-jump-eyebrow">Current page</span>
-    <strong>Node SDK</strong>
-    <span>Call the API from a Node.js service with one shared place for auth, errors, and response unwrapping.</span>
-  </a>
-  <a class="docs-jump-card" href="/en/python-sdk">
-    <span class="docs-jump-eyebrow">Switch stack</span>
-    <strong>Python SDK</strong>
-    <span>Use this version when the integrator is a Python backend, script, or automation worker.</span>
-  </a>
-  <a class="docs-jump-card" href="/en/oauth-demo">
-    <span class="docs-jump-eyebrow">Third-party login</span>
-    <strong>OAuth Demo</strong>
-    <span>Continue there if you need authorization-code flow, redirect URIs, or PKCE.</span>
-  </a>
-</div>
+Use Node.js 22.12 or later and pnpm. Run these examples on the server.
 
-## Smallest use case
+This example starts with an authorized credential; it does not log in, exchange authorization codes, or refresh tokens. Use a login access token for this deployment, or a third-party OAuth access token with the scopes below. Account AccessKeys work only where the service permits them. Relay Tokens and OJ API Keys are separate credentials.
 
-If you do not need OAuth login and only want to call a business API from your backend, start here. Use Node.js 20 or later and install pnpm to run the commands below.
+| Request                                          | Purpose                                               | OAuth scope    | Action under IAM enforcement     |
+| ------------------------------------------------ | ----------------------------------------------------- | -------------- | -------------------------------- |
+| `GET /v1/users/me`                               | Profile of the current credential's user              | `profile`      | `quyan:user:GetCurrentUser`      |
+| `GET /v1/balance/transactions?limit=20&offset=0` | First page of the current user's balance transactions | `balance:read` | `quyan:balance:ListTransactions` |
 
-## Suggested structure
+Both operations target the current identity's user resource. Scopes do not replace resource authorization, and a matching Deny can reject the request. Run the profile request first; enable the optional transaction request only when authorized.
+
+## 1. Create the example directory
 
 ```text
 example/
 ├─ package.json
 ├─ .env
-└─ index.js
+├─ .gitignore
+├─ appserver-client.mjs
+└─ index.mjs
 ```
 
-## `package.json`
+`package.json`:
 
 ```json
 {
-  "name": "quyan-oauth-sdk-node",
+  "name": "quyan-api-example",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "node index.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5"
+    "dev": "node --env-file=.env index.mjs"
   }
 }
 ```
 
-These examples use an authorized access token. Third-party OAuth tokens need the `profile` scope for user information and `balance:read` for balance history. Server-side resource permissions still apply. Exclude `.env` from version control.
+## 2. Configure the address and credential
 
-## `.env`
-
-Replace the example address and token with the API base URL for your deployment and an authorized access token.
+Replace both placeholders in `.env`. Use the API origin for your deployment, without `/v1`, and use HTTPS in production. Missing configuration fails before an anonymous request or guessed address is used.
 
 ```env
-APPSERVER_BASE_URL=http://localhost:10001
-ACCESS_TOKEN=your_access_token
+APPSERVER_BASE_URL=https://api.example.com
+ACCESS_TOKEN=replace_with_authorized_access_token
 ```
 
-## `index.js`
+Add to `.gitignore`:
 
-```js
-import 'dotenv/config'
-
-const apiBaseUrl = process.env.APPSERVER_BASE_URL
-const accessToken = process.env.ACCESS_TOKEN
-
-const response = await fetch(new URL('/v1/users/me', apiBaseUrl), {
-  headers: {
-    Authorization: `Bearer ${accessToken}`,
-  },
-})
-
-const data = await response.json()
-console.log(JSON.stringify(data, null, 2))
+```gitignore
+.env
+node_modules/
 ```
 
-## Run it
+## 3. Save the request wrapper
 
-```bash
-pnpm install
-pnpm dev
-```
-
-## Suggested practices
-
-- Keep tokens in environment variables, not in source files.
-- Add a small shared error-handling layer around `fetch`.
-- Normalize the `{ code, message, data }` response shape in one place.
-
-## Suggested helper wrapper
-
-Pass `baseUrl` (for example, from the loaded `APPSERVER_BASE_URL`) and an API path beginning with `/` to this standalone helper.
-
-```js
-export async function callApi(baseUrl, path, token, init = {}) {
-  const response = await fetch(new URL(path, baseUrl), {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(init.headers || {}),
-    },
-  })
-
-  const payload = await response.json()
-
-  if (!response.ok || payload?.code !== 0) {
-    throw new Error(payload?.message || `Request failed: ${response.status}`)
-  }
-
-  return payload.data
-}
-```
-
-## Full shared response-unwrapping helper
-
-If the service will call more than one endpoint, save the following helper as `appserver-client.js` alongside `index.js`. Replace the earlier `index.js` with the complete example below before running it.
-
-### `appserver-client.js`
+Save as `appserver-client.mjs`:
 
 ```js
 export class AppServerApiError extends Error {
-  constructor(message, options = {}) {
+  constructor(message, { status, code, requestId } = {}) {
     super(message)
     this.name = 'AppServerApiError'
-    this.status = options.status ?? 500
-    this.code = options.code ?? -1
-    this.payload = options.payload
-    this.requestId = options.requestId
+    this.status = status
+    this.code = code
+    this.requestId = requestId
   }
 }
 
 const DEFAULT_TIMEOUT_MS = 15000
 
-function joinUrl(baseUrl, path) {
-  return new URL(path, baseUrl).toString()
-}
-
-async function parseJsonSafe(response) {
-  const text = await response.text()
-  if (!text) return null
-
-  try {
-    return JSON.parse(text)
-  } catch {
-    throw new AppServerApiError('Response is not valid JSON', {
-      status: response.status,
-      payload: text,
-      requestId: response.headers.get('x-request-id') || undefined,
-    })
+export async function callAppServer({
+  baseUrl,
+  token,
+  path,
+  query = {},
+  method = 'GET',
+  body,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  if (!baseUrl?.trim() || !token?.trim()) {
+    throw new Error('Set APPSERVER_BASE_URL and ACCESS_TOKEN')
   }
-}
+  let base
+  try {
+    base = new URL(baseUrl)
+  } catch {
+    throw new Error('APPSERVER_BASE_URL must be an HTTP(S) origin')
+  }
+  if (
+    !['http:', 'https:'].includes(base.protocol) ||
+    base.username ||
+    base.password ||
+    base.pathname !== '/' ||
+    base.search ||
+    base.hash
+  ) {
+    throw new Error('APPSERVER_BASE_URL must be an HTTP(S) origin')
+  }
+  if (typeof path !== 'string' || !path.startsWith('/v1/')) {
+    throw new Error('Use an API path beginning with /v1/')
+  }
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('timeoutMs must be a positive number')
+  }
+  const url = new URL(path, base)
+  if (url.origin !== base.origin) throw new Error('Unexpected API origin')
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue
+    if (!['string', 'number', 'boolean'].includes(typeof value)) {
+      throw new Error('Query values must be strings, numbers, or booleans')
+    }
+    url.searchParams.set(key, String(value))
+  }
 
-async function withTimeout(promise, timeoutMs) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
-
+  let status
+  let requestId
   try {
-    return await promise(controller.signal)
+    const response = await fetch(url, {
+      method,
+      redirect: 'manual',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    status = response.status
+    requestId = response.headers.get('x-request-id') || undefined
+    let payload
+    try {
+      payload = await response.json()
+    } catch (error) {
+      if (controller.signal.aborted) throw error
+      throw new AppServerApiError('Response is not valid JSON', { status, requestId })
+    }
+    const isEnvelope =
+      payload &&
+      typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      typeof payload.code === 'number'
+    const code = isEnvelope ? payload.code : undefined
+    if (!response.ok || !isEnvelope || code !== 0) {
+      throw new AppServerApiError('API request failed', { status, code, requestId })
+    }
+    return { data: payload.data, requestId }
+  } catch (error) {
+    if (error instanceof AppServerApiError) throw error
+    throw new AppServerApiError(
+      controller.signal.aborted ? 'Request timed out' : 'Request could not complete',
+      { status, requestId },
+    )
   } finally {
     clearTimeout(timer)
   }
 }
-
-export async function callAppServer({
-  baseUrl,
-  path,
-  token,
-  method = 'GET',
-  headers = {},
-  query,
-  body,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-}) {
-  const url = new URL(joinUrl(baseUrl, path))
-
-  if (query && typeof query === 'object') {
-    for (const [key, value] of Object.entries(query)) {
-      if (value === undefined || value === null || value === '') continue
-      url.searchParams.set(key, String(value))
-    }
-  }
-
-  const requestHeaders = {
-    Accept: 'application/json',
-    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...headers,
-  }
-
-  const { response, payload } = await withTimeout(async (signal) => {
-    const response = await fetch(url, {
-      method,
-      headers: requestHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal,
-    })
-    const payload = await parseJsonSafe(response)
-    return { response, payload }
-  }, timeoutMs).catch((error) => {
-    if (error?.name === 'AbortError') {
-      throw new AppServerApiError(`Request timeout after ${timeoutMs}ms`, {
-        status: 408,
-      })
-    }
-
-    throw error
-  })
-
-  const requestId = response.headers.get('x-request-id') || undefined
-
-  if (!response.ok) {
-    throw new AppServerApiError(
-      payload?.message || `HTTP request failed with status ${response.status}`,
-      {
-        status: response.status,
-        code: payload?.code,
-        payload,
-        requestId,
-      },
-    )
-  }
-
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new AppServerApiError('Response payload is not a JSON object', {
-      status: response.status,
-      payload,
-      requestId,
-    })
-  }
-
-  if (payload.code !== 0) {
-    throw new AppServerApiError(payload.message || 'Business request failed', {
-      status: response.status,
-      code: payload.code,
-      payload,
-      requestId,
-    })
-  }
-
-  return {
-    data: payload.data,
-    message: payload.message,
-    code: payload.code,
-    requestId,
-    raw: payload,
-  }
-}
-
-export async function getUserProfile({ baseUrl, token }) {
-  const result = await callAppServer({
-    baseUrl,
-    path: '/v1/users/me',
-    token,
-  })
-
-  return result.data
-}
 ```
 
-### `index.js` (using the helper)
+Success requires HTTP 2xx, a JSON object, and numeric `code: 0`; the result is `{ data, requestId }`. A business failure throws even with HTTP 200. The default 15-second timeout covers waiting for the response and reading JSON. Network failures do not fabricate HTTP 408 or 500. Query values support strings, numbers, and booleans; null and undefined are omitted.
+
+## 4. Call and run
+
+Save as `index.mjs`:
 
 ```js
-import 'dotenv/config'
-import { callAppServer, getUserProfile } from './appserver-client.js'
+import { callAppServer, AppServerApiError } from './appserver-client.mjs'
 
-const baseUrl = process.env.APPSERVER_BASE_URL
-const accessToken = process.env.ACCESS_TOKEN
+try {
+  const options = {
+    baseUrl: process.env.APPSERVER_BASE_URL,
+    token: process.env.ACCESS_TOKEN,
+  }
+  const { data: profile } = await callAppServer({
+    ...options,
+    path: '/v1/users/me',
+  })
+  if (!profile || typeof profile.id !== 'string') {
+    throw new Error('Unexpected profile data')
+  }
+  console.log('Profile request succeeded')
 
-const profile = await getUserProfile({
-  baseUrl,
-  token: accessToken,
-})
-
-console.log('profile =>', profile)
-
-const usage = await callAppServer({
-  baseUrl,
-  path: '/v1/balance/transactions',
-  token: accessToken,
-  query: { limit: 20, offset: 0 },
-})
-
-console.log('balance history =>', usage.data)
+  // Optional: requires balance:read for an OAuth token.
+  // const { data: history } = await callAppServer({
+  //   ...options,
+  //   path: '/v1/balance/transactions',
+  //   query: { limit: 20, offset: 0 },
+  // })
+  // console.log('Records on this page:', history.records.length)
+} catch (error) {
+  console.error(error.message)
+  if (error instanceof AppServerApiError) {
+    console.error(
+      JSON.stringify({
+        status: error.status,
+        code: error.code,
+        requestId: error.requestId,
+      }),
+    )
+  }
+  process.exitCode = 1
+}
 ```
 
-### What this version fixes
+Run from the example directory:
 
-- unwraps `{ code, message, data }` in one place
-- checks both HTTP status and business `code`
-- throws one consistent error type for timeout, invalid JSON, and business failures
-- keeps `requestId` for log tracing
+```bash
+pnpm dev
+```
 
-## Common issues
+Success prints `Profile request succeeded` without personal information; failure prints diagnostics and exits with a nonzero status. No Node.js dependencies need installing. Existing environment variables override `.env`; check the shell environment when changing deployments.
 
-### 401 response
+## Transaction pagination and writes
 
-- token expired
-- token belongs to another environment
-- missing `Authorization` header
+When the optional transaction call is enabled, `history.records` is only the current page and `history.total` is the matching total. Use `offset: 20` for the next page and increment by page size; the first page is not complete history.
 
-### 403 response
+The wrapper does not refresh credentials or retry. Before adding a write endpoint, check API requirements for permissions, replay protection, and two-factor verification; these interactions are not implemented here. If a network failure or timeout leaves a write outcome unknown, query its result before retrying with an idempotency mechanism supported by that endpoint.
 
-- authenticated but not permitted
-- token lacks the required access scope or role
+## Troubleshooting
 
-## Recommended follow-up reading
+| Symptom or business code             | What to check                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Missing configuration or invalid URL | Check `.env`; use the API HTTP(S) origin without `/v1`, a path, query, or embedded credentials               |
+| Non-JSON, 3xx, or HTML               | Check for a frontend, documentation, or redirecting address; the template does not follow redirects          |
+| `1001`, `1014`, or HTTP 401          | Check credential type, environment, validity, and the `Authorization` header                                 |
+| `1006`                               | User state changed; authenticate again                                                                       |
+| `1013`                               | Refresh the expired token through its own authentication flow; authenticate again if refresh fails           |
+| `1004` or HTTP 403                   | Check OAuth scopes, action/resource grants, account or role state, and explicit Deny                         |
+| `1429` or HTTP 429                   | Reduce request frequency and use server rate-limit information before deciding to retry                      |
+| Timeout or connection failure        | Check the network and service; no HTTP status does not establish that the server did not process the request |
 
-- [API documentation](/en/api-documentation)
+Error output contains a general message, HTTP status, business code, and request ID when supplied by the server. Do not paste credentials, full responses, or personal information into public logs.
+
+## Related pages
+
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)
 - [API reference]({{SWAGGER_DOCS_URL}})
-- [OAuth authorization-code example](/en/oauth-demo) for third-party login
-
-<div class="docs-jump-grid">
-  <a class="docs-jump-card" href="/en/python-sdk">
-    <span class="docs-jump-eyebrow">Next</span>
-    <strong>Open Python SDK</strong>
-    <span>Compare the Python version if your team maintains multiple backend stacks.</span>
-  </a>
-  <a class="docs-jump-card" href="/en/oauth-demo">
-    <span class="docs-jump-eyebrow">Extended flow</span>
-    <strong>Open OAuth Demo</strong>
-    <span>Continue there if you also need third-party login or authorization-code flow.</span>
-  </a>
-</div>
+- [Python API example]({{DOCS_BASE_URL}}/en/python-sdk)
+- [OAuth authorization-code example]({{DOCS_BASE_URL}}/en/oauth-demo)
+- [AccessKey management]({{DOCS_BASE_URL}}/en/access-key-management)

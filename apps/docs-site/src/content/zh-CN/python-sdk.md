@@ -1,341 +1,208 @@
-# Python SDK
+# Python API 调用示例
 
-适合：Python 后端、脚本工具、自动化服务、内部集成任务。
+从 Python 服务、脚本或自动化任务调用曲研 API。本页使用 `requests` 和 `python-dotenv`，提供可复制的封装，无需安装平台专用 SDK。
 
-<div class="docs-jump-grid">
-    <a class="docs-jump-card" href="/zh-CN/node-sdk">
-        <span class="docs-jump-eyebrow">切换语言栈</span>
-        <strong>Node SDK</strong>
-        <span>如果你的接入是 Node.js 服务端，可以直接跳到对应模板。</span>
-    </a>
-    <a class="docs-jump-card current" href="/zh-CN/python-sdk">
-        <span class="docs-jump-eyebrow">当前页</span>
-        <strong>Python SDK</strong>
-        <span>适合 Python 服务、脚本、数据任务与自动化调用场景。</span>
-    </a>
-    <a class="docs-jump-card" href="/zh-CN/oauth-demo">
-        <span class="docs-jump-eyebrow">第三方登录</span>
-        <strong>OAuth Demo</strong>
-        <span>如果你需要授权码流程、回调地址或 PKCE，请继续查看完整 OAuth 示例。</span>
-    </a>
-</div>
+## 使用前提
 
-## 最小使用场景
+使用 Python 3.10 或更高版本及 pip。建议在项目自己的虚拟环境中运行。
 
-如果你只需要从 Python 服务里直接调用 API，这一页就是最短路径。本页使用 `requests` 和可自行维护的封装代码，无需安装平台专用 SDK 包；所有示例需要 Python 3.10 或更高版本。
+本页使用已获得授权的访问凭证，不执行登录、授权码交换或刷新流程。可使用当前部署的登录访问令牌；第三方 OAuth 访问令牌还需要下列 scope。账号 AccessKey 仅能用于服务端允许的接口，不能把 Relay Token 或 OJ API Key 当作这里的访问令牌。
 
-## 推荐目录
+| 请求                                             | 用途                     | OAuth scope    | IAM 强制模式下的动作             |
+| ------------------------------------------------ | ------------------------ | -------------- | -------------------------------- |
+| `GET /v1/users/me`                               | 当前凭证对应的用户资料   | `profile`      | `quyan:user:GetCurrentUser`      |
+| `GET /v1/balance/transactions?limit=20&offset=0` | 当前用户的第一页余额流水 | `balance:read` | `quyan:balance:ListTransactions` |
+
+两项操作都针对当前身份的用户资源；scope 不替代资源授权，匹配的 Deny 仍可拒绝请求。先运行资料请求，确有流水授权时再启用代码中的可选请求。
+
+## 1. 创建示例目录
 
 ```text
 example/
 ├─ requirements.txt
 ├─ .env
+├─ .gitignore
+├─ appserver_client.py
 └─ app.py
 ```
 
-## `requirements.txt`
+`requirements.txt`：
 
 ```txt
-python-dotenv==1.0.1
-requests==2.32.3
+requests
+python-dotenv
 ```
 
-示例使用已获得授权的访问令牌；第三方 OAuth 令牌访问用户资料需要 `profile` scope，访问余额记录需要 `balance:read` scope。具体资源权限仍由服务端控制。请将 `.env` 排除在版本控制之外。
+安装后按你项目的依赖管理方式锁定实际使用并验证的版本，不把示例清单当作生产锁文件。
 
-## `.env`
+## 2. 配置地址和凭证
 
-将示例地址和令牌替换为当前部署的 API 基础地址及已获授权的访问令牌。
+在与 `app.py` 同目录的 `.env` 中替换下列占位值。地址填写当前部署的 API 源站，不附加 `/v1`；生产调用使用 HTTPS。缺少地址或凭证时直接报错，不回退到本机地址。
 
 ```env
-APPSERVER_BASE_URL=http://localhost:10001
-ACCESS_TOKEN=your_access_token
+APPSERVER_BASE_URL=https://api.example.com
+ACCESS_TOKEN=replace_with_authorized_access_token
 ```
 
-## `app.py`
+在 `.gitignore` 中加入：
+
+```gitignore
+.env
+.venv/
+__pycache__/
+```
+
+## 3. 保存请求封装
+
+保存为 `appserver_client.py`：
 
 ```python
-import os
-
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-api_base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
-access_token = os.getenv("ACCESS_TOKEN", "")
-
-response = requests.get(
-    f"{api_base_url.rstrip('/')}/v1/users/me",
-    headers={"Authorization": f"Bearer {access_token}"},
-    timeout=15,
-)
-
-payload = response.json()
-print(payload)
-```
-
-## 运行方式
-
-```bash
-pip install -r requirements.txt
-python app.py
-```
-
-## 建议做法
-
-- 始终设置 `timeout`
-- 对 `response.status_code` 和业务层 `code` 双重判断
-- 把公共请求逻辑抽成一个小函数
-
-## 推荐封装
-
-以下独立封装需要调用方传入 `base_url`（例如从已加载的 `APPSERVER_BASE_URL` 读取）和以 `/` 开头的 API 路径。
-
-```python
-import requests
-
-
-def call_api(base_url: str, path: str, token: str, method: str = "GET", json_body=None):
-    response = requests.request(
-        method,
-        f"{base_url.rstrip('/')}{path}",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json=json_body,
-        timeout=15,
-    )
-    payload = response.json()
-
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"Unexpected response format (HTTP {response.status_code})")
-
-    if response.status_code >= 400 or payload.get("code") != 0:
-        raise RuntimeError(payload.get("message", "Request failed"))
-
-    return payload.get("data")
-```
-
-## 完整版统一响应解包工具
-
-如果 Python 侧要接多个接口，请将以下调用器保存为与 `app.py` 同目录的 `appserver_client.py`，并将前面的 `app.py` 替换为下方完整版，再运行示例。
-
-### `appserver_client.py`
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
-
-DEFAULT_TIMEOUT = 15
+DEFAULT_TIMEOUT = (5, 15)
 
 
 class AppServerApiError(RuntimeError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        status: int = 500,
-        code: int | None = None,
-        payload: Any = None,
-        request_id: str | None = None,
-    ) -> None:
+    def __init__(self, message, *, status=None, code=None, request_id=None):
         super().__init__(message)
         self.status = status
         self.code = code
-        self.payload = payload
         self.request_id = request_id
 
 
-@dataclass(slots=True)
-class AppServerResult:
-    code: int
-    message: str
-    data: Any
-    request_id: str | None
-    raw: dict[str, Any]
-
-
 def call_appserver(
-    *,
-    base_url: str,
-    path: str,
-    token: str | None = None,
-    method: str = "GET",
+    *, base_url: str, token: str, path: str,
     params: dict[str, Any] | None = None,
-    json_body: Any = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DEFAULT_TIMEOUT,
-) -> AppServerResult:
-    request_headers = {
+    method: str = "GET", json_body: Any = None,
+    timeout=DEFAULT_TIMEOUT,
+) -> dict[str, Any]:
+    if not base_url or not base_url.strip() or not token or not token.strip():
+        raise ValueError("Set APPSERVER_BASE_URL and ACCESS_TOKEN")
+    base = urlsplit(base_url)
+    if (
+        base.scheme not in ("http", "https") or not base.hostname
+        or base.username is not None or base.password is not None
+        or base.path not in ("", "/") or base.query or base.fragment
+    ):
+        raise ValueError("APPSERVER_BASE_URL must be an HTTP(S) origin")
+    if not path.startswith("/v1/") or "\\" in path:
+        raise ValueError("Use an API path beginning with /v1/")
+    url = urljoin(base_url, path)
+    headers = {
         "Accept": "application/json",
-        **({"Authorization": f"Bearer {token}"} if token else {}),
-        **({"Content-Type": "application/json"} if json_body is not None else {}),
-        **(headers or {}),
+        "Authorization": f"Bearer {token.strip()}",
     }
-
-    response = requests.request(
-        method=method,
-        url=f"{base_url.rstrip('/')}{path}",
-        headers=request_headers,
-        params={k: v for k, v in (params or {}).items() if v not in (None, "")},
-        json=json_body,
-        timeout=timeout,
-    )
-
-    request_id = response.headers.get("x-request-id")
-
     try:
-        payload = response.json()
-    except ValueError as exc:
-        raise AppServerApiError(
-            "Response is not valid JSON",
-            status=response.status_code,
-            payload=response.text,
-            request_id=request_id,
-        ) from exc
-
-    if not isinstance(payload, dict):
-        raise AppServerApiError(
-            "Response payload is not a JSON object",
-            status=response.status_code,
-            payload=payload,
-            request_id=request_id,
+        response = requests.request(
+            method, url, headers=headers,
+            params={k: v for k, v in (params or {}).items() if v is not None},
+            json=json_body, timeout=timeout, allow_redirects=False,
         )
+    except requests.Timeout:
+        raise AppServerApiError("Request timed out") from None
+    except requests.RequestException:
+        raise AppServerApiError("Request could not complete") from None
 
-    if response.status_code >= 400:
-        raise AppServerApiError(
-            payload.get("message") or f"HTTP request failed with status {response.status_code}",
-            status=response.status_code,
-            code=payload.get("code"),
-            payload=payload,
-            request_id=request_id,
-        )
-
-    if payload.get("code") != 0:
-        raise AppServerApiError(
-            payload.get("message") or "Business request failed",
-            status=response.status_code,
-            code=payload.get("code"),
-            payload=payload,
-            request_id=request_id,
-        )
-
-    return AppServerResult(
-        code=int(payload.get("code", 0)),
-        message=str(payload.get("message", "")),
-        data=payload.get("data"),
-        request_id=request_id,
-        raw=payload,
-    )
-
-
-def get_user_profile(base_url: str, token: str) -> Any:
-    return call_appserver(
-        base_url=base_url,
-        path="/v1/users/me",
-        token=token,
-    ).data
+    with response:
+        status = response.status_code
+        request_id = response.headers.get("x-request-id")
+        try:
+            payload = response.json()
+        except ValueError:
+            raise AppServerApiError(
+                "Response is not valid JSON", status=status, request_id=request_id,
+            ) from None
+        is_envelope = isinstance(payload, dict) and type(payload.get("code")) is int
+        code = payload["code"] if is_envelope else None
+        if not 200 <= status < 300 or not is_envelope or code != 0:
+            raise AppServerApiError(
+                "API request failed", status=status, code=code, request_id=request_id,
+            )
+        return {"data": payload.get("data"), "request_id": request_id}
 ```
 
-### `app.py`（调用封装）
+封装要求 HTTP 2xx、JSON 对象和整数 `code: 0` 同时成立，返回包含 `data`、`request_id` 的字典；布尔值 `false` 不作为成功码。HTTP 200 的业务失败同样抛错。网络失败没有可用 HTTP 响应时，`status` 为 `None`，不会伪造状态码。
+
+默认连接超时 5 秒、读取等待超时 15 秒。读取超时限制等待数据的间隔，并非整个调用的总时限；缓慢持续传输时总耗时可能更长。
+
+## 4. 调用并运行
+
+保存为 `app.py`：
 
 ```python
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
+from appserver_client import AppServerApiError, call_appserver
 
-from appserver_client import call_appserver, get_user_profile
+load_dotenv(Path(__file__).with_name(".env"))
 
-load_dotenv()
+try:
+    options = {
+        "base_url": os.getenv("APPSERVER_BASE_URL", ""),
+        "token": os.getenv("ACCESS_TOKEN", ""),
+    }
+    profile = call_appserver(**options, path="/v1/users/me")["data"]
+    if not isinstance(profile, dict) or not isinstance(profile.get("id"), str):
+        raise ValueError("Unexpected profile data")
+    print("Profile request succeeded")
 
-base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
-access_token = os.getenv("ACCESS_TOKEN", "")
-
-profile = get_user_profile(base_url, access_token)
-print("profile =>", profile)
-
-history = call_appserver(
-    base_url=base_url,
-    path="/v1/balance/transactions",
-    token=access_token,
-    params={"limit": 20, "offset": 0},
-)
-print("balance history =>", history.data)
+    # Optional: requires balance:read for an OAuth token.
+    # history = call_appserver(
+    #     **options, path="/v1/balance/transactions",
+    #     params={"limit": 20, "offset": 0},
+    # )["data"]
+    # print("Records on this page:", len(history["records"]))
+except (AppServerApiError, ValueError) as error:
+    print(str(error), file=sys.stderr)
+    if isinstance(error, AppServerApiError):
+        print({
+            "status": error.status,
+            "code": error.code,
+            "request_id": error.request_id,
+        }, file=sys.stderr)
+    sys.exit(1)
 ```
 
-### 这个版本解决了什么
+在示例目录运行：
 
-- 统一解包 `{ code, message, data }`
-- 统一抛出 HTTP / 业务错误
-- 自动过滤空查询参数
-- 记录 `request_id`，便于排查线上日志
+```bash
+python -m pip install -r requirements.txt
+python app.py
+```
+
+成功时输出 `Profile request succeeded`，不打印个人资料；失败时输出诊断信息并以非零状态退出。程序从脚本所在目录读取 `.env`；已有同名环境变量优先，切换部署时先检查终端环境。
+
+## 流水分页与写操作
+
+启用可选流水请求后，`history["records"]` 只是当前页，`history["total"]` 是匹配总数。下一页使用 `offset=20`，之后按页大小递增；第一页不代表完整历史。
+
+封装不自动刷新凭证或重试。对只读查询增加重试时，应限定次数并退避；不要对认证或权限拒绝无限重试。添加写接口前核对权限、重放保护及二次验证要求；当前模板未实现这些交互。写入超时或断线后先核对结果，再按接口支持的幂等机制决定是否重试。
 
 ## 常见问题
 
-### 超时
+| 现象或业务码               | 处理方法                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| 缺少配置或 URL 格式错误    | 检查 `.env`；地址应为 API 的 HTTP(S) 源站，不带 `/v1`、路径、查询参数或用户名密码 |
+| 非 JSON、3xx 或 HTML 页面  | 检查是否误填前端、文档站或需要跳转的地址；模板不自动跟随重定向                    |
+| `1001`、`1014` 或 HTTP 401 | 检查凭证类型、环境、有效性及 `Authorization` 请求头                               |
+| `1006`                     | 用户状态已变更，需要重新认证                                                      |
+| `1013`                     | 访问令牌已过期；通过对应认证流程刷新，失败后重新认证                              |
+| `1004` 或 HTTP 403         | 检查 OAuth scope、动作与资源授权、账号或角色状态以及显式 Deny                     |
+| `1429` 或 HTTP 429         | 降低调用频率，按服务端限流信息等待后再决定是否重试                                |
+| 超时或连接失败             | 检查网络和服务状态；没有 HTTP 状态不代表服务端未处理请求                          |
 
-- 服务端不可达
-- 网络出口受限
-- 下游接口耗时过长
+错误日志仅输出概括信息、HTTP 状态、业务码及服务端返回的请求 ID。不要把访问令牌、完整响应或个人资料粘贴到公开日志。
 
-### 解包失败
+## 相关页面
 
-- 你以为返回是纯 JSON 数据，但实际是 `{ code, message, data }`
-- 应优先读取 `data`
-
-## 重试与幂等性建议
-
-上面的封装函数不会自动重试。下面的示例仅对 GET 请求的连接异常、超时和 HTTP 5xx 做有限重试，不自动刷新令牌：
-
-```python
-import time
-import requests
-
-
-def get_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwargs) -> "AppServerResult":
-    if max_attempts < 1:
-        raise ValueError("max_attempts must be at least 1")
-    if kwargs.get("method", "GET").upper() != "GET":
-        raise ValueError("This retry helper only supports GET requests")
-
-    for attempt in range(max_attempts):
-        try:
-            return call_appserver(**kwargs)
-        except AppServerApiError as exc:
-            if exc.status < 500 or attempt == max_attempts - 1:
-                raise
-        except (requests.ConnectionError, requests.Timeout):
-            if attempt == max_attempts - 1:
-                raise
-        time.sleep(backoff_seconds * (attempt + 1))
-
-    raise RuntimeError("Unreachable")
-```
-
-- 收到 `1006` 时需要重新认证；`1013` 可在刷新凭据成功后重新发起请求，刷新失败时重新认证。写操作结果因网络中断而未知时，应先查询结果或使用接口支持的幂等机制，避免重复提交。
-- 重试次数应控制在较少范围内（额外 1-2 次），且每次重试前都应有等待间隔，而不是立即重试。
-
-## 推荐联动阅读
-
-- [API 文档](/zh-CN/api-documentation)
+- [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)
 - [API 参考]({{SWAGGER_DOCS_URL}})
-- [OAuth 授权码示例](/zh-CN/oauth-demo)（用于第三方登录）
-
-<div class="docs-jump-grid">
-    <a class="docs-jump-card" href="/zh-CN/node-sdk">
-        <span class="docs-jump-eyebrow">对照模板</span>
-        <strong>查看 Node SDK</strong>
-        <span>如果团队同时维护 Node 服务，可以用另一套模板统一封装风格。</span>
-    </a>
-    <a class="docs-jump-card" href="/zh-CN/oauth-demo">
-        <span class="docs-jump-eyebrow">扩展场景</span>
-        <strong>进入 OAuth Demo</strong>
-        <span>如果需要第三方登录、回调地址与 PKCE 流程，请继续这里。</span>
-    </a>
-</div>
+- [Node.js API 调用示例]({{DOCS_BASE_URL}}/zh-CN/node-sdk)
+- [OAuth 授权码示例]({{DOCS_BASE_URL}}/zh-CN/oauth-demo)
+- [AccessKey 管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management)

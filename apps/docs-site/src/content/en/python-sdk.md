@@ -1,341 +1,208 @@
-# Python SDK
+# Python API example
 
-Best for Python backends, scripts, automation services, and internal integrations.
+Call Quyan APIs from Python services, scripts, or automation with a copyable wrapper using `requests` and `python-dotenv`. No platform-specific SDK package is required.
 
-<div class="docs-jump-grid">
-    <a class="docs-jump-card" href="/en/node-sdk">
-        <span class="docs-jump-eyebrow">Switch stack</span>
-        <strong>Node SDK</strong>
-        <span>Open this version when the integration runs in a Node.js backend.</span>
-    </a>
-    <a class="docs-jump-card current" href="/en/python-sdk">
-        <span class="docs-jump-eyebrow">Current page</span>
-        <strong>Python SDK</strong>
-        <span>Use this template for Python services, scripts, internal tooling, and automation flows.</span>
-    </a>
-    <a class="docs-jump-card" href="/en/oauth-demo">
-        <span class="docs-jump-eyebrow">Third-party login</span>
-        <strong>OAuth Demo</strong>
-        <span>Continue there for authorization-code flow, redirect handling, and PKCE.</span>
-    </a>
-</div>
+## Prerequisites
 
-## Smallest use case
+Use Python 3.10 or later with pip, preferably in a virtual environment for this project.
 
-If you only need to call the API directly from Python, this is the shortest path. The examples use `requests` and a wrapper you can maintain; no platform-specific SDK package is required. Use Python 3.10 or later for all examples on this page.
+This example starts with an authorized credential; it does not log in, exchange authorization codes, or refresh tokens. Use a login access token for this deployment, or a third-party OAuth access token with the scopes below. Account AccessKeys work only where the service permits them. Relay Tokens and OJ API Keys are separate credentials.
 
-## Suggested structure
+| Request                                          | Purpose                                               | OAuth scope    | Action under IAM enforcement     |
+| ------------------------------------------------ | ----------------------------------------------------- | -------------- | -------------------------------- |
+| `GET /v1/users/me`                               | Profile of the current credential's user              | `profile`      | `quyan:user:GetCurrentUser`      |
+| `GET /v1/balance/transactions?limit=20&offset=0` | First page of the current user's balance transactions | `balance:read` | `quyan:balance:ListTransactions` |
+
+Both operations target the current identity's user resource. Scopes do not replace resource authorization, and a matching Deny can reject the request. Run the profile request first; enable the optional transaction request only when authorized.
+
+## 1. Create the example directory
 
 ```text
 example/
 ├─ requirements.txt
 ├─ .env
+├─ .gitignore
+├─ appserver_client.py
 └─ app.py
 ```
 
-## `requirements.txt`
+`requirements.txt`:
 
 ```txt
-python-dotenv==1.0.1
-requests==2.32.3
+requests
+python-dotenv
 ```
 
-These examples use an authorized access token. Third-party OAuth tokens need the `profile` scope for user information and `balance:read` for balance history. Server-side resource permissions still apply. Exclude `.env` from version control.
+After installation, lock the versions you actually use and verify through your project dependency workflow. This example list is not a production lockfile.
 
-## `.env`
+## 2. Configure the address and credential
 
-Replace the example address and token with the API base URL for your deployment and an authorized access token.
+Replace both placeholders in `.env` alongside `app.py`. Use the deployment API origin without `/v1`, and use HTTPS in production. A missing address or credential fails without falling back to localhost.
 
 ```env
-APPSERVER_BASE_URL=http://localhost:10001
-ACCESS_TOKEN=your_access_token
+APPSERVER_BASE_URL=https://api.example.com
+ACCESS_TOKEN=replace_with_authorized_access_token
 ```
 
-## `app.py`
+Add to `.gitignore`:
+
+```gitignore
+.env
+.venv/
+__pycache__/
+```
+
+## 3. Save the request wrapper
+
+Save as `appserver_client.py`:
 
 ```python
-import os
-
-import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-api_base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
-access_token = os.getenv("ACCESS_TOKEN", "")
-
-response = requests.get(
-    f"{api_base_url.rstrip('/')}/v1/users/me",
-    headers={"Authorization": f"Bearer {access_token}"},
-    timeout=15,
-)
-
-payload = response.json()
-print(payload)
-```
-
-## Run it
-
-```bash
-pip install -r requirements.txt
-python app.py
-```
-
-## Suggested practices
-
-- Always set a `timeout`
-- Check both HTTP status and business `code`
-- Extract common request logic into a helper
-
-## Suggested helper wrapper
-
-Pass `base_url` (for example, from the loaded `APPSERVER_BASE_URL`) and an API path beginning with `/` to this standalone helper.
-
-```python
-import requests
-
-
-def call_api(base_url: str, path: str, token: str, method: str = "GET", json_body=None):
-    response = requests.request(
-        method,
-        f"{base_url.rstrip('/')}{path}",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        json=json_body,
-        timeout=15,
-    )
-    payload = response.json()
-
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"Unexpected response format (HTTP {response.status_code})")
-
-    if response.status_code >= 400 or payload.get("code") != 0:
-        raise RuntimeError(payload.get("message", "Request failed"))
-
-    return payload.get("data")
-```
-
-## Full shared response-unwrapping helper
-
-If Python will call several endpoints, save the following helper as `appserver_client.py` alongside `app.py`. Replace the earlier `app.py` with the complete example below before running it.
-
-### `appserver_client.py`
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
-
-DEFAULT_TIMEOUT = 15
+DEFAULT_TIMEOUT = (5, 15)
 
 
 class AppServerApiError(RuntimeError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        status: int = 500,
-        code: int | None = None,
-        payload: Any = None,
-        request_id: str | None = None,
-    ) -> None:
+    def __init__(self, message, *, status=None, code=None, request_id=None):
         super().__init__(message)
         self.status = status
         self.code = code
-        self.payload = payload
         self.request_id = request_id
 
 
-@dataclass(slots=True)
-class AppServerResult:
-    code: int
-    message: str
-    data: Any
-    request_id: str | None
-    raw: dict[str, Any]
-
-
 def call_appserver(
-    *,
-    base_url: str,
-    path: str,
-    token: str | None = None,
-    method: str = "GET",
+    *, base_url: str, token: str, path: str,
     params: dict[str, Any] | None = None,
-    json_body: Any = None,
-    headers: dict[str, str] | None = None,
-    timeout: int = DEFAULT_TIMEOUT,
-) -> AppServerResult:
-    request_headers = {
+    method: str = "GET", json_body: Any = None,
+    timeout=DEFAULT_TIMEOUT,
+) -> dict[str, Any]:
+    if not base_url or not base_url.strip() or not token or not token.strip():
+        raise ValueError("Set APPSERVER_BASE_URL and ACCESS_TOKEN")
+    base = urlsplit(base_url)
+    if (
+        base.scheme not in ("http", "https") or not base.hostname
+        or base.username is not None or base.password is not None
+        or base.path not in ("", "/") or base.query or base.fragment
+    ):
+        raise ValueError("APPSERVER_BASE_URL must be an HTTP(S) origin")
+    if not path.startswith("/v1/") or "\\" in path:
+        raise ValueError("Use an API path beginning with /v1/")
+    url = urljoin(base_url, path)
+    headers = {
         "Accept": "application/json",
-        **({"Authorization": f"Bearer {token}"} if token else {}),
-        **({"Content-Type": "application/json"} if json_body is not None else {}),
-        **(headers or {}),
+        "Authorization": f"Bearer {token.strip()}",
     }
-
-    response = requests.request(
-        method=method,
-        url=f"{base_url.rstrip('/')}{path}",
-        headers=request_headers,
-        params={k: v for k, v in (params or {}).items() if v not in (None, "")},
-        json=json_body,
-        timeout=timeout,
-    )
-
-    request_id = response.headers.get("x-request-id")
-
     try:
-        payload = response.json()
-    except ValueError as exc:
-        raise AppServerApiError(
-            "Response is not valid JSON",
-            status=response.status_code,
-            payload=response.text,
-            request_id=request_id,
-        ) from exc
-
-    if not isinstance(payload, dict):
-        raise AppServerApiError(
-            "Response payload is not a JSON object",
-            status=response.status_code,
-            payload=payload,
-            request_id=request_id,
+        response = requests.request(
+            method, url, headers=headers,
+            params={k: v for k, v in (params or {}).items() if v is not None},
+            json=json_body, timeout=timeout, allow_redirects=False,
         )
+    except requests.Timeout:
+        raise AppServerApiError("Request timed out") from None
+    except requests.RequestException:
+        raise AppServerApiError("Request could not complete") from None
 
-    if response.status_code >= 400:
-        raise AppServerApiError(
-            payload.get("message") or f"HTTP request failed with status {response.status_code}",
-            status=response.status_code,
-            code=payload.get("code"),
-            payload=payload,
-            request_id=request_id,
-        )
-
-    if payload.get("code") != 0:
-        raise AppServerApiError(
-            payload.get("message") or "Business request failed",
-            status=response.status_code,
-            code=payload.get("code"),
-            payload=payload,
-            request_id=request_id,
-        )
-
-    return AppServerResult(
-        code=int(payload.get("code", 0)),
-        message=str(payload.get("message", "")),
-        data=payload.get("data"),
-        request_id=request_id,
-        raw=payload,
-    )
-
-
-def get_user_profile(base_url: str, token: str) -> Any:
-    return call_appserver(
-        base_url=base_url,
-        path="/v1/users/me",
-        token=token,
-    ).data
+    with response:
+        status = response.status_code
+        request_id = response.headers.get("x-request-id")
+        try:
+            payload = response.json()
+        except ValueError:
+            raise AppServerApiError(
+                "Response is not valid JSON", status=status, request_id=request_id,
+            ) from None
+        is_envelope = isinstance(payload, dict) and type(payload.get("code")) is int
+        code = payload["code"] if is_envelope else None
+        if not 200 <= status < 300 or not is_envelope or code != 0:
+            raise AppServerApiError(
+                "API request failed", status=status, code=code, request_id=request_id,
+            )
+        return {"data": payload.get("data"), "request_id": request_id}
 ```
 
-### `app.py` (using the helper)
+Success requires HTTP 2xx, a JSON object, and integer `code: 0`. The returned dictionary contains `data` and `request_id`; boolean `false` is not a success code. Business failures throw even with HTTP 200. Network failures without an HTTP response have `status=None`, without a fabricated status.
+
+Defaults are a five-second connection timeout and a 15-second read timeout. Read timeout limits waiting between received data rather than total call duration; a slow continuous response can take longer.
+
+## 4. Call and run
+
+Save as `app.py`:
 
 ```python
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
+from appserver_client import AppServerApiError, call_appserver
 
-from appserver_client import call_appserver, get_user_profile
+load_dotenv(Path(__file__).with_name(".env"))
 
-load_dotenv()
+try:
+    options = {
+        "base_url": os.getenv("APPSERVER_BASE_URL", ""),
+        "token": os.getenv("ACCESS_TOKEN", ""),
+    }
+    profile = call_appserver(**options, path="/v1/users/me")["data"]
+    if not isinstance(profile, dict) or not isinstance(profile.get("id"), str):
+        raise ValueError("Unexpected profile data")
+    print("Profile request succeeded")
 
-base_url = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
-access_token = os.getenv("ACCESS_TOKEN", "")
-
-profile = get_user_profile(base_url, access_token)
-print("profile =>", profile)
-
-history = call_appserver(
-    base_url=base_url,
-    path="/v1/balance/transactions",
-    token=access_token,
-    params={"limit": 20, "offset": 0},
-)
-print("balance history =>", history.data)
+    # Optional: requires balance:read for an OAuth token.
+    # history = call_appserver(
+    #     **options, path="/v1/balance/transactions",
+    #     params={"limit": 20, "offset": 0},
+    # )["data"]
+    # print("Records on this page:", len(history["records"]))
+except (AppServerApiError, ValueError) as error:
+    print(str(error), file=sys.stderr)
+    if isinstance(error, AppServerApiError):
+        print({
+            "status": error.status,
+            "code": error.code,
+            "request_id": error.request_id,
+        }, file=sys.stderr)
+    sys.exit(1)
 ```
 
-### What this version fixes
+Run from the example directory:
 
-- unwraps `{ code, message, data }` consistently
-- raises one shared error type for HTTP and business failures
-- filters empty query params automatically
-- preserves `request_id` for production troubleshooting
-
-## Common issues
-
-### Timeout
-
-- backend unreachable
-- network egress restricted
-- upstream request too slow
-
-### Response unpacking mistakes
-
-- expecting raw JSON instead of `{ code, message, data }`
-- reading top-level payload instead of `data`
-
-## Retry and idempotency guidance
-
-The helper above does not retry automatically. This example only retries GET requests after connection errors, timeouts, or HTTP 5xx responses; it does not refresh tokens:
-
-```python
-import time
-import requests
-
-
-def get_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwargs) -> "AppServerResult":
-    if max_attempts < 1:
-        raise ValueError("max_attempts must be at least 1")
-    if kwargs.get("method", "GET").upper() != "GET":
-        raise ValueError("This retry helper only supports GET requests")
-
-    for attempt in range(max_attempts):
-        try:
-            return call_appserver(**kwargs)
-        except AppServerApiError as exc:
-            if exc.status < 500 or attempt == max_attempts - 1:
-                raise
-        except (requests.ConnectionError, requests.Timeout):
-            if attempt == max_attempts - 1:
-                raise
-        time.sleep(backoff_seconds * (attempt + 1))
-
-    raise RuntimeError("Unreachable")
+```bash
+python -m pip install -r requirements.txt
+python app.py
 ```
 
-- For `1006`, authenticate again. For `1013`, retry only after successfully refreshing credentials; authenticate again if refresh fails. When a network failure leaves a write outcome unknown, check the result or use an idempotency mechanism supported by the endpoint to avoid duplicate submissions.
-- Keep retry counts small (1-2 extra attempts) and always back off between attempts instead of retrying immediately.
+Success prints `Profile request succeeded` without personal information; failure prints diagnostics and exits with a nonzero status. The script reads `.env` from its own directory. Existing environment variables take priority; check the shell environment when changing deployments.
 
-## Recommended follow-up reading
+## Transaction pagination and writes
 
-- [API documentation](/en/api-documentation)
+`history["records"]` from the optional transaction request is only the current page; `history["total"]` is the matching total. Use `offset=20` for the next page and increment by page size. The first page is not complete history.
+
+The wrapper does not refresh credentials or retry. If adding retries for read-only queries, bound attempts and back off; do not repeatedly retry authentication or permission refusals. Before adding writes, check permission, replay-protection, and two-factor requirements; these interactions are not implemented here. After a write timeout or disconnect, check the outcome before retrying through an idempotency mechanism supported by the endpoint.
+
+## Troubleshooting
+
+| Symptom or business code             | What to check                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Missing configuration or invalid URL | Check `.env`; use the API HTTP(S) origin without `/v1`, a path, query, or embedded credentials               |
+| Non-JSON, 3xx, or HTML               | Check for a frontend, documentation, or redirecting address; the template does not follow redirects          |
+| `1001`, `1014`, or HTTP 401          | Check credential type, environment, validity, and the `Authorization` header                                 |
+| `1006`                               | User state changed; authenticate again                                                                       |
+| `1013`                               | Refresh the expired token through its own authentication flow; authenticate again if refresh fails           |
+| `1004` or HTTP 403                   | Check OAuth scopes, action/resource grants, account or role state, and explicit Deny                         |
+| `1429` or HTTP 429                   | Reduce request frequency and use server rate-limit information before deciding to retry                      |
+| Timeout or connection failure        | Check the network and service; no HTTP status does not establish that the server did not process the request |
+
+Error output contains a general message, HTTP status, business code, and request ID when supplied by the server. Do not paste credentials, full responses, or personal information into public logs.
+
+## Related pages
+
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)
 - [API reference]({{SWAGGER_DOCS_URL}})
-- [OAuth authorization-code example](/en/oauth-demo) for third-party login
-
-<div class="docs-jump-grid">
-    <a class="docs-jump-card" href="/en/node-sdk">
-        <span class="docs-jump-eyebrow">Compare</span>
-        <strong>Open Node SDK</strong>
-        <span>Use the Node template too if your team maintains mixed backend stacks.</span>
-    </a>
-    <a class="docs-jump-card" href="/en/oauth-demo">
-        <span class="docs-jump-eyebrow">Extended flow</span>
-        <strong>Open OAuth Demo</strong>
-        <span>Continue there for redirect handling, authorization code exchange, and PKCE.</span>
-    </a>
-</div>
+- [Node.js API example]({{DOCS_BASE_URL}}/en/node-sdk)
+- [OAuth authorization-code example]({{DOCS_BASE_URL}}/en/oauth-demo)
+- [AccessKey management]({{DOCS_BASE_URL}}/en/access-key-management)

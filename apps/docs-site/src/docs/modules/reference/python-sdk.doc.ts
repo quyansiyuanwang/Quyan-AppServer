@@ -4,20 +4,20 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'python-sdk',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Reference',
     'zh-CN': '参考',
   },
   title: {
-    en: 'Python SDK',
-    'zh-CN': 'Python SDK',
+    en: 'Python API example',
+    'zh-CN': 'Python API 调用示例',
   },
   summary: {
-    en: 'Minimal Python API calling templates for scripts and backend services.',
-    'zh-CN': '用于脚本与后端服务的最小 Python API 调用模板。',
+    en: 'Run a complete Python API example with credential checks, HTTP and business errors, and timeout limits.',
+    'zh-CN': '运行完整 Python API 示例，核对凭证、HTTP 与业务错误及超时范围。',
   },
-  tags: ['sdk', 'python', 'api', 'backend'],
+  tags: ['sdk', 'python', 'requests', 'api', 'backend', '调用示例', '错误处理'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
