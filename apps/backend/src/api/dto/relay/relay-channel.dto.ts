@@ -115,6 +115,8 @@ export interface RelayChannelTopologyAuditDto {
 }
 
 export interface RelayChannelRoutingConfigDto {
+  /** Forward all eligible request headers on this physical channel. Defaults to false; reserved fields stay excluded. */
+  forwardAllRequestHeaders?: boolean;
   /** Extra exact request-header names forwarded by this physical channel; reserved names are rejected. */
   forwardedRequestHeaders?: string[];
   maxRetries?: number;

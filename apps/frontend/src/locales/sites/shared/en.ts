@@ -2751,11 +2751,19 @@ const en = {
     channelSelectHelp: 'Tokens assigned to a channel use its specific upstream and multiplier',
     channelMultiplier: 'Channel Multiplier',
     channelMultiplierHelp: 'Price multiplier for this channel, stacked with global multiplier',
-    forwardedRequestHeaders: 'Extra forwarded request headers',
+    requestHeaderForwarding: 'Request header forwarding',
+    forwardAllRequestHeaders: 'Forward all eligible request headers',
+    forwardAllRequestHeadersHelp:
+      'Off by default. When enabled, forward all eligible headers. Credentials, cookies, internal routing and connection headers remain excluded. Turn off to restore the default and extra allowlists.',
+    defaultForwardedHeaders: 'Default allowlist (by upstream protocol)',
+    defaultForwardedHeadersScope: 'Scope',
+    defaultForwardedHeadersNames: 'Header names',
+    defaultForwardedHeadersCommon: 'All protocols',
+    forwardedRequestHeaders: 'Extra allowlist',
     forwardedRequestHeadersPlaceholder:
       'Enter a header name and press Enter, e.g. x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      'Keep the default protocol headers and x-opencode-session, and forward these extra exact names on this physical channel. No wildcards or header values. Credentials, cookies, internal and connection headers cannot be allowed. Pools use the selected physical channel’s configuration.',
+      'Enter exact header names, without values or wildcards. This list is retained while forwarding all headers and applies again when that option is off. Pools use the selected physical member’s configuration.',
     forwardedRequestHeadersInvalid:
       'Enter up to 64 safe exact header names (128 characters each). Credentials, cookies, internal/connection headers and wildcards are prohibited.',
     channelSettings: 'Channel Settings',

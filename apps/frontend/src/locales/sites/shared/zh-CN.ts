@@ -2617,10 +2617,18 @@ const zhCN = {
     channelSelectHelp: '选择渠道后，该令牌将使用渠道专属的上游配置和倍率',
     channelMultiplier: '渠道倍率',
     channelMultiplierHelp: '该渠道的价格倍率，与全局倍率叠加',
-    forwardedRequestHeaders: '额外转发请求头',
+    requestHeaderForwarding: '请求头透传',
+    forwardAllRequestHeaders: '放行所有可透传请求头',
+    forwardAllRequestHeadersHelp:
+      '默认关闭。开启后转发所有可透传请求头，认证头、Cookie、内部路由头及连接级头始终排除；关闭后恢复默认白名单和额外名单。',
+    defaultForwardedHeaders: '默认白名单（按上游协议生效）',
+    defaultForwardedHeadersScope: '适用范围',
+    defaultForwardedHeadersNames: '请求头名称',
+    defaultForwardedHeadersCommon: '所有协议',
+    forwardedRequestHeaders: '额外白名单',
     forwardedRequestHeadersPlaceholder: '输入头名后按回车，例如 x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      '保留默认协议头和 x-opencode-session，并在本物理渠道额外转发填写的精确头名。不支持通配符，不填写头值。凭据、Cookie、内部及连接级头禁止放行；混池使用最终物理渠道的配置。',
+      '只填写精确头名，不填写头值或通配符。开启全部放行时保留此名单但不以它限制转发；关闭后重新生效。池渠道使用实际物理成员的配置。',
     forwardedRequestHeadersInvalid:
       '请填写最多 64 个安全精确头名（每个最多 128 字符），禁止凭据、Cookie、内部/连接级头和通配符。',
     channelSettings: '渠道参数',

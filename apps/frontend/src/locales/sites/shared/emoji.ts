@@ -2550,10 +2550,18 @@ const emoji = {
     channelSelectHelp: '🪙 🧻 ➡️ ✨ 📡 🩵 🩶 🧼 🌊 ➕ 🔁',
     channelMultiplier: '📡 🔁',
     channelMultiplierHelp: '💰 🔁 🎁 👇 📡 🛋️ 🤝 ⬇️ 🔁',
-    forwardedRequestHeaders: '📨 额外转发请求头',
+    requestHeaderForwarding: '📨 请求头透传',
+    forwardAllRequestHeaders: '📨 放行所有可透传请求头',
+    forwardAllRequestHeadersHelp:
+      '🔘 默认关闭；开启后放行所有可透传头，凭据、Cookie、内部及连接级头仍排除；关闭后恢复默认及额外白名单。',
+    defaultForwardedHeaders: '📋 默认白名单（按上游协议生效）',
+    defaultForwardedHeadersScope: '🎯 适用范围',
+    defaultForwardedHeadersNames: '📨 请求头名称',
+    defaultForwardedHeadersCommon: '🌐 所有协议',
+    forwardedRequestHeaders: '📨 额外白名单',
     forwardedRequestHeadersPlaceholder: '⌨️ 输入头名后回车，例如 x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      '📨 默认协议头和 x-opencode-session 保留；额外精确头名按物理渠道生效。禁止凭据、Cookie、内部/连接级头及通配符，不填写头值。',
+      '📨 仅填写精确头名，不填写值或通配符。全部放行时保留名单，关闭后重新生效；池使用实际物理成员的配置。',
     forwardedRequestHeadersInvalid:
       '⚠️ 最多 64 个安全精确头名，每个最多 128 字符；禁止敏感头及通配符。',
     channelSettings: '📡 🧰',

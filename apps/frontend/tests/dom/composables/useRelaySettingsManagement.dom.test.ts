@@ -209,10 +209,15 @@ const mountComposable = async () => {
 }
 
 describe('useRelaySettingsManagement', () => {
-  it('edits extra request headers in the channel drawer and hydrates saved names', async () => {
+  it('hydrates the forwarding mode and preserves extra headers when toggling all headers', async () => {
     const { api, wrapper } = await mountComposable()
     api.openEditChannelDialog(
-      createChannelRow({ routingConfig: { forwardedRequestHeaders: ['x-sdk-custom'] } }),
+      createChannelRow({
+        routingConfig: {
+          forwardAllRequestHeaders: true,
+          forwardedRequestHeaders: ['x-sdk-custom'],
+        },
+      }),
     )
     const editor = mount(RelaySettingsChannelDialogs, {
       global: {
@@ -226,9 +231,15 @@ describe('useRelaySettingsManagement', () => {
           'el-table': { template: '<div />' },
           'el-select': defineComponent({
             name: 'ElSelect',
-            props: ['modelValue', 'multiple', 'filterable', 'allowCreate'],
+            props: ['modelValue', 'multiple', 'filterable', 'allowCreate', 'disabled'],
             emits: ['update:modelValue'],
             template: '<div><slot /></div>',
+          }),
+          'el-switch': defineComponent({
+            name: 'ElSwitch',
+            props: ['modelValue'],
+            emits: ['update:modelValue'],
+            template: '<button />',
           }),
         },
       },
@@ -241,13 +252,51 @@ describe('useRelaySettingsManagement', () => {
       multiple: '',
       filterable: '',
       allowCreate: '',
+      disabled: true,
     })
+    expect(field.find('details').attributes()).toHaveProperty('open')
+    expect(field.findAll('tbody tr')).toHaveLength(4)
+    expect(field.text()).toContain('anthropic-version')
+    expect(field.text()).toContain('x-opencode-session')
+    const toggle = field.findComponent({ name: 'ElSwitch' })
+    expect(toggle.props('modelValue')).toBe(true)
+    toggle.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    expect(api.channelForm.value.routingConfig.forwardAllRequestHeaders).toBe(false)
+    expect(select.props('disabled')).toBe(false)
+    expect(select.props('modelValue')).toEqual(['x-sdk-custom'])
     select.vm.$emit('update:modelValue', ['x-opencode-session', 'x-stainless-retry-count'])
     await flushPromises()
     expect(api.channelForm.value.routingConfig.forwardedRequestHeaders).toEqual([
       'x-opencode-session',
       'x-stainless-retry-count',
     ])
+    toggle.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    expect(select.props('disabled')).toBe(true)
+    expect(select.props('modelValue')).toEqual(['x-opencode-session', 'x-stainless-retry-count'])
+    await api.handleSaveChannel()
+    expect(updateChannelMock).toHaveBeenLastCalledWith(
+      'channel-1',
+      expect.objectContaining({
+        routingConfig: expect.objectContaining({
+          forwardAllRequestHeaders: true,
+          forwardedRequestHeaders: ['x-opencode-session', 'x-stainless-retry-count'],
+        }),
+      }),
+    )
+    toggle.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    await api.handleSaveChannel()
+    expect(updateChannelMock).toHaveBeenLastCalledWith(
+      'channel-1',
+      expect.objectContaining({
+        routingConfig: expect.objectContaining({
+          forwardAllRequestHeaders: false,
+          forwardedRequestHeaders: ['x-opencode-session', 'x-stainless-retry-count'],
+        }),
+      }),
+    )
     api.channelForm.value.channelType = 'pooled'
     await flushPromises()
     expect(editor.find('[data-testid="forwarded-request-headers"]').exists()).toBe(false)
@@ -802,6 +851,8 @@ describe('useRelaySettingsManagement', () => {
       allowedFormats: ['openai'],
       allowedModelsArray: ['gpt-4o-mini'],
       routingConfig: {
+        forwardAllRequestHeaders: true,
+        forwardedRequestHeaders: ['x-sdk-custom'],
         maxRetries: 2,
         failoverThreshold: 0,
         retryStatusCodes: ['5xx'],
@@ -849,6 +900,29 @@ describe('useRelaySettingsManagement', () => {
 
     wrapper.unmount()
   })
+
+  it.each(['pooled', 'automatic-proxy-pool'] as const)(
+    'omits physical forwarding policy from %s payloads',
+    async (channelType) => {
+      const { api, wrapper } = await mountComposable()
+      api.openEditChannelDialog(
+        createChannelRow({
+          channelType,
+          poolMembers: [{ memberChannelId: 'member-1', priority: 1, weight: 1, enabled: true }],
+          routingConfig: {
+            forwardAllRequestHeaders: true,
+            forwardedRequestHeaders: ['x-sdk-custom'],
+          },
+        }),
+      )
+      await api.handleSaveChannel()
+      const payload = updateChannelMock.mock.calls.find(([id]) => id === 'channel-1')?.[1]
+      expect(payload).toBeDefined()
+      expect(payload.routingConfig).not.toHaveProperty('forwardAllRequestHeaders')
+      expect(payload.routingConfig).not.toHaveProperty('forwardedRequestHeaders')
+      wrapper.unmount()
+    },
+  )
 
   it('sends pooled manual mode with explicit allowedModels JSON and all mode with null allowedModels', async () => {
     const { api, wrapper } = await mountComposable()
@@ -934,6 +1008,7 @@ describe('useRelaySettingsManagement', () => {
       allowedFormats: ['openai'],
       routingConfig: {
         forwardedRequestHeaders: [' X-Stainless-Retry-Count ', 'x-stainless-retry-count'],
+        forwardAllRequestHeaders: false,
         maxRetries: 9,
         failoverThreshold: 2,
         retryStatusCodes: ['5xx'],
@@ -954,6 +1029,7 @@ describe('useRelaySettingsManagement', () => {
         channelType: 'standalone',
         routingConfig: {
           healthTrackingMode: 'automatic',
+          forwardAllRequestHeaders: false,
           forwardedRequestHeaders: ['x-stainless-retry-count'],
         },
         poolMembers: [],

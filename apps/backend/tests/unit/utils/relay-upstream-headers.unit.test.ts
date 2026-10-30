@@ -37,6 +37,77 @@ const incoming = {
 
 describe("relay upstream request headers", () => {
   it.each<RelayRequestFormat>(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"])(
+    "forwards arbitrary eligible headers only when explicitly enabled for %s",
+    (format) => {
+      const source = { ...incoming, "X-Sdk-Custom": "fixture", "X-Sdk-Array": ["one", "two"] };
+      const all = buildRelayUpstreamHeaders(source, format, "provider-fixture", [], true);
+      expect(all).toMatchObject({
+        "x-sdk-custom": "fixture",
+        "x-sdk-array": ["one", "two"],
+        "x-stainless-retry-count": "2",
+      });
+      for (const reserved of [
+        "authorization",
+        "x-api-key",
+        "x-goog-api-key",
+        "api-key",
+        "cookie",
+        "proxy-authorization",
+        "host",
+        "content-length",
+        "transfer-encoding",
+        "keep-alive",
+        "upgrade",
+        "te",
+        "trailer",
+        "forwarded",
+        "x-forwarded-for",
+        "x-internal-control",
+      ]) {
+        if (
+          (reserved === "x-api-key" && format === "anthropic") ||
+          (reserved === "x-goog-api-key" && format === "gemini")
+        ) {
+          expect(all[reserved]).toBe("provider-fixture");
+        } else expect(all).not.toHaveProperty(reserved);
+      }
+      expect(buildRelayUpstreamHeaders(source, format, "provider-fixture", [])).not.toHaveProperty("x-sdk-custom");
+      expect(buildRelayUpstreamHeaders(source, format, "provider-fixture", [], false)).not.toHaveProperty(
+        "x-sdk-custom",
+      );
+    },
+  );
+
+  it.each(["true", 1, {}, [], null])(
+    "does not enable forwarding all headers for malformed stored flags: %j",
+    (flag) => {
+      expect(
+        buildRelayUpstreamHeaders({ "X-Sdk-Custom": "drop" }, "openai", "provider-fixture", [], flag),
+      ).not.toHaveProperty("x-sdk-custom");
+    },
+  );
+
+  it("keeps connection, internal and malformed fields excluded when forwarding all headers", () => {
+    const source = {
+      Connection: "x-sdk-hop, x-opencode-session",
+      "X-Sdk-Hop": "drop",
+      "X-Opencode-Session": "drop",
+      "X-Sdk-Custom": "keep",
+      "X-Sdk-Invalid": "bad\r\nInjected: yes",
+      "X-Sdk-Array": ["ok", "bad\nvalue"],
+      "X-Auth-Token": "drop",
+      "X-Replay-Session": "drop",
+      "Sec-Fetch-Site": "drop",
+      constructor: "drop",
+      "bad name": "drop",
+    };
+    expect(buildRelayUpstreamHeaders(source, "openai", "provider-fixture", [], true)).toEqual({
+      "x-sdk-custom": "keep",
+      Authorization: "Bearer provider-fixture",
+    });
+  });
+
+  it.each<RelayRequestFormat>(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"])(
     "preserves OpenCode sessions and configured SDK headers for %s",
     (format) => {
       const result = buildRelayUpstreamHeaders(

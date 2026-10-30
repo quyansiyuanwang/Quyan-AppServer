@@ -4,9 +4,46 @@ import {
   createRelayChannelBodySchema,
   updateRelayChannelBodySchema,
   relayChannelExportConfigurationSchema,
+  importRelayChannelsBodySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 
 describe("relay forwarded request-header configuration", () => {
+  it.each([true, false])(
+    "preserves the forwarding mode across create, update, export and import: %s",
+    (forwardAllRequestHeaders) => {
+      const input = {
+        name: "fixture",
+        routingConfig: { forwardAllRequestHeaders, forwardedRequestHeaders: ["X-Sdk-Custom"] },
+      };
+      for (const schema of [
+        createRelayChannelBodySchema,
+        updateRelayChannelBodySchema,
+        relayChannelExportConfigurationSchema,
+      ]) {
+        expect(schema.parse(input).routingConfig).toMatchObject({
+          forwardAllRequestHeaders,
+          forwardedRequestHeaders: ["x-sdk-custom"],
+        });
+      }
+      expect(importRelayChannelsBodySchema.parse({ channels: [input] }).channels[0]?.routingConfig).toMatchObject({
+        forwardAllRequestHeaders,
+        forwardedRequestHeaders: ["x-sdk-custom"],
+      });
+      expect(
+        createRelayChannelBodySchema.parse({ name: "fixture", routingConfig: {} }).routingConfig,
+      ).not.toHaveProperty("forwardAllRequestHeaders");
+    },
+  );
+
+  it.each(["true", "false", 1, 0, null, [], {}])(
+    "rejects non-boolean forwarding flags: %j",
+    (forwardAllRequestHeaders) => {
+      expect(updateRelayChannelBodySchema.safeParse({ routingConfig: { forwardAllRequestHeaders } }).success).toBe(
+        false,
+      );
+    },
+  );
+
   it("normalizes, deduplicates and preserves the allowlist across create, update and export contracts", () => {
     for (const schema of [
       createRelayChannelBodySchema,

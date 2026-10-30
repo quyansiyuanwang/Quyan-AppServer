@@ -54699,6 +54699,10 @@
 			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
+					"forwardAllRequestHeaders": {
+						"type": "boolean",
+						"description": "Forward all eligible request headers on this physical channel. Defaults to false; reserved fields stay excluded."
+					},
 					"forwardedRequestHeaders": {
 						"items": {
 							"type": "string"
