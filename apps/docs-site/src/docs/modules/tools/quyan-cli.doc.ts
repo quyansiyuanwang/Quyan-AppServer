@@ -8,8 +8,8 @@ export default defineDocsPage({
   category: { en: 'Tools', 'zh-CN': '工具' },
   title: { en: 'Quyan CLI', 'zh-CN': 'Quyan CLI' },
   summary: {
-    en: 'Install, authenticate, and use the Quyan terminal client.',
-    'zh-CN': '安装、认证并使用 Quyan 终端客户端。',
+    en: 'Install and verify the CLI, sign in, manage local credentials, and configure AI tools.',
+    'zh-CN': '安装校验 CLI、登录和管理本地凭据，配置 AI 工具并访问 JSON 端点。',
   },
   tags: ['cli', 'relay', 'models', 'json-endpoints'],
   content: { en: contentEn, 'zh-CN': contentZh },
