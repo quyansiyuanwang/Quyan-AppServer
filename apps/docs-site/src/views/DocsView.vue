@@ -186,6 +186,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { APP_BASE_URL, SWAGGER_DOCS_URL, interpolateDocsContent } from '@/config/site'
 import { docsRegistry, type DocsLocale, type DocsSlug } from '@/docs'
 import { glossaryRegistry, type GlossaryEntry } from '@/docs/glossary'
+import { useCodeBlocks } from '@/composables/useCodeBlocks'
 
 type TocItem = {
   id: string
@@ -601,6 +602,8 @@ const renderedContent = computed(() => {
   }
   return container.innerHTML
 })
+
+useCodeBlocks(articlePanelRef, renderedContent, locale)
 
 const tocItems = computed<TocItem[]>(() => {
   if (typeof document === 'undefined') return []

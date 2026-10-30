@@ -1,0 +1,106 @@
+.docs-code-block {
+  margin: 24px 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--docs-border-strong);
+  border-radius: 8px;
+  background: var(--docs-code-bg);
+  color: var(--docs-code-text);
+}
+
+.docs-code-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 4px 8px 4px 16px;
+  border-bottom: 1px solid #ffffff20;
+  font-size: 12px;
+}
+
+.docs-code-language {
+  font-family: ui-monospace, Consolas, monospace;
+  color: #b5c5d9;
+}
+
+.docs-code-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.docs-code-actions button {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #dce7f5;
+  cursor: pointer;
+}
+
+.docs-code-actions button:hover,
+.docs-code-actions button[aria-pressed='true'] {
+  background: #ffffff18;
+  color: #ffffff;
+}
+
+.article-panel .docs-code-block pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 18px;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 2;
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.article-panel .docs-code-block code {
+  font-family: 'Cascadia Code', Consolas, 'SFMono-Regular', monospace;
+}
+
+.article-panel .docs-code-block.is-wrapped pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.docs-code-status:not(:empty) {
+  display: block;
+  padding: 8px 16px;
+  border-top: 1px solid #ffffff20;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.docs-code-block .hljs-keyword,
+.docs-code-block .hljs-selector-tag,
+.docs-code-block .hljs-literal {
+  color: #ff9ca8;
+}
+
+.docs-code-block .hljs-string,
+.docs-code-block .hljs-regexp,
+.docs-code-block .hljs-addition {
+  color: #a4d6ff;
+}
+
+.docs-code-block .hljs-number,
+.docs-code-block .hljs-attr,
+.docs-code-block .hljs-variable,
+.docs-code-block .hljs-symbol {
+  color: #91ccff;
+}
+
+.docs-code-block .hljs-title,
+.docs-code-block .hljs-built_in,
+.docs-code-block .hljs-section {
+  color: #d8b7ff;
+}
+
+.docs-code-block .hljs-comment,
+.docs-code-block .hljs-meta {
+  color: #9baac0;
+}
