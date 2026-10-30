@@ -1,78 +1,130 @@
 # Channel balance probes
 
-Channel balance probes use model requests to compare upstream balance movement, actual usage, and the current channel multiplier. They are for operators with channel-management access. Balance-workflow credentials are never shown or exported to the browser.
+Channel balance probes send real model requests to compare upstream balance changes, usage, and channel multipliers for pricing calibration. They can incur upstream charges without creating a user bill. An authorized operator must confirm and apply a suggested multiplier.
 
-## Probe a standalone channel for the first time
+## Requirements
 
-1. Find the standalone channel on the balance probes page, select **Manage probe**, and open **Probe profile**.
-2. Enable the profile, select a request format and probe model compatible with the channel, and review the model endpoint and other request settings. The minimal model request uses the channel's saved upstream address and authentication.
-3. Configure the **Balance workflow** to read the upstream balance, and enter a field path to a numeric balance in one step. Enter any secrets or passwords needed by the workflow under **Probe credentials**; plaintext is not shown again after saving.
-4. Save the profile, return to the channel list, and select **Run probe**. The task is queued. Balance reads and model requests may incur upstream charges, but do not create a user bill.
-5. Check the latest probe status in the list. Select **Manage probe** and open **Runs** to inspect the balance change, usage, suggested multiplier, or failure reason. Suggestions are not applied automatically; a user with multiplier-adjustment permission can apply one after reviewing the result and its conditions.
+| Operation                                                              | Required permission                                                              |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Read channels, profiles, and results                                   | `relay:channel:probe:read`                                                       |
+| Save ordinary profiles, run/reset tasks, clear history                 | `relay:channel:probe:execute`                                                    |
+| Manage/bind shared accounts or change an account-bound shared workflow | `relay:channel:probe:account:manage`, plus the applicable operation requirements |
+| Apply multipliers                                                      | `relay:channel:multiplier:adjust`                                                |
 
-For pooled members, see “Working with pooled channels” below. For permissions, see “Prerequisites and notes”.
+Channels must be accessible to you and configured with supported formats, models, upstream addresses, and API credentials. These operations do not accept OAuth access tokens. Mutations and execution require 2FA step-up and replay protection. IAM enforcement additionally requires platform global group eligibility and the resource actions below.
 
-## Sampling and costs
+The server keeps balance-workflow secrets and shared-account tokens; saved values are not displayed or exported. Place secrets under probe credentials and reference them in workflows instead of embedding them in ordinary configuration fields that may be displayed.
 
-Set **Samples** in the profile to 1–10; a task performs the measurements in sequence, and a new profile defaults to 3. Each measurement reads the balance and sends a model request, so one task may incur multiple upstream charges. With **Warm then measure cache hit**, each sample also sends a warm-up request first; its cost is recorded separately and excluded from the suggested multiplier. Requests already sent may incur charges even if the task fails or is interrupted.
+## Probe a standalone channel
 
-**Strict calibration validation** is disabled by default. In that mode, one comparable sample can produce a suggestion, and a `verified` calibration status does not mean multi-sample stability was checked. When enabled, at least three valid samples are required; the system discards outliers and checks variation. Review the sample count, validation setting, and sample details before deciding whether to apply a suggestion.
+1. Find the channel, select **Manage probe**, and open **Probe profile**. The default list shows enabled channels only; check the state filter and access if a channel is missing.
+2. Enable the profile and select a compatible format, model, and endpoint. Inspect the minimal request body. Model calls use the channel's saved upstream address and API credentials, separately from balance-workflow credentials.
+3. Configure the balance workflow with a numeric balance path in exactly one step. Supply required probe credentials and check currencies, balance divisor, settlement ratio, and sampling.
+4. Save successfully, then return to the list and run the probe. Queued does not mean measurement succeeded.
+5. Inspect the latest status and open **Runs** to review balance changes, usage, calibration status, samples, and errors.
+6. Apply a multiplier only after checking the result and application requirements. Probes do not change prices automatically.
 
-## Working with pooled channels
+## Configure the workflow and measurement
 
-A pool remains one logical channel, but can be expanded to inspect each physical account. Every account has its own credential status, latest probe, and run action. A probe always stays on the selected account and never rotates through other members during the same task.
+Balance workflows support 1–3 sequential GET or POST steps. Reference credentials or previously extracted variables using `{{variableName}}`. A bound shared account provides the reserved `{{accountToken}}` variable; do not define it as a custom account credential.
 
-The pool shares a balance workflow and calibration settings, while each physical member may select its own supported probe format, model, payload and serial group. Members can use their own balance-workflow credentials or bind a shared account-pool entry. Disabled members, members without usable credentials, and members incompatible with the selected format or model cannot run. Saved credentials are never displayed again.
+Balance and extraction paths address response JSON. For `{"data":{"balance":120}}`, use `data.balance`. Object fields and array indexes are supported, not full JSONPath expressions such as wildcards. The balance must convert to a finite number.
 
-Run members one at a time, or confirm a run for all currently available members. Tasks follow the server queue and probe-group rules. Balance reads and minimal model requests can incur real upstream charges.
+| Setting                                            | Guidance                                                                                                                                                                |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Format, model, endpoint, payload                   | Must be mutually compatible and supported by the target. Review custom JSON after changing formats; arbitrary custom fields are not guaranteed to migrate automatically |
+| Raw balance divisor                                | Raw balances are divided by this value before calculation; default 1. For example, use 100 to convert cents to currency units                                           |
+| Upstream and local currencies                      | Must match for a comparable suggestion. Currency labels do not perform exchange-rate conversion                                                                         |
+| Upstream settlement ratio, distribution multiplier | Both affect target cost; each defaults to 1. Check the actual settlement relationship                                                                                   |
+| Measurement input token target                     | Defaults to 1024, range 0–32768. Expands supported text to improve measurement signal; it does not guarantee that exact upstream token count                            |
+| Balance stability tolerance and consecutive reads  | Default tolerance 0.000001 and 2 consecutive reads. The workflow is repeated while waiting for charges and a stable balance                                             |
+| Samples and strict validation                      | Together determine sample quantity and validation, as explained below                                                                                                   |
+| Serial group                                       | Coordinates probes in the group. Probes sharing an account are mutually exclusive even across different groups                                                          |
 
-## Shared account pool and batch configuration
+The balance workflow can run repeatedly before and after each sample, not just once per task. Keeping a login step inside it can repeatedly log in; use shared accounts for shared login sessions.
 
-Administrators with the separate account-pool management permission can configure upstream login requests, credentials, token extraction paths, optional upstream expiry, fallback session lifetime and a minimum login interval per account in the **Account pool** tab. Login requests and credentials are encrypted on the server. The balance workflow may use `{{accountToken}}`; the model request still uses the channel's existing upstream API credential. Channels and physical members may bind the same account. Probes sharing an account are serialized to prevent competing balance measurements. If login fails, the session expires during cooldown, or session storage is unavailable, the probe does not bypass the login limit.
+Omitting new credentials preserves the standalone channel's or member's saved values. When replacing credentials, submit the complete set of keys needed for that target. Blank inputs do not delete existing credentials.
 
-Binding an account **does not remove existing login steps**. Remove old login steps from the balance workflow manually and use the account token in the remaining requests; otherwise each balance read still logs in through the old workflow. Existing profiles continue to work unchanged until edited. Modifying or refreshing accounts requires the management permission, step-up verification and replay protection. Saved login requests, credentials and tokens cannot be read from the page.
+## Sampling, caching, and costs
 
-Batch configuration copies a shared template while letting each standalone channel or physical member choose a supported format, model, payload and serial group, and optionally bind an account. Each target is validated independently; failures do not prevent other targets from saving. Neither source credentials nor account bindings are copied. The page can filter by serial group; probes bound to the same account serialize even without matching manual groups.
+Samples range from 1 through 10, defaulting to 3 for new profiles, and execute sequentially. Each measurement sends a model request and reads balances repeatedly. Measurement text and warmup can increase upstream usage. Failure, interruption, or reset cannot withdraw issued requests or charges. Other activity spending the same upstream balance can also distort measurements; make sure balance movement can be attributed to this probe.
 
-With IAM enforcement enabled, the account pool list requires `quyan:relay:ListProbeAccounts` on each `acs:platform:*:platform:relay-probe-account/<accountId>` resource. Platform account-pool management qualification remains a prerequisite; attaching an account policy alone cannot grant it. Denied accounts expose no configuration, cooldown or session status. The list shows only whether credentials are configured and does not load or return stored login requests or encrypted credentials.
+| Cache mode                          | Behavior and limits                                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Avoid cached responses, the default | Attempts to inject a unique prompt marker to reduce cache interference; it cannot guarantee the upstream never caches                                                |
+| Allow upstream cache                | Does not inject a cache-busting marker; measures reported upstream usage                                                                                             |
+| Warm up then measure cache hits     | Each sample warms up before measurement. Warmup cost is recorded separately and excluded from suggestions. Measurement usage must report cache reads to verify a hit |
 
-Deleting an account requires `quyan:relay:DeleteProbeAccount` for its account ARN, as well as platform probe-account management qualification, step-up verification and replay protection. Accounts still bound to channel profiles cannot be deleted. Authorization is checked before deletion and again at commit; a revoked grant preserves the account and its cached session.
+If a custom payload cannot accept a cache marker, execution is rejected by default. Correct its format or use a minimal preset first. Allowing execution without a cache-busting marker only permits the request; it does not prove cache-free measurement.
 
-Updating an account requires `quyan:relay:UpdateProbeAccount` for its account ARN. Omitted credentials retain their existing values; supplied credentials replace the full credential map. Login requests remain encrypted, and responses include neither credentials nor login workflows. If authorization changes at commit, the configuration update is rolled back and the existing cached session is preserved.
+Strict calibration validation is off by default. One comparable sample can produce `verified`, which does not establish multi-sample stability. When enabled, at least three valid samples are required, with checks for low signal, settlement stability, outliers, and spread. Inspect the validation setting and accepted/discarded sample counts together.
 
-Creating an account requires `quyan:relay:CreateProbeAccount` on both the creation control `acs:platform:*:platform:relay-probe-account-control/default` and the future account ARN, normally granted with `acs:platform:*:platform:relay-probe-account/*`. The server reserves a resource ID and checks both grants before encrypting and saving credentials. Shadow evaluation uses the same ARN as the account that is ultimately created. Credentials are required on creation.
+## Find and review results
 
-Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
+Name/ID search is case-insensitive and immediately filters loaded channel rows. It does not search member names or historical bodies. Serial group, profile state, enabled state, latest run status, and suggestion filters combine; changing filters clears the current selection.
 
-## Applying suggested multipliers
+While known tasks are queued/running, the page polls latest states about every three seconds and stops when they finish. **Refresh** reloads the overview. A failed load can leave old rows visible; resolve the error and retry.
 
-In IAM enforcement mode, applying a probe result uses `quyan:relay:ApplyProbeRun`. It requires platform multiplier-management qualification and grants on the run, channel, profile and physical member ARNs. A logical pool multiplier affects the entire pool, so every affected current member must also be authorized; access to only one member is insufficient. This operation does not read or return profile credentials, upstream keys, balance ledgers or probe samples.
+Expand pools for each member's latest task. Member details show history for that member. Current details retrieve the most recent 20 records without history pagination controls; older results require the authorized paginated history API. Retention and current visibility still apply.
 
-Only successful, unapplied results with a `verified` calibration status from the past 24 hours are eligible. The current channel multiplier and pricing snapshot must still match the measurement. Changes to model pricing, mappings, target overrides, endpoints or time/context multipliers require a new probe. Large changes normally need another result with a `verified` calibration status and the same current pricing snapshot, and that confirmation run must also be authorized. Explicit large-change confirmation bypasses only the second-result requirement, never resource authorization, expiry or pricing validation.
+Successful execution does not guarantee an applicable suggestion. Check raw usage, samples, balance snapshots, calibration, and cost breakdown. Different currencies, missing local pricing, small balance movements, unverified cache hits, or unstable settlement can prevent a usable suggestion.
 
-Each result commits independently. The multiplier update and applied marker share a transaction; revocation or a concurrent conflict rolls both back, while other successful results remain applied. Shadow mode previews resource scopes and executes the existing application flow once.
+The cost relationship is:
 
-## Per-target configuration and shared templates
+```text
+Target cost = converted upstream balance decrease × upstream settlement ratio × distribution multiplier
+Suggested multiplier = target cost ÷ local base cost
+```
 
-Under IAM enforcement, batch target configuration uses `quyan:relay:ConfigureProbeTarget` on the selected channel, profile and physical member. A source template additionally requires its channel/profile resources. When a profile is missing, the server reserves its ARN and commits the new profile with target settings together; failed validation or revocation leaves no partial profile. Templates transfer shared settings, not source credentials or account bindings.
+Local base cost uses usage and billing configuration at measurement time. Estimated charges on this page are not user bills or promises of future upstream prices.
 
-A target-only format/model/payload/group edit protects that target and its bound account. Replacing shared profile defaults from a source additionally checks every affected current member, configured target and bound account. Bound-account edits require the dedicated account-pool qualification and `quyan:relay:ModifyBoundProbeProfile`, preventing ordinary configuration access from rewriting workflows that carry shared tokens.
+## Apply a suggested multiplier
 
-The target's credentials, account bindings and omitted target settings remain unchanged. Changing format requires a compatible payload. Each target commits independently, and active runs block changes. Configuration responses do not return existing account bindings; read them through an authorized read operation.
+1. Open application for a result, or select results and open the batch application dialog.
+2. Inspect current, suggested, and target multipliers, relative changes, and affected customer-facing channels. Adjust the target and rounding if needed; rounding cannot make an otherwise invalid result applicable.
+3. Select the results to submit, complete confirmation and verification, and inspect successes and rejections. Failed items do not undo successful ones.
 
-## Binding and unbinding shared accounts
+A result must have finished within 24 hours, succeeded, be `verified` and unapplied, and contain a valid billing snapshot. Current multipliers and billing settings must still match the measurement. Reprobe after changes to pricing, mappings, target overrides, endpoints, or time/context multipliers.
 
-Under IAM enforcement, binding requires the dedicated deployment-managed account-pool qualification and `quyan:relay:BindProbeAccount` on the channel, profile, selected physical member and new account ARN. Ordinary probe-executor qualification or an account-owned wildcard policy cannot replace platform account-pool qualification.
+Changes exceeding 20% of the current multiplier normally require another `verified` result for the same account and billing snapshot within 24 hours, with a sufficiently close suggestion. Explicit large-change confirmation skips only that second-result requirement, not expiry, snapshots, or authorization.
 
-Replacing an account, or unbinding with `accountId: null`, additionally requires `quyan:relay:UnbindProbeAccount` on the old account. Permission to bind a new account cannot remove an unauthorized old binding. Rebinding the same account does not require an unrelated unbind grant. Checks never load login ciphertext or tokens, and responses return only the selected target and newly bound account ID.
+**Applying a pool member's result changes its logical pool's shared customer-facing multiplier and affects the entire pool.** Applying one of several results for the same channel changes the current multiplier; other results may then conflict or become inapplicable. Check actual results before probing again.
 
-Queued or running work blocks binding changes. Authorization is checked after the channel-lock wait and again at commit; revocation rolls back that target without undoing independently successful targets. Existing target format, model, payload and serialization group survive binding changes.
+## Use pools, shared accounts, and batch configuration
 
-## Reviewing and applying results
+Pools share workflows and calibration settings. Each physical member can override format, model, payload, and serial group, and use its own balance credentials or a shared account. A task stays pinned to its selected member. Disabled members, missing credentials, or incompatible formats/models prevent execution.
 
-Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.
+Workflow/calibration changes in a member drawer still affect the shared profile. The page saves the shared profile, member overrides, and any account binding sequentially, **not as one transaction**. Later failure can leave earlier steps saved. Refresh and inspect the shared profile, member settings, and binding separately before retrying failed steps.
 
-A member result never changes pricing automatically. An operator with multiplier-adjustment permission must select and confirm a result before its suggestion is applied to the parent logical pool's public multiplier. Large changes still need another result with a `verified` calibration status from the same account unless the operator explicitly forces the confirmation.
+With account-management permission, create a login configuration in the shared accounts tab:
+
+1. Configure the login request and credentials, token path, and expiry field or fallback lifetime. Defaults are a 1800-second fallback and a 300-second minimum login interval.
+2. Bind the saved account to a target and reference `{{accountToken}}` in balance requests. Model calls still use channel API credentials.
+3. Remove old login steps from the balance workflow manually. Binding does not edit the workflow; old steps otherwise keep running.
+4. Check session state and the next permitted login time. Failed attempts count toward cooldown, and manual refresh does not bypass the interval. Probes sharing the account are mutually exclusive.
+
+Editing does not display the saved login URL, method, headers, query, or body. Re-enter the complete login request; leaving it blank fails validation. Omitted credentials remain unchanged; supplied credentials replace the map. Creation requires credentials. Expiry mode `seconds` means duration from login; `iso` means an absolute time, not a Unix timestamp. Missing expiry data uses the fallback. Bound accounts cannot be deleted directly.
+
+Batch configuration can use an existing profile as a shared template, with compatible per-target format, model, payload, group, and account selections. Targets save independently; inspect each result. Templates do not transfer source credentials or bindings. Format changes require a compatible payload. Queued/running work can block target changes. The legacy standalone profile-copy behavior below differs from batch target configuration.
+
+## Reset tasks, clear history, and remove profiles
+
+| Operation            | Effect                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Reset run state      | Cancels queued/running tasks in scope and attempts queue-slot cleanup; issued upstream requests cannot be recalled               |
+| Clear failed history | Deletes terminal records in the failed scope, preserving successes and active tasks                                              |
+| Clear all history    | Deletes terminal records in scope, preserving queued/running tasks; no page restore                                              |
+| Clear probe profile  | Removes configuration and related target settings, retaining history without its profile association; active tasks block removal |
+
+The service periodically deletes probe run records created more than 90 days ago, not necessarily at the exact expiry instant. Clearing or disabling a profile does not undo upstream usage already incurred.
+
+## IAM authorization reference
+
+The resource rules below apply to IAM enforcement. The actual platform global group must provide the appropriate reading, execution, account-management, or multiplier-adjustment eligibility. Account ownership, added permissions, private groups, and wildcard policies alone do not establish platform eligibility. Channel visibility remains enforced.
+
+Reading and actions are separate. Seeing a channel in the overview does not grant profile, result, credential-state, or multiplier application access. Credential values are not delivered in query results.
+
+### Read overviews, profiles, and results
 
 The overview uses `quyan:relay:ListProbeOverview` on each channel. Denied or invisible channels and members are omitted, including their customer-facing pool labels. Profile content additionally requires `quyan:relay:GetProbeProfile`; latest results require `quyan:relay:ListLatestProbeRuns`, with the same resource checks as their dedicated read endpoints. These components can be omitted independently without hiding an otherwise authorized channel. Target overrides require `quyan:relay:GetProbeTargetConfig` on the parent channel, target channel and profile. If an override binds a shared account, that Action must also allow the account ARN; otherwise neither the override nor its account-derived credential status is shown. Strict pool membership takes precedence even when every strict member is denied or unavailable.
 
@@ -80,17 +132,15 @@ When native IAM enforcement is enabled, latest-result polling checks `quyan:rela
 
 History uses `quyan:relay:ListProbeRuns` for the parent channel, any selected physical member, and every returned run. Pagination and totals include only authorized records. Results for members that no longer belong to the pool are excluded; an explicitly requested member must still belong to that pool.
 
-Resetting queued or running work under native IAM enforcement requires `quyan:relay:ResetProbeRuns` on the channel, selected or affected members, every active run, and each queue slot (`acs:platform:*:platform:relay-probe-queue-slot/<channelId>/<memberId>`; use `channel` for the parent slot). A whole-pool reset includes current member slots and former members with active tasks. The slot grant also controls recovery of an orphan reservation that has no task record. Any denied resource prevents all cancellation. Authorization is rechecked at commit, and queue cleanup only removes values observed before cancellation; a newer reservation is never force-deleted. If queue cleanup becomes unavailable after cancellation commits, the endpoint reports failure and retains the slot for a later authorized retry.
-
-Clearing history under native IAM enforcement requires `quyan:relay:ClearProbeHistory` on the channel, related physical members, and every selected terminal run. If any selected resource is denied, the entire cleanup is refused. Authorization is checked again at commit and revocation rolls back deletion. Running and queued tasks are preserved; the failed-only scope also preserves successful results.
-
 Reading a probe profile under native IAM enforcement requires `quyan:relay:GetProbeProfile` on its channel and on `acs:platform:*:platform:relay-probe-profile/<channelId>/<profileId>`. Workflow configuration and credential names are read only after these checks. Responses contain no credential values. For a pooled profile, credential names include only current members allowed by the same Action; denied or former member names are omitted.
+
+### Save and delete profiles
 
 Saving a profile under native IAM enforcement requires `quyan:relay:SaveProbeProfile` on its channel and existing or server-reserved profile ARN. A pooled update also requires access to every current physical member and all configured targets; denial rejects the whole save. Editing a profile bound to shared accounts additionally requires `quyan:relay:ModifyBoundProbeProfile` on every bound account ARN and the deployment-managed account-pool qualification. Authorization is checked after acquiring the channel lock and again at commit; revocation rolls back creation or updates. Omitted standalone credentials remain unchanged; pooled credentials retain only current members, and corrupt existing pooled credentials cause the save to fail rather than silently discarding them.
 
 Deleting a profile requires `quyan:relay:DeleteProbeProfile` on its channel, profile, configured physical targets and linked historical runs. History is retained with its profile link removed. A bound shared account also requires `quyan:relay:UnbindProbeAccount` on that account ARN and the dedicated deployment-managed account-pool qualification. Queued or running tasks block deletion. All configuration removal and history detachment roll back if authorization is revoked at commit.
 
-## Run authorization and queue validity
+### Run authorization and queue validity
 
 Under IAM enforcement, creating a single run requires `quyan:relay:CreateProbeRun` on the channel, profile, server-reserved run ARN and queue slot. Pooled runs also require the selected physical member; a bound account requires its account ARN. Executing a bound-account probe does not grant account-management access. The deployment-managed probe-executor qualification remains required.
 
@@ -104,7 +154,41 @@ AccessKey-initiated runs are also bound to the specific key: disabling, expiring
 
 Server-side queue authorization context remains valid for at most two hours. Enforcement does not continue when that context expires, its cache is lost or authorization is unavailable; investigate and submit a new run. Handle older queued jobs without this context before enabling enforcement. Browsers never receive the queue authorization context, credentials or tokens.
 
-## Copying profile templates
+### Reset and clear history
+
+Resetting queued or running work under native IAM enforcement requires `quyan:relay:ResetProbeRuns` on the channel, selected or affected members, every active run, and each queue slot (`acs:platform:*:platform:relay-probe-queue-slot/<channelId>/<memberId>`; use `channel` for the parent slot). A whole-pool reset includes current member slots and former members with active tasks. The slot grant also controls recovery of an orphan reservation that has no task record. Any denied resource prevents all cancellation. Authorization is rechecked at commit, and queue cleanup only removes values observed before cancellation; a newer reservation is never force-deleted. If queue cleanup becomes unavailable after cancellation commits, the endpoint reports failure and retains the slot for a later authorized retry.
+
+Clearing history under native IAM enforcement requires `quyan:relay:ClearProbeHistory` on the channel, related physical members, and every selected terminal run. If any selected resource is denied, the entire cleanup is refused. Authorization is checked again at commit and revocation rolls back deletion. Running and queued tasks are preserved; the failed-only scope also preserves successful results.
+
+### Manage shared accounts
+
+With IAM enforcement enabled, the account pool list requires `quyan:relay:ListProbeAccounts` on each `acs:platform:*:platform:relay-probe-account/<accountId>` resource. Platform account-pool management qualification remains a prerequisite; attaching an account policy alone cannot grant it. Denied accounts expose no configuration, cooldown or session status. The list shows only whether credentials are configured and does not load or return stored login requests or encrypted credentials.
+
+Deleting an account requires `quyan:relay:DeleteProbeAccount` for its account ARN, as well as platform probe-account management qualification, step-up verification and replay protection. Accounts still bound to channel profiles cannot be deleted. Authorization is checked before deletion and again at commit; a revoked grant preserves the account and its cached session.
+
+Updating an account requires `quyan:relay:UpdateProbeAccount` for its account ARN. Omitted credentials retain their existing values; supplied credentials replace the full credential map. Login requests remain encrypted, and responses include neither credentials nor login workflows. If authorization changes at commit, the configuration update is rolled back and the existing cached session is preserved.
+
+Creating an account requires `quyan:relay:CreateProbeAccount` on both the creation control `acs:platform:*:platform:relay-probe-account-control/default` and the future account ARN, normally granted with `acs:platform:*:platform:relay-probe-account/*`. The server reserves a resource ID and checks both grants before encrypting and saving credentials. Shadow evaluation uses the same ARN as the account that is ultimately created. Credentials are required on creation.
+
+Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
+
+### Per-target configuration and templates
+
+Under IAM enforcement, batch target configuration uses `quyan:relay:ConfigureProbeTarget` on the selected channel, profile and physical member. A source template additionally requires its channel/profile resources. When a profile is missing, the server reserves its ARN and commits the new profile with target settings together; failed validation or revocation leaves no partial profile. Templates transfer shared settings, not source credentials or account bindings.
+
+A target-only format/model/payload/group edit protects that target and its bound account. Replacing shared profile defaults from a source additionally checks every affected current member, configured target and bound account. Bound-account edits require the dedicated account-pool qualification and `quyan:relay:ModifyBoundProbeProfile`, preventing ordinary configuration access from rewriting workflows that carry shared tokens.
+
+The target's credentials, account bindings and omitted target settings remain unchanged. Changing format requires a compatible payload. Each target commits independently, and active runs block changes. Configuration responses do not return existing account bindings; read them through an authorized read operation.
+
+### Bind and unbind shared accounts
+
+Under IAM enforcement, binding requires the dedicated deployment-managed account-pool qualification and `quyan:relay:BindProbeAccount` on the channel, profile, selected physical member and new account ARN. Ordinary probe-executor qualification or an account-owned wildcard policy cannot replace platform account-pool qualification.
+
+Replacing an account, or unbinding with `accountId: null`, additionally requires `quyan:relay:UnbindProbeAccount` on the old account. Permission to bind a new account cannot remove an unauthorized old binding. Rebinding the same account does not require an unrelated unbind grant. Checks never load login ciphertext or tokens, and responses return only the selected target and newly bound account ID.
+
+Queued or running work blocks binding changes. Authorization is checked after the channel-lock wait and again at commit; revocation rolls back that target without undoing independently successful targets. Existing target format, model, payload and serialization group survive binding changes.
+
+### Copy standalone profiles
 
 Under IAM enforcement, copying standalone-channel profiles requires `quyan:relay:CopyProbeProfile` on the source channel/profile and each target channel plus its existing or server-reserved profile ARN. Deployment-managed probe-executor qualification, step-up verification and replay protection remain required. Targets commit independently, so a denied target does not block others. Pooled channels do not support this copy entry point; configure members individually instead.
 
@@ -112,11 +196,26 @@ Native copying transfers workflow and calibration settings only. It never reads 
 
 Legacy/shadow modes retain the earlier copy workflow, including its standalone credential copying. Only enforcement uses the non-transferring behavior above. Check target credentials before switching modes rather than relying on legacy copies to supply them.
 
-## Prerequisites and notes
+### Authorize result application
 
-- Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.
-- Applying a multiplier requires the separate channel multiplier-adjustment permission.
-- Profiles and runs are removed according to the server retention policy. Historical results do not guarantee future upstream pricing or balance.
-- Balance-workflow credentials stay server-side. Batch configuration never copies source credentials or account bindings; legacy standalone-channel copy remains subject to its existing permission.
+In IAM enforcement mode, applying a probe result uses `quyan:relay:ApplyProbeRun`. It requires platform multiplier-management qualification and grants on the run, channel, profile and physical member ARNs. A logical pool multiplier affects the entire pool, so every affected current member must also be authorized; access to only one member is insufficient. This operation does not read or return profile credentials, upstream keys, balance ledgers or probe samples.
 
-Related pages: [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings), [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status).
+Each result commits independently. The multiplier update and applied marker share a transaction; revocation or a concurrent conflict rolls both back, while other successful results remain applied. Shadow mode previews resource scopes and executes the existing application flow once.
+
+## Troubleshooting
+
+| Symptom                                | Suggested action                                                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Channel or member is missing           | Clear name/group/state filters, check channel visibility and current membership, and verify separate reading actions              |
+| Balance or variable path fails         | Check paths against the actual response, use exactly one balance path, define variables before use, and ensure a numeric balance  |
+| Settlement timeout or low signal       | Check upstream posting delays, balance precision, divisor, and measurement input; do not use failed calibration to change prices  |
+| Cache marker cannot be injected        | Use a compatible minimal preset or correct the custom text structure before explicitly allowing marker-free execution             |
+| Account login fails or is cooling down | Check the complete login request, token/expiry paths, credentials, and next login time; repeated refresh does not bypass cooldown |
+| Successful result cannot be applied    | Check calibration, completion time, billing snapshot, current multiplier, large-change confirmation, and resource authorization   |
+| Save failed but some settings changed  | Refresh and check the shared profile, overrides, and binding independently; sequential saves do not guarantee overall rollback    |
+| Reset request failed                   | Cancellation may have committed before queue cleanup failed. Refresh task state and have an authorized operator retry             |
+
+## Related pages
+
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
