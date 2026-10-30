@@ -1,59 +1,98 @@
 # My remote terminal products
 
-Use this page to browse published remote terminal product plans, purchase or claim entitlements, and manage your registered devices.
+Use **My remote terminal products** to browse published plans, purchase or renew entitlements, and generate agent installation commands for your own devices. Run commands on connected devices in the [Remote terminal]({{DOCS_BASE_URL}}/en/remote-terminal) console.
 
-## Page purpose
+## Before you start
 
-- Browse published remote terminal product plans with pricing.
-- Purchase new plans or merge upgrades into existing entitlements.
-- View your current entitlements, their validity, device/terminal quotas, and registration tokens.
-- Manage bound devices and revoke them when needed.
-- Generate install commands for the remote terminal agent.
+- Sign in with an identity authorized to view plans, your entitlements and devices, and perform the purchase, token or unbinding operations you need. Viewing a plan does not grant permission to buy it; viewing a device does not grant permission to connect or unbind it.
+- The header shows your balance. The three tabs are **Published plans**, **My entitlements** and **My devices**. Only enabled, published plans accessible to your identity appear.
+- This page loads only the first 100 entitlements and first 100 devices, with no pagination controls. Contact an administrator or use an authorized paginated API to check missing records. Do not infer that an entitlement is absent, a device is unbound or another purchase is allowed from these lists alone.
+- **Refresh** attempts a device probe and reloads plans, entitlements, devices, sessions and balance. If any data request fails, previous data remains visible; check again after a successful refresh. The page clock recalculates status and estimates locally without continuously fetching lists from the server.
 
-## What you will see
+## Purchase or renew
 
-### Published plans tab
+### Purchase a new entitlement
 
-- Cards for each published product plan with name, description, and unit pricing.
-- Billing unit (day/week/month), purchase limits, and minimum purchase requirements.
-- Purchase form: plan name, purchase mode (new or merge), units, device count, terminal count.
-- Estimated price with breakdown (renewal vs. upgrade cost).
-- **Claim** button to confirm and purchase.
+1. Under **Published plans**, check the billing unit, prices, minimum and maximum purchase quantities, device and terminal quota ranges, and purchase limits.
+2. Select a new purchase, then enter a name, purchase units, device count and terminal count. Counts are the resulting quotas, and at least one must be positive. An item not offered by the plan cannot be purchased; an item priced at zero can still be offered.
+3. Check the estimate and breakdown, click **Claim**, then confirm the purchase. Use the same flow for a free plan.
+4. After success, check validity and quotas under **My entitlements** and verify your balance. New entitlements start at purchase time.
 
-### My entitlements tab
+One billing week is 7 days and one billing month is 30 days, rather than a calendar month. A new purchase costs “purchase units × (device price × device count + terminal price × terminal count).” Prices, limits and availability use the server configuration at submission; renewals and upgrades also use the plan's current prices.
 
-- Table of your active, pending, expired, and disabled entitlements.
-- Each row shows: plan name, template, validity period, duration days, device/terminal limits.
-- Masked registration token; copying is available only when the list returns its secret. Rotation is also available.
-- **Connect device** button to jump to the remote terminal console.
+### Merge into an existing entitlement
 
-### My devices tab
+1. Select merge in the same plan's purchase form, then choose your existing entitlement from that template.
+2. Enter additional purchase units and the resulting total device and terminal quotas. For example, to add one device to an allowance of two, enter 3, not 1. Quotas cannot decrease.
+3. Check the target, charge and additional duration, submit, then refresh the target entitlement.
 
-- Table of registered devices with hostname, device ID, entitlement, platform, and last seen time.
-- **Connect device** action to open the remote terminal console. Select the device and shell there, then connect.
-- **Revoke** action with an unbind reminder dialog showing allowance, cooldown, and used count.
+An unexpired entitlement keeps its original start time and extends from its previous expiration. A pending entitlement does not start earlier as a result. An expired but enabled entitlement restarts at purchase time. Disabled entitlements cannot be merged; the current candidate list may still include them, which does not mean the server will accept them.
 
-## Common actions
+**Current limitation:** the form accepts zero units for a quota-only upgrade, but the server requires a positive integer meeting the plan's minimum purchase units. Zero-unit upgrades therefore fail. Enter at least the required additional duration; contact an administrator before proceeding if you want an upgrade without renewal.
 
-1. Browse plans and adjust the purchase form to match your needs.
-2. Claim a free plan or purchase a paid plan — confirm the estimated price before proceeding.
-3. If you need a long-term registration token, copy it when the list provides the secret or rotate it; rotation invalidates the old token.
-4. Open the install agent dialog, select the OS, architecture, and version, then copy the generated command. It uses a newly issued install token by default; you can also choose a long-term registration token when one is available in the list. If token issuance or version loading fails, resolve the error or retry and confirm the command contains a valid token and version before running it. The command contains credentials; do not share it publicly.
-5. Revoke a device you no longer need, respecting the cooldown and allowance limits.
+### Understand estimates and actual charges
 
-In bash/sh on Linux or macOS, the `RTC_REGISTRATION_TOKEN="..."` assignment at the start of the generated command applies only to the downloader, not the agent launched afterward. Before running it, change that assignment to `export RTC_REGISTRATION_TOKEN="..."` and run it separately, then run the download and launch command. Run `unset RTC_REGISTRATION_TOKEN` when finished. Use a trusted terminal and remember that shell history may retain the token.
+For merges, the server charges separately for extending the old quotas and for additional quotas over the applicable interval through the merged expiration. The additional-quota interval rounds up to whole days, then is priced proportionally to the billing unit. Pending entitlements use their original start time; expired entitlements use only the newly purchased duration. Charges retain four decimal places.
 
-## Notes
+The current page breakdown uses “renewal at the new total quotas + upgrade over the old remaining duration,” rounds remaining time up to hours, and rounds the displayed estimate up to an integer. These duration and amount rules differ from the server, so **the estimate may differ from the actual charge**. The confirmation dialog also shows the estimate. Contact an administrator before purchasing if the amount is unclear, and verify the payment in account transactions afterward.
 
-- If a purchase or renewal times out or the connection is interrupted, its outcome may be unknown. Use the page’s top **Refresh** action, check the balance and the new or updated entitlement under **My entitlements**, then refresh account transactions in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history). Confirm the result before deciding whether to retry; contact an administrator if it remains unclear. A failed refresh may leave old data visible, so check again after a successful refresh.
+Each renewal or upgrade charges only that operation. The entitlement's purchase amount is cumulative actual payment, not a second charge of that total. Free renewals preserve the accumulated amount. A purchase fails if the balance cannot cover the server-calculated charge.
 
-- In IAM enforcement mode, the entitlement list does not return token secrets. An authorized rotation obtains a new token, which the page attempts to copy. Even if it reports that copying succeeded, verify in a secure location that the clipboard contains the new token. If you did not obtain the secret, rotate again and use the latest token.
-- Merge mode lets you upgrade an existing entitlement instead of purchasing a new one.
-- Free plans (zero estimated price) can be claimed without cost.
-- Token rotation invalidates the old token — update your agent configuration immediately.
-- Device revocation is subject to per-window limits and cooldown periods.
+## Install and register a device
 
-Each renewal or upgrade debits only the amount for that operation. The entitlement’s purchase amount is the cumulative amount paid across purchases and renewals; it is not debited again. A free renewal retains that total and creates no new purchase debit. If the current charge exceeds your balance, the renewal fails and leaves the entitlement unchanged.
+### Choose an install credential
+
+An entitlement with a positive device allowance can register devices. A terminal-only entitlement cannot issue device registration or install tokens. Opening the install dialog does not establish that an entitlement is active: registration checks its status, validity, token and available device capacity.
+
+| Credential                   | How to obtain and use it                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install token                | Newly issued by default on the first opening of the dialog; currently valid for 15 minutes. It is not restricted to a single use, but authorization, entitlement and quota checks still apply. Obtain a new one after expiration instead of rerunning an expired command. |
+| Long-term registration token | Selecting this option uses only a secret already returned by the current list. It does not retrieve or rotate a token. Existing expiration settings still apply; “long-term” does not mean it never expires.                                                              |
+
+The long-term option persists while this page is open, so check the selection each time. IAM enforcement mode omits long-term secrets from the list; selecting that option yields an empty token. Clear it to issue a new install token. Resolve issuance errors before proceeding.
+
+In IAM enforcement mode, a new purchase does not create a long-term registration token, but device registration still requires an existing, valid token record. If none has been created after your first purchase, use **Rotate token** to create one, then obtain a new install token. A disabled or expired long-term token also prevents registration using an install token. Rotation preserves the old expiration; contact an administrator to adjust an expired credential.
+
+### Generate and run the command
+
+1. Click **Install agent** on an entitlement. Select the target device's Linux, Windows or macOS system and x64 or arm64 architecture. The Linux/x64 defaults do not detect the target machine.
+2. Check the version. The server supplies the list; the first successful load selects its first item, and manual input is supported. Confirm that the release has an asset for the selected system and architecture. Retry a failed version load and do not use a command with an empty version.
+3. Check the token and download address. Commands may still appear with an empty token or after issuance fails. Copy only a complete command and verify the clipboard.
+4. Download and launch in a trusted terminal on the target device. On Windows, prefer the PowerShell command marked as recommended. Resolve download errors and confirm the file downloaded before launching, to avoid running an older file left in the directory.
+5. Refresh **My devices** to confirm registration, then click **Connect device** to open the console and select the device and shell. This button opens the console without selecting or connecting the row's device.
+
+In bash/sh on Linux or macOS, the `RTC_REGISTRATION_TOKEN="..."` assignment at the beginning of the generated command applies only to the downloader, not the agent launched afterward. Change it to `export RTC_REGISTRATION_TOKEN="..."` and run it separately, then run the remaining download, executable-permission and launch commands. Run `unset RTC_REGISTRATION_TOKEN` when finished.
+
+The background option appends the agent's `start` argument; it does not configure a system service or startup at boot. Proxy options affect the generated download step. A value beginning with HTTP(S) is treated as a download reverse proxy and does not establish that the agent's own connection uses that proxy.
+
+Commands contain credentials: do not share them publicly, and remember that command history may retain tokens. For installation failures, check the release, architecture, credential validity, entitlement activation and device allowance. Repeated purchases do not resolve registration errors.
+
+## Rotate a long-term registration token
+
+Click **Rotate token** on an entitlement with device allowance and confirm. After success, the old token immediately stops authorizing new registrations. Update installation scripts or agent configuration that still stores it. This page has no expiration editor: rotation keeps the existing token's expiration, so an expired token does not gain a new validity period.
+
+In IAM enforcement mode, lists omit secrets and an authorized rotation obtains a new token. The page attempts to copy it. Even if it reports copying succeeded, verify the clipboard in a secure location. If you did not obtain the secret, rotate again and use the latest token.
+
+A definitive server rejection preserves the old token. A timeout or interrupted connection may leave the outcome unknown; rotate again to obtain the latest token before updating configuration.
+
+## Unbind a device
+
+1. Find the device under **My devices** and click **Revoke**.
+2. Read the rolling window, used and remaining allowance, and rebind cooldown in the dialog. An administrator configures these values; devices in the same entitlement share the unbind allowance.
+3. Select the acknowledgment checkbox and submit. An enabled button does not guarantee remaining allowance: the server checks again and rejects exhausted allowances or disabled unbinding.
+4. Refresh after success to confirm removal from the current binding list. Unbinding revokes the platform binding without uninstalling the agent; stop the agent on the device as well if it is no longer needed.
+
+Rebinding the same device requires waiting for the cooldown and passing valid-entitlement, quota and credential checks again. The reminder is a snapshot taken when the dialog opens; other operations and configuration changes can affect the final result.
+
+## Troubleshooting
+
+| Symptom                                           | Action                                                                                                                                                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Old entitlement or balance after purchase success | The operation may have succeeded while its subsequent refresh failed. Refresh successfully and check entitlements and transactions before buying again.                                                                              |
+| Purchase or renewal times out or disconnects      | The outcome may be unknown. Refresh this page and transactions in [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history), then check the new or updated entitlement and payment. Contact an administrator if uncertain. |
+| Missing plans, entitlements or devices            | Check refresh success, identity and permissions, publication status and the page's first 100-record limit. An empty list does not necessarily mean deletion.                                                                         |
+| An unexpired install token fails                  | Check entitlement, capacity and token status. Under IAM enforcement, authorization or identity changes can invalidate a token early; obtain a new one.                                                                               |
+| Unbinding times out or refresh fails              | Successfully refresh devices and reopen the reminder before deciding the next action. Do not rely on the old remaining allowance.                                                                                                    |
 
 ## IAM permissions and resource scope
 
