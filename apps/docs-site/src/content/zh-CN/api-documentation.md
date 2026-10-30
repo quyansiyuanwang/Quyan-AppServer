@@ -1,89 +1,111 @@
 # API 文档
 
-此页面不应只是“地址清单”。它更适合扮演 **集成入口 + SDK 参考 + 示例代码中心** 的角色：让接入方从“知道接口存在”直接走到“复制示例就能跑通”。
+使用 AI 中转控制台的 **API 文档** 页面，复制客户端端点、比较模型价格，并按权限打开 Swagger。调用平台业务 API、AI 中转和第三方认证时，地址、凭证和响应格式各不相同，应先确定接入场景。
 
-## 页面定位
+## 使用前提
 
-此页建议用于回答 4 类问题：
+在控制台进入 API 文档页面需要 `RELAY_TOKEN_READ`。页面有 **API 端点**、**模型价格**、**配置教程**三个标签；进入页面不代表已获得创建令牌、调用模型、读取渠道目录或访问 OpenAPI 的全部权限。
 
-1. **我该用哪个基础地址？**
-2. **我该选 JWT、OAuth、Access Key 还是 Relay Token？**
-3. **有没有一段可以直接复制的 curl / TypeScript / Python 示例？**
-4. **返回结构、分页、鉴权、错误处理应该怎么写？**
+模型价格首次切换到该标签时才加载。价格列表与渠道目录独立读取，渠道目录需要相应读取授权（IAM 动作为 `quyan:relay:ListChannelCatalog`）；失败时先解决权限或网络问题，再单击刷新。
 
-## 你会看到什么
+## 选择正确的地址和凭证
 
-### 端点标签页
+| 任务                      | 地址来源                                     | 凭证与结果                                                          |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| 调用 AI 模型              | 页面显示的通用兼容端点，即 Relay Base URL    | Relay Token；返回所选兼容协议的数据或事件流                         |
+| 查询当前 Relay Token 额度 | 页面显示的 Relay 用量查询端点                | 同一个 Relay Token；查询该令牌的额度和用量                          |
+| 查询平台账户余额          | 平台账户余额端点，路径为 `/v1/balance/usage` | 登录访问令牌或服务端允许的账号 AccessKey；OAuth 还需 `balance:read` |
+| 调用平台业务 API          | 当前部署提供的后端 API 地址                  | 对应接口接受的访问凭证、scope 及资源授权                            |
+| 发起第三方用户授权        | 对应 OAuth 或认证中心指南中的认证站地址      | 应用注册信息、回调地址及该认证流程要求的参数                        |
 
-- Base URL
-- Provider URL
-- Balance URL
-- Platform-balance URL
-- 复制按钮
-- 完整路径显示开关
+管理站、认证站、文档站、后端 API 与中转地址可能使用不同域名。不要把浏览器当前域名当作 API 地址，也不要把 Relay Token、OJ API Key、OAuth 令牌及认证中心 JWT 互换。
 
-### 价格标签页
+平台账户余额使用当前用户的 `quyan:balance:GetUsage` 授权，其 `remaining` 表示账户余额；Relay 用量端点描述的是当前令牌，二者不能当成同一个余额。具体字段、时间范围及限额解释见[Relay Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)和[账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)。
 
-- 带筛选的价格列表
-- 模型或供应商视图
-- 刷新按钮
-- 自定义倍率 / token 单位切换
+## 复制客户端端点
 
-## 建议文档结构
+1. 打开 **API 端点**，核对当前部署显示的通用兼容端点。
+2. 根据客户端要求选择 OpenAI、Anthropic 或 Gemini 端点，单击旁边的复制按钮。
+3. 客户端要求完整请求地址时，开启 **显示完整端点**；要求 Base URL 时，使用对应基础地址。
+4. 配置自己的 Relay Token，核对令牌渠道、模型、请求格式、额度及 IP 限制后再发请求。
 
-一个“可交付”的 API 文档，至少应包含：
+| 端点        | 默认显示                    | 开启完整端点后                              |
+| ----------- | --------------------------- | ------------------------------------------- |
+| OpenAI 兼容 | Relay Base URL 加 `/v1`     | 加 `/v1/chat/completions`                   |
+| Anthropic   | Relay Base URL              | 加 `/v1/messages`                           |
+| Gemini      | Relay Base URL 加 `/v1beta` | 加 `/v1beta/models/{model}/generateContent` |
 
-- **接口地址**：知道发到哪里
-- **鉴权方式**：知道怎么带凭证
-- **请求示例**：知道 body / query / headers 怎么写
-- **响应示例**：知道怎么取数据
-- **错误处理**：知道失败时怎么兜底
-- **SDK 示例**：知道如何在真实项目里封装
-- **最小可运行 Demo**：知道从 0 到 1 跑通流程
+`{model}` 是需要替换的模型 ID。客户端可能自行拼接路径，避免重复添加 `/v1`。OpenAI 完整端点显示的是 Chat Completions；调用 Responses 时应使用 `/v1/responses`，不会随该开关自动切换。
 
-## 基础地址
+**配置教程**提供前往令牌管理、配置认证和余额查询的入口，以及可复制的 ccswitch 余额模板。启用模板前核对查询地址和所用凭证；能查看教程不代表已创建令牌或获得授权。账号 AccessKey 的有效性仍受删除、账号状态和服务端策略约束，不能理解为永久可用。
 
-以线上环境为例：
+## 比较模型价格
 
-```text
-API Base URL: https://api.qysyw.cn
-Swagger:      https://api.qysyw.cn/docs
-OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
-```
+1. 打开 **模型价格**，等待价格与渠道目录加载完成；需要更新时单击刷新。
+2. 按模型名称或 ID、请求格式、计费类型及渠道筛选。
+3. 选择基础价格、已选渠道最低价或全部渠道最低价；选择多个渠道时，可切换任选其一或全部命中。
+4. 需要逐渠道比较时，切换 **比对模式**并至少选择一个渠道，再设置主比对渠道。
+5. 确认价格单位、价格范围和自定义倍率后，复制模型 ID 到客户端。
 
-如果只是临时调试，可先用 Swagger；如果要真正接入业务，建议直接参考下面的代码模板。
+| 控件或状态           | 含义与限制                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| 仅显示有可用渠道模型 | 默认开启；关闭后可能看到没有匹配渠道的价格条目                                         |
+| 显示自动代理池       | 默认关闭；开启后才纳入当前页面的渠道候选与比较                                         |
+| 基础价格             | 使用模型基础价格，不代表最终扣费                                                       |
+| 已选渠道最低价       | 按已选渠道比较；没有选择渠道时按基础价格显示                                           |
+| 全部渠道最低价       | 只在当前可见、可匹配的渠道目录中取最低值，不是全平台报价或路由承诺                     |
+| 主比对渠道           | 比对模式中的排序及价格区间筛选按该渠道计算，不按所有列分别筛选                         |
+| 自定义倍率           | 仅在本页模拟乘算，不会修改服务端价格、令牌配置或账户扣费规则                           |
+| M / K 单位           | M 为每百万 Token，K 为每千 Token；切换同时换算输入、输出价格区间，按次价格不随单位变化 |
 
-## AI 中转快速接入
+模型名或 ID 使用不区分大小写的包含匹配。渠道匹配按模型及其支持格式判断；看到价格条目或渠道标签，不保证当前令牌在所选请求格式下能够执行。实际请求仍会检查权限、状态、支持格式、额度和路由条件。
 
-想调用 AI 时，使用 **AI 中转控制台**，而不是浏览器登录接口。最短流程如下：
+上下文档位或可变价格渠道可能显示价格范围；最低值不是每次调用的固定成交价。最终扣费以实际请求采用的价格、渠道及结算记录为准，缓存、月卡或其他规则也可能影响费用。生成文本或图片可能产生费用，调用后可在[消费记录]({{DOCS_BASE_URL}}/zh-CN/consumption-records)核对结算明细。
 
-1. 进入 **中转令牌管理**，点击“创建令牌”，选择可用渠道或自动代理池后保存令牌。
-2. 在创建抽屉顶部或 **API 文档** 页的端点标签中复制 **Relay Base URL**。它是你的部署对外提供的中转地址，可能与管理后台或后端 API 地址不同。
-3. 将令牌仅放在服务端环境变量中，并用 `Authorization: Bearer <relay_token>` 请求中转接口。
-4. 先调用 `/v1/models` 查看当前令牌能使用的模型，再选择相应的请求格式。
+分页仅切分当前已加载和筛选后的价格条目，默认每页 20 条。修改筛选会回到第一页；重置会清空筛选、自定义倍率和比较配置，恢复 M 单位及默认隐藏自动代理池。刷新失败时可能保留旧数据，或只有价格、渠道之一更新成功；有错误提示时不要把空表或保留报价当作最新完整结果。页面不自动轮询价格。
 
-以下示例中的 `https://relay.example.com` 必须替换为控制台显示的 Relay Base URL；不要猜测或把管理站域名当作中转地址。
+## 选择中转请求格式
+
+| 格式                    | 请求路径                                 | 主要输入             |
+| ----------------------- | ---------------------------------------- | -------------------- |
+| OpenAI Chat Completions | `/v1/chat/completions`                   | `messages`           |
+| OpenAI Responses        | `/v1/responses`                          | `input`              |
+| Anthropic Messages      | `/v1/messages`                           | 按 Messages 格式填写 |
+| Gemini                  | `/v1beta/models/{model}/generateContent` | 按 Gemini 格式填写   |
+
+渠道与模型需要支持所用格式。Chat Completions 与 Responses 独立启用；旧 OpenAI 配置不代表已启用 Responses。`/v1/models` 当前按 Chat Completions 能力筛选模型，不能用它证明所有 Responses、Anthropic、Gemini 或图片模型均不可用。
+
+完整的令牌创建和首个调用步骤见[AI 中转快速开始]({{DOCS_BASE_URL}}/zh-CN/ai-relay-quickstart)。Chat Completions 转换为 Anthropic 时，需要正数 `max_tokens` 或 `max_completion_tokens`，不能省略输出上限。
+
+图片编辑使用 `/v1/images/edits`，多个参考图推荐重复的 `image[]` 表单字段。下面是请求形状示例；先替换部署、凭证、模型和本地文件，确认模型及渠道支持图片编辑，再执行：
 
 ```bash
-# 查看此令牌可调用的模型
-curl "https://relay.example.com/v1/models" \
-  -H "Authorization: Bearer <relay_token>"
-
-# OpenAI Chat Completions 兼容调用
-curl "https://relay.example.com/v1/chat/completions" \
+curl "https://relay.example.com/v1/images/edits" \
   -H "Authorization: Bearer <relay_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "your-enabled-model",
-    "messages": [{"role": "user", "content": "你好"}]
-  }'
+  -F "model=your-enabled-image-model" \
+  -F "image[]=@first.png" \
+  -F "image[]=@second.png" \
+  -F "prompt=将两张参考图中的主体组合为一张新图"
 ```
 
-中转令牌只用于中转请求，不用于登录管理后台。令牌所属渠道、启用模型、请求格式、额度、IP 白名单和状态都会影响实际能否调用；遇到 `401`、`403` 或模型不可用时，先在中转令牌管理页面检查这些配置。
+不要手动填写 multipart 的 `Content-Type`，让客户端生成 boundary。重复的旧式 `image` 字段可被规范为 `image[]`，但中转不保证模型能够理解或融合多张图。
 
-## 统一响应格式
+## 打开 Swagger 与读取 OpenAPI
 
-后端大多数接口遵循统一结构：
+页面顶部 **打开 Swagger / OpenAPI** 按钮仅在具有 `DEBUG_OPENAPI_READ` 时显示。单击后会申请约 60 秒有效的临时访问链接，优先在新标签打开；无法打开新窗口时可能在当前窗口跳转。链接失效或生成失败时，返回控制台检查登录状态、权限和重放保护后重新打开。
+
+打开动作还需要临时链接生成授权（`quyan:reurl:Generate`）。临时链接不会延长原始凭证有效期，也不授予目标接口权限；不要分享带临时令牌的地址。Swagger 中执行请求会实际调用服务，写操作和付费操作应先核对目标及后果。
+
+`GET /docs/openapi.json` 返回原始 OpenAPI JSON，不使用 `{ code, message, data }` 包装。远程访问需要登录认证及 `DEBUG_OPENAPI_READ`；IAM 强制模式下，该资格应来自真实部署全局组，并允许：
+
+- 动作：`quyan:system:GetOpenApiSpecification`
+- 资源：`acs:platform:*:platform:system/openapi-spec`
+
+账号策略或个人附加权限不能替代真实部署组资格。Deny 优先，角色会话使用角色自身授权；读取期间会话或授权失效时不返回文档。查询参数或 Header 不能选择其他规范文件或授予权限。本地开发访问以部署的受信本地访问规则为准，不应据此假定公网可匿名读取。
+
+## 解析平台 API 响应
+
+多数平台业务接口使用以下结构：
 
 ```json
 {
@@ -93,328 +115,32 @@ curl "https://relay.example.com/v1/chat/completions" \
 }
 ```
 
-建议约定：
-
-- `code === 0`：成功
-- `code !== 0`：业务失败
-- `message`：给日志或提示用
-- `data`：真实业务载荷
-
-### TypeScript 通用解析器
-
-```ts
-export interface ApiResponse<T> {
-  code: number
-  message: string
-  data?: T
-}
-
-export function unwrapApi<T>(response: ApiResponse<T>): T {
-  if (response.code !== 0) {
-    throw new Error(response.message || `API failed: ${response.code}`)
-  }
-  return response.data as T
-}
-```
-
-## 鉴权方式选择
-
-| 场景                  | 推荐方式    | 说明               |
-| --------------------- | ----------- | ------------------ |
-| 浏览器登录态          | JWT         | 适合站内用户操作   |
-| 第三方代用户访问      | OAuth 2.0   | 适合开放平台接入   |
-| 服务端脚本 / 定时任务 | Access Key  | 适合无交互程序调用 |
-| 网关 / 代理转发       | Relay Token | 适合中继与统一出口 |
-
-如果你的目标是“给外部开发者一套真正可跑的接入说明”，建议每种鉴权都至少提供 1 段 curl 和 1 段 SDK 示例。
-
-## OpenAI 图片编辑中转
-
-通过 Relay Token 调用 OpenAI 兼容的 `/relay/proxy/v1/images/edits` 时，多张参考图应使用重复的 `image[]` 字段。中转也会兼容多个旧式 `image` 字段，并在转发前将其规范为 `image[]`，保留图片顺序、mask 和其他表单字段。
-
-```bash
-curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
-	-H "Authorization: Bearer <relay_token>" \
-	-F "model=gpt-image-2" \
-	-F "image[]=@first.png" \
-	-F "image[]=@second.png" \
-	-F "prompt=将两张参考图中的主体组合为一张新图"
-```
-
-建议新接入始终使用 `image[]`。能否实际理解或融合多张参考图仍取决于所选模型和上游渠道的能力。
-
-## OpenAI 文本中转格式
-
-Relay 将 OpenAI 的两种 v1 文本接口作为独立格式管理：
-
-- **OpenAI Chat Completions**：`/relay/proxy/v1/chat/completions`，请求体使用 `messages`。
-- **OpenAI Responses**：`/relay/proxy/v1/responses`，请求体使用 `input`。
-
-使用任一接口前，Relay Token 所属渠道和所选模型都必须显式启用对应格式。旧 OpenAI 配置仅兼容为 Chat Completions；Responses 不会自动启用。
-
-### OpenAI Responses 示例
-
-```bash
-curl "https://relay.example.com/v1/responses" \
-  -H "Authorization: Bearer <relay_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "your-enabled-model",
-    "input": "你好"
-  }'
-```
-
-其他兼容格式（Anthropic 或 Gemini）仅在令牌渠道显式启用后可用。接口路径和字段以控制台的 API 文档页面为准。
-
-## 最小 curl 示例
-
-### 1. JWT 用户态请求
-
-```bash
-curl -X GET "https://api.qysyw.cn/users/profile" \
-	-H "Authorization: Bearer <access_token>"
-```
-
-### 2. Access Key 请求
-
-```bash
-curl -X GET "https://api.qysyw.cn/system/config" \
-	-H "Authorization: Bearer <access_key>"
-```
-
-> 实际是否允许某接口被 Access Key 调用，仍以接口权限和服务端策略为准。
-
-### 3. 带分页查询的列表示例
-
-```bash
-curl -G "https://api.qysyw.cn/oauth-clients/review" \
-	-H "Authorization: Bearer <access_token>" \
-	--data-urlencode "page=1" \
-	--data-urlencode "pageSize=20" \
-	--data-urlencode "reviewStatus=pending"
-```
-
-## TypeScript SDK 示例
-
-如果接入方用前端或 Node.js，最实用的是一个轻量 SDK 包装层，而不是每次手写 `fetch`。
-
-### 1. 通用请求器
-
-```ts
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
-
-interface RequestOptions {
-  method?: HttpMethod
-  token?: string
-  body?: unknown
-}
-
-const API_BASE_URL = 'https://api.qysyw.cn'
-
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    credentials: 'include',
-  })
-
-  const json = await response.json()
-  if (json.code !== 0) throw new Error(json.message || 'Request failed')
-  return json.data as T
-}
-```
-
-### 2. OAuth 应用审核列表示例
-
-```ts
-export interface OAuthReviewItem {
-  id: string
-  name: string
-  clientId: string
-  reviewStatus: 'draft' | 'pending' | 'approved' | 'rejected'
-  reviewComment?: string
-}
-
-export interface OAuthReviewListResponse {
-  items: OAuthReviewItem[]
-  total: number
-  page: number
-  pageSize: number
-}
-
-export async function listOAuthAppsForReview(token: string) {
-  return apiRequest<OAuthReviewListResponse>('/oauth-clients/review?page=1&pageSize=20', {
-    token,
-  })
-}
-```
-
-### 3. 审核操作示例
-
-```ts
-export async function reviewOAuthApp(
-  token: string,
-  id: string,
-  reviewStatus: 'approved' | 'rejected',
-  reviewComment?: string,
-) {
-  return apiRequest(`/oauth-clients/${id}/review`, {
-    method: 'POST',
-    token,
-    body: {
-      reviewStatus,
-      reviewComment,
-    },
-  })
-}
-```
-
-## Python 示例
-
-对于后端开发者，提供 Python 示例通常比单纯参数表更有用。
-
-```python
-import requests
-
-API_BASE_URL = "https://api.qysyw.cn"
-ACCESS_TOKEN = "<access_token>"
-
-response = requests.get(
-		f"{API_BASE_URL}/oauth-clients/review",
-		headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
-		params={"page": 1, "pageSize": 20, "reviewStatus": "pending"},
-		timeout=15,
-)
-response.raise_for_status()
-
-payload = response.json()
-if payload["code"] != 0:
-		raise RuntimeError(payload["message"])
-
-for item in payload["data"]["items"]:
-		print(item["name"], item["reviewStatus"])
-```
-
-## OAuth 授权码流程 Demo
-
-如果文档站要更像“开放平台文档”，建议至少给出完整授权码流程示例。
-
-### 第一步：跳转到授权页
-
-```text
-GET https://auth.qysyw.cn/oauth/authorize
-	?response_type=code
-	&client_id=oc_live_xxx
-	&redirect_uri=https%3A%2F%2Fdemo.example.com%2Fcallback
-	&scope=profile%20email
-	&state=random-csrf-token
-	&code_challenge=pkce-challenge
-	&code_challenge_method=S256
-```
-
-授权页面位于认证站；`https://api.qysyw.cn/v1/oauth/authorize` 是由该页面调用、且需要登录会话的 API，不应直接在浏览器地址栏打开。
-
-### 第二步：后端换 token
-
-```bash
-curl -X POST "https://api.qysyw.cn/v1/oauth/token" \
-	-H "Content-Type: application/json" \
-	-d '{
-		"grant_type": "authorization_code",
-		"client_id": "oc_live_xxx",
-		"client_secret": "oc_secret_xxx",
-		"code": "returned_code",
-		"redirect_uri": "https://demo.example.com/callback",
-		"code_verifier": "pkce-verifier"
-	}'
-```
-
-## 分页约定建议
-
-文档里应明确告诉接入方：
-
-- `page`：页码，通常从 `1` 开始
-- `pageSize`：每页条数
-- 后端可能限制最大值，例如 `pageSize <= 100`
-
-推荐写法：
-
-```ts
-const page = 1
-const pageSize = 20 // 不要盲目传超大值
-```
-
-## 生成的 OpenAPI 规范访问
-
-`GET /docs/openapi.json` 返回原始生成的 OpenAPI 文档，不使用通用响应包装。可信本地访问保留 `local-or-jwt` 认证行为。远程 JWT 访问需要 `DEBUG_OPENAPI_READ`；IAM 强制模式下，该资格必须来自真实部署全局组，并允许 `quyan:system:GetOpenApiSpecification` 对 `acs:platform:*:platform:system/openapi-spec` 的访问。
-
-路径和 Action 由服务端固定，查询参数和 Header 不能选择其他文件或授予权限。读取过程中授权或当前角色会话失效时，文档不会返回；匹配的 Deny 优先于 Allow。
-
-## 错误处理建议
-
-不要只展示”成功示例”，还应展示失败时怎么处理。
-
-```ts
-try {
-  const data = await listOAuthAppsForReview(token)
-  console.log(data.items)
-} catch (error) {
-  console.error('Load failed:', error)
-  // 建议这里做 toast、重试、降级提示、日志上报
-}
-```
-
-### 常见 `code` 值
-
-`code` 是响应体内的业务状态码（参见上文”统一响应格式”），与 HTTP 状态码是两套独立的体系——HTTP 状态为 `200 OK` 的响应仍可能携带非零 `code`，表示业务层面的失败。
-
-| `code` | 含义                       | 建议处理方式                      |
-| ------ | -------------------------- | --------------------------------- |
-| `0`    | 成功                       | 直接使用 `data`                   |
-| `1001` | 认证失败                   | 提示重新登录                      |
-| `1002` | 参数校验失败               | 修正请求体/参数，不要重试         |
-| `1003` | 资源不存在                 | 不要重试，展示”未找到”状态        |
-| `1004` | 权限不足                   | 不要重试，当前 token 缺少所需权限 |
-| `1006` | Token 因用户信息变更而过期 | 刷新 token 后重试一次             |
-| `1013` | Token 已过期               | 刷新 token 后重试一次             |
-| `1014` | Token 无效或伪造           | 不要重试，强制重新登录            |
-| `1017` | 重放保护校验失败           | 获取新的签名会话后重试一次        |
-| `1018` | 需要二次验证               | 完成 2FA 挑战后重试               |
-| `1048` | 密码加密公钥已失效         | 重新获取公钥、重新加密后重试一次  |
-| `1429` | 请求过于频繁（限流）       | 按响应建议的重试等待时间再重试    |
-
-完整列表位于 `CustomCode`（`packages/shared/src/custom-code.ts`），并会持续增加——遇到未识别的 code 时应视为通用业务失败，而不要臆测其具体含义。
-
-### 重试建议
-
-- 只对表示”临时性状态”的 code 进行重试（token 刷新、重放保护会话续期、限流）。对 `1002`/`1003`/`1004`/`1014` 重试没有意义，因为请求本身就是问题所在，每次结果都相同。
-- 遇到 `1429`（限流）时，应遵循响应中建议的重试等待时间，而不是立即重试。
-- 自动重试次数建议限制在 1-2 次，超过后应将错误呈现给用户或调用方，而不是持续循环重试。
-
-## 文档应提供的最小 Demo 清单
-
-建议后续至少补齐这几类：
-
-1. **curl Demo**：适合快速验证
-2. **TypeScript Demo**：适合前端和 Node.js
-3. **Python Demo**：适合后端脚本和运维
-4. **OAuth 完整流程 Demo**：适合开放平台接入方
-5. **错误码与重试建议**：适合真实生产落地
-
-## 推荐阅读顺序
-
-1. 先看本页获取基础地址和鉴权方式。
-2. 再看 Swagger 确认具体字段。
-3. 接入 OAuth 时继续阅读 `oauth-app-management`。
-4. 使用程序化凭证时阅读 `access-key-management` 或 `relay-token-management`。
+先检查 HTTP 状态和 JSON 结构，再检查数值型 `code === 0`，最后读取 `data`。HTTP 200 仍可能是业务失败；`message` 可能本地化，不适合作为程序分支条件。字段、分页参数及上限以具体接口为准，不存在适用于全站的统一最大页大小。
+
+**不要将通用解包器用于 AI 中转、OAuth/认证中心令牌协议、文件、事件流或原始 OpenAPI。** 完整、可运行的业务 API 请求封装见[Node.js 示例]({{DOCS_BASE_URL}}/zh-CN/node-sdk)和[Python 示例]({{DOCS_BASE_URL}}/zh-CN/python-sdk)。
+
+## 常见错误与处理
+
+| 业务码或现象             | 处理方法                                                                   |
+| ------------------------ | -------------------------------------------------------------------------- |
+| 返回 HTML、404 或非 JSON | 核对部署、端点及路径；不要将前端域名或 Base URL 直接当成完整请求地址       |
+| `1001`、`1014`           | 核对凭证类型和环境，重新认证或更换有效凭证                                 |
+| `1002`、`1003`           | 修正参数或资源标识，不要立即重复请求                                       |
+| `1004`                   | 核对动作、资源、OAuth scope 及显式 Deny                                    |
+| `1006`                   | 凭证因用户状态更新等原因失效，需要重新认证                                 |
+| `1013`                   | 按对应认证流程刷新；失败后重新认证，不能无限重试                           |
+| `1016`、`1017`           | 检查重放保护要求及签名会话                                                 |
+| `1018`                   | 按接口要求完成二次验证                                                     |
+| `1048`                   | 重新获取密码加密公钥并加密，不要重发旧密文                                 |
+| `1429` 或 HTTP 429       | 降低频率，按服务端给出的等待信息处理                                       |
+| 价格为空或没有渠道       | 先检查加载错误和目录权限，再清除筛选或显示自动代理池；不代表全平台没有模型 |
+
+未知业务码作为失败处理，保留必要的请求 ID、HTTP 状态和业务码用于排查。不要公开凭证或完整响应。自动重试应限定次数并退避；写操作超时或断线后先查询结果，再按接口支持的幂等机制决定是否重试。
 
 ## 相关页面
 
-- `oauth-app-management`
-- `access-key-management`
-- `relay-token-management`
-- `json-endpoint-management`
+- [SDK 与示例]({{DOCS_BASE_URL}}/zh-CN/sdk-examples)
+- [Relay Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [OAuth 授权码示例]({{DOCS_BASE_URL}}/zh-CN/oauth-demo)
+- [AccessKey 管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management)
+- [API 参考]({{SWAGGER_DOCS_URL}})

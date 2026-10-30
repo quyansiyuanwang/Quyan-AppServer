@@ -1,62 +1,50 @@
 # User manual
 
-This is the public bilingual user manual for the site. The layout keeps the rhythm of an API docs portal, but the content is written as a screen-by-screen guide for end users.
+Find guidance for account, product, and administration tasks. Browse the navigation or search for a page or an action you want to complete.
 
-## How this manual is organized
+## Get started
 
-- One Vue page corresponds to one manual page.
-- Each page explains visible sections, common actions, and practical notes.
-- API-style reference content is still included as dedicated pages such as `api-documentation`.
+1. If you do not have an account, start with [Sign in and register]({{DOCS_BASE_URL}}/en/login-register).
+2. After signing in, choose a console from the site switcher in the application. Available entries depend on your permissions.
+3. Choose a topic from the documentation navigation or search for an action. Switching languages keeps you on the current article.
+4. To share guidance, use the copy page link action. It links to the article in the current language without search criteria, section anchors, or embedded state.
 
-## How to use it
+On narrow screens, use the top menu button to open the documentation navigation, or select Search to find a page. You can also search with Ctrl+K (Cmd+K on macOS). Expand On this page before the article to see its sections; selecting a section closes the list.
 
-1. Search from the left sidebar.
-2. Open the exact page you are using in the product.
-3. Switch language without losing the current manual page.
-4. Copy the page link when you need to share guidance.
+Code blocks offer Copy and Wrap lines buttons. Long lines keep their original structure by default and can be scrolled horizontally. Enable Wrap lines to wrap text in that code block. Copied text excludes the buttons and language label.
 
-## Multi-site navigation
+Copy buttons require browser clipboard access. If copying a page link fails, copy the address from your browser. For an embedded window, open the standalone documentation site first. To share a section, select its table-of-contents link first, then copy the address from the browser.
 
-The application uses separate addresses by responsibility and product. AI relay, developer applications, and RAM each have a user console. Cloud Terminal uses only `terminal`, opening its product overview by default, with its workspace and subscription/device management at `/workspace` and `/subscriptions`. KV, short links, secrets, status, verification, IP geolocation, push, and OJ Submitter each have their own product console and capability-oriented paths. There is no unified developer-product catalog. `management` and its product subdomains are for operations. The site switcher groups user sites, product consoles, user consoles, and operations, and shows only destinations for which you have at least one feature permission; the public home page exposes the same site overview drawer. Retired hosts are rejected rather than migrated.
+If you forgot your password, see [Reset your password]({{DOCS_BASE_URL}}/en/forgot-password).
 
-Every site provides a data overview at `/overview`. Signed-in sites show account, usage, resource, or operational statistics relevant to the current site and your permissions, together with links to common tasks. For example, product consoles show request and remaining quota data, AI and RAM consoles show their resource counts, and operations sites summarize manageable resources. Statistics that require a permission you do not have are neither loaded nor shown. Public and identity sites remain available to guests; their overviews provide site entry points without probing a login session.
+## Choose a console
 
-Access control in the operations site is organized into Overview, Identity Management, and Permission Management. Identity Management contains users, groups, and roles; roles open in the RAM console. Permission Management separates user-level authorizations, permission-source inspection, and permission diagnostics into dedicated pages so that changes and investigation remain distinct.
+Products and management functions use separate sites. The site switcher groups user sites, product consoles, user consoles, and operations. The public home page also offers a site overview.
 
-On desktop after signing in, a bottom-aligned quick-action icon rail appears on the right. It shows permission-aware self-service, online tools, ticket, and documentation entries; hover an icon to see its name. The final arrow hides the rail completely and leaves only an expand button at the lower-right edge; drag that button vertically or select it to restore the rail. A cross-site entry opens its canonical site address directly.
+1. After signing in, select the menu button at the top left of the application to open the site switcher.
+2. Choose a destination from a group or your recently visited sites. Sites open in a new tab by default; the actual behavior follows your saved preference.
+3. Choose the feature you need from the destination site's navigation.
 
-Hover the avatar in the top bar to open the account menu, which shows the account name, account ID, and current balance. Select the account name or ID to copy it, or select the balance area to open balance history.
+Entries adjust after permissions load, while the current site and public site remain available in the switcher. More entries may appear temporarily before permissions finish loading. A visible entry does not guarantee access to its pages or actions. If a feature is missing, check which account you signed in with, then ask an administrator to check your permissions.
 
-Known legacy links, or known pages opened on the wrong site, automatically move to the correct page while retaining filters and anchors. An unrecognized address still shows the not-found page.
+After you sign in, each site's overview shows relevant statistics and common actions according to the site and your permissions. If it reports that some data failed to load, use the overview's refresh button to retry. Missing statistics do not mean zero.
 
-## What is covered
+Cross-site entries open the appropriate site. Recognized legacy links and pages opened on the wrong site redirect to the correct location, usually retaining filters and anchors. Some sensitive parameters are removed, so you may need to sign in or start the action again.
 
-- Login, verification, and password recovery
-- Home, chat, settings, and notification pages
-- Balance, monthly passes, relay tokens, and relay settings
-- Admin, system, logs, OJ, and API reference pages
-- Reviewer and operations pages such as app review, Auth Center review, and user online monitoring
+## Common tasks
 
-## Search tips
+- [Manage account settings]({{DOCS_BASE_URL}}/en/account-settings): manage your profile, preferences, and account security.
+- [Manage two-factor authentication]({{DOCS_BASE_URL}}/en/two-factor-authentication): protect sign-in and sensitive actions.
+- [View balance history]({{DOCS_BASE_URL}}/en/balance-history): understand changes to your balance.
+- [Manage relay tokens]({{DOCS_BASE_URL}}/en/relay-token-management): configure relay access and quotas.
+- [Use Cloud Terminal]({{DOCS_BASE_URL}}/en/remote-terminal): learn how to use Cloud Terminal.
+- [Use developer products]({{DOCS_BASE_URL}}/en/developer-products-overview): choose a product such as KV storage or Short Link and create an instance.
+- [Use chat]({{DOCS_BASE_URL}}/en/chat): choose a model, manage conversations, and send messages.
+- [Submit and track tickets]({{DOCS_BASE_URL}}/en/my-tickets): report an issue and follow its progress.
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation): find API integration guidance.
 
-- Search by page name.
-- Search by tags such as `balance`, `relay`, or `permission`.
-- Search by a concrete task such as reset, copy, publish, or verify.
+## Find help
 
-## Quick links
+Search covers titles, tags, and article text. Try a feature name or terms such as “password”, “balance”, or “permission”. Search matches the complete text entered; if there are no results, try a shorter phrase or a different term. Select a result or press Enter in the search box to open the first match. Results remain above the article until you select **Clear** in the results area. A narrow embedded window may hide navigation and search; use a wider window or the standalone documentation site to browse. Available features, quotas, and management actions may depend on your permissions and the current service configuration.
 
-- App: {{APP_BASE_URL}}
-- API docs: {{SWAGGER_DOCS_URL}}
-- User manual: {{DOCS_BASE_URL}}
-
-## SDK and demo entry points
-
-- If you only need to call the API quickly, start with `Node SDK`, `Python SDK`, or `OAuth Demo` inside this docs site.
-- If you want runnable projects, integration templates, or a broader example collection, start with `integrations/server-sdk` in this workspace.
-- `integrations/server-sdk` provides OAuth SDKs and demos by scenario, such as `integrations/server-sdk/demos/oauth/node/` for a full browser flow and `integrations/server-sdk/sdks/oauth/*` for multi-language server-side integration templates.
-
-## Example route
-
-```text
-{{DOCS_BASE_URL}}/zh-CN/login-register
-```
+After signing in, hover over the avatar at the top of a non-embedded application page to view account information and balance. On desktop, sites other than the public site also provide a shortcut bar on the right; its entries adjust after permissions load. You can also continue to the [application]({{APP_BASE_URL}}) or [API reference]({{SWAGGER_DOCS_URL}}).

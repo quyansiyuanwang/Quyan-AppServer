@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'sdk-examples',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Reference',
     'zh-CN': '参考',
@@ -13,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': 'SDK 与示例',
   },
   summary: {
-    en: 'Copy-ready Node and Python templates, plus OAuth flow diagrams for fast integration.',
-    'zh-CN': '提供可直接复制的 Node / Python 模板与 OAuth 流程图，便于快速接入。',
+    en: 'Choose platform API, OAuth, Auth Center, browser SPA, or AI relay examples and verify the integration.',
+    'zh-CN': '按平台 API、OAuth、认证中心、浏览器或 AI 中转任务选择示例并验证接入。',
   },
-  tags: ['sdk', 'example', 'oauth', 'node', 'python'],
+  tags: ['sdk', 'example', 'oauth', 'node', 'python', 'auth-center', '接入', '示例'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,

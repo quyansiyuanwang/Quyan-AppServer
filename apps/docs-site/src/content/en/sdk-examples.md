@@ -1,141 +1,50 @@
-# SDK & Examples
+# SDKs and examples
 
-This hub page helps integrators pick the right template without mixing all examples into one long document.
+Choose an example for the task you need to complete. Confirm the deployment address, credential type, and grants before starting. Platform APIs, AI relay, and Auth Center use separate credentials.
 
-## How to choose
+## Choose an integration path
 
-### `integrations/server-sdk` layout
+| Your task                                                              | Start with                              | Prepare                                                                     |
+| ---------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| Read platform profiles or balance transactions from a backend          | Node.js or Python API examples below    | Backend API address, authorized credential, and target-resource grants      |
+| Let users authorize third-party platform API access                    | OAuth authorization-code example        | Registered and approved application, exact callback URI, and minimal scopes |
+| Authenticate users for your own system and validate Auth Center tokens | Auth Center integration                 | A separate Auth Center application and its flow configuration               |
+| Use Auth Center from a browser SPA                                     | Browser single-page application example | Public client, registered callback URI, and PKCE                            |
+| Invoke AI models                                                       | AI relay quick start                    | Relay Base URL, Relay Token, supported model/format, and quota              |
 
-Best for:
+## Call APIs from a backend
 
-- integrators who want a runnable sample project first
-- teams that want to choose the right SDK or demo by integration style
-- workflows where a full example is easier to start from than a small snippet
+- [Node.js API example]({{DOCS_BASE_URL}}/en/node-sdk): create files and configure credentials, then use `fetch` with HTTP/business error handling, timeouts, and request IDs.
+- [Python API example]({{DOCS_BASE_URL}}/en/python-sdk): install dependencies and configure credentials, then use `requests` and distinguish connection/read timeouts.
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation): copy endpoints, compare prices, and choose authentication. Consult the API reference for fields.
 
-Includes:
+Both pages provide copyable HTTP wrappers you can maintain without a platform-specific SDK package. They start with an existing credential and do not log in, refresh, or retry automatically. Verify the profile request first, then enable balance transactions when authorized. Do not test connectivity with administrative writes.
 
-- scenario-based SDK or demo selections
-- more complete project samples than the short snippets in this docs site
-- integration templates that can be used as a starting point
-- current OAuth paths such as `integrations/server-sdk/demos/oauth/node/`, `integrations/server-sdk/sdks/oauth/node/`, `integrations/server-sdk/sdks/oauth/python/`, `integrations/server-sdk/sdks/oauth/java/`, and `integrations/server-sdk/sdks/oauth/go/`
+## Third-party authorization
 
-### `Node SDK`
+1. Create an application, register a callback URI, and submit it for review in [OAuth app management]({{DOCS_BASE_URL}}/en/oauth-app-management). Obtain approval before integrating.
+2. Follow the [OAuth authorization-code example]({{DOCS_BASE_URL}}/en/oauth-demo) to start authorization with PKCE and handle the callback safely.
+3. Use the authorized token to call APIs. OAuth scopes, account permissions, and resource permissions can all affect access.
 
-Best for:
+## Auth Center integration
 
-- Node.js backends
-- TypeScript / JavaScript API integrations
-- Server-side business API calls
+To authenticate users for your own system, start with [Auth Center integration]({{DOCS_BASE_URL}}/en/auth-center-app-management). Create and maintain the application through [Auth Center app management]({{DOCS_BASE_URL}}/en/auth-center-client-management), then choose an example:
 
-Includes:
+- [Auth Center Node SDK]({{DOCS_BASE_URL}}/en/auth-center-node-sdk)
+- [Auth Center Python SDK]({{DOCS_BASE_URL}}/en/auth-center-python-sdk)
+- [Browser single-page application example]({{DOCS_BASE_URL}}/en/auth-center-browser-spa-example)
 
-- Minimal direct API example for Node
-- Suggested environment variables
-- Small server-side calling patterns
+Auth Center and OAuth applications are registered separately and use different issuance and verification flows. Do not treat an Auth Center JWT as a platform API login access token or expose a client secret in the browser. Public clients follow the public-client flow with PKCE.
 
-### `Python SDK`
+## AI relay integration
 
-Best for:
+Follow [AI relay quick start]({{DOCS_BASE_URL}}/en/ai-relay-quickstart) to create a Relay Token and configure a model client. Platform API `{ code, message, data }` unwrappers do not apply to relay protocols or event streams.
 
-- Python backends
-- automation scripts
-- internal integration services
+Model requests can incur charges. Check model, format, and quota before calling, then reconcile results in [Consumption records]({{DOCS_BASE_URL}}/en/consumption-records).
 
-Includes:
+## Verify the integration
 
-- Minimal direct API example for Python
-- `requests` template
-- timeout and error-handling suggestions
-
-### `OAuth Demo`
-
-Best for:
-
-- third-party login
-- OAuth account linking
-- teams that need a full authorization-code demo
-
-Includes:
-
-- OAuth sequence diagram
-- OAuth flowchart
-- minimal Node OAuth demo
-- minimal Python OAuth demo
-
-### `Auth Center App Management`
-
-Best for:
-
-- teams exposing this platform as their authentication center
-- JWT + JWKS verification designs
-- dual-token access + refresh flows
-- review and app-registration workflows
-
-Includes:
-
-- Auth Center vs OAuth differences
-- short-token and refresh-token behavior
-- `client_credentials` no-refresh-token rule
-- app registration and review guidance
-
-### `Auth Center Node SDK`
-
-Best for:
-
-- Node.js backends verifying JWT access tokens locally
-- code exchange and refresh handling on a trusted server
-- machine-to-machine integrations using `client_credentials`
-
-### `Auth Center Python SDK`
-
-Best for:
-
-- Python services verifying JWT access tokens locally
-- automation and backend integrations
-- refresh-token exchange from server-side code
-
-### `Auth Center Browser / SPA Example`
-
-Best for:
-
-- browser-first applications
-- public clients using PKCE
-- teams deciding where refresh tokens should be stored
-
-Includes:
-
-- PKCE helper code
-- callback handling example
-- backend exchange recommendation
-- browser security boundaries
-
-## Suggested reading order
-
-0. If you prefer starting from a full runnable project, start with the `integrations/server-sdk` layout and choose the matching SDK or demo there.
-1. Start with `OAuth App Management` to create the app and register redirect URIs.
-2. Continue with `OAuth Demo` to run the authorization-code flow end to end.
-3. If you only need business API access, go directly to `Node SDK` or `Python SDK`.
-4. Use `API Documentation` and Swagger for exact field-level details.
-5. If you are building an authentication-center integration, read `Auth Center App Management` first, then choose the Node, Python, or Browser example.
-
-## Minimum integration checklist
-
-1. Confirm the environment base URL and Swagger URL.
-2. Choose the auth method: JWT, Access Key, or OAuth.
-3. Test one endpoint with `curl` first.
-4. Then implement the matching language template.
-5. If using third-party login, create the OAuth app and register the redirect URI first.
-6. If using the auth center mode, confirm whether your app is `public` or `confidential`, then implement JWKS verification before going live.
-
-## Recommended follow-up reading
-
-- `integrations/server-sdk`
-- `Node SDK`
-- `Python SDK`
-- `OAuth Demo`
-- `API Documentation`
-- `OAuth App Management`
-- `Auth Center App Management`
-- `Auth Center Node SDK`
-- `Auth Center Python SDK`
-- `Auth Center Browser / SPA Example`
+- Confirm requests target the correct service in this deployment rather than a frontend or documentation site.
+- Check HTTP status, response format, and the protocol's success condition; opening a page does not establish API authorization.
+- Retain necessary request IDs, status, and business codes for errors. Keep credentials, refresh tokens, client secrets, and full personal profiles out of public logs and version control.
+- Handle expiry and revocation through the chosen authentication flow without endlessly retrying permission refusals. After a write disconnect, check the outcome before resubmitting.

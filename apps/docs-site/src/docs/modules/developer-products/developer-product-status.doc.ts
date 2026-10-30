@@ -6,10 +6,10 @@ export default defineDocsPage({
   category: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   title: { en: 'Status Monitoring API', 'zh-CN': '状态监控 API' },
   summary: {
-    en: 'Run monitored HTTP checks and publish status.',
-    'zh-CN': '执行 HTTP 监控并发布状态。',
+    en: 'Configure HTTP checks, manage targets, understand usage and alerts, and publish recent results.',
+    'zh-CN': '配置 HTTP 检查、管理目标、了解用量与告警，并发布最近检测结果。',
   },
   tags: ['status', 'iam', 'resource'],
-  updatedAt: '2026-10-09',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

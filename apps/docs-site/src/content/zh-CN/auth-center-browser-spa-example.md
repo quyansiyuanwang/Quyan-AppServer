@@ -1,200 +1,55 @@
-# 认证中心 Browser / SPA 示例
+# 认证中心浏览器接入
 
-当接入应用是浏览器优先应用、SPA 或其他公共客户端时，请使用这个示例。
+浏览器应用无法保守客户端密钥。使用认证中心时，请将浏览器应用注册为公共客户端，并使用授权码和 PKCE（S256）。以下说明侧重接入边界；页面中的认证中心接口需要由具备平台登录态的授权界面调用。
 
-相关页面：
+## 开始前
 
-- **先做配置：** [`认证中心应用管理`](/zh-CN/auth-center-app-management)
-- **后端版本：** [`认证中心 Node SDK`](/zh-CN/auth-center-node-sdk)
-- **当前页：** `Browser / SPA 示例`
+1. 在[认证中心应用管理]({{DOCS_BASE_URL}}/zh-CN/auth-center-client-management)中创建公共客户端，启用 `authorization_code`，登记准确的回调地址和所需 scope，并确认应用已通过审核且处于启用状态。公共客户端的授权码流程必须使用 PKCE；需要刷新时同时启用 `refresh_token`，不能启用 `client_credentials`。
+2. 确认部署提供的认证中心授权界面。`GET /v1/auth-center/authorize` 是需要已登录身份的授权预览 API，不是直接在浏览器地址栏打开的授权页面。内置的 OAuth 授权页面使用的是另一套 OAuth 接口。
+3. 规划应用自己的后端和会话存储：认证中心令牌只交给可信后端处理，浏览器持有你自己应用的会话标识。
 
-## 浏览器场景的重要原则
+本页采用“浏览器 + 可信后端”的接入方式，不提供可直接部署的纯浏览器登录应用。部署没有提供认证中心授权界面时，需要先补齐该界面；不能将认证中心 Client ID 直接交给内置 OAuth 授权页。接口发现文档也不会自动创建交互式登录页面。
 
-对于浏览器或 SPA 接入：
+## 区分授权界面与 API
 
-- 应注册为**公共客户端**
-- 启用 `authorization_code`
-- 启用 PKCE
-- 不要把 `client_secret` 写进前端代码
-- 不要把长期刷新令牌当作可安全存储在浏览器中的内容
+以下路径相对于本部署的 API 根地址。授权界面负责展示应用与 scope、让用户明确同意或拒绝，再处理返回的回调地址。
 
-常见生产架构是：
+| 接口                                        | 调用者与结果                                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `GET /v1/auth-center/authorize`             | 授权界面携带平台登录身份，读取授权预览；成功响应为 `{ code, message, data }`。                              |
+| `POST /v1/auth-center/authorize`            | 授权界面提交同一组授权参数及 `approve`；成功响应的 `data.redirectTo` 是回调 URL，接口本身不执行浏览器跳转。 |
+| `POST /v1/auth-center/token`                | 应用可信后端交换授权码或刷新令牌；成功响应是直接的令牌对象，不包裹在 `data` 中。                            |
+| `GET /v1/auth-center/.well-known/jwks.json` | 可信后端读取验签公钥；成功响应中的公钥位于 `data.keys`。                                                    |
 
-1. 浏览器发起带 PKCE 的授权请求
-2. 认证中心回调授权码
-3. 你的后端交换授权码
-4. 你的后端安全保存刷新令牌
-5. 浏览器只拿到自己需要的短期会话信息
+授权预览与授权决定需要平台登录态，IAM 强制模式下还分别需要 `quyan:auth_center:GetAuthorizationPreview` 和 `quyan:auth_center:DecideAuthorization`。应用 Client ID、授权码或认证中心访问令牌不能代替这里的平台登录身份。
 
-## 最小 PKCE 工具函数
+## 发起授权与处理回调
 
-```ts
-function base64UrlEncode(input: ArrayBuffer) {
-  const bytes = new Uint8Array(input)
-  let text = ''
-  bytes.forEach((value) => {
-    text += String.fromCharCode(value)
-  })
-  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-}
+1. 每次授权生成不可预测的 `state` 和 PKCE verifier，并计算其 S256 challenge。将 `state` 与 verifier 保存在当前授权会话中，不要在多个用户或浏览器会话之间共用。
+2. 通过部署提供的授权界面发起授权，提交 `response_type=code`、应用 Client ID、已登记的回调地址、scope、`state`、`code_challenge` 和 `code_challenge_method=S256`。不要省略方法：服务端默认使用 `plain`，与 S256 challenge 不匹配。明确列出需要的 scope；省略时使用客户端配置的全部 scope。用户登录并确认后，授权界面处理认证中心返回的回调地址。
+3. 回调时在交换授权码**之前**核对返回的 `state` 与该会话中保存的值；缺失、不匹配或会话过期时停止流程并重新开始。每次授权只使用对应的 verifier，并在处理后清除临时数据。
+4. 由可信后端调用 `POST /v1/auth-center/token`，提交授权码、Client ID、完全一致的回调地址和 `code_verifier`。公共客户端不提交客户端密钥。令牌响应应保存在服务端，不要返回或记录刷新令牌。
+5. 后端按[令牌校验指南]({{DOCS_BASE_URL}}/zh-CN/auth-center-node-sdk)校验签名、签发者、受众、有效期、令牌用途和所需 scope，再创建自己的应用会话。可以复用 SDK 页面中的校验函数；公共客户端交换时省略 `client_secret`，不要照搬其机密客户端注册要求。Cookie 应使用 `HttpOnly`、`Secure`、合适的 `SameSite` 策略，并配合服务端 CSRF 防护。
 
-async function sha256(text: string) {
-  const data = new TextEncoder().encode(text)
-  return crypto.subtle.digest('SHA-256', data)
-}
+授权码有效期为 5 分钟且只能使用一次；刷新令牌成功使用后会轮换。网络中断时不能假定服务端未处理请求；无法恢复新令牌时应重新授权。是否返回刷新令牌取决于客户端是否启用刷新授权。
 
-export async function createPkcePair() {
-  const verifier = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
-  const challenge = base64UrlEncode(await sha256(verifier))
-  return { verifier, challenge }
-}
-```
+用户拒绝时，回调携带 `error=access_denied` 和原 `state`，没有授权码。先校验 `state`，再显示取消结果并清理临时会话，不要发起令牌交换。即使曾经授权，预览中的 `requireConsent=false` 也不是新的授权码；仍需完成授权决定步骤。请求包含用户当前无法授予的 scope 时，批准会失败。
 
-## 生成授权地址
+## 会话与退出边界
 
-```ts
-export async function buildAuthorizeUrl() {
-  const clientId = 'ac_public_example123'
-  const redirectUri = 'https://spa.example.com/auth/callback'
-  const baseUrl = 'http://localhost:10001'
-  const { verifier, challenge } = await createPkcePair()
+本地验签不会实时查询远端令牌撤销、用户状态或客户端停用情况；应用会话也不会因为平台退出登录而自动结束。请让自己的后端管理会话有效期、退出、令牌保存及撤销策略，并在刷新后重新检查返回的 scope。浏览器不应仅凭解码 JWT 创建登录态。
 
-  sessionStorage.setItem('auth_center_pkce_verifier', verifier)
+回调 URL 中的授权码是临时数据，处理完成后清理地址栏及临时会话，避免重复交换。签发者和 JWKS 地址使用预先确认的部署配置；不要根据未验证令牌中的内容自行选择可信签发者。
 
-  const url = new URL('/auth-center/authorize', baseUrl)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('client_id', clientId)
-  url.searchParams.set('redirect_uri', redirectUri)
-  url.searchParams.set('scope', 'profile')
-  url.searchParams.set('state', crypto.randomUUID())
-  url.searchParams.set('code_challenge', challenge)
-  url.searchParams.set('code_challenge_method', 'S256')
+## 常见问题
 
-  return url.toString()
-}
-```
+- **授权预览返回 401 或 403**：确认授权界面具备有效的平台登录态和访问权限，且应用已通过审核。
+- **回调被拒绝**：检查回调地址与登记值是否完全一致，以及当前会话中的 `state` 是否仍然有效。
+- **令牌交换失败**：确认 PKCE verifier 与发起授权时的 challenge 对应，授权码未被使用或过期。
+- **校验令牌失败**：确认使用本部署的 JWKS、配置的 issuer、当前 Client ID 和正确的 scope；不要仅凭解析 JWT 的内容判断授权通过。
 
-## 浏览器回调处理
+## 相关文档
 
-```ts
-export function readAuthCallback() {
-  const url = new URL(window.location.href)
-  const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
-  const verifier = sessionStorage.getItem('auth_center_pkce_verifier')
-
-  if (!code || !verifier) {
-    throw new Error('缺少 code 或 PKCE verifier')
-  }
-
-  return { code, state, verifier }
-}
-```
-
-## 通过你自己的后端交换授权码
-
-不要把客户端密钥逻辑或刷新令牌存储逻辑放进浏览器。
-
-```ts
-export async function exchangeCodeWithBackend(payload: {
-  code: string
-  state: string | null
-  verifier: string
-}) {
-  const response = await fetch('/api/auth-center/session/exchange', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  })
-
-  if (!response.ok) {
-    throw new Error('授权码交换失败')
-  }
-
-  return response.json()
-}
-```
-
-一个典型后端处理器会：
-
-- 调用 `POST /auth-center/token`
-- 把刷新令牌保存在服务端或 HTTP-only Cookie 体系里
-- 只返回浏览器真正需要的短期会话信息
-
-### 一个具体的后端存储示例
-
-上面提到的后端存储步骤，常见且安全的两种做法：
-
-**方案 A —— 用自己生成的会话 ID 做键的服务端存储。** 浏览器始终只持有你应用自己的会话标识，从不接触刷新令牌本身：
-
-```ts
-// 后端（Node/Express），完成授权码交换之后：
-const tokenSet = await exchangeCodeWithAuthCenter(code, codeVerifier)
-
-// 把刷新令牌保存到自己的数据库或 Redis 中，键使用你自己生成的会话 ID——
-// 绝不要使用任何从浏览器侧推导出的值作为键。
-const sessionId = crypto.randomUUID()
-await sessionStore.set(sessionId, {
-  refreshToken: tokenSet.refresh_token,
-  userId: tokenSet.sub,
-  expiresAt: Date.now() + tokenSet.expires_in * 1000,
-})
-
-// 浏览器只会收到这个不透明的会话 ID，通过 HTTP-only、Secure、
-// SameSite=Lax 的 Cookie 传递——绝不通过 localStorage 或可被 JS 读取的 Cookie。
-res.cookie('app_session', sessionId, {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-})
-```
-
-**方案 B —— 加密后的 HTTP-only Cookie。** 如果不想维护服务端会话存储，可以在把刷新令牌放入 Cookie 之前先对其加密，Cookie 同样使用 `httpOnly`/`secure`/`sameSite` 标志，并在每次需要刷新访问令牌的请求中于服务端解密。两种方案都能确保原始刷新令牌不会出现在浏览器可读取的任何代码里——应避免的失败模式是把 `tokenSet.refresh_token` 直接写入 `localStorage` 或非 `httpOnly` 的 Cookie。
-
-## 浏览器本地 JWT 校验
-
-如果浏览器场景必须本地读取 JWT，也可以读取 JWKS。但这更适合作为前端会话辅助，而不是取代后端授权边界。
-
-```ts
-export async function readJwtKid(token: string) {
-  const headerPart = token.split('.')[0]
-  if (!headerPart) throw new Error('JWT 无效')
-  const json = JSON.parse(atob(headerPart.replace(/-/g, '+').replace(/_/g, '/')))
-  return json.kid as string | undefined
-}
-
-export async function fetchJwks(baseUrl: string) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
-  if (!response.ok) throw new Error('加载 JWKS 失败')
-  return response.json()
-}
-```
-
-在大多数正式部署中，后端仍应是可信边界。
-
-## 不建议这样做
-
-- 不要把 `client_secret` 打包进 SPA
-- 不要把长期刷新令牌明文持久化到 localStorage，除非你完全接受风险
-- 不要在公共浏览器应用里使用 `client_credentials`
-- 不要假设 `client_credentials` 会返回刷新令牌
-
-## 推荐架构
-
-```text
-浏览器 -> /auth-center/authorize + PKCE
-浏览器 <- redirect 返回 code
-浏览器 -> 你的后端 /exchange
-你的后端 -> Auth Center /token
-你的后端安全保存 refresh token
-你的后端 -> 浏览器返回短期会话 / 展示所需信息
-```
-
-## 推荐继续阅读
-
-- `认证中心应用管理`
-- `认证中心 Node SDK`
-- `认证中心 Python SDK`
+- [认证中心应用接入]({{DOCS_BASE_URL}}/zh-CN/auth-center-app-management)
+- [认证中心 Node SDK]({{DOCS_BASE_URL}}/zh-CN/auth-center-node-sdk)
+- [认证中心 Python SDK]({{DOCS_BASE_URL}}/zh-CN/auth-center-python-sdk)

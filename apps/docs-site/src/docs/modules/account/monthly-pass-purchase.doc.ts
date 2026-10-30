@@ -10,6 +10,6 @@ export default defineDocsPage({
     'zh-CN': '使用余额购买已发布月卡方案，了解资源权限和购买次数限制。',
   },
   tags: ['monthly-pass', 'purchase', 'balance', 'iam'],
-  updatedAt: '2026-10-15',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
