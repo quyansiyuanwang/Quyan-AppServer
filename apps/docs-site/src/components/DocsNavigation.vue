@@ -117,7 +117,7 @@ defineExpose({ focusSearch: () => searchInput.value?.focus() })
 }
 .navigation-locales button {
   flex: 1;
-  min-height: 38px;
+  min-height: 44px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;

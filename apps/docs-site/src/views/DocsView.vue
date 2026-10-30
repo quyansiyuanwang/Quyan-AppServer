@@ -5,7 +5,6 @@
     :class="{
       'is-embedded': isEmbedded,
       'is-embedded-wide': isEmbeddedWide,
-      'is-embedded-xl': isEmbeddedExtraWide,
       'is-wide': showSidebarPanel,
       'has-toc': showTocPanel,
     }"
@@ -23,7 +22,6 @@
       <div class="topbar-actions">
         <button
           v-if="!showSidebarPanel"
-          ref="navigationTriggerRef"
           class="command-pill menu-trigger"
           type="button"
           :aria-label="ui.navigation"
@@ -90,9 +88,8 @@
             <p class="doc-summary">{{ currentPage.summary[locale] }}</p>
           </div>
 
-          <div v-if="showHeroSide" class="doc-hero-side">
+          <div class="doc-hero-side">
             <div class="hero-side-card">
-              <div class="hero-side-label">{{ ui.actions }}</div>
               <div class="doc-actions">
                 <button class="action-button" type="button" @click="copyCurrentPageUrl">
                   {{ ui.copyPage }}
@@ -106,8 +103,15 @@
                   Swagger
                 </a>
                 <a class="action-button ghost" :href="appBaseUrl" target="_blank" rel="noreferrer">
-                  App
+                  {{ ui.mainSite }}
                 </a>
+                <span class="page-copy-feedback" role="status">{{
+                  pageCopyState === 'copied'
+                    ? ui.copied
+                    : pageCopyState === 'failed'
+                      ? ui.copyFailed
+                      : ''
+                }}</span>
               </div>
             </div>
           </div>
@@ -188,10 +192,11 @@ const route = useRoute()
 const router = useRouter()
 const query = ref('')
 const navigationRef = ref<InstanceType<typeof DocsNavigation> | null>(null)
-const navigationTriggerRef = ref<HTMLButtonElement | null>(null)
 const navigationOpen = ref(false)
 const compactTocRef = ref<HTMLDetailsElement | null>(null)
 const topbarHeight = ref(0)
+const pageCopyState = ref<'idle' | 'copied' | 'failed'>('idle')
+let pageCopySequence = 0
 const articlePanelRef = ref<HTMLElement | null>(null)
 const docsPageRef = ref<HTMLElement | null>(null)
 const docsTopbarRef = ref<HTMLElement | null>(null)
@@ -200,19 +205,15 @@ const embeddedViewportWidth = ref<number>(0)
 const appBaseUrl = APP_BASE_URL
 const swaggerDocsUrl = SWAGGER_DOCS_URL
 
-const EMBED_WIDE_BREAKPOINT = 1120
-const EMBED_XL_BREAKPOINT = 1360
+const NAVIGATION_BREAKPOINT = 1120
+const TOC_BREAKPOINT = 1360
 
 const isEmbeddedWide = computed(
-  () => isEmbedded.value && embeddedViewportWidth.value >= EMBED_WIDE_BREAKPOINT,
+  () => isEmbedded.value && embeddedViewportWidth.value >= NAVIGATION_BREAKPOINT,
 )
-const isEmbeddedExtraWide = computed(
-  () => isEmbedded.value && embeddedViewportWidth.value >= EMBED_XL_BREAKPOINT,
-)
-const showSidebarPanel = computed(() => embeddedViewportWidth.value >= EMBED_WIDE_BREAKPOINT)
+const showSidebarPanel = computed(() => embeddedViewportWidth.value >= NAVIGATION_BREAKPOINT)
 const showEmbeddedMeta = computed(() => !isEmbedded.value || isEmbeddedWide.value)
-const showHeroSide = computed(() => !isEmbedded.value || isEmbeddedWide.value)
-const showTocPanel = computed(() => embeddedViewportWidth.value >= EMBED_XL_BREAKPOINT)
+const showTocPanel = computed(() => embeddedViewportWidth.value >= TOC_BREAKPOINT)
 
 let docsPageResizeObserver: ResizeObserver | null = null
 
@@ -230,6 +231,7 @@ type MermaidModule = typeof import('mermaid')
 
 let mermaidModulePromise: Promise<MermaidModule['default']> | null = null
 let mermaidRenderSequence = 0
+let mermaidRenderRevision = 0
 
 const getMermaid = async () => {
   if (!mermaidModulePromise) {
@@ -298,6 +300,14 @@ const currentSlug = computed<DocsSlug>(() => {
   return (docsRegistry.hasPage(slug) ? slug : docsRegistry.defaultSlug) as DocsSlug
 })
 const currentPage = computed(() => docsRegistry.getPage(currentSlug.value))
+watch(
+  [currentPage, locale],
+  ([page, language]) => {
+    document.documentElement.lang = language
+    document.title = `${page.title[language]} · QYSYW Docs`
+  },
+  { immediate: true },
+)
 const appBaseUrlLabel = toUrlLabel(appBaseUrl)
 const swaggerDocsUrlLabel = toUrlLabel(swaggerDocsUrl)
 
@@ -309,21 +319,20 @@ const ui = computed(() => ({
   mainSite: locale.value === 'en' ? 'Main site' : '进入应用',
   navigation: locale.value === 'en' ? 'Documentation' : '文档导航',
   updated: locale.value === 'en' ? 'Updated' : '更新于',
-  actions: locale.value === 'en' ? 'Page actions' : '页面操作',
-  clear: locale.value === 'en' ? 'Clear' : '清除',
-  noResults:
-    locale.value === 'en'
-      ? 'No matching documents. Try another search term.'
-      : '没有找到匹配的文档，请尝试其他关键词。',
-  search: locale.value === 'en' ? 'Search docs' : '搜索文档',
-  searchPlaceholder:
-    locale.value === 'en' ? 'Search title, tag, or content' : '搜索标题、标签或正文',
-  pages: locale.value === 'en' ? 'Pages' : '文档目录',
-  searchResults: locale.value === 'en' ? 'Search results' : '搜索结果',
-  matches: locale.value === 'en' ? 'matches' : '条匹配',
   toc: locale.value === 'en' ? 'On this page' : '本页目录',
   quickLinks: locale.value === 'en' ? 'Quick links' : '快捷链接',
   copyPage: locale.value === 'en' ? 'Copy page link' : '复制页面链接',
+  copied: locale.value === 'en' ? 'Link copied' : '链接已复制',
+  copyFailed:
+    locale.value === 'en'
+      ? 'Copy failed. Copy the URL from your address bar.'
+      : '复制失败，请从地址栏手动复制链接。',
+  table:
+    locale.value === 'en'
+      ? 'Table; scroll horizontally for more columns'
+      : '表格，可横向滚动查看更多列',
+  diagram:
+    locale.value === 'en' ? 'Diagram; scroll horizontally to explore' : '图表，可横向滚动查看',
   glossary: locale.value === 'en' ? 'Glossary appendix' : '术语附录',
   glossaryLead:
     locale.value === 'en'
@@ -488,10 +497,11 @@ const renderMarkdownWithAnchors = (
 const renderMermaidDiagrams = async () => {
   if (typeof window === 'undefined') return
 
+  const revision = ++mermaidRenderRevision
   await nextTick()
 
   const container = articlePanelRef.value
-  if (!container) return
+  if (!container || revision !== mermaidRenderRevision) return
 
   const nodes = Array.from(container.querySelectorAll<HTMLElement>('pre code.language-mermaid'))
 
@@ -499,9 +509,16 @@ const renderMermaidDiagrams = async () => {
     return
   }
 
-  const mermaid = await getMermaid()
+  let mermaid: MermaidModule['default']
+  try {
+    mermaid = await getMermaid()
+  } catch {
+    return
+  }
+  if (revision !== mermaidRenderRevision) return
 
   for (const node of nodes) {
+    if (revision !== mermaidRenderRevision || !node.isConnected) return
     const parentPre = node.closest('pre')
     if (!parentPre || parentPre.dataset.mermaidProcessed === 'true') {
       continue
@@ -514,9 +531,16 @@ const renderMermaidDiagrams = async () => {
 
     try {
       const { svg } = await mermaid.render(renderId, source)
+      if (revision !== mermaidRenderRevision || !node.isConnected) return
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram-block'
+      wrapper.tabIndex = 0
+      wrapper.setAttribute('role', 'region')
+      wrapper.setAttribute('aria-label', ui.value.diagram)
       wrapper.innerHTML = svg
+      const svgElement = wrapper.querySelector('svg')
+      const naturalWidth = svgElement?.viewBox.baseVal.width
+      if (svgElement && naturalWidth) svgElement.style.width = `${naturalWidth}px`
       parentPre.replaceWith(wrapper)
     } catch (error) {
       console.error('Failed to render mermaid diagram', error)
@@ -581,6 +605,15 @@ const renderedContent = computed(() => {
     if (isEmbedded.value) destination.searchParams.set('embed', '1')
     link.setAttribute('href', `${destination.pathname}${destination.search}${destination.hash}`)
   }
+  for (const table of container.querySelectorAll('table')) {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'docs-table-scroll'
+    wrapper.tabIndex = 0
+    wrapper.setAttribute('role', 'region')
+    wrapper.setAttribute('aria-label', ui.value.table)
+    table.before(wrapper)
+    wrapper.append(table)
+  }
   return container.innerHTML
 })
 
@@ -637,6 +670,8 @@ watch(
   () => {
     navigationOpen.value = false
     closeCompactToc()
+    pageCopySequence++
+    pageCopyState.value = 'idle'
   },
 )
 
@@ -648,8 +683,14 @@ const handleSearchShortcut = (event: KeyboardEvent) => {
 }
 
 const copyCurrentPageUrl = async () => {
+  const sequence = ++pageCopySequence
   const url = new URL(`/${locale.value}/${currentPage.value.slug}`, window.location.origin)
-  await navigator.clipboard.writeText(url.toString())
+  try {
+    await navigator.clipboard.writeText(url.toString())
+    if (sequence === pageCopySequence) pageCopyState.value = 'copied'
+  } catch {
+    if (sequence === pageCopySequence) pageCopyState.value = 'failed'
+  }
 }
 
 watch(
@@ -687,6 +728,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  mermaidRenderRevision++
+  pageCopySequence++
   docsPageResizeObserver?.disconnect()
   docsPageResizeObserver = null
   window.removeEventListener('keydown', handleSearchShortcut)
@@ -884,9 +927,6 @@ onBeforeUnmount(() => {
   font-size: 15px;
   line-height: 1.8;
 }
-.hero-side-label {
-  display: none;
-}
 .doc-actions {
   display: flex;
   flex-wrap: wrap;
@@ -895,6 +935,16 @@ onBeforeUnmount(() => {
 .doc-actions .action-button {
   min-height: 36px;
   font-size: 12px;
+}
+.page-copy-feedback {
+  align-self: center;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--docs-muted);
+}
+.page-copy-feedback:empty {
+  display: none;
 }
 .result-panel {
   padding: 20px;
@@ -994,6 +1044,12 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+@media (pointer: coarse) {
+  .doc-actions .action-button {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 759px) {
   .docs-page {
     padding: 8px 12px 32px;
@@ -1052,6 +1108,7 @@ onBeforeUnmount(() => {
   margin: 24px 0;
   padding: 16px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--docs-diagram-border);
   border-radius: 8px;
   background: var(--docs-diagram-bg);
@@ -1060,10 +1117,13 @@ onBeforeUnmount(() => {
 
 :deep(.mermaid-diagram-block svg) {
   display: block;
-  max-width: 100%;
+  max-width: none;
   height: auto;
   margin: 0 auto;
-  min-width: min(100%, 1080px);
+}
+
+:deep(.mermaid-diagram-block svg foreignObject *) {
+  color: #0f172a !important;
 }
 
 :deep(.mermaid-diagram-block svg text) {
@@ -1140,6 +1200,10 @@ onBeforeUnmount(() => {
   scroll-margin-top: var(--docs-anchor-offset);
 }
 
+.article-panel :deep([tabindex]) {
+  scroll-margin-top: var(--docs-anchor-offset);
+}
+
 .article-panel :deep(.glossary-anchor) {
   display: block;
   position: relative;
@@ -1170,14 +1234,15 @@ onBeforeUnmount(() => {
 }
 
 .article-panel :deep(.glossary-term-link) {
-  color: var(--docs-primary-strong);
-  font-weight: 700;
+  color: inherit;
+  font-weight: inherit;
   text-decoration: underline dotted;
+  text-decoration-color: var(--docs-muted-soft);
   text-underline-offset: 0.18em;
 }
 
 .article-panel :deep(.glossary-term-link:hover) {
-  color: var(--docs-primary);
+  color: var(--docs-primary-strong);
 }
 
 .article-panel :deep(p + p) {
@@ -1244,6 +1309,8 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   background: var(--docs-primary-soft);
   color: var(--docs-primary-strong);
+  font-size: 0.9em;
+  font-family: 'Cascadia Code', Consolas, 'SFMono-Regular', monospace;
 }
 
 .article-panel :deep(pre) {
@@ -1262,17 +1329,58 @@ onBeforeUnmount(() => {
 }
 
 .article-panel :deep(table) {
-  display: block;
+  display: table;
   width: 100%;
-  max-width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
-  overflow-x: auto;
-  border-radius: 6px;
   background: var(--docs-table-bg);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.article-panel :deep(.docs-table-scroll) {
+  max-width: 100%;
+  margin: 24px 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--docs-border);
+  border-radius: 6px;
+}
+
+.article-panel :deep(th) {
+  background: var(--docs-surface-muted);
+  font-weight: 600;
+}
+
+.article-panel :deep(tr:nth-child(even) td) {
+  background: var(--docs-primary-soft);
+}
+
+.article-panel :deep(blockquote) {
+  margin: 24px 0;
+  padding: 4px 18px;
+  border-left: 3px solid var(--docs-primary);
+  border-radius: 0 6px 6px 0;
+  background: var(--docs-primary-soft);
+}
+
+.article-panel :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.article-panel :deep(a:not(.glossary-term-link):not(.docs-jump-card)) {
+  color: var(--docs-primary-strong);
+  text-underline-offset: 0.2em;
+}
+
+.article-panel :deep(a:not(.glossary-term-link):not(.docs-jump-card):hover) {
+  text-decoration-thickness: 2px;
 }
 
 .article-panel :deep(th),
 .article-panel :deep(td) {
+  min-width: 140px;
   padding: 12px 14px;
   border: 1px solid var(--docs-border);
   text-align: left;

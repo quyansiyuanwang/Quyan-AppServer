@@ -58,8 +58,9 @@
   font-size: 13px;
 }
 
-.article-panel .docs-code-block code {
+.article-panel .docs-code-block pre code {
   font-family: 'Cascadia Code', Consolas, 'SFMono-Regular', monospace;
+  font-size: inherit;
 }
 
 .article-panel .docs-code-block.is-wrapped pre {

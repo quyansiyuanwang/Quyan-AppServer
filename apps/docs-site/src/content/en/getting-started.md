@@ -9,7 +9,11 @@ Find guidance for account, product, and administration tasks. Browse the navigat
 3. Choose a topic from the documentation navigation or search for an action. Switching languages keeps you on the current article.
 4. To share guidance, use the copy page link action. It links to the article in the current language without search criteria, section anchors, or embedded state.
 
-The copy button requires browser clipboard access. If copying fails or the button is hidden in a narrow embedded window, open the standalone documentation site and copy the browser address. To share a section, select its table-of-contents link first, then copy the address from the browser.
+On narrow screens, use the top menu button to open the documentation navigation, or select Search to find a page. You can also search with Ctrl+K (Cmd+K on macOS). Expand On this page before the article to see its sections; selecting a section closes the list.
+
+Code blocks offer Copy and Wrap lines buttons. Long lines keep their original structure by default and can be scrolled horizontally. Enable Wrap lines to wrap text in that code block. Copied text excludes the buttons and language label.
+
+Copy buttons require browser clipboard access. If copying a page link fails, copy the address from your browser. For an embedded window, open the standalone documentation site first. To share a section, select its table-of-contents link first, then copy the address from the browser.
 
 If you forgot your password, see [Reset your password]({{DOCS_BASE_URL}}/en/forgot-password).
 

@@ -10,7 +10,6 @@ export function useActiveHeading(
   let headings: HTMLElement[] = []
   let revision = 0
   const update = () => {
-    frame = 0
     let current = headings[0]
     for (const heading of headings) {
       if (heading.getBoundingClientRect().top > offset.value + 40) break
@@ -19,7 +18,11 @@ export function useActiveHeading(
     activeId.value = current?.id ?? ''
   }
   const schedule = () => {
-    if (!frame) frame = requestAnimationFrame(update)
+    if (!frame)
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        update()
+      })
   }
   watch(
     [article, content],

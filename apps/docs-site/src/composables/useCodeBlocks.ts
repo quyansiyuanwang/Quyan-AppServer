@@ -2,6 +2,8 @@ import { nextTick, onScopeDispose, watch, type Ref } from 'vue'
 import type { DocsLocale } from '@/docs'
 import '@/styles/code-blocks.css'
 
+const COPY_FEEDBACK_DURATION_MS = 2000
+
 export function useCodeBlocks(
   article: Ref<HTMLElement | null>,
   content: Ref<string>,
@@ -28,6 +30,11 @@ export function useCodeBlocks(
       if (!root || currentRevision !== revision) return
       events = new AbortController()
       const signal = events.signal
+      // Locale changes can leave identical Markdown HTML in place. Rebuild its controls too.
+      for (const wrapper of root.querySelectorAll('.docs-code-block')) {
+        const pre = wrapper.querySelector('pre')
+        if (pre) wrapper.replaceWith(pre)
+      }
       const english = locale.value === 'en'
       const labels = {
         copy: english ? 'Copy' : '复制',
@@ -73,16 +80,25 @@ export function useCodeBlocks(
         const status = document.createElement('span')
         status.className = 'docs-code-status'
         status.setAttribute('role', 'status')
+        let feedbackTimer: ReturnType<typeof setTimeout> | undefined
+        let copySequence = 0
         copy.addEventListener(
           'click',
           async () => {
+            const sequence = ++copySequence
+            if (feedbackTimer !== undefined) {
+              clearTimeout(feedbackTimer)
+              timers.delete(feedbackTimer)
+            }
+            copy.textContent = labels.copy
+            status.textContent = ''
             try {
               await navigator.clipboard.writeText(source)
-              if (signal.aborted) return
+              if (signal.aborted || sequence !== copySequence) return
               copy.textContent = labels.copied
               status.textContent = labels.copied
             } catch {
-              if (signal.aborted) return
+              if (signal.aborted || sequence !== copySequence) return
               status.textContent = labels.failed
               return
             }
@@ -90,7 +106,8 @@ export function useCodeBlocks(
               copy.textContent = labels.copy
               status.textContent = ''
               timers.delete(timer)
-            }, 2000)
+            }, COPY_FEEDBACK_DURATION_MS)
+            feedbackTimer = timer
             timers.add(timer)
           },
           { signal },
