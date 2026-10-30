@@ -8,7 +8,7 @@
       'is-embedded-xl': isEmbeddedExtraWide,
     }"
   >
-    <header class="docs-topbar" :class="{ 'is-embedded': isEmbedded }">
+    <header ref="docsTopbarRef" class="docs-topbar" :class="{ 'is-embedded': isEmbedded }">
       <div class="brand-block">
         <div class="brand-mark">Q</div>
         <div>
@@ -204,6 +204,7 @@ const query = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const articlePanelRef = ref<HTMLElement | null>(null)
 const docsPageRef = ref<HTMLElement | null>(null)
+const docsTopbarRef = ref<HTMLElement | null>(null)
 const isEmbedded = computed(() => route.query.embed === '1')
 const embeddedViewportWidth = ref<number>(0)
 const appBaseUrl = APP_BASE_URL
@@ -225,7 +226,7 @@ const showTocPanel = computed(() => !isEmbedded.value || isEmbeddedExtraWide.val
 
 let docsPageResizeObserver: ResizeObserver | null = null
 
-const updateEmbeddedViewportWidth = () => {
+const updateDocsLayout = () => {
   if (typeof window === 'undefined') {
     return
   }
@@ -235,6 +236,10 @@ const updateEmbeddedViewportWidth = () => {
     document.documentElement?.clientWidth ||
     window.visualViewport?.width ||
     window.innerWidth
+  docsPageRef.value?.style.setProperty(
+    '--docs-topbar-height',
+    `${docsTopbarRef.value?.offsetHeight ?? 0}px`,
+  )
 }
 
 type MermaidModule = typeof import('mermaid')
@@ -668,17 +673,18 @@ watch([renderedContent, locale], () => {
 })
 
 onMounted(() => {
-  updateEmbeddedViewportWidth()
+  updateDocsLayout()
   if (typeof ResizeObserver !== 'undefined' && docsPageRef.value) {
     docsPageResizeObserver = new ResizeObserver(() => {
-      updateEmbeddedViewportWidth()
+      updateDocsLayout()
     })
     docsPageResizeObserver.observe(docsPageRef.value)
+    if (docsTopbarRef.value) docsPageResizeObserver.observe(docsTopbarRef.value)
   }
 
   window.addEventListener('keydown', handleSearchShortcut)
-  window.addEventListener('resize', updateEmbeddedViewportWidth)
-  window.visualViewport?.addEventListener('resize', updateEmbeddedViewportWidth)
+  window.addEventListener('resize', updateDocsLayout)
+  window.visualViewport?.addEventListener('resize', updateDocsLayout)
   void renderMermaidDiagrams()
 })
 
@@ -686,13 +692,15 @@ onBeforeUnmount(() => {
   docsPageResizeObserver?.disconnect()
   docsPageResizeObserver = null
   window.removeEventListener('keydown', handleSearchShortcut)
-  window.removeEventListener('resize', updateEmbeddedViewportWidth)
-  window.visualViewport?.removeEventListener('resize', updateEmbeddedViewportWidth)
+  window.removeEventListener('resize', updateDocsLayout)
+  window.visualViewport?.removeEventListener('resize', updateDocsLayout)
 })
 </script>
 
 <style scoped>
 .docs-page {
+  --docs-anchor-offset: calc(var(--docs-topbar-height, 0px) + 24px);
+
   min-height: 100vh;
   max-width: var(--docs-max-width);
   margin: 0 auto;
@@ -701,6 +709,8 @@ onBeforeUnmount(() => {
 }
 
 .docs-page.is-embedded {
+  --docs-anchor-offset: 24px;
+
   min-height: auto;
   padding: 0;
 }
@@ -1368,13 +1378,13 @@ onBeforeUnmount(() => {
 .article-panel :deep(h2),
 .article-panel :deep(h3) {
   margin-top: 1.6em;
-  scroll-margin-top: 24px;
+  scroll-margin-top: var(--docs-anchor-offset);
 }
 
 .article-panel :deep(.glossary-anchor) {
   display: block;
   position: relative;
-  top: -24px;
+  top: calc(-1 * var(--docs-anchor-offset));
   visibility: hidden;
 }
 
