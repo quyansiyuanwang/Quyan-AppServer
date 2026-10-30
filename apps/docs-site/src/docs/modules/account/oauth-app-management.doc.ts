@@ -3,8 +3,8 @@ import contentZh from '@/content/zh-CN/oauth-app-management.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
+  updatedAt: '2026-10-30',
   slug: 'oauth-app-management',
-  updatedAt: '2026-10-29',
   category: {
     en: 'Account',
     'zh-CN': '账号',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': 'OAuth 应用管理',
   },
   summary: {
-    en: 'Register applications, manage redirect URIs, and rotate client secrets safely.',
-    'zh-CN': '说明应用注册、回调地址管理，以及如何安全轮换客户端密钥。',
+    en: 'Register applications, submit for review, manage callbacks, and handle secret rotation and issued tokens.',
+    'zh-CN': '注册应用、提交审核、配置回调地址，并了解密钥轮换及已签发令牌的处理。',
   },
   tags: ['oauth', 'application', 'client'],
   content: {
