@@ -8,7 +8,46 @@ Use this page to manage relay tokens, channel routing, quotas, and failover beha
 - Review token usage, expiry, and quota windows.
 - Control channel ordering and failover strategy.
 - Enable or disable tokens without deleting them immediately.
-- Bulk import and export token and channel configurations.
+- Bulk import/export token configuration and channel references within a token.
+
+## Before you begin
+
+Confirm you can read your tokens and perform the required operation. Creation, updates, credential disclosure, export and deletion are separate permissions. Seeing a token does not mean you can copy its secret. When managing another user, select the target and wait for tokens and channels to reload before editing.
+
+### Create a token and obtain its credential
+
+1. Choose Create, enter a recognizable name and optionally set expiry. Leave the custom-key field empty for a generated credential. A supplied value requires separate permission and remains subject to server availability, count and attempt limits.
+2. Select ordered channels, an automatic pool or a composition. Ordered channels follow list order. Adding fallbacks alone does not enable automatic switching; configure and enable failover too.
+3. Set an overall spending cap, quota windows, model restrictions, IP allowlist or protocol conversion as needed. Quota windows require the master switch and valid rules; all configured windows apply. Turning the master switch off and saving removes the window rules rather than merely pausing measurement.
+4. Save and complete step-up verification when prompted. The drawer closes and the list refreshes after success. Copy the new row's credential. If only metadata is returned, request disclosure permission; never substitute the Token ID.
+5. Find the deployment endpoint in API documentation, then verify an actual request and its usage with the credential.
+
+### Edit, rotate and delete
+
+- Refresh the list before editing an ordinary token. The drawer uses the list's configuration without automatically fetching fresh details, and saves the complete form. An empty custom-key field preserves the credential. Clearing expiry or the overall cap removes that limit; an empty name clears the name.
+- A saved composite token currently cannot have its complete configuration, including members or routing mode, changed through this editor. Configure it before creation or conversion from an ordinary token. To change it, create a replacement composition and update callers. Enable/disable, refresh and delete are separate operations.
+- Confirming credential refresh rotates it immediately and invalidates the old value. Rotation does not reset usage, extend expiry or enable a disabled token. The page attempts to copy the new value. Clipboard failure does not mean rotation failed: refresh the list, copy manually and update callers.
+- Disabling retains settings and usage history. Re-enabling remains subject to expiry and quotas. Deletion requires confirmation and cannot be undone by enabling. Existing composition references remain, but that branch becomes unavailable.
+
+### Import, export and batch operations
+
+Select targets before a batch action. Select all covers currently displayed rows, excluding other pages in paged mode. Show-all and search load authorized tokens locally and may take time for large lists. Refresh to check current server state.
+
+JSON export uses the server export endpoint and includes authorized selected credentials and configuration; protect it like a password. Import accepts an array or JSON containing a `tokens` array and creates entries immediately. Existing entries remain unchanged; name collisions receive copy suffixes. Credential conflicts can generate new values, so retrieve actual credentials from the list afterward. Composite members must already exist under the target owner; importing entries in order does not automatically remap their references. IAM enforcement accepts up to 200 items per atomic batch; see the permission reference for details.
+
+Copying immediately creates enabled tokens with fresh credentials and zero usage, but retains settings such as expiry, so copying an expired source may still produce an unusable token. Batch enable/disable saves immediately; delete and clear content-safety overrides require confirmation. A safety snapshot stores the target user's then-effective settings; clearing overrides restores inheritance from user and system rules.
+
+### Channel-reference import/export inside the drawer
+
+These controls manage ordered channel references for the token, not platform channels:
+
+- Import accepts channel-ID strings or objects containing `channelId`. It **replaces the draft list** in array order and does not sort by an imported `priority`. IDs must be nonempty and unique.
+- Batch add appends previously absent channels in selection order; batch remove removes selected references. Save the token afterward to persist these draft changes.
+- Export and copy use the complete current draft, including unsaved changes, regardless of checked reference rows. They contain only channel IDs, names and order, with no upstream URLs or keys, and do not create destination channels.
+
+### When an operation fails
+
+A failed list load may leave old content visible. Refresh successfully before editing. If a credential cannot be copied, check disclosure permission. If a channel is missing, check the selected owner, channel read/selection permissions, visibility and status. After a network failure during save or import, refresh to determine whether it committed before retrying and creating duplicates.
 
 ## What you will see
 
@@ -84,7 +123,7 @@ The resolved pool member determines the upstream, model capabilities, and billin
 - Enable or disable token.
 - Delete token.
 - **Batch operations**: import / export token list (JSON format).
-- **Channel batch operations**: import / export channel configurations, or select multiple channels and append them to the ordered list in selection order.
+- **Channel-reference batch operations**: import/export references within a token or append channels in selection order, then save the token.
 
 ## Common actions
 
@@ -98,9 +137,9 @@ The resolved pool member determines the upstream, model capabilities, and billin
 
 ## Call AI after creating a token
 
-After creation, copy the **Relay Base URL** shown at the top of the token drawer and store the new token in the caller's server-side environment. Do not commit it to source control, expose it in browser code, or use it as an admin-site login credential.
+After creation, copy the authorized credential from the token list and obtain the protocol endpoint from the endpoint tab in [API documentation]({{DOCS_BASE_URL}}/en/api-documentation). Store the token in the caller's server-side environment. Do not commit it to source control, expose it in browser code, or use it as an admin-site login credential.
 
-Call `Relay Base URL + /v1/models` first to confirm which models are available. For OpenAI Chat Completions, use `Relay Base URL + /v1/chat/completions` and send:
+Use `Relay Base URL + /v1/models` on the Chat Completions entry point to check its available models; this is not a universal catalog for every protocol. For OpenAI Chat Completions, use `Relay Base URL + /v1/chat/completions` and send:
 
 ```text
 Authorization: Bearer <relay_token>
@@ -123,7 +162,7 @@ When a token uses an automatic proxy pool, you can block members that should not
 
 ## Composite tokens: ordered members from your own tokens
 
-Choose **Composite Token** in the create or edit drawer, search your own Relay Tokens, then order and enable or disable members. Members can use ordered channels, automatic pools, or another composite token. The composition references member IDs instead of copying secrets or channel settings. Administrators managing another account cannot combine tokens across owners.
+Choose **Composite Token** when creating a token or converting an ordinary token, search your own Relay Tokens, then order and enable or disable members. Members can use ordered channels, automatic pools, or another composite token. The composition references member IDs instead of copying secrets or channel settings. Administrators managing another account cannot combine tokens across owners.
 
 - Saving confirms the members and order. Switching modes clears the previous bindings while retaining the token value and historical usage; source tokens are not modified.
 - A path supports **four composite levels**, excluding its ordinary leaf token. Each composition supports **20 direct members** and an entry supports **100 leaf paths**. Self-reference and cycles are rejected, including through disabled bindings.
@@ -135,7 +174,7 @@ Choose **Composite Token** in the create or edit drawer, search your own Relay T
 
 Request model mappings, protocol conversions and applicable normalization run outside-in before the ordinary leaf selects a physical channel. Response protocol conversion runs inside-out. Every level independently enforces its model allow-list, expiry, IP and quota rules, and descendants cannot disable ancestor safety requirements. Safety rejection cannot be bypassed with a fallback. Conversion supports only the existing converters' supported fields and explicitly rejects unsafe conversions. Streaming preflight uses the smallest buffer limit along the executed path.
 
-Preview describes capabilities and configured order, not guaranteed availability: IP, quota, safety and upstream health are checked at request time. Member changes and disabling affect subsequent requests. Secret rotation does not require reconfiguring the composition because references use IDs. In-flight requests retain their routing snapshot.
+Preview describes capabilities and configured order, not guaranteed availability: IP, quota, safety and upstream health are checked at request time. Configuration changes to member tokens and disabling them affect subsequent requests. Secret rotation does not require reconfiguring the composition because references use IDs. In-flight requests retain their routing snapshot.
 
 ### Resource-scoped model discovery
 
@@ -272,7 +311,7 @@ With IAM enforcement enabled, single and batch deletion check `quyan:relay:Delet
 
 A batch accepts at most 200 distinct token IDs. If any target is missing, already deleted, outside the selected user, denied, or affected by an identity, authorization or resource change during execution, the entire request fails without partially deleting tokens. Disabled or expired tokens may still be deleted when authorized. Single deletion follows the same checks.
 
-Deletion makes a token unavailable without removing existing composite-member references or historical usage. A composite branch referencing it becomes unavailable; edit the composition separately to remove that reference. The endpoints retain replay protection and step-up verification. Legacy and shadow modes continue to execute the existing deletion behavior; the resource-level and all-or-nothing guarantees above apply to enforce mode.
+Deletion makes a token unavailable without removing existing composite-member references or historical usage. A composite branch referencing it becomes unavailable. Complete editing does not currently support saved compositions; create a replacement composition when references need to change. The endpoints retain replay protection and step-up verification. Legacy and shadow modes continue to execute the existing deletion behavior; the resource-level and all-or-nothing guarantees above apply to enforce mode.
 
 ### Batch status and content-safety configuration
 
