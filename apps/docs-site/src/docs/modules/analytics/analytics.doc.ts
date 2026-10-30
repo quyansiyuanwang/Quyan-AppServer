@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'analytics',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Analytics',
     'zh-CN': '数据分析',
@@ -13,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '数据分析',
   },
   summary: {
-    en: 'Track user behavior with event overview, conversion funnels, and click heatmaps.',
-    'zh-CN': '通过事件概览、转化漏斗和点击热力图追踪用户行为。',
+    en: 'Query event overviews, session funnels, and heatmaps with clear time, count, and permission limits.',
+    'zh-CN': '查询事件总览、会话漏斗和热力图，了解时间、统计数量及报表授权范围。',
   },
-  tags: ['analytics', 'funnel', 'heatmap', 'tracking', 'events'],
+  tags: ['analytics', 'funnel', 'heatmap', 'tracking', 'events', '漏斗', '热力图', '会话'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,

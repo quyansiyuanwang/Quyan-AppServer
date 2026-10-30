@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'notification-settings',
-  updatedAt: '2026-10-10',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Account',
     'zh-CN': '账号',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '通知设置',
   },
   summary: {
-    en: 'Manage email alerts, webhook targets, thresholds, and delivery history.',
-    'zh-CN': '说明通知邮箱、Webhook、告警阈值和投递历史。',
+    en: 'Configure event subscriptions, test saved destinations, and review inbox and delivery results.',
+    'zh-CN': '配置事件订阅、测试已保存的通知目标，并查看站内消息和投递结果。',
   },
   tags: ['notification', 'email', 'webhook'],
   content: {

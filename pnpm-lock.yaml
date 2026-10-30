@@ -327,6 +327,9 @@ importers:
 
   apps/docs-site:
     dependencies:
+      highlight.js:
+        specifier: ^11.11.1
+        version: 11.11.1
       marked:
         specifier: ^17.0.0
         version: 17.0.6

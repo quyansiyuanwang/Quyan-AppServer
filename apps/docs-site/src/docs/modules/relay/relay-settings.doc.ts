@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'relay-settings',
-  updatedAt: '2026-10-16',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Relay',
     'zh-CN': '转发',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '转发设置',
   },
   summary: {
-    en: 'Configure relay-wide behavior, monitoring rules, and pricing settings.',
-    'zh-CN': '说明全局转发行为、监控规则和价格配置。',
+    en: 'Save relay settings and model prices, maintain channels and pools, and check permissions.',
+    'zh-CN': '说明全局配置与定价保存、渠道和混池维护流程及权限条件。',
   },
   tags: ['relay', 'settings', 'pricing'],
   content: {

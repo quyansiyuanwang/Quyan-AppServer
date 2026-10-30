@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'article-management',
-  updatedAt: '2026-10-09',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -14,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '文章管理',
   },
   summary: {
-    en: 'Create, edit, publish, and sort articles and knowledge pages.',
-    'zh-CN': '说明文章与知识内容的创建、编辑、发布和排序。',
+    en: 'Save drafts, publish articles, control reader access, and set reading order and the site default.',
+    'zh-CN': '保存草稿、发布文章、设置阅读范围，并管理排序与全站默认文章。',
   },
-  tags: ['article', 'editor', 'publish'],
+  tags: ['article', 'editor', 'draft', 'publish', 'default', 'iam'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,
