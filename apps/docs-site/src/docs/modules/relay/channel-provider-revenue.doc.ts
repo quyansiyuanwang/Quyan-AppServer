@@ -7,10 +7,10 @@ export default defineDocsPage({
   category: { en: 'Relay', 'zh-CN': '转发' },
   title: { en: 'Channel supply and earnings', 'zh-CN': '渠道供应与收益' },
   summary: {
-    en: 'Submit standalone relay channels and understand provider earnings.',
-    'zh-CN': '提交独立中转渠道并了解提供者收益。',
+    en: 'Submit and revise supplied channels, follow reviews, and understand earnings and manual settlement limits.',
+    'zh-CN': '提交与修改供应渠道、跟踪审核，并了解收益计算及手动结算范围。',
   },
-  tags: ['relay', 'channel', 'provider', 'earnings'],
-  updatedAt: '2026-10-29',
+  tags: ['relay', 'channel', 'provider', 'earnings', 'review', 'settlement'],
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
