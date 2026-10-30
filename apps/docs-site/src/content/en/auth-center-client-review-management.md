@@ -1,177 +1,76 @@
-# Auth Center app review management
+# Auth Center app review
 
-Use this page to review submitted Auth Center apps. It is a reviewer-facing page that helps determine whether a record is safe and complete enough for third-party systems to use this platform as an authentication center.
+Platform reviewers use this page to find Auth Center applications, approve or reject submissions, and delete applications that should no longer be used. To maintain your own apps, use [Auth Center app management](/en/auth-center-client-management).
 
-## Page purpose
+## Before you begin
 
-- Review pending or historical Auth Center app submissions.
-- Filter by keyword and review status.
-- Inspect the displayed client type, grant types, and redirect URI summary.
-- Approve or reject apps in `pending`.
-- Delete invalid or unnecessary records when needed.
+- Page access and listing require `auth_center:client:review:read`. Approval, rejection, and reviewer deletion require `auth_center:client:review:update`.
+- With IAM enforcement, listing requires membership in an actual platform global management group containing review-read permission. Review or deletion requires review-update permission in that group. Account ownership, additional permissions, and account-created groups cannot independently provide platform reviewer eligibility.
+- The review resource also requires separate grants for `quyan:auth_center:ListClientReviews`, `quyan:auth_center:ReviewClient`, and `quyan:auth_center:DeleteReviewedClient`. Its ARN is `acs:platform:*:platform:auth-center-review-client/<recordId>`. The last segment is the application record ID, not its public Client ID.
+- Explicit denies and role session restrictions still apply. List items and totals include only authorized applications. Listing or maintaining your own apps does not grant review or reviewer deletion. OAuth access tokens cannot call review endpoints.
 
-## What you will see
+## Find submissions
 
-### Filter area
+1. Select `pending` for submissions awaiting review, or another status for drafts and historical records.
+2. Enter an application name, owner username, or Client ID keyword, then press Enter or select search. Typing alone does not run a query.
+3. Check the listed name, owner, Client ID, client type, grant types, callback summary, and submission and review times.
 
-Common filters include:
+Searching, clearing the keyword, and changing status reset to page one. The default size is 20; available sizes are 10, 20, 50, and 100. Changing size also resets to page one. Refresh keeps the current page; there is no automatic polling. Results are ordered by submission time ascending and creation time descending.
 
-- keyword
-- review status
+## Check integration details
 
-Keywords search the app name, owner username, or `clientId`.
+The list displays at most two callbacks and a count for the rest. The review dialog contains only the decision and comment; it does not show full callbacks, scopes, token lifetimes, or PKCE. Confirm missing information with the owner before deciding.
 
-### Review list
+| Check                                 | What to confirm                                                                                                                           |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Client type                           | Confidential clients have a trusted backend for secrets; public clients do not depend on embedded secrets                                 |
+| Grant types                           | User flows use authorization code, with refresh enabled if needed; machine grants are confidential only                                   |
+| Callbacks and authorization interface | Controlled ownership, separate environments, exact request matching, and an authorization interface supplied by the deployment            |
+| Scopes                                | Necessary and minimal; allowed scopes do not mean the user already consented                                                              |
+| PKCE                                  | Mandatory for public authorization-code clients; integration uses the S256 challenge and verifier from the same attempt                   |
+| Lifetime and revocation               | Refresh lifetime is not shorter than access lifetime; integrator understands local JWT verification cannot immediately observe revocation |
 
-The table usually shows:
+The form and server validate grant combinations and lifetime relationships. Review must still determine whether the configuration fits the business use case. Saving successfully is not sufficient grounds for approval.
 
-- app name
-- review status
-- owner username
-- `clientId`
-- `clientType`
-- `grantTypes`
-- redirect URI summary
-- submitted time
-- reviewed time
+## Approve or reject
 
-The list shows at most two redirect URIs and only a count for the rest. The review dialog does not show the full URI list, token lifetimes, or PKCE settings. Ask the app owner to confirm information not shown before completing your review.
+1. Select approve or reject on a `pending` record and check the decision shown in the dialog.
+2. Enter an optional review comment of up to 2,000 characters. Rejections should identify specific corrections instead of only saying that details are wrong.
+3. Submit and check the success notification and refreshed status. The owner reads comments in app management and revises and resubmits if needed.
 
-### Action area
+| Status     | Can approve or reject        | Meaning                                                                    |
+| ---------- | ---------------------------- | -------------------------------------------------------------------------- |
+| `draft`    | No                           | Owner has not submitted                                                    |
+| `pending`  | Yes                          | Authorization and token exchange are unavailable before approval           |
+| `approved` | Cannot review directly again | User or machine authorization is available when other requirements are met |
+| `rejected` | Cannot review directly again | Awaiting owner revision and resubmission                                   |
 
-Common actions include:
+Saving an approved or rejected application returns it to draft and clears the previous comment and review information, even if fields were unchanged. Saving a pending application keeps it `pending`; review the latest details. Approval does not replace user consent, scope checks, or integration business authorization.
 
-- Delete
-- Approve
-- Reject
+Successful submission keeps the current page. Records disappear if they no longer match the filter. If the application, identity, or authorization has changed, refresh and check again instead of resubmitting an old decision.
 
-Only `pending` can be approved or rejected.
+## Delete an application
 
-## Review status flow
+Deletion removes the application itself, rather than a review-history entry. The button can appear for every status. Coordinate retirement and token handling with the owner, check the name and Client ID, then confirm deletion.
 
-Auth Center apps usually move through:
+The app disappears from owner and review lists and can no longer authorize, exchange, or refresh tokens. This page has no restore option. If the last page becomes empty, return to the previous page.
 
-- `draft`
-- `pending`
-- `approved`
-- `rejected`
+**Application deletion and token revocation cannot be observed immediately by pure local JWT verification.** An integration may still accept an issued JWT until its original expiry. Ending existing access also requires the integration's session and authorization policies. A record disappearing does not prove that all access has stopped.
 
-On this page:
+## Troubleshooting
 
-- `pending` means ready for review
-- `approved` means accepted for Auth Center integration use
-- `rejected` means the owner must revise the record
-
-`draft`, `approved`, and `rejected` should not be directly reviewed again here.
-
-## What reviewers should focus on
-
-### Whether `clientType` matches the real architecture
-
-First determine whether the app is really:
-
-- `confidential`, with a trusted backend that can protect secrets
-- or `public`, running on user-controlled devices
-
-If this is wrong, the secret model, PKCE rules, and flow expectations are likely wrong too.
-
-### Whether `grantTypes` are reasonable
-
-Check carefully:
-
-- whether `authorization_code` is actually needed
-- whether `refresh_token` was selected without `authorization_code`
-- whether `client_credentials` was incorrectly enabled on a `public` client
-
-Too many grant types expand risk; too few may fail the business use case.
-
-### Whether `redirectUris` are trustworthy
-
-For apps using `authorization_code`, redirect URIs remain a primary review concern:
-
-- are they controlled endpoints
-- are environments clearly separated
-- do they include temporary or inappropriate external URLs
-
-### Whether token lifetimes are reasonable
-
-Review both:
-
-- whether the access token is too long-lived
-- whether the refresh token is shorter than the access token
-- whether the values match the use case and risk level
-
-If tokens are too long-lived, exposure windows become much larger.
-
-### Whether PKCE requirements fit the client
-
-For `public + authorization_code`, PKCE should be enforced strictly.
-
-If the app cannot safely protect secrets and PKCE is still loosened, review with extra caution.
-
-## What the review dialog does
-
-Approve and reject open a review dialog used to:
-
-- confirm the review decision
-- write a review comment
-
-Comments should be specific, for example:
-
-- production redirect URI is missing
-- `public` client should not enable `client_credentials`
-- access-token lifetime is too long
-
-That makes revision much faster for the owner.
-
-## How to think about deletion
-
-Deletion from the review side is usually for:
-
-- obviously incorrect records
-- duplicate or test data
-- invalid apps that should not remain
-
-If the record still has remediation value, rejecting with a clear comment is usually better than deleting it.
-
-## Common actions
-
-1. Filter to the target app by keyword or status.
-2. Inspect the displayed `clientType`, `grantTypes`, and redirect URI summary; ask the owner to confirm remaining URIs, token lifetimes, and PKCE settings.
-3. Open the review dialog for `pending` apps.
-4. Write a clear comment and approve or reject.
-5. Use delete only for clearly invalid records.
-
-## Permission requirements
-
-This page usually involves:
-
-- `auth_center:client:review:read`
-- `auth_center:client:review:update`
-
-Read permission allows access to the page and list. Update permission is needed to complete approve or reject actions.
-
-## Notes
-
-- This is the reviewer side for Auth Center apps and does not replace [Auth Center client management](/en/auth-center-client-management) for owners.
-- Review is not only about completeness, but also about whether token model, client type, PKCE, and grant types align.
-- Review comments should be concrete enough to support revision and re-review.
-
-## IAM review resource scope
-
-When IAM enforcement is enabled, the review list requires both the review permission supplied by a platform-managed global group and `quyan:auth_center:ListClientReviews` on each application review resource. Account ownership, additional user permissions, and account-created groups cannot independently grant platform reviewer eligibility.
-
-The review ARN is `acs:platform:*:platform:auth-center-review-client/<recordId>`. The record ID is the application database record identifier, not its public login client identifier. This resource is separate from a user's own application management resource. A matching Deny excludes the application. Pagination and total counts include only applications the reviewer is authorized to see; filtering by status or keyword does not reveal other applications.
-
-Review responses show owner and reviewer names, a secret preview, and whether a secret is configured. They do not return the secret or its hash. If the application changes or the reviewer loses permission while data is being loaded, the request is denied.
-
-Approving or rejecting an application requires `quyan:auth_center:ReviewClient`; deleting it from the review page requires `quyan:auth_center:DeleteReviewedClient`. Both actions use the review ARN above and require the platform global group's review-maintenance permission. List permission and own-application edit/delete permission do not grant these actions.
-
-Only pending applications can be reviewed. The server assigns the reviewer and review time; requests cannot change the owner, application configuration, credentials, or approval metadata. If the application, reviewer identity, group, role session, or authorization changes during a review or deletion, the write is denied or rolled back. A successful review does not expose a credential hash or raw secret.
+| Symptom                                      | What to check                                                                                               |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Page opens but listing fails                 | Ask a platform administrator to check global group eligibility, read permission, and review resource grants |
+| Listing works but decisions or deletion fail | Check update permission and the separate review or deletion action; own-app permissions cannot replace them |
+| Complete details are missing                 | Confirm them with the owner; the dialog has no complete-application view                                    |
+| Approve and reject are missing               | Only `pending` is reviewable; wait for owner submission or resubmission                                     |
+| Old records remain after a query error       | Resolve the error and refresh before deciding                                                               |
+| Submission fails with an uncertain outcome   | Refresh and check status and review time before deciding whether to retry                                   |
 
 ## Related pages
 
-- [Auth Center client management](/en/auth-center-client-management)
+- [Auth Center app management](/en/auth-center-client-management)
 - [Auth Center integration](/en/auth-center-app-management)
 - [OAuth app review](/en/oauth-app-review-management)
 - [Business logs](/en/business-logs)

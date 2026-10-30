@@ -1,291 +1,90 @@
 # Auth Center integration
 
-Use this page to register external applications that treat this platform as an authentication center.
+Auth Center issues RS256-signed JWT access tokens to registered integrations. Your system verifies signatures and claims using trusted JWKS, then applies its own business authorization. To extend a user session, exchange a refresh token at Auth Center for new tokens.
 
-## Integration quick start
+## Choose an integration
 
-1. Choose grant types for the integration scenario.
-2. Configure the exact Redirect URI and enable PKCE for authorization-code flows.
-3. Select the minimum required scopes.
-4. Create the app and submit it for review.
-5. Follow the authorization, token, discovery-endpoint, or SDK documentation to integrate.
+| Scenario                                                    | Client and grant types                                             | Tokens                                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Website with a trusted backend; user login or consent       | Confidential, `authorization_code`, optionally `refresh_token`     | User JWT; a refresh token is also issued when refresh grants are enabled |
+| SPA, mobile app, or desktop app without safe secret storage | Public, `authorization_code` with PKCE, optionally `refresh_token` | User JWT; public clients have no Client Secret                           |
+| Backend service or scheduled job without a user             | Confidential, `client_credentials`                                 | Application JWT, without a refresh token                                 |
 
-The Auth Center management page shows the same checklist; submission is blocked while the scope catalog is unavailable.
+Auth Center applications, credentials, and tokens are managed separately from [ordinary OAuth applications](/en/oauth-app-management). Auth Center JWTs are for integrations configured to verify them. Do not assume they replace platform login or ordinary OAuth tokens when calling platform business APIs.
 
-## Application management and review
+## Prepare the integration
 
-To create or maintain an application, see [Manage Auth Center applications](/en/auth-center-client-management). Reviewers can refer to [Auth Center application review](/en/auth-center-client-review-management).
+1. Create an application in [Auth Center app management](/en/auth-center-client-management). Configure client type, minimum grant types, scopes, callbacks, and token lifetimes.
+2. Save a confidential application's Client Secret immediately after creation, then submit for review. Only `approved` applications can authorize, exchange, or refresh tokens.
+3. Ask the deployment administrator for the actual API origin, exact issuer, JWKS URL, and authorization interface URL for user flows.
+4. Define the Client ID, scopes, user or application identity, and post-revocation access controls your system accepts.
 
-## What this feature is
+Auth Center authorization preview and decision are APIs requiring a platform login identity. The deployment must provide an authorization interface calling these APIs. The built-in `/oauth/authorize` page uses separate ordinary OAuth APIs and cannot serve directly as the Auth Center entry point.
 
-This Auth Center feature is **separate from the existing OAuth 2.0 feature set**.
+## Authorize and obtain tokens
 
-It is designed for integrators that want:
+### User authorization-code flow
 
-- a **short-lived JWT access token** for local verification
-- a **long-lived refresh token** that can only be exchanged at the auth center
-- **asymmetric signing** so downstream systems verify access tokens with **JWKS / public keys**
-- per-application control over **access token lifetime** and **refresh token lifetime**
-- both **user login / authorization** flows and **machine-to-machine** flows
+1. Generate random state and a PKCE verifier, then calculate an S256 challenge. PKCE is mandatory for public clients and recommended for confidential clients.
+2. Send the user to the deployment's authorization interface with the Client ID, exact registered callback, requested scopes, state, and challenge.
+3. The interface uses the user's platform login to request a preview and submit the user's explicit approval or denial. A successful response provides `redirectTo`; the interface performs the redirect.
+4. At the callback, verify state for the same attempt, then send the code, callback, verifier, and client information to the token endpoint. Confidential clients include the secret; public clients omit it.
+5. Verify the JWT before establishing your user session. Authorization codes expire after 5 minutes and cannot be reused after successful exchange. Restart authorization after failure or an uncertain outcome.
 
-This means the integrating application can validate the short token on its own, while refresh remains centralized.
+An application's allowed scope is not user consent. Consent and current grantable scopes are still checked. Denial returns callback error information instead of a code. Callback scheme, host, port, path, and trailing slash must match registration exactly.
 
-## Core model
+### Machine-to-machine access
 
-### Access token
+After a confidential application enables `client_credentials` and passes review, its server requests a token with the Client ID and Client Secret, optionally specifying space-separated scopes. The access token represents the application, not a signed-in end user. Request another token after expiry; do not use a refresh token.
 
-- Short-lived
-- JWT format
-- Signed by the platform private key
-- Verified by the integrator with the public key from JWKS
-- Intended to be checked directly by the registered application
+### Refresh and revocation
 
-### Refresh token
+Enabling `refresh_token` also requires `authorization_code`. Successful refresh issues new access and refresh tokens and revokes the refresh token used. Store the replacement securely and coordinate concurrent refreshes. Effective scopes remain limited by user consent and the application's current allowed scopes.
 
-- Longer-lived than the access token
-- Opaque to the integrating application
-- Must be sent back to the auth center for refresh
-- Never verified locally by the third-party application
+Use `POST /v1/auth-center/revoke` for an unneeded token, providing that token and the client's required authentication. Revocation targets the submitted token; revoking one access token does not revoke every refresh token. Complete necessary revocations before deleting an application.
 
-### Important rule for `client_credentials`
+## Endpoints and response formats
 
-When the app uses `client_credentials`:
+These paths are relative to the deployment's API origin. Confirm that the actual proxy paths are reachable first.
 
-- the auth center returns an **access token only**
-- **no refresh token is issued**
+| Method and path                                        | Purpose                                  | Response and identity requirements                                                                                                      |
+| ------------------------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/auth-center/.well-known/openid-configuration` | Discovery information                    | Public read; business envelope `{ code, message, data }`                                                                                |
+| `GET /v1/auth-center/.well-known/jwks.json`            | Verification keys                        | Public read; key set at `data.keys`                                                                                                     |
+| `GET /v1/auth-center/authorize`                        | Authorization preview                    | Platform login and preview action authorization; business envelope                                                                      |
+| `POST /v1/auth-center/authorize`                       | User decision                            | Platform login and decision action authorization; callback at `data.redirectTo`                                                         |
+| `POST /v1/auth-center/token`                           | Code exchange, refresh, or machine grant | JSON request; successful raw response contains `access_token`, `token_type`, `expires_in`, `scope`, and `refresh_token` when applicable |
+| `POST /v1/auth-center/revoke`                          | Revoke the specified token               | Client authentication; successful raw response is `{ revoked: true }`                                                                   |
 
-This keeps machine-to-machine access simpler and avoids unnecessary long-lived credentials.
+Discovery constructs `authorization_endpoint`, `token_endpoint`, and `jwks_uri` from the configured issuer, which may differ from the public routes above. Have the administrator confirm proxy mappings. If those URLs are unreachable, use the supplied actual endpoints and configure JWT verification separately with the exact issuer supplied by the administrator. Resolve inconsistencies between discovery and issuance configuration instead of disabling issuer checks.
 
-## Page purpose
+If a library requires raw JWKS, check HTTP status and numeric `code: 0`, then pass the key set in `data` to the verifier. For token responses, check HTTP success and valid token contents first. Failed responses may also contain fields such as `access_token`; their presence does not prove success. The discovery pathname does not imply ID Token issuance; current token responses do not contain `id_token`.
 
-Use the management page to:
+## Verify JWTs in your system
 
-- create Auth Center apps
-- choose `confidential` or `public` client type
-- choose allowed grant types
-- configure redirect URIs for user-facing flows
-- configure access-token and refresh-token lifetimes
-- rotate client secrets
-- submit apps for review
-- review approval state and reviewer comments
+1. Fetch and cache JWKS from a preconfigured trusted URL and select the key matching the token header's `kid`. Refresh trusted keys for an unknown kid and reject the token if no match exists.
+2. Allow only RS256 and verify the signature, expiry, exact issuer, and expected audience. The audience is the issuing application's public Client ID; do not choose it directly from requester input.
+3. Require `token_use: access_token` and check scopes, grant type, and identity as needed. User flows use the user ID as `sub` and include `uid`. Machine flows use the Client ID as `sub` and do not contain a user identity.
+4. Apply your own permissions using the verified identity. Decoding a JWT or verifying its signature does not grant every business operation.
 
-## Supported grant types
+Local verification alone cannot immediately detect server-side token revocation, application deletion, or account suspension. Choose lifetimes and additional access controls appropriate to the risk. Secret rotation, application deletion, and signing out of the console do not guarantee that every local verifier immediately rejects old JWTs.
 
-### `authorization_code`
+## Troubleshooting
 
-Use for:
+| Symptom                                               | What to check                                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Discovery data cannot be passed to a standard library | Extract `data` from the business envelope and confirm discovered URLs are reachable through the deployment proxy |
+| Authorization URL returns JSON or a sign-in error     | It is an API; use the deployment's authorization interface and platform login identity                           |
+| Exchange or refresh is denied                         | Check approval, allowed grants, secret, callback, PKCE, and whether the code or token is used or expired         |
+| Signature, issuer, or audience validation fails       | Check trusted JWKS, kid, RS256, exact issuer, and your Client ID; do not skip failed checks                      |
+| Machine token has no refresh token                    | `client_credentials` issues access tokens only; request another after expiry                                     |
+| A revoked JWT still works in an integration           | Local verification does not read server-side revocation state; review lifetime and integration access controls   |
 
-- user login
-- delegated user authorization
-- browser, mobile, or backend-assisted login flows
+## Related documentation
 
-Behavior:
-
-- returns a short-lived JWT access token
-- may return a refresh token if enabled for the app
-- requires at least one registered redirect URI
-- public clients must use PKCE: send `code_challenge` in the authorization request and the corresponding `code_verifier` when exchanging the code
-
-### `refresh_token`
-
-Use for:
-
-- obtaining a new short-lived access token after expiry
-
-Behavior:
-
-- can only be used together with `authorization_code`
-- requires the auth center to validate the refresh token
-- returns a new access token and may rotate refresh state depending on server policy
-
-### `client_credentials`
-
-Use for:
-
-- server-to-server integration
-- internal services
-- scheduled jobs
-- backend workers
-
-Behavior:
-
-- authenticates the application itself
-- does **not** represent an end user
-- returns a short-lived JWT access token only
-- does **not** issue a refresh token
-- cannot be enabled on public clients
-
-## Client type guidance
-
-### Confidential client
-
-Use this when the integrating system has a trusted backend and can safely store a secret.
-
-Typical examples:
-
-- SaaS backend
-- internal gateway
-- service API
-- batch job platform
-
-### Public client
-
-Use this when the code runs on user-controlled devices and cannot safely keep a secret.
-
-Typical examples:
-
-- SPA
-- mobile app
-- desktop app
-- browser extension
-
-Public clients using `authorization_code` must enable PKCE. Send `code_challenge` in the authorization request and the corresponding `code_verifier` when exchanging the code.
-
-## JWT and JWKS verification model
-
-The intended split is:
-
-1. The auth center issues a JWT access token.
-2. The registered application fetches the JWKS document.
-3. The application selects the matching `kid`.
-4. The application verifies the JWT signature, issuer, audience, expiry, and claims locally.
-5. When the access token expires, the application sends the refresh token back to the auth center.
-
-This gives you:
-
-- centralized issuance
-- decentralized access-token verification
-- controlled refresh and revocation behavior
-
-## Typical flows
-
-### 1. User login / user authorization flow
-
-```text
-User -> deployment authorization interface -> Auth Center authorization preview API
-User signs in and consents; interface submits the decision
-Auth Center returns a callback URL with code; interface redirects
-Integrating App -> POST /v1/auth-center/token (authorization_code)
-Auth Center -> access_token (+ refresh_token if allowed)
-Integrating App verifies access_token with JWKS/public key
-```
-
-Recommended when the external system needs a user identity session.
-
-### 2. Refresh flow
-
-```text
-Integrating App -> POST /v1/auth-center/token (refresh_token)
-Auth Center validates refresh token
-Auth Center -> new access_token and rotated refresh_token
-Integrating App verifies new access_token locally
-```
-
-Recommended when the app keeps a user session longer than the access token lifetime.
-
-### 3. App-to-app flow
-
-```text
-Service A -> POST /v1/auth-center/token (client_credentials)
-Auth Center -> access_token only
-Service A -> Service B / protected API
-Service B verifies JWT with JWKS/public key
-```
-
-Recommended when no end user is involved.
-
-## Main fields on the management page
-
-### App name and description
-
-Use clear business names so reviewers and operators can identify the integration quickly.
-
-### Redirect URIs
-
-Required for `authorization_code`.
-
-Recommendations:
-
-- register all environments explicitly
-- keep exact callback URLs
-- remove unused entries quickly
-
-### Grant types
-
-Choose only what the integration actually needs.
-
-- user login only: `authorization_code` + usually `refresh_token`
-- server-to-server only: `client_credentials`
-- mixed integration: decide carefully per application
-
-### Access token lifetime
-
-This controls how long the JWT remains valid for local verification.
-
-Shorter values improve security. Longer values reduce refresh frequency.
-
-### Refresh token lifetime
-
-This controls how long the integrating app may come back to the auth center for renewal.
-
-It should usually be longer than the access token lifetime.
-
-### Client secret
-
-Only confidential clients should rely on a secret.
-
-If a secret may have leaked, rotate it immediately.
-
-## Review and approval
-
-Auth Center apps can move through review states such as:
-
-- `draft`
-- `pending`
-- `approved`
-- `rejected`
-
-A typical operator flow is:
-
-1. Create the app
-2. Configure redirect URIs, grant types, and lifetimes
-3. Submit for review
-4. Wait for approval
-5. Copy the secret if issued
-6. Complete integration on the external system
-
-## Discovery and key endpoints
-
-Common endpoints used by integrators:
-
-- `GET /v1/auth-center/.well-known/openid-configuration`
-- `GET /v1/auth-center/.well-known/jwks.json`
-- `GET /v1/auth-center/authorize`
-- `POST /v1/auth-center/authorize`
-- `POST /v1/auth-center/token`
-- `POST /v1/auth-center/revoke`
-
-Authorization preview and decision require a signed-in platform identity and return preview data and a callback URL respectively; they are APIs, not pages to open directly. The built-in OAuth authorization page uses separate OAuth APIs. JWKS and discovery responses use the `{ code, message, data }` envelope; the issuer is determined by deployment configuration.
-
-The discovery document constructs `authorization_endpoint`, `token_endpoint`, and `jwks_uri` from the configured issuer, so they may differ from the `/v1/auth-center/` paths listed above. Before integrating, confirm with the deployment administrator that those URLs are reachable through the proxy. If they are not, use the API address supplied for the deployment with the paths above, and set the expected JWT issuer separately to the exact configured issuer. The authorization endpoint still requires an interface with a signed-in platform identity.
-
-Local JWT validation cannot immediately detect revocation of an already issued access token; account for token lifetime and your integration’s authorization policy.
-
-## Minimum integration checklist
-
-1. Create the Auth Center app.
-2. Choose the correct client type.
-3. Enable only the required grant types.
-4. Set token lifetimes that match your risk level.
-5. Copy and store the client secret if the app is confidential.
-6. Implement JWKS-based JWT verification in the integrating system.
-7. Use refresh tokens only against the auth center.
-8. Do not expect refresh tokens from `client_credentials`.
-
-## Recommended follow-up reading
-
-- [Manage Auth Center applications](/en/auth-center-client-management)
-- [Node.js SDK](/en/auth-center-node-sdk)
-- [Python SDK](/en/auth-center-python-sdk)
+- [Auth Center app management](/en/auth-center-client-management)
+- [Auth Center app review](/en/auth-center-client-review-management)
+- [Node.js integration example](/en/auth-center-node-sdk)
+- [Python integration example](/en/auth-center-python-sdk)
 - [Browser SPA example](/en/auth-center-browser-spa-example)
 - [API documentation](/en/api-documentation)
