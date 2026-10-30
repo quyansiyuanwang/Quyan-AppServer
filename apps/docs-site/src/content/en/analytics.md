@@ -1,32 +1,66 @@
 # Analytics
 
-Analytics provides overview, funnel, and heatmap views of collected site events. Results depend on tracking being enabled and users producing matching events.
+Analytics provides overview, funnel, and heatmap reports for collected site events. Results reflect data successfully delivered and still retained, rather than complete access logs, verified people counts, or billing records.
 
-## Overview
+## Prerequisites
 
-Choose a time range and refresh to see page event totals, distinct sessions (labeled UV on the page), active pages, daily trends, popular events, and page rankings. UV is deduplicated by session ID, not by account. The page offers today, 7-, 30-, and 90-day shortcuts and custom dates; it has no event-type or page-path filter controls.
+Open the relevant analytics page in the management site with `ANALYTICS_READ`. IAM enforcement also requires eligibility from a real deployment-wide group and the separate report grants below.
 
-## Funnel
+Data depends on browser collection and successful delivery. Uninitialized collection, pages without matching events, network failures, or deleted history can leave results empty or incomplete. Refreshing queries saved data without collecting past events retroactively. These pages provide no global tracking switch or backfill action.
 
-1. Enter at least two event names, adding, removing, or reordering steps as needed. Suggestions come from popular events in the last 90 days, not a complete event catalog. You can still type an event name that was collected even if it is not suggested.
-2. Choose a time range and select **Analyze**.
-3. Review the session count and conversion rate for each step. The system matches events in sequence within each session; each rate is relative to the previous step, with the first shown as 100%.
+## Review the overview
 
-The page labels the counts as users, but they are sessions rather than distinct accounts. Funnel definitions cannot be saved on this page and must be entered again after leaving. Select **Analyze** again after changing steps or the time range. If a query fails, the page may still show the last successful result.
+1. Open the overview and wait for the default last-30-days report.
+2. Choose Today, 7, 30, or 90 days to query immediately.
+3. After choosing custom dates, select Refresh; changing custom dates alone does not update charts.
+4. Check totals before comparing daily trends, popular events, and page rankings.
 
-## Heatmap
+Today runs from browser local midnight to now. Other shortcuts count backward from the current time rather than selecting whole calendar days. A custom end date is normally midnight and is not extended to the end of the day. To include a full target day, select the following day, noting that its midnight can also be included. Queries filter by server receipt time; daily buckets use database dates. Timezones and reporting delays can affect date comparisons.
 
-Select or enter a page path, a time range, and either clicks or scroll stops, then select **Query**. The page loads the target in an embedded frame and overlays heat points; stronger red indicates greater relative density. The background may not appear if the target cannot be embedded or loaded, and no points appear without matching collected data. Changing the path immediately changes the background, but points update only after another successful query. A failed query may leave the previous points visible; do not treat them as results for the new criteria.
+| Page metric                 | Actual meaning                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Total PV, page PV, PV trend | Events in the current query, including page views, clicks, and other collected events; not only `page_view` |
+| Distinct sessions (UV)      | Distinct session IDs, not accounts or verified people                                                       |
+| Active pages                | Distinct page paths with events in the query                                                                |
+| Popular events Top10        | The ten most frequent event names in the period, not a complete event directory                             |
 
-Points are grouped by nearby proportional coordinates. The count below the map is the number of returned aggregated locations, not the number of clicks or users; a query returns at most 2,000 locations. Click coordinates use the viewport proportions at collection time, while scroll-stop coordinates use the page-height proportion. Different device sizes, scroll positions, or layout changes can make points appear misaligned with the current background. Interpret the map alongside the page version and other data.
+The overview has no event-type, user, or page-path controls. An authorized integration can supply `page` or `eventType` to `POST /v1/track/stats` when a specific page or event type is needed. This remains a deployment-level reporting API.
 
-## Permission requirements
+Paths normally omit hostnames, query strings, and fragments. Identical paths across sites in the same deployment can merge. Page rankings therefore do not prove traffic for one specific domain.
 
-Viewing these reports requires `ANALYTICS_READ`; IAM enforcement also requires the separate grants below.
+## Analyze a funnel
+
+1. Open Funnel and enter at least two nonempty event names.
+2. Add, remove, or reorder steps to match the business sequence, then choose dates. The default is the last seven days.
+3. Choose Analyze and check session counts and rates in the table.
+4. Analyze again after changing steps or dates. Funnel definitions are not saved when leaving the page.
+
+Names are trimmed and matched exactly, including case. Blank steps are ignored; fewer than two valid steps does not submit a query. Suggestions are only the top ten popular events from the last 90 days. Missing suggestions do not prove an event never occurred; type a known event name manually. Suggestions require overview-report access, so a caller with only funnel access may still enter names and analyze.
+
+Steps match within one session in **server receipt order**, allowing other events between them. The funnel neither joins separate sessions nor reorders events by client click time. Batching and delays can affect ordering, and events in one batch can share a receipt timestamp.
+
+Counts labeled Users are sessions that reached each step. Each rate is relative to the preceding step. The first always displays 100%, even with zero sessions; check counts before interpreting percentages. Repeating an event name requires repeated occurrences in the session rather than counting one occurrence twice.
+
+## Query a heatmap
+
+1. Open Heatmap and select or enter a collected page path, such as `/your-page`.
+2. Select dates and either clicks or scroll stops. Defaults are the last seven days and clicks.
+3. Choose Query and wait for success before interpreting points.
+4. Query again after changing the path, dates, or type.
+
+Page suggestions come from overview data for the last 90 days and do not establish that heatmap data exists. Suggestions need overview-report access; enter a known path manually if choices are empty. Paths match collected values exactly. A full URL or an address with query parameters may not match.
+
+The background loads the current page in a frame rather than showing a historical screenshot. Relative paths open on the current management-site domain without automatically locating the original site. Identical paths across sites, login state, page versions, and embedding restrictions can change or block the background. A failed background does not establish a failed data query.
+
+**Changing the path switches the background immediately, while points update only after a successful query.** Failed queries can leave old points over a new background. Verify criteria and successful loading before using the result. The background is a display; business operations cannot be performed inside the frame.
+
+Nearby proportional coordinates are grouped, returning at most the 2,000 locations with the highest counts. The footer counts returned locations rather than clicks or sessions. Red intensity is relative to the current result and cannot directly compare absolute traffic across queries.
+
+Click coordinates use the original viewport proportions; scroll stops use the page-height proportion and viewport center. The preview scales a desktop-width page. Original device size, scrolling, and layout changes can misalign points and elements. Scroll stops do not establish complete reading duration or actual attention.
 
 ## IAM report authorization
 
-The JWT query APIs require `ANALYTICS_READ`. With IAM enforcement, this eligibility must come from an actual deployment-wide group. The three reports have separate actions and resources:
+The three query APIs use login authentication and do not accept third-party OAuth access tokens. IAM enforcement requires `ANALYTICS_READ` eligibility from a real deployment-wide group, plus the corresponding action and resource:
 
 | API                      | IAM action                              | Resource ARN                                     |
 | ------------------------ | --------------------------------------- | ------------------------------------------------ |
@@ -34,14 +68,24 @@ The JWT query APIs require `ANALYTICS_READ`. With IAM enforcement, this eligibil
 | `POST /v1/track/funnel`  | `quyan:analytics:GetFunnelStatistics`   | `acs:platform:*:platform:system/tracking-funnel` |
 | `POST /v1/heatmap/query` | `quyan:analytics:GetHeatmap`            | `acs:platform:*:platform:system/heatmap-stats`   |
 
-These are deployment-level aggregate reports. Date, page and event filters select report data; they do not restrict authorization to that page or turn the report into an account-scoped resource. Account policies cannot grant deployment-wide eligibility. A matching Deny overrides Allow, and results are withheld if eligibility, policies or the current role session become invalid during a read. AssumeRole uses its own role grants. The anonymous collection endpoints retain their existing collection behavior.
+Dates, paths, and events filter data without limiting authorization to a user or page resource. Account policies or individual additions cannot replace group eligibility. Matching Deny takes priority; role sessions use role grants. Identity, eligibility, policy, or session invalidation during a read rejects the entire result. Public collection and protected reporting are separate operations; being able to submit data does not grant report access.
 
-## Notes
+## Troubleshooting
 
-- Results depend on collected events and can be empty when tracking is disabled or there is no matching data. Retry failed queries and use the successfully returned results.
-- Page paths, time ranges, and event names select report data; they do not change the authorization scope.
+| Symptom                                           | What to do                                                                                   |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Custom dates change without overview updates      | Choose Refresh; custom dates and shortcuts trigger queries differently                       |
+| PV exceeds expected page views                    | The page includes all matched events; filter by event type for view-only queries             |
+| Funnel or page suggestions are empty              | Check overview grants and last-90-days data, or enter exact known names or paths             |
+| The first funnel step shows 100% with zero users  | The fixed initial rate does not establish conversion. Check names, dates, and collection     |
+| The background loads without points               | Check collection, exact path, type, dates, and successful querying                           |
+| Points do not align with elements                 | Check the site, layout version, device size, and scroll position                             |
+| Old charts or initial zeros remain after an error | Retained results or defaults do not establish no data under new criteria. Retry successfully |
+
+There is no automatic refresh, export, saved funnel, or historical page-screenshot feature. Event and heatmap retention follows deployment data-lifecycle configuration.
 
 ## Related pages
 
+- [Data lifecycle]({{DOCS_BASE_URL}}/en/data-lifecycle)
 - [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
 - [Debug]({{DOCS_BASE_URL}}/en/debug-tools)
