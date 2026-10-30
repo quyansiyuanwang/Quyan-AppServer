@@ -1,71 +1,111 @@
 # API documentation
 
-Learn about endpoint addresses, authentication, request examples, and error handling. Consult the API reference for each endpoint’s fields and permissions.
+Use **API documentation** in the AI Relay Console to copy client endpoints, compare model prices, and open Swagger when authorized. Platform APIs, AI relay, and third-party authentication use different addresses, credentials, and response formats. Choose your integration first.
 
-## What you will see
+## Prerequisites
 
-### Endpoint tab
+Opening this console page requires `RELAY_TOKEN_READ`. It has **API endpoints**, **Model pricing**, and **Configuration tutorial** tabs. Page access does not grant every permission to create tokens, invoke models, read the channel catalog, or access OpenAPI.
 
-- Base URL
-- Provider URL
-- Balance URL
-- Platform-balance URL
-- Copy buttons
-- Full endpoint path toggle
+Pricing loads when that tab is first opened. Prices and the channel catalog load independently. The catalog needs its own read grant (`quyan:relay:ListChannelCatalog` under IAM). Resolve network or permission failures before selecting Refresh.
 
-### Pricing tab
+## Choose the address and credential
 
-- Filterable pricing list
-- Model or provider views
-- Refresh action
-- Custom multiplier / token-unit toggles
+| Task                                 | Address source                                          | Credential and result                                                                      |
+| ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Invoke an AI model                   | Displayed universal endpoint, the Relay Base URL        | Relay Token; compatible-protocol data or an event stream                                   |
+| Query the current Relay Token quota  | Displayed Relay usage endpoint                          | The same Relay Token; that token's quota and usage                                         |
+| Query platform account balance       | Platform account balance endpoint, `/v1/balance/usage`  | Login access token or permitted account AccessKey; OAuth additionally needs `balance:read` |
+| Call platform APIs                   | Backend API address supplied for the deployment         | Credentials, scopes, and resource grants accepted by that endpoint                         |
+| Start third-party user authorization | Identity-site address in the OAuth or Auth Center guide | Registered application, callback URI, and parameters for that flow                         |
 
-## Base URLs
+Management, identity, documentation, backend, and relay sites can use different domains. Do not infer the API address from the current browser domain or interchange Relay Tokens, OJ API Keys, OAuth tokens, and Auth Center JWTs.
 
-The following addresses are examples. Replace them with the API address for your deployment before making requests; the identity site may use a different address:
+Platform balance requires the current user's `quyan:balance:GetUsage` grant; its `remaining` is account balance. Relay usage describes the current token. These are not interchangeable balances. For fields, date ranges, and limits, see [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) and [Account balance and transfers]({{DOCS_BASE_URL}}/en/balance-history).
 
-```text
-API Base URL: https://api.qysyw.cn
-Swagger:      https://api.qysyw.cn/docs
-OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
-```
+## Copy client endpoints
 
-Use Swagger to inspect and test endpoints. Access to the OpenAPI JSON may require authentication and permissions; see “Generated OpenAPI specification access” below.
+1. Open **API endpoints** and check the deployment's universal endpoint.
+2. Choose OpenAI, Anthropic, or Gemini for the client and select its copy button.
+3. Enable **Show full endpoint** when the client expects a complete request URL; otherwise use the corresponding base address.
+4. Configure your Relay Token and check channels, model, format, quota, and IP restrictions before requesting.
 
-## AI relay quick start
+| Endpoint          | Default display               | Full endpoint display                         |
+| ----------------- | ----------------------------- | --------------------------------------------- |
+| OpenAI-compatible | Relay Base URL plus `/v1`     | Plus `/v1/chat/completions`                   |
+| Anthropic         | Relay Base URL                | Plus `/v1/messages`                           |
+| Gemini            | Relay Base URL plus `/v1beta` | Plus `/v1beta/models/{model}/generateContent` |
 
-Use the **AI Relay Console**, not the browser-login API, when you need to call an AI model. The shortest path is:
+Replace `{model}` with a model ID. Clients may append paths themselves; avoid adding `/v1` twice. The displayed full OpenAI endpoint is Chat Completions. Use `/v1/responses` for Responses; this switch does not select it automatically.
 
-1. Open **Relay token management**, select **Create token**, choose available channels or an automatic proxy pool, and save the token.
-2. Copy the **Relay Base URL** from the top of the creation drawer or the endpoint tab in **API documentation**. It is the public relay address for your deployment and can differ from the admin site and backend API address.
-3. Keep the token in a server-side environment variable and send it as `Authorization: Bearer <relay_token>` to relay endpoints.
-4. Call `/v1/models` first to see the models available to this token, then choose a matching request format.
+**Configuration tutorial** links to token management, authentication setup, and balance queries, with a copyable ccswitch balance template. Check the endpoint and credential before enabling it. Reading the tutorial does not create a token or grant access. Account AccessKeys remain subject to deletion, account state, and service policy rather than guaranteeing permanent access.
 
-Replace `https://relay.example.com` below with the Relay Base URL displayed by the console. Do not guess it or substitute an admin-site domain.
+## Compare model prices
+
+1. Open **Model pricing** and wait for prices and channels to load. Select Refresh for updated data.
+2. Filter by model name or ID, request format, pricing type, and channels.
+3. Choose base price, selected-channel minimum, or all-channel minimum. With multiple channels, choose match-any or match-all.
+4. For separate channel columns, choose **Comparison mode**, select at least one channel, and set the primary comparison channel.
+5. Check units, ranges, and any custom multiplier before copying a model ID into your client.
+
+| Control or state                    | Meaning and limits                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Only models with available channels | Enabled by default; disabling it can reveal prices without a matching channel                                              |
+| Show automatic proxy pools          | Off by default; enable to include them in this page's candidates and comparisons                                           |
+| Base price                          | Model base price, not a final charge                                                                                       |
+| Selected-channel minimum            | Compares selected channels; without a selection, displays the base price                                                   |
+| All-channel minimum                 | Minimum among the currently visible matching catalog entries, not a platform-wide quote or routing guarantee               |
+| Primary comparison channel          | Supplies the comparison-mode price for sorting and range filters; filters do not independently apply to every column       |
+| Custom multiplier                   | Local price simulation; does not change server prices, tokens, or billing rules                                            |
+| M / K units                         | Per million / per thousand tokens; switching also converts input/output range filters, without changing per-request prices |
+
+Model name or ID matching is case-insensitive substring search. Channels match the model and its supported formats. A displayed row or channel tag does not establish that the current token can execute the selected format. Requests still check authorization, state, format, quotas, and routing conditions.
+
+Context tiers and variable-priced channels can show ranges. Their minimum is not a fixed price for every request. Actual prices, channels, and settlement records determine charges; cache, monthly passes, and other rules can also affect cost. Text or image generation can incur charges. Check settlement details in [Consumption records]({{DOCS_BASE_URL}}/en/consumption-records) after calling.
+
+Pagination divides the loaded, filtered entries, with 20 per page by default. Changing filters returns to page one. Reset clears filters, custom multipliers, and comparison settings, restoring M units and hidden automatic pools. A refresh failure can retain old data or update prices and channels only partially. With an error displayed, neither an empty table nor retained prices establishes a complete current result. Prices do not refresh automatically.
+
+## Choose the relay request format
+
+| Format                  | Request path                             | Main input             |
+| ----------------------- | ---------------------------------------- | ---------------------- |
+| OpenAI Chat Completions | `/v1/chat/completions`                   | `messages`             |
+| OpenAI Responses        | `/v1/responses`                          | `input`                |
+| Anthropic Messages      | `/v1/messages`                           | Follow Messages format |
+| Gemini                  | `/v1beta/models/{model}/generateContent` | Follow Gemini format   |
+
+The channel and model must support the format. Chat Completions and Responses are enabled independently; legacy OpenAI configuration does not enable Responses. `/v1/models` currently filters using Chat Completions capabilities, so it cannot establish that all Responses, Anthropic, Gemini, or image models are unavailable.
+
+For token creation and the first call, follow [AI relay quick start]({{DOCS_BASE_URL}}/en/ai-relay-quickstart). Converting Chat Completions to Anthropic requires a positive `max_tokens` or `max_completion_tokens`; do not omit the output limit.
+
+Image edits use `/v1/images/edits`. Send multiple references with repeated `image[]` form fields. The example below shows the request shape. Replace deployment, credential, model, and local files, and confirm image-edit support before running:
 
 ```bash
-# List the models available to this token
-curl "https://relay.example.com/v1/models" \
-  -H "Authorization: Bearer <relay_token>"
-
-# OpenAI Chat Completions-compatible request
-curl "https://relay.example.com/v1/chat/completions" \
+curl "https://relay.example.com/v1/images/edits" \
   -H "Authorization: Bearer <relay_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "your-enabled-model",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "max_tokens": 256
-  }'
+  -F "model=your-enabled-image-model" \
+  -F "image[]=@first.png" \
+  -F "image[]=@second.png" \
+  -F "prompt=Combine the subjects from both reference images into a new image"
 ```
 
-The example limits output with `max_tokens`; use `max_completion_tokens` instead if your model requires it. When the token converts Chat Completions to Anthropic, one of these fields must contain a positive number.
+Let the client generate the multipart boundary instead of setting `Content-Type` yourself. Repeated legacy `image` fields can be normalized to `image[]`, without guaranteeing that the model understands or combines multiple references.
 
-A Relay Token is only for relay requests, not for signing in to the admin site. Its channels, enabled models, request formats, quotas, IP allowlist, and status determine whether a request can run. For `401`, `403`, or unavailable-model errors, inspect those settings in Relay token management first.
+## Open Swagger and read OpenAPI
 
-## Unified response format
+The **Open Swagger / OpenAPI** header button appears with `DEBUG_OPENAPI_READ`. Selecting it requests a temporary access link with an approximately 60-second lifetime and prefers a new tab. When a new window cannot open, navigation may use the current window. If generation fails or the link expires, return to the console, check login, grants, and replay protection, and open again.
 
-Most backend APIs follow a consistent wrapper:
+Opening also requires temporary-link generation authorization (`quyan:reurl:Generate`). A link neither extends the original credential's validity nor grants endpoint permissions. Do not share addresses containing temporary tokens. Executing Swagger requests calls the real service; check targets and consequences before writes or paid operations.
+
+`GET /docs/openapi.json` returns raw OpenAPI JSON without the `{ code, message, data }` envelope. Remote access requires login authentication and `DEBUG_OPENAPI_READ`. Under IAM enforcement, eligibility must come from a real deployment-wide group with:
+
+- Action: `quyan:system:GetOpenApiSpecification`
+- Resource: `acs:platform:*:platform:system/openapi-spec`
+
+Account policies or individual additions do not replace deployment-group eligibility. Deny takes priority, role sessions use role grants, and invalidation during the read withholds the document. Query parameters and headers cannot select another specification or grant access. Local development follows trusted-local-access rules; this does not establish anonymous public access.
+
+## Parse platform API responses
+
+Most platform business APIs use this structure:
 
 ```json
 {
@@ -75,323 +115,32 @@ Most backend APIs follow a consistent wrapper:
 }
 ```
 
-Recommended interpretation:
-
-- `code === 0`: success
-- `code !== 0`: business failure
-- `message`: log or display text
-- `data`: actual payload
-
-### TypeScript unwrap helper
-
-```ts
-export interface ApiResponse<T> {
-  code: number
-  message: string
-  data?: T
-}
-
-export function unwrapApi<T>(response: ApiResponse<T>): T {
-  if (response.code !== 0) {
-    throw new Error(response.message || `API failed: ${response.code}`)
-  }
-  return response.data as T
-}
-```
-
-## Choosing an authentication method
-
-| Scenario                           | Recommended method | Notes                                        |
-| ---------------------------------- | ------------------ | -------------------------------------------- |
-| Logged-in browser user             | JWT                | Best for first-party user actions            |
-| Third-party delegated access       | OAuth 2.0          | Best for open-platform integrations          |
-| Backend script / cron / server app | Access Key         | Best for non-interactive programmatic access |
-| Gateway / relay forwarding         | Relay Token        | Best for proxy and relay topologies          |
-
-Before making a request, confirm that the token has the required permissions. OAuth tokens also need the appropriate scopes.
-
-## OpenAI image-edit relay
-
-When calling the OpenAI-compatible `/v1/images/edits` endpoint with a Relay Token, send multiple reference images as repeated `image[]` fields. The relay also accepts repeated legacy `image` fields and normalizes them to `image[]` before forwarding, while preserving image order, masks, and other form fields.
-
-```bash
-curl -X POST "https://relay.example.com/v1/images/edits" \
-	-H "Authorization: Bearer <relay_token>" \
-	-F "model=gpt-image-2" \
-	-F "image[]=@first.png" \
-	-F "image[]=@second.png" \
-	-F "prompt=Combine the subjects from both reference images into a new image"
-```
-
-New integrations should always use `image[]`. Whether a selected model actually understands or combines multiple references still depends on that model and its upstream channel.
-
-## OpenAI text relay formats
-
-Relay manages the two OpenAI v1 text APIs as separate formats:
-
-- **OpenAI Chat Completions**: `/v1/chat/completions`, with a `messages` request body.
-- **OpenAI Responses**: `/v1/responses`, with an `input` request body.
-
-Before calling either API, both the Relay Token's channel and the selected model must explicitly enable that format. Legacy OpenAI entries remain compatible as Chat Completions only; Responses are never enabled automatically.
-
-### OpenAI Responses example
-
-```bash
-curl "https://relay.example.com/v1/responses" \
-  -H "Authorization: Bearer <relay_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "your-enabled-model",
-    "input": "Hello"
-  }'
-```
-
-Other compatible formats (Anthropic or Gemini) are available only when explicitly enabled for the token's channels. Use the API documentation page in the console as the source of truth for paths and request fields.
-
-## Minimal curl examples
-
-### 1. JWT-authenticated request
-
-```bash
-curl -X GET "https://api.qysyw.cn/v1/users/me" \
-	-H "Authorization: Bearer <access_token>"
-```
-
-### 2. Access Key request
-
-```bash
-curl -X GET "https://api.qysyw.cn/v1/users/me" \
-	-H "Authorization: Bearer <access_key>"
-```
-
-> Whether a specific endpoint accepts Access Key authentication still depends on endpoint security and backend policy.
-
-### 3. Paginated list example
-
-This endpoint lists OAuth applications for review and requires the appropriate review permission.
-
-```bash
-curl -G "https://api.qysyw.cn/v1/oauth-clients/review" \
-	-H "Authorization: Bearer <access_token>" \
-	--data-urlencode "page=1" \
-	--data-urlencode "pageSize=20" \
-	--data-urlencode "reviewStatus=pending"
-```
-
-## TypeScript SDK example
-
-For browser and Node.js users, a lightweight SDK layer is usually more useful than repeated raw `fetch` calls.
-
-### 1. Generic request helper
-
-```ts
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
-
-interface RequestOptions {
-  method?: HttpMethod
-  token?: string
-  body?: unknown
-}
-
-const API_BASE_URL = 'https://api.qysyw.cn'
-
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-    },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    credentials: 'include',
-  })
-
-  const json = await response.json()
-  if (!response.ok || json.code !== 0)
-    throw new Error(json.message || `Request failed: ${response.status}`)
-  return json.data as T
-}
-```
-
-### 2. OAuth app review list example
-
-```ts
-export interface OAuthReviewItem {
-  id: string
-  name: string
-  clientId: string
-  reviewStatus: 'draft' | 'pending' | 'approved' | 'rejected'
-  reviewComment?: string
-}
-
-export interface OAuthReviewListResponse {
-  items: OAuthReviewItem[]
-  total: number
-  page: number
-  pageSize: number
-}
-
-export async function listOAuthAppsForReview(token: string) {
-  return apiRequest<OAuthReviewListResponse>('/v1/oauth-clients/review?page=1&pageSize=20', {
-    token,
-  })
-}
-```
-
-### 3. Review action example
-
-Calling this function approves or rejects an application. Check the target and its review details first; only applications in `pending` status can be reviewed, and the caller needs review-update permission. If the request is interrupted and its outcome is unknown, query the application status before deciding whether to act again.
-
-```ts
-export async function reviewOAuthApp(
-  token: string,
-  id: string,
-  reviewStatus: 'approved' | 'rejected',
-  reviewComment?: string,
-) {
-  return apiRequest(`/v1/oauth-clients/${encodeURIComponent(id)}/review`, {
-    method: 'POST',
-    token,
-    body: {
-      reviewStatus,
-      reviewComment,
-    },
-  })
-}
-```
-
-## Python example
-
-Backend integrators often benefit more from a practical Python sample than from a plain parameter table.
-
-```python
-import requests
-
-API_BASE_URL = "https://api.qysyw.cn"
-ACCESS_TOKEN = "<access_token>"
-
-response = requests.get(
-		f"{API_BASE_URL}/v1/oauth-clients/review",
-		headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
-		params={"page": 1, "pageSize": 20, "reviewStatus": "pending"},
-		timeout=15,
-)
-response.raise_for_status()
-
-payload = response.json()
-if payload["code"] != 0:
-		raise RuntimeError(payload["message"])
-
-for item in payload["data"]["items"]:
-		print(item["name"], item["reviewStatus"])
-```
-
-## OAuth authorization-code demo
-
-Before using this flow, create an application, register its callback URI, and obtain approval. Replace the example site addresses, client information, and callback URI with your own values. Generate a random `state` and PKCE verifier, then derive the S256 challenge from the verifier. See the [OAuth example]({{DOCS_BASE_URL}}/en/oauth-demo) for the complete flow.
-
-### Step 1: Redirect to the authorization page
-
-```text
-GET https://auth.qysyw.cn/oauth/authorize
-	?response_type=code
-	&client_id=oc_live_xxx
-	&redirect_uri=https%3A%2F%2Fdemo.example.com%2Fcallback
-	&scope=profile%20email
-	&state=random-csrf-token
-	&code_challenge=pkce-challenge
-	&code_challenge_method=S256
-```
-
-The authorization page is hosted by the identity site. `https://api.qysyw.cn/v1/oauth/authorize` is the authenticated API called by that page and should not be opened directly in a browser address bar.
-
-### Step 2: Exchange the code on the backend
-
-```bash
-curl -X POST "https://api.qysyw.cn/v1/oauth/token" \
-	-H "Content-Type: application/json" \
-	-d '{
-		"grant_type": "authorization_code",
-		"client_id": "oc_live_xxx",
-		"client_secret": "oc_secret_xxx",
-		"code": "returned_code",
-		"redirect_uri": "https://demo.example.com/callback",
-		"code_verifier": "pkce-verifier"
-	}'
-```
-
-## Pagination guidance
-
-Pagination parameters vary by endpoint; consult its API reference. Common parameters include:
-
-- `page` is the page number, usually starting at `1`
-- `pageSize` is the number of rows per page
-- the backend may enforce a maximum, such as `pageSize <= 100`
-
-Recommended usage:
-
-```ts
-const page = 1
-const pageSize = 20
-```
-
-## Generated OpenAPI specification access
-
-`GET /docs/openapi.json` returns the raw generated OpenAPI document without the standard response envelope. Trusted local access retains the `local-or-jwt` authentication behavior. Remote JWT access requires `DEBUG_OPENAPI_READ`; with IAM enforcement, eligibility must come from a real deployment-wide group and the request must allow `quyan:system:GetOpenApiSpecification` on `acs:platform:*:platform:system/openapi-spec`.
-
-The path and Action are fixed by the server. Query parameters and headers cannot select another file or grant access. If authorization or the current role session becomes invalid during the read, the document is withheld. A matching Deny overrides Allow.
-
-## Error handling guidance
-
-Handle failed responses and decide whether to retry based on the error.
-
-```ts
-try {
-  const data = await listOAuthAppsForReview(token)
-  console.log(data.items)
-} catch (error) {
-  console.error('Load failed:', error)
-  // Recommended: toast, retry, fallback message, telemetry
-}
-```
-
-### Common `code` values
-
-`code` is the business-level status returned inside the response body (see "Unified response format" above) — it is separate from the HTTP status code. A `200 OK` HTTP response can still carry a non-zero `code` describing a business failure.
-
-| `code` | Meaning                                           | Typical response                                             |
-| ------ | ------------------------------------------------- | ------------------------------------------------------------ |
-| `0`    | Success                                           | Use `data` as-is                                             |
-| `1001` | Authentication failed                             | Prompt re-login                                              |
-| `1002` | Request validation failed                         | Fix the request body/params, do not retry                    |
-| `1003` | Resource not found                                | Do not retry; surface a not-found state                      |
-| `1004` | Permission denied                                 | Check identity, authorization, and resource scope            |
-| `1006` | Token invalidated by a data update or session end | Sign in or authenticate again                                |
-| `1013` | Token expired                                     | Refresh the token, then retry once                           |
-| `1014` | Token invalid or forged                           | Do not retry; force re-login                                 |
-| `1017` | Replay protection failed                          | Check the cause; renew the session and sign again if expired |
-| `1018` | Two-factor verification required                  | Complete the 2FA challenge, then retry                       |
-| `1048` | Password encryption key is stale                  | Fetch the public key again, re-encrypt, and retry once       |
-| `1429` | Rate limited (too many requests)                  | Back off using the suggested retry delay                     |
-
-Business codes may grow over time. Treat unrecognized codes as business failures and retain the error details rather than assuming a specific meaning.
-
-### Retry guidance
-
-- Retry only after addressing the cause, such as refreshing a valid session, signing again, or waiting for a rate limit to clear. Fix parameter, resource, permission, or credential errors before retrying.
-- For `1429` (rate limited), respect any suggested retry-after delay in the response rather than retrying immediately.
-- Limit automatic retries and surface persistent errors to the caller. If a network failure leaves a write outcome unknown, check the result or use an idempotency mechanism supported by the endpoint before retrying to avoid duplicate operations.
-
-## Recommended reading order
-
-1. Start here for base URLs and auth strategy.
-2. Use Swagger to confirm exact fields.
-3. Continue with [OAuth app management]({{DOCS_BASE_URL}}/en/oauth-app-management) for OAuth onboarding.
-4. Read [Access key management]({{DOCS_BASE_URL}}/en/access-key-management) or [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) for programmatic credentials.
+Check HTTP status and JSON shape, then numeric `code === 0`, before reading `data`. HTTP 200 can still be a business failure. `message` can be localized and should not determine program branches. Fields, pagination parameters, and limits depend on each endpoint; there is no universal maximum page size.
+
+**Do not apply this unwrapper to AI relay, OAuth/Auth Center token protocols, files, event streams, or raw OpenAPI.** Complete runnable business API wrappers are in the [Node.js example]({{DOCS_BASE_URL}}/en/node-sdk) and [Python example]({{DOCS_BASE_URL}}/en/python-sdk).
+
+## Common errors and actions
+
+| Business code or symptom    | What to do                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| HTML, 404, or non-JSON      | Check deployment, endpoint, and path; a frontend domain or base address is not a complete request URL                                    |
+| `1001`, `1014`              | Check credential type and environment; authenticate again or use a valid credential                                                      |
+| `1002`, `1003`              | Correct parameters or the resource identifier before requesting again                                                                    |
+| `1004`                      | Check action, resource, OAuth scope, and explicit Deny                                                                                   |
+| `1006`                      | User-state updates or similar invalidation require reauthentication                                                                      |
+| `1013`                      | Refresh through the corresponding authentication flow; reauthenticate if it fails, without endless retries                               |
+| `1016`, `1017`              | Check replay-protection requirements and the signing session                                                                             |
+| `1018`                      | Complete the required two-factor verification                                                                                            |
+| `1048`                      | Fetch the password-encryption public key and encrypt again instead of resending old ciphertext                                           |
+| `1429` or HTTP 429          | Reduce frequency and follow server waiting information                                                                                   |
+| Empty prices or no channels | Check loading errors and catalog grants, then clear filters or show automatic pools; this does not mean the whole platform has no models |
+
+Treat unknown business codes as failures and retain necessary request IDs, HTTP status, and codes for diagnosis. Do not publish credentials or full responses. Bound retries and back off; after a write timeout or disconnect, query the outcome before retrying through an idempotency mechanism supported by that endpoint.
 
 ## Related pages
 
-- [OAuth app management]({{DOCS_BASE_URL}}/en/oauth-app-management)
-- [Access key management]({{DOCS_BASE_URL}}/en/access-key-management)
+- [SDKs and examples]({{DOCS_BASE_URL}}/en/sdk-examples)
 - [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
-- [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management)
+- [OAuth authorization-code example]({{DOCS_BASE_URL}}/en/oauth-demo)
+- [AccessKey management]({{DOCS_BASE_URL}}/en/access-key-management)
+- [API reference]({{SWAGGER_DOCS_URL}})
