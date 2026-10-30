@@ -1,66 +1,123 @@
-# AI Request Logs
+# AI request logs
 
-Investigate AI inference requests by user, token, model, request ID, execution outcome, content and time range. The default window is the last 24 hours, with shortcuts and a custom range available.
+Use AI request logs to investigate relay inference identities, execution outcomes, and saved content. For failed calls, interrupted streams, or content issues, find the request by ID and time, then inspect its bodies and upstream attempts.
 
 ## Requirements
 
-- Requires `relay:ai_request_log:read`. This is granted to super administrators by default, not automatically to system administrators.
-- Viewing upstream attempts or searching attempt errors also requires `relay:request_diagnostics:read`. Channel, route and pool topology remain subject to their existing permissions on the request diagnostics page.
-- Logs can contain full prompts, tool arguments and model output. Limit access to staff responsible for content safety and incident investigation.
+- Sign in with `relay:ai_request_log:read`. With IAM enforcement, you also need reading eligibility from a platform global user group and actions on the relevant logs, as described below.
+- Viewing upstream attempts or searching attempt errors also requires `relay:request_diagnostics:read`. IAM enforcement adds a separate diagnostic action.
+- This page does not accept OAuth access tokens. Logs can contain prompts, tool arguments, model output, and business data. Grant access according to investigation needs and protect any copied content.
 
-## Search and filters
+## Find a request
 
-The main search matches request IDs, user/token names or IDs, models, error summaries and saved content. Advanced filters include format, HTTP status, execution outcome, streaming, failure stage, content completeness, IP and duration ranges. Results are paginated on the server, without downloading every body for filtering.
+1. Open **AI request logs** and set the time range. The default is the 24 hours before the page opened. Shortcuts offer the last hour, 24 hours, 7 days, or 30 days; a custom range is also available.
+2. Enter a request ID, user, token, or content keyword. Expand advanced filters to narrow the search.
+3. Select **Search**, or press Enter within the search form, to query from the first page.
+4. Open a matching record to inspect its request, response, and upstream attempts separately. The list defaults to 20 records per page, with 50 and 100 also available.
 
-After changing filters, select **Search** to apply them and return to the first page. The top **Refresh** button queries the current form values and page. Default and shortcut time ranges are fixed when selected; refreshing does not move the end time forward. To see the latest logs, select a shortcut again or adjust the time range and search. **Reset** clears the other filters, sets a new last-24-hours range, and searches immediately.
+Filters combine: a record must satisfy every supplied condition. The main matching rules are:
 
-Identity comes from server-side token recognition, never a user identifier in the request body. Unnamed tokens show their ID. Previously unrecorded identities remain marked as not recorded and are not automatically backfilled.
+| Filter                                                                       | Matching and limits                                                                                                                                                 |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main search                                                                  | Searches request IDs, user/token names or IDs, models, error summaries, and saved bodies. Searching upstream attempt errors is restricted by diagnostic permissions |
+| User, token, model, request ID, IP                                           | Substring matching; user and token filters each match either name or ID                                                                                             |
+| Format, HTTP status, outcome, streaming, failure stage, body omission reason | Matches the selected value; HTTP status must be an integer from 100 through 599                                                                                     |
+| Truncation                                                                   | Truncated means at least one body was truncated. Not truncated means neither body has a truncation flag; it does not guarantee that bodies were saved               |
+| Duration                                                                     | Nonnegative integer milliseconds; the minimum must not exceed the maximum                                                                                           |
+| Time                                                                         | The start must not be later than the end. Clearing the range removes the time restriction                                                                           |
 
-## Read details on demand
+Editing or clearing a filter alone does not query. **Search** returns to page one. **Refresh** and pagination use the current form values; refresh retains the current page. Changing page size returns to page one. **Reset** clears other filters, sets a new last-24-hours range, and queries immediately.
 
-Details first display identity and execution metadata, with **Analysis and formatting** selected by default. Content is organized into system instructions, messages, tool definitions, parameters, output, usage and errors. Tools are collapsed by default and expanded content is read in segments. **Raw content**, the second tab, shows the saved sanitized representation, not necessarily the original upstream bytes.
+Time ranges are fixed when the page opens or a shortcut is selected. There is no automatic polling, and **Refresh** does not advance the end time. Select the shortcut again and search to find the latest requests.
 
-Request and response bodies load separately. Only the first segment loads by default: 20 analysis items per page or up to 32 KiB of raw text per segment. Long text and individual tool definitions are also bounded, and only visible content is rendered.
+User and token identities come from server-side recognition, not user claims in request bodies. Unnamed tokens show their ID. Historical fields that were not captured remain **Not recorded** and are not backfilled.
 
-**Load all saved content** is off by default and applies only to the current view. Enabling it loads in batches with progress. Disabling it, switching views or leaving details stops further loading. It does not change storage limits or restore omitted/truncated data. Copying the current segment and copying all loaded content are separate actions.
+## Interpret the outcome
 
-Detail search covers all saved content within the selected scope, not just loaded segments. Matches are paginated and locate the corresponding field or nearby stream event. Search is literal text, not a regular expression.
+Read HTTP status together with execution outcome. An HTTP 200 response can still have an interrupted stream or a settlement failure after the response ends.
 
-## Failures and recording limits
+| Outcome      | Interpretation                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Processing   | Execution has not produced a final outcome; query again later                                                                               |
+| Success      | The current record reports no execution failure; this does not guarantee that the response meets business expectations                      |
+| Failed       | Inspect the error summary and failure stage to distinguish authentication, request, routing, upstream, content safety, or settlement issues |
+| Interrupted  | The connection or execution was interrupted; investigate the client state and saved response                                                |
+| Not recorded | Older records lack this information; do not infer the business outcome solely from HTTP status                                              |
 
-Streaming and non-streaming inference both capture recognized identity. HTTP status and execution outcome are separate: an HTTP 200 request can still fail due to stream interruption or settlement after the response ends.
+A failed upstream attempt does not necessarily mean the overall request failed. Consider the final outcome and other attempts together.
 
-- Includes authentication rejection, body parsing/size rejection, quota/routing issues, upstream errors, timeouts, content safety rejection, interruptions and settlement failures.
-- Unknown identities, unsafe-to-parse bodies and size rejections retain only safe metadata, not these request bodies.
-- Attempts display status, stage, duration and sanitized error text on demand. Errors are limited to 16 KiB per attempt and 64 KiB combined, with truncation indicated.
-- Requests retain up to 1 MiB and responses up to 2 MiB. Larger payloads keep their original size, truncation flags and previews.
-- Images, files and other binary data retain only type/size metadata. Password, token and key fields are masked; authentication headers are not written to AI logs.
-- New fields apply to newly captured records. Information that cannot be established for older records is shown as not recorded. Model-list and quota queries are not inference logs.
+## Read, search, and copy details
 
-## Retention and archive
+1. Open the record and verify its identity, request ID, time, HTTP status, and outcome.
+2. Select **Request** or **Response**. **Analysis and formatting** is selected by default and organizes messages, tools, parameters, output, usage, and errors. Tools start collapsed.
+3. Expand the needed structure or load more. Only the initial batch loads by default: 20 parsed items per page or up to 32 KiB per raw segment. Long fields also load in segments.
+4. To find text, select a detail search scope and search. Matching is case-insensitive literal text, without regular expressions. It covers all saved content on the selected side, including segments not yet loaded. Results are paginated by occurrence and can locate the corresponding field or nearby stream event.
+5. Load upstream attempts separately and load more as needed. Searching their errors requires additional diagnostic permissions. Run a new search after changing the search scope.
 
-Hot retention defaults to 90 days and can be adjusted in Data Archive. Records past the retention period are removed from hot storage only after an archive task successfully processes them. Older records may still be in hot storage if the policy is disabled, the task has not run, or execution failed. AI request log archives do not automatically expire.
+**Raw content** shows the saved sanitized representation, not necessarily the original network bytes. Requests, responses, search, and attempts are read independently. Access to the list does not guarantee access to every detail.
 
-This page searches hot storage only. For older investigations, first adjust the time range here. If the records have been archived, check the run result in [Data archive and cleanup]({{DOCS_BASE_URL}}/en/data-lifecycle) and download the corresponding gzip NDJSON file. Uploads are verified before hot data is deleted; if a run fails, check its actual archive and deletion counts.
+Copy controls have the following scope:
 
-## IAM access to log collections and details
+| Control                 | Actual scope                                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Copy current segment    | The last loaded item's text in the current reader, rather than the scroll position or all loaded text                                                                   |
+| Load all saved content  | Off by default. Loads batches with progress for the current request or response, view, and selected subtree                                                             |
+| Copy all loaded content | Available after enabling load-all and waiting for completion. Parsed output includes item labels and complete item text; raw output concatenates the retrieved segments |
 
-With IAM enforcement enabled, an individual log uses `acs:platform:*:platform:relay-ai-request-log/<logId>`. Operators must have AI request log reading eligibility from a platform global user group. Account ownership, added user permissions, private account groups, and wildcard policies cannot independently provide that eligibility. `<logId>` is the log record ID, rather than the request ID or a client-provided account ID.
+Disabling the switch, changing the reading scope, or leaving details stops further loading. “All” remains limited to the current reader; it does not export requests, responses, and attempts together or recover truncated/omitted content. If the browser rejects copying, check the page access environment and clipboard permissions before retrying.
 
-Collection queries, metadata, content, content search, upstream attempts, and compatibility details use separate actions:
+## Capture scope and limits
 
-| Purpose                     | Action                                     |
-| --------------------------- | ------------------------------------------ |
-| Collection queries          | `quyan:relay:ai_request_log:ListLogs`      |
-| Metadata                    | `quyan:relay:ai_request_log:GetMetadata`   |
-| Request or response content | `quyan:relay:ai_request_log:GetContent`    |
-| Content search              | `quyan:relay:ai_request_log:SearchContent` |
-| Upstream attempts           | `quyan:relay:ai_request_log:GetAttempts`   |
-| Compatibility details       | `quyan:relay:ai_request_log:GetLog`        |
+This page captures POST inference requests to the relay proxy, both streaming and non-streaming. It covers authentication rejection, body parsing/size rejection, quota and routing issues, upstream errors, timeouts, content safety rejection, interruptions, and settlement failures. Model-list and quota queries are not inference logs.
 
-Viewing upstream attempts or searching attempt errors additionally requires `quyan:relay:ai_request_log:ReadDiagnostics` on the same log and diagnostic reading eligibility from a platform global user group. Metadata and content permissions do not grant diagnostics access. Diagnostic reading does not grant channel or topology management permissions.
+- Default body retention limits are **64 KiB per request** and **256 KiB per response**. Administrators can adjust them; the effective server configuration applies. Configuration changes do not recapture old records.
+- Oversized content may retain only its size and a truncation marker, without a body preview. Detail pagination reads saved content and does not increase capture limits.
+- Unknown identity, bodies that cannot be safely parsed, and request size rejection retain safe metadata only, omitting both request and response bodies.
+- An overloaded capture queue may omit both bodies and mark them truncated. If the record still cannot be queued, or a database write fails, the entire record may be missing. A missing log does not prove that no request or charge occurred. This page is not a complete billing ledger.
+- Binary content is represented by metadata such as type and size. Recognized password, token, and key fields are masked, and authentication headers are not written to AI logs. Arbitrarily formatted sensitive information in prompts or ordinary text is not guaranteed to be detected.
+- At most 100 upstream attempts are retained. Error excerpts are limited to 16 KiB each and 64 KiB combined, with truncation indicated when limits are reached.
 
-The server authorizes before loading content and rechecks the log version, group, policies, and role session before returning it. An invalidated or changed log, or revoked access, causes the request to fail without delivering content. Pagination, search, and compatibility details retain server-side masking, including credentials in historical records. Collection queries evaluate `ListLogs` for each log and filter before pagination. Results and totals include only authorized logs. List access does not grant metadata, content, or diagnostics access. If access or an authorized record changes during a query, the query may fail; retry to retrieve current results. Newly captured logs beyond the query's initial collection boundary appear in the next query.
+## Read historical archives
+
+Hot retention defaults to 90 days and can be adjusted in **Data archive**. Records past that age leave hot storage only after an archive task actually processes them. Older records can remain if a policy is disabled, a task has not run, or execution fails. AI request log archives do not automatically expire by default.
+
+This page searches hot storage only. For older records:
+
+1. Expand the time range here and search first.
+2. If records were archived, open [Data archive and cleanup]({{DOCS_BASE_URL}}/en/data-lifecycle) and check the corresponding run and artifacts.
+3. Download the gzip NDJSON file and inspect it in a controlled environment. This page does not automatically search or restore archived content.
+
+The upload is verified before corresponding hot data is deleted. A run can fail after some batches succeed. Check actual archived and deleted counts rather than assuming the run status describes every record's location.
+
+## Configure IAM access
+
+With IAM enforcement, the reader needs AI log reading eligibility from their actual platform global user group and the appropriate actions on each log. Account ownership, added user permissions, private account groups, and wildcard policies cannot independently establish platform reading eligibility.
+
+The resource is `acs:platform:*:platform:relay-ai-request-log/<logId>`. `<logId>` is the log record ID and differs from the request ID.
+
+| Purpose                       | Action                                     |
+| ----------------------------- | ------------------------------------------ |
+| List queries                  | `quyan:relay:ai_request_log:ListLogs`      |
+| Metadata                      | `quyan:relay:ai_request_log:GetMetadata`   |
+| Request or response content   | `quyan:relay:ai_request_log:GetContent`    |
+| Content search                | `quyan:relay:ai_request_log:SearchContent` |
+| Upstream attempts             | `quyan:relay:ai_request_log:GetAttempts`   |
+| Compatibility detail endpoint | `quyan:relay:ai_request_log:GetLog`        |
+
+Viewing attempts or searching attempt errors additionally requires `quyan:relay:ai_request_log:ReadDiagnostics` on the same log and diagnostic reading eligibility from a platform global user group. These permissions do not grant channel, route, or pool topology management capabilities.
+
+The list filters unauthorized records before calculating totals and pagination. List, metadata, content, search, and diagnostic access are authorized separately and cannot substitute for one another. Changes to a record or authorization during queries or segmented reads can cause a failure. Confirm current access and query again.
+
+## Troubleshooting
+
+| Symptom                                                 | Suggested action                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Latest request is missing                               | Reselect a time shortcut and search; check other filters and your authorized scope instead of only refreshing                               |
+| Query error followed by an empty list                   | A failed query request clears records and totals. Resolve the error and retry; this differs from a successful zero-result query             |
+| Invalid-filter error with old records still visible     | Check status code, duration, and time ordering, then search again. Old records do not represent the new conditions                          |
+| List works but bodies or attempts fail                  | Check metadata, content, search, and diagnostic permissions separately. Confirm the log remains in hot storage and retry the failed section |
+| Body is missing or remains incomplete after loading all | Check omission reasons and truncation flags. Loading cannot recover unsaved data                                                            |
+| HTTP 200 but the call had a problem                     | Inspect the business outcome, failure stage, response, and upstream attempts as well as HTTP status                                         |
 
 ## Related pages
 
