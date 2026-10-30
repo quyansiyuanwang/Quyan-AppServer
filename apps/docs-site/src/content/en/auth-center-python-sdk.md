@@ -4,18 +4,36 @@ Best for Python backends, automation jobs, and internal services that treat this
 
 Related pages:
 
-- **Switch stack:** [Auth Center Node SDK](/en/auth-center-node-sdk)
+- **Switch stack:** [Auth Center Node SDK]({{DOCS_BASE_URL}}/en/auth-center-node-sdk)
 - **Current:** Auth Center Python SDK
-- **Browser flow:** [Browser SPA example](/en/auth-center-browser-spa-example)
+- **Browser flow:** [Browser SPA example]({{DOCS_BASE_URL}}/en/auth-center-browser-spa-example)
 
-## Recommended dependencies
+## Before you begin
 
-```txt
-PyJWT==2.9.0
-cryptography==43.0.1
-python-dotenv==1.0.1
-requests==2.32.3
+This page provides backend functions to copy, not a published package or a complete login callback and application-session implementation. Use the [SPA example]({{DOCS_BASE_URL}}/en/auth-center-browser-spa-example) for browser applications; never ship a client secret to a browser.
+
+1. Create an enabled, approved confidential client in [Auth Center application management]({{DOCS_BASE_URL}}/en/auth-center-client-management), and store its ID and secret securely.
+2. Enable the grants you use: `authorization_code` for user login, plus `refresh_token` if refreshing is required. Enable `client_credentials` separately for machine calls.
+3. Register the exact callback address and required scopes. Save a random `state` and PKCE verifier when starting authorization. Check `state` at the callback before exchanging the code with the matching redirect URI and verifier. The exchange function does not replace these steps.
+4. Obtain the API base URL and expected issuer from the deployment administrator. The localhost values below are for local development; use the deployment's HTTPS address in production. `AUTH_CENTER_BASE_URL` is the API root, without an additional `/v1` or `/auth-center` suffix. `AUTH_CENTER_ISSUER` is configured independently and must exactly match the expected `iss`.
+
+The token endpoint returns the token object directly on success; JWKS success uses `{ code, message, data }`. Keep their parsing separate. `expires_in`, scopes, and refresh-token availability depend on current client settings; `3600` in the JSON example is illustrative. Only a user authorization-code flow with the refresh grant enabled returns a refresh token.
+
+## Install dependencies
+
+The examples require Python 3.10 or later. Create a virtual environment to isolate these dependencies:
+
+```bash
+python -m venv .venv
 ```
+
+Activate it, then run:
+
+```bash
+python -m pip install "PyJWT[crypto]" python-dotenv requests
+```
+
+Activate with `.venv\Scripts\Activate.ps1` in Windows PowerShell or `source .venv/bin/activate` on macOS/Linux. Lock and maintain dependencies through your application workflow; there is no separate Auth Center PyPI SDK here.
 
 ## Environment variables
 
@@ -45,8 +63,6 @@ def fetch_jwks(base_url: str) -> dict:
 ## 2. Verify JWT access tokens locally
 
 ```python
-from __future__ import annotations
-
 from typing import Any
 
 import jwt
@@ -65,13 +81,15 @@ def verify_access_token(
 
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
-    if not kid:
-        raise RuntimeError("JWT header missing kid")
+    if header.get("alg") != "RS256" or not isinstance(kid, str) or not kid:
+        raise RuntimeError("Expected RS256 JWT with a valid kid")
 
     jwk_payload = next((item for item in jwks.get("keys", []) if item.get("kid") == kid), None)
     if not jwk_payload:
         raise RuntimeError(f"Unable to find JWKS key for kid={kid}")
 
+    if (jwk_payload.get("kty"), jwk_payload.get("alg"), jwk_payload.get("use")) != ("RSA", "RS256", "sig"):
+        raise RuntimeError("Unexpected signing key")
     signing_key = PyJWK.from_dict(jwk_payload)
 
     claims = jwt.decode(
@@ -193,7 +211,7 @@ Important:
 
 ## 6. Combined example
 
-Put the imports and functions from sections 1–5 and the combined example in one Python file, and install the dependencies above. Move `from __future__ import annotations` from section 2 to the beginning of the file. The examples require Python 3.10 or later. Set the environment variables for your deployment and keep the `.env` file containing your client secret out of version control. The authorization code and PKCE verifier are placeholders: replace them with the code returned by a real authorization and the verifier saved for that same flow. Validate `state` in the callback before exchanging the code; this example does not implement the complete callback.
+Put the imports and functions from sections 1–5 and the combined example in one Python file, and install the dependencies above. The examples require Python 3.10 or later. Set the environment variables for your deployment and keep the `.env` file containing your client secret out of version control. The authorization code and PKCE verifier are placeholders: replace them with the code returned by a real authorization and the verifier saved for that same flow. Validate `state` in the callback before exchanging the code; this example does not implement the complete callback.
 
 ```python
 import os
@@ -202,10 +220,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-base_url = os.getenv("AUTH_CENTER_BASE_URL", "http://localhost:10001")
-client_id = os.getenv("AUTH_CENTER_CLIENT_ID", "")
-client_secret = os.getenv("AUTH_CENTER_CLIENT_SECRET", "")
-issuer = os.getenv("AUTH_CENTER_ISSUER", "")
+base_url = os.environ["AUTH_CENTER_BASE_URL"]
+client_id = os.environ["AUTH_CENTER_CLIENT_ID"]
+client_secret = os.environ["AUTH_CENTER_CLIENT_SECRET"]
+issuer = os.environ["AUTH_CENTER_ISSUER"]
 
 jwks = fetch_jwks(base_url)
 
@@ -214,8 +232,8 @@ token_set = exchange_authorization_code(
     client_id=client_id,
     client_secret=client_secret,
     code="returned_authorization_code",
-    redirect_uri=os.getenv("AUTH_CENTER_REDIRECT_URI", ""),
-    code_verifier="pkce-verifier",
+    redirect_uri=os.environ["AUTH_CENTER_REDIRECT_URI"],
+    code_verifier="saved_verifier_from_this_authorization_flow",
 )
 
 claims = verify_access_token(
@@ -238,20 +256,30 @@ if token_set.get("refresh_token"):
 
 The JWKS response uses `{ code, message, data }`; the example reads `data.keys`. Set `AUTH_CENTER_ISSUER` to the exact configured token issuer (`iss`); do not infer it from the endpoint path.
 
-## Recommended practices
+## Verification limits and token updates
 
-- cache JWKS briefly and refresh on unknown `kid`
-- validate `issuer`, `audience`, expiry, and required scopes
-- keep refresh tokens and client secrets on the server only
-- rotate secrets when compromise is suspected
-- do not build logic that expects refresh tokens from `client_credentials`
+Local JWT verification establishes the signature and checked claims. It does not query whether the client is disabled, the user is unavailable, consent is withdrawn, or the stored token has been revoked. Define your own current-state checks and local-session invalidation policy; a valid signature does not establish current access authority. Fetch JWKS only from a trusted, preconfigured deployment, never from a URL supplied by an unverified token.
 
-## Retry guidance
+The verified `scope` claim is a space-delimited string. Match complete scope names, not substrings. The expected `aud` is your client ID. A user token's `sub` identifies the user; a machine token's `sub` identifies the client and has no user `uid`. A machine token is not a user login credential. This page does not handle ID Tokens or promise that Auth Center tokens can call arbitrary platform APIs.
 
-Authorization codes are single-use and a successful refresh rotates the refresh token. After a network failure or timeout, do not assume the server did not process the request; if the new token cannot be recovered, start authorization again. Retry machine-token requests only in a bounded way according to the error and your application policy.
+A successful refresh replaces the refresh token. Serialize refreshes for a client session, store the returned token securely, and stop using the previous value. Returned scopes are recalculated from current consent and client configuration; check required scopes again. Refreshing does not automatically revoke previously issued access tokens. The example comment identifies where storage is needed but does not implement persistence.
+
+The JWKS function fetches keys on every call and implements neither caching nor automatic rotation recovery. Production integrations can use an expiring cache. On an unknown `kid`, refresh from the same trusted address with bounded retries, then reject if the key remains unknown. Development backends using ephemeral signing keys change keys on restart, which can invalidate verification of old tokens.
+
+## Common failures and recovery
+
+| Symptom                                                  | Check and recovery                                                                                                                                          |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client authentication failure or unavailable application | Check ID, current secret, confidential client type, approval, and enabled state. Machine calls also require their grant to be enabled.                      |
+| Invalid authorization code or refresh token              | Check expiry, reuse, client binding, exact redirect URI, and PKCE verifier; authorize again if recovery is impossible.                                      |
+| Invalid or insufficient scope                            | Request only configured scopes, inspect the response, and authorize each operation. Omitting scope uses the client's configured scopes.                     |
+| Unknown `kid` or issuer/audience mismatch                | Check the trusted JWKS address, configured issuer, client ID, and key rotation. Do not disable verification.                                                |
+| Timeout, non-JSON response, or network failure           | Check API root, proxy, and connectivity. The examples raise exceptions; map them to your application's failure responses without logging tokens or secrets. |
+
+Code-exchange and refresh functions do not retry automatically. A timeout or disconnect does not prove that the server did not process the request. Authorize again if the new tokens cannot be recovered. Bound machine-token retries according to the error instead of retrying indefinitely.
 
 ## Recommended follow-up reading
 
-- [Manage Auth Center applications](/en/auth-center-client-management)
-- [Auth Center Node SDK](/en/auth-center-node-sdk)
-- [Browser SPA example](/en/auth-center-browser-spa-example)
+- [Manage Auth Center applications]({{DOCS_BASE_URL}}/en/auth-center-client-management)
+- [Auth Center Node SDK]({{DOCS_BASE_URL}}/en/auth-center-node-sdk)
+- [Browser SPA example]({{DOCS_BASE_URL}}/en/auth-center-browser-spa-example)

@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'auth-center-python-sdk',
-  updatedAt: '2026-10-29',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Reference',
     'zh-CN': '参考',
