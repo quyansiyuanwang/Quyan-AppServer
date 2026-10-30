@@ -3089,9 +3089,9 @@ const en = {
     // Custom Key
     customKey: 'Custom Token',
     customKeyPlaceholder:
-      'Leave empty to auto-generate. Must start with sk-rlt-; legacy rlt_ values are accepted.',
+      'Leave empty to auto-generate. Use sk-rlt-, 12–200 characters total; legacy rlt_ is accepted.',
     customKeyHint:
-      'Users with custom token permission can specify their own token value. Must start with sk-rlt- (legacy rlt_ is accepted), alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
+      'Users with custom token permission can specify their own value. Use sk-rlt- (legacy rlt_ is accepted), followed by English letters, digits, or hyphens, 12–200 characters total. Count and attempt limits follow the current server configuration.',
   },
 } as const
 

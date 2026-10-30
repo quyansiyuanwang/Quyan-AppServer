@@ -2929,9 +2929,9 @@ const zhCN = {
 
     // 自定义 Key
     customKey: '自定义令牌',
-    customKeyPlaceholder: '留空则自动生成，填写需 sk-rlt- 开头至少 12 位字母数字（兼容旧 rlt_）',
+    customKeyPlaceholder: '留空则自动生成；使用 sk-rlt- 前缀，总长度 12–200（兼容旧 rlt_）',
     customKeyHint:
-      '拥有自定义令牌权限的用户可自行指定令牌值。必须以 sk-rlt- 开头，仅含字母和数字（兼容旧 rlt_），长度 12-200。每个用户最多创建 10 个自定义令牌。',
+      '拥有自定义令牌权限的用户可自行指定令牌值。使用 sk-rlt- 前缀（兼容旧 rlt_），后缀仅含英文字母、数字或连字符，总长度 12–200。数量与频率限制以当前服务端配置为准。',
   },
 } as const satisfies DeepStringify<typeof en>
 

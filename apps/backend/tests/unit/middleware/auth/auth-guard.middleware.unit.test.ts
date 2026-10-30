@@ -242,19 +242,20 @@ describe("auth_guard middleware", () => {
     }
   });
 
-  it("expressAuthentication supports relay token authentication", async () => {
-    const req = createRequest({ headers: { authorization: "Bearer rlt_token" } });
+  it.each(["sk-rlt-fixture", "rlt_fixture"])("expressAuthentication supports relay credential %s", async (token) => {
+    const req = createRequest({ headers: { authorization: `Bearer ${token}` } });
     const result = await expressAuthentication(req, "jwt");
 
     expect(result).toEqual({ relayToken: true });
+    expect(relayTokenServiceMock.validateToken).toHaveBeenCalledWith(token, req);
     expect(req.relayToken).toEqual(expect.objectContaining({ userId: "u-1" }));
   });
 
-  it("expressAuthentication supports access key authentication", async () => {
-    const req = createRequest({ headers: { authorization: "Bearer ak_token" } });
+  it.each(["sk-ak-fixture", "ak_fixture"])("expressAuthentication supports access credential %s", async (token) => {
+    const req = createRequest({ headers: { authorization: `Bearer ${token}` } });
     const result = await expressAuthentication(req, "jwt");
 
-    expect(accessKeyServiceMock.validateKey).toHaveBeenCalledWith("ak_token");
+    expect(accessKeyServiceMock.validateKey).toHaveBeenCalledWith(token);
     expect(accessKeyServiceMock.updateUsage).toHaveBeenCalledWith("ak-1");
     expect(req.accessKey).toEqual(expect.objectContaining({ id: "ak-1" }));
     expect(req.user).toEqual(
@@ -264,6 +265,23 @@ describe("auth_guard middleware", () => {
       }),
     );
     expect(result).toEqual(expect.objectContaining({ userId: "u-1" }));
+  });
+
+  it.each([
+    "sk-rlt-",
+    "rlt_",
+    "sk-ak-",
+    "ak_",
+    "sk-rlt-fixture_secret",
+    "sk-ak-fixture_secret",
+    "sk-dpk-fixture",
+    "sk-unknown-fixture",
+  ])("rejects malformed or unsupported credentials before calling authentication services: %s", async (token) => {
+    const req = createRequest({ headers: { authorization: `Bearer ${token}` } });
+    await expect(expressAuthentication(req, "jwt")).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(relayTokenServiceMock.validateToken).not.toHaveBeenCalled();
+    expect(accessKeyServiceMock.validateKey).not.toHaveBeenCalled();
+    expect(userRepositoryMock.findById).not.toHaveBeenCalled();
   });
 
   it("expressAuthentication rejects token without updatedAt", async () => {

@@ -21,7 +21,7 @@ import { EmailService } from "@/services/auth/email.service";
 import { CustomCode } from "@/constant/custom-code";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { MANAGED_STATUS } from "@/constant/status";
-import { getCredentialPrefix, maskSecret, toCanonicalCredential } from "@quyan/shared";
+import { getCredentialPrefix, isValidCredential, maskSecret, toCanonicalCredential } from "@quyan/shared";
 import type { Request } from "express";
 
 export class AccessKeyService {
@@ -133,6 +133,8 @@ export class AccessKeyService {
   }
 
   async validateKey(key: string): Promise<AccessKeyDto> {
+    if (!isValidCredential(key, "accessKey"))
+      throw new UnauthorizedError("Invalid AccessKey", undefined, { messageKey: "accessKey.invalid" });
     const accessKey = await this.repository.findByKey(key);
     if (!accessKey || accessKey.status !== MANAGED_STATUS.ENABLED)
       throw new UnauthorizedError("Invalid AccessKey", undefined, { messageKey: "accessKey.invalid" });

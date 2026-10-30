@@ -10,6 +10,31 @@ import {
 } from "../../../src/api/schema/relay/relay-channel.schema";
 
 describe("relay token import schema", () => {
+  it.each(["sk-rlt-fixture-A9", "rlt_fixture-A9"])(
+    "accepts custom credential %s consistently across create, update, and import",
+    (token) => {
+      expect(createRelayTokenBodySchema.parse({ channelId: "channel-1", token }).token).toBe(token);
+      expect(updateRelayTokenBodySchema.parse({ token }).token).toBe(token);
+      expect(importRelayTokensBodySchema.parse({ tokens: [{ channelId: "channel-1", token }] }).tokens[0]?.token).toBe(
+        token,
+      );
+    },
+  );
+
+  it.each([
+    "sk-rlt-",
+    "sk-rlt-tiny",
+    "sk-ak-fixture",
+    "rlt_fixture_secret",
+    "sk-rlt-fixture_secret",
+    "sk-rlt-fixture\0",
+    `sk-rlt-${"a".repeat(194)}`,
+  ])("rejects invalid custom credentials across create, update, and import: %j", (token) => {
+    expect(createRelayTokenBodySchema.safeParse({ channelId: "channel-1", token }).success).toBe(false);
+    expect(updateRelayTokenBodySchema.safeParse({ token }).success).toBe(false);
+    expect(importRelayTokensBodySchema.safeParse({ tokens: [{ channelId: "channel-1", token }] }).success).toBe(false);
+  });
+
   it("accepts token-scoped Anthropic normalizer settings for create, update, and import", () => {
     const normalizerConfig = {
       enabled: true,
