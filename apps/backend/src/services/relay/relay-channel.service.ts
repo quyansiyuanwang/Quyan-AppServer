@@ -1647,6 +1647,13 @@ export class RelayChannelService {
     if (routingConfig === null) return null;
 
     const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+    if (normalized.forwardAllRequestHeaders !== undefined) {
+      if (typeof normalized.forwardAllRequestHeaders !== "boolean")
+        throw new BadRequestError("forwardAllRequestHeaders must be a boolean", undefined, {
+          messageKey: "relayChannel.forwardAllRequestHeadersInvalid",
+        });
+      if (isPoolType(channelType)) delete normalized.forwardAllRequestHeaders;
+    }
     if (normalized.forwardedRequestHeaders !== undefined) {
       const names = normalizeRelayForwardedHeaderNames(normalized.forwardedRequestHeaders);
       if (!names)

@@ -3,6 +3,7 @@ import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { z } from "zod";
 import {
   RELAY_CONVERTIBLE_REQUEST_FORMATS,
+  isValidCredential,
   MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
   MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
 } from "@quyan/shared";
@@ -176,10 +177,10 @@ const customTokenSchema = z
   .trim()
   .min(12)
   .max(200)
-  .regex(
-    /^(?:sk-rlt-[a-zA-Z0-9-]+|rlt_[a-zA-Z0-9]+)$/,
-    "custom token must use sk-rlt- (legacy rlt_ is accepted) and contain only letters, numbers, or hyphens",
-  );
+  .refine((value) => isValidCredential(value, "relayToken"), {
+    message: "custom token must use sk-rlt- (legacy rlt_ is accepted) and contain only letters, numbers, or hyphens",
+    params: { messageKey: "relayToken.invalid" },
+  });
 
 const relayRequestFormatTransformSchema = z.object({
   sourceFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),

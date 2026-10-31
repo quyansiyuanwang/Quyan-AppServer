@@ -1,4 +1,5 @@
 import { Decimal } from "@prisma/client/runtime/library";
+import { isValidCredential } from "@quyan/shared";
 import { BadRequestError, NotFoundError, UnauthorizedError } from "@/util/errors";
 import { BalanceService } from "@/services/billing/balance.service";
 import { AnthropicUpstreamClient } from "@/util/anthropic-upstream.client";
@@ -33,6 +34,8 @@ export class OJQAService {
    * 验证API密钥并返回用户ID和渠道信息
    */
   async validateAPIKey(apiKey: string): Promise<{ userId: string; keyId: string; channel: RelayChannel | null }> {
+    if (!isValidCredential(apiKey, "ojApiKey"))
+      throw new UnauthorizedError("Invalid API key", undefined, { messageKey: "ojSubmitter.invalidApiKey" });
     const key = await this.ojApiKeyRepository.findActiveByKey(apiKey);
 
     if (!key) throw new UnauthorizedError("Invalid API key", undefined, { messageKey: "ojSubmitter.invalidApiKey" });

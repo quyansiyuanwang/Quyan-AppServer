@@ -2478,4 +2478,24 @@ describe("RelayChannelService", () => {
     expect(normalize(["x-sdk-custom"], "automatic-proxy-pool")).not.toHaveProperty("forwardedRequestHeaders");
     expect(() => normalize(["Authorization"])).toThrow(BadRequestError);
   });
+
+  it("keeps forwarding-all flags on physical channels and removes pool-level overrides", () => {
+    for (const type of ["standalone", "pooled-member"]) {
+      for (const forwardAllRequestHeaders of [true, false]) {
+        expect((service as any).normalizeRoutingConfig({ forwardAllRequestHeaders }, type)).toMatchObject({
+          forwardAllRequestHeaders,
+        });
+      }
+    }
+    for (const type of ["pooled", "automatic-proxy-pool"]) {
+      expect((service as any).normalizeRoutingConfig({ forwardAllRequestHeaders: true }, type)).not.toHaveProperty(
+        "forwardAllRequestHeaders",
+      );
+    }
+    for (const forwardAllRequestHeaders of ["true", 1, null, {}]) {
+      expect(() => (service as any).normalizeRoutingConfig({ forwardAllRequestHeaders }, "standalone")).toThrow(
+        BadRequestError,
+      );
+    }
+  });
 });

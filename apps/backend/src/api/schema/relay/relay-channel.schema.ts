@@ -105,6 +105,7 @@ const relayChannelMemberSchema = z.object({
 
 const routingConfigSchema = z
   .object({
+    forwardAllRequestHeaders: z.boolean().optional(),
     forwardedRequestHeaders: z
       .array(z.string())
       .transform((value, ctx) => {

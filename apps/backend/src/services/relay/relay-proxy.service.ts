@@ -3479,6 +3479,7 @@ export class RelayProxyService {
               requestFormat,
               upstreamApiKey,
               (channel.routingConfig as { forwardedRequestHeaders?: unknown } | null)?.forwardedRequestHeaders,
+              (channel.routingConfig as { forwardAllRequestHeaders?: unknown } | null)?.forwardAllRequestHeaders,
             );
 
             let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);

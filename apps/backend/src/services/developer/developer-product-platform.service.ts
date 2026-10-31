@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import {
   DEVELOPER_PRODUCT_CODES,
   getCredentialPrefix,
-  isCredentialOfType,
+  isValidCredential,
   isDeveloperProductCode,
   toCanonicalCredential,
   type DeveloperProductCode,
@@ -803,7 +803,7 @@ export class DeveloperProductPlatformService {
   }
 
   async authenticateProductKey(rawKey: string, requiredActions: Permission[]): Promise<ProductKeyContext> {
-    if (!isCredentialOfType(rawKey, "productKey"))
+    if (!isValidCredential(rawKey, "productKey"))
       throw new UnauthorizedError("未提供产品 API Key", undefined, { messageKey: "auth.missingProductApiKey" });
     const key = await prisma.developerProductApiKey.findFirst({
       where: { OR: [{ keyHash: hash(rawKey) }, { legacyKeyHash: hash(rawKey) }], status: 1 },

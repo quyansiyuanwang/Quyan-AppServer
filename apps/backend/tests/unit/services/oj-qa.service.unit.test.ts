@@ -62,22 +62,26 @@ describe("OJQAService", () => {
     vi.clearAllMocks();
   });
 
-  it("validates active API key and returns user/channel info", async () => {
-    ojApiKeyRepository.findActiveByKey.mockResolvedValue({
-      id: "key-1",
-      userId: "user-1",
-      expiresAt: null,
-      channel: { id: "channel-a", name: "channel-a" },
-    });
+  it.each(["sk-ojqa-fixture-A9", "ojqa_fixture-A9"])(
+    "validates active API credential %s and returns user/channel info",
+    async (apiKey) => {
+      ojApiKeyRepository.findActiveByKey.mockResolvedValue({
+        id: "key-1",
+        userId: "user-1",
+        expiresAt: null,
+        channel: { id: "channel-a", name: "channel-a" },
+      });
 
-    const result = await service.validateAPIKey("ojqa_token");
+      const result = await service.validateAPIKey(apiKey);
+      expect(ojApiKeyRepository.findActiveByKey).toHaveBeenCalledWith(apiKey);
 
-    expect(result).toEqual({
-      userId: "user-1",
-      keyId: "key-1",
-      channel: { id: "channel-a", name: "channel-a" },
-    });
-  });
+      expect(result).toEqual({
+        userId: "user-1",
+        keyId: "key-1",
+        channel: { id: "channel-a", name: "channel-a" },
+      });
+    },
+  );
 
   it("rejects missing or expired API keys", async () => {
     ojApiKeyRepository.findActiveByKey.mockResolvedValueOnce(null).mockResolvedValueOnce({
@@ -87,9 +91,17 @@ describe("OJQAService", () => {
       channel: null,
     });
 
-    await expect(service.validateAPIKey("missing")).rejects.toThrow(UnauthorizedError);
-    await expect(service.validateAPIKey("expired")).rejects.toThrow("API key has expired");
+    await expect(service.validateAPIKey("sk-ojqa-missing")).rejects.toThrow(UnauthorizedError);
+    await expect(service.validateAPIKey("sk-ojqa-expired")).rejects.toThrow("API key has expired");
   });
+
+  it.each(["sk-ojqa-", "ojqa_", "sk-rlt-fixture", "sk-ojqa-fixture_secret", "sk-ojqa-fixture\n"])(
+    "rejects malformed OJ credentials before querying persistence: %j",
+    async (key) => {
+      await expect(service.validateAPIKey(key)).rejects.toMatchObject({ messageKey: "ojSubmitter.invalidApiKey" });
+      expect(ojApiKeyRepository.findActiveByKey).not.toHaveBeenCalled();
+    },
+  );
 
   it("loads model pricing or throws when absent", async () => {
     ojModelPricingRepository.findActiveByModel.mockResolvedValueOnce(pricingRecord).mockResolvedValueOnce(null);

@@ -76,7 +76,7 @@ import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { Request } from "express";
-import { toCanonicalCredential } from "@quyan/shared";
+import { isValidCredential, toCanonicalCredential } from "@quyan/shared";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -828,6 +828,8 @@ export class RelayTokenService {
   }
 
   async validateToken(token: string, request?: Request, trustedClientIp?: string) {
+    if (!isValidCredential(token, "relayToken"))
+      throw new NotFoundError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     const relayToken = await this.relayTokenRepo.findByToken(token);
     if (relayToken && getAIRequestLogContext(request?.res))
       setAIRequestLogContext(request?.res, {

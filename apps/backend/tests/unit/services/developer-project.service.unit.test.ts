@@ -91,24 +91,38 @@ describe("DeveloperProjectService", () => {
     });
   });
 
-  it("authenticates a project key only when it contains the requested scope", async () => {
-    mocks.prisma.developerProjectApiKey.findFirst.mockResolvedValue({
-      id: "key-1",
-      keyHash: sha256("dk_test"),
-      scopes: ["kv:read"],
-      expiresAt: null,
-      project: { userId: "user-1" },
-    });
+  it.each(["sk-dk-fixture", "dk_fixture"])(
+    "authenticates project credential %s only when it contains the requested scope",
+    async (rawKey) => {
+      mocks.prisma.developerProjectApiKey.findFirst.mockResolvedValue({
+        id: "key-1",
+        keyHash: sha256(rawKey),
+        scopes: ["kv:read"],
+        expiresAt: null,
+        project: { userId: "user-1" },
+      });
 
-    const service = DeveloperProjectService.getInstance();
-    const key = await service.authenticateProjectKey("dk_test", ["kv:read"]);
+      const service = DeveloperProjectService.getInstance();
+      const key = await service.authenticateProjectKey(rawKey, ["kv:read"]);
 
-    expect(key.id).toBe("key-1");
-    expect(mocks.prisma.developerProjectApiKey.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "key-1", status: 1 } }),
-    );
-    await expect(service.authenticateProjectKey("dk_test", ["push:send"])).rejects.toThrow("缺少权限");
-  });
+      expect(key.id).toBe("key-1");
+      expect(mocks.prisma.developerProjectApiKey.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "key-1", status: 1 } }),
+      );
+      await expect(service.authenticateProjectKey(rawKey, ["push:send"])).rejects.toThrow("缺少权限");
+    },
+  );
+
+  it.each(["sk-dk-", "dk_", "sk-dpk-fixture", "sk-dk-fixture_secret", "sk-dk-fixture\n"])(
+    "rejects malformed project credentials before querying persistence: %j",
+    async (rawKey) => {
+      await expect(DeveloperProjectService.getInstance().authenticateProjectKey(rawKey, [])).rejects.toMatchObject({
+        messageKey: "developerProject.apiKeyInvalid",
+      });
+      expect(mocks.prisma.developerProjectApiKey.findFirst).not.toHaveBeenCalled();
+      expect(mocks.prisma.developerProjectApiKey.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it("prefers project quota overrides over user overrides and defaults", async () => {
     mocks.prisma.developerProject.findFirst.mockResolvedValue({

@@ -57,6 +57,25 @@ describe("AccessKeyService", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["sk-ak-", "ak_", "sk-rlt-fixture", "sk-ak-fixture_secret", "sk-ak-fixture\n"])(
+    "rejects malformed access credentials before querying persistence: %j",
+    async (key) => {
+      const { service, mocks } = createService();
+      await expect(service.validateKey(key)).rejects.toMatchObject({ messageKey: "accessKey.invalid" });
+      expect(mocks.accessKeyRepositoryMock.findByKey).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["sk-ak-fixture-A9", "ak_fixture-A9"])(
+    "continues to authenticate valid access credentials: %s",
+    async (key) => {
+      const { service, mocks } = createService();
+      mocks.accessKeyRepositoryMock.findByKey.mockResolvedValue({ id: "ak-1", userId: "user-1", key, status: 1 });
+      await expect(service.validateKey(key)).resolves.toMatchObject({ id: "ak-1", userId: "user-1" });
+      expect(mocks.accessKeyRepositoryMock.findByKey).toHaveBeenCalledWith(key);
+    },
+  );
+
   it("skips email code verification when user has 2FA enabled", async () => {
     const { service, mocks } = createService();
     mocks.userRepositoryMock.findById.mockResolvedValue({
