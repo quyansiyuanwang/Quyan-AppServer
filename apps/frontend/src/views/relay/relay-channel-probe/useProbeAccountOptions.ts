@@ -15,7 +15,7 @@ export function useProbeAccountOptions(allowed: ComputedRef<boolean>) {
     disposed = false,
     timer: ReturnType<typeof setTimeout> | undefined
   let active: { key: string; promise: Promise<void> } | undefined
-  function fetch(nextPage: number, term: string): Promise<void> {
+  function fetchAccountPage(nextPage: number, term: string): Promise<void> {
     if (!allowed.value || disposed) return Promise.resolve()
     const key = JSON.stringify([nextPage, term])
     if (active?.key === key) return active.promise
@@ -47,18 +47,18 @@ export function useProbeAccountOptions(allowed: ComputedRef<boolean>) {
     return promise
   }
   function loadAccounts(term?: string) {
-    return fetch(1, typeof term === 'string' ? term : '')
+    return fetchAccountPage(1, typeof term === 'string' ? term : '')
   }
   function searchAccounts(term: string) {
     ++sequence
     active = undefined
     clearTimeout(timer)
     timer = setTimeout(() => {
-      void fetch(1, term)
+      void fetchAccountPage(1, term)
     }, policy.searchDelayMs)
   }
   function loadMoreAccounts() {
-    if (!accountsLoading.value && accountsHasMore.value) return fetch(page + 1, search)
+    if (!accountsLoading.value && accountsHasMore.value) return fetchAccountPage(page + 1, search)
   }
   onBeforeUnmount(() => {
     disposed = true
