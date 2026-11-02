@@ -52,6 +52,15 @@ export const relayChannelProbeRunsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   memberChannelId: z.string().trim().min(1).optional(),
 });
+export const relayProbeOverviewQuerySchema = relayChannelProbeRunsQuerySchema.omit({ memberChannelId: true }).extend({
+  search: z.string().trim().max(200).optional(),
+  channelId: z.string().trim().min(1).optional(),
+  profile: z.enum(["all", "configured", "unconfigured"]).optional(),
+  enabled: z.enum(["all", "enabled", "disabled"]).optional(),
+  runStatus: z.enum(["all", "none", "queued", "running", "succeeded", "failed", "timed_out", "cancelled"]).optional(),
+  suggestion: z.enum(["all", "applicable", "not_applicable"]).optional(),
+  group: z.string().trim().max(100).optional(),
+});
 export const clearRelayChannelProbeRunHistoryQuerySchema = z.object({
   scope: z.enum(["all", "failed"]),
   memberChannelId: z.string().trim().min(1).optional(),
@@ -255,19 +264,106 @@ export const bindRelayChannelProbeAccountsBodySchema = z
         .size === value.targets.length,
     "Duplicate binding targets are not allowed",
   );
+export const saveRelayProbeConfigurationSchema = z
+  .object({
+    profile: upsertRelayChannelProbeProfileBodySchema,
+    memberChannelId: z.string().trim().min(1).max(191).optional(),
+    target: targetConfigurationSchema.omit({ channelId: true, memberChannelId: true }).optional(),
+    accountId: z.string().trim().min(1).max(191).nullable().optional(),
+    expectedProfileUpdatedAt: z.string().datetime().nullable(),
+    expectedTargetUpdatedAt: z.string().datetime().nullable(),
+  })
+  .strict();
 export const saveRelayChannelProbeAccountBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100),
-    loginWorkflow: workflowStepSchema.pick({ method: true, url: true, headers: true, query: true, body: true }),
+    loginWorkflow: workflowStepSchema.pick({ method: true, url: true, headers: true, query: true, body: true }).extend({
+      url: z.string().trim().max(1000),
+    }),
     tokenPath: variablePathSchema,
     expiresPath: variablePathSchema.optional(),
-    expiresMode: z.enum(["seconds", "iso"]).optional(),
+    expiresMode: z.enum(["seconds", "iso", "unixSeconds", "unixMillis"]).optional(),
     fallbackTtlSeconds: z.number().int().min(60).max(86400),
     minLoginIntervalSeconds: z.number().int().min(1).max(86400),
     credentials: credentialMapSchema.optional(),
+    expectedRevision: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    retainedFields: z
+      .array(z.array(z.string().min(1).max(100)).min(1).max(20))
+      .max(200)
+      .optional(),
+    credentialUpdates: credentialMapSchema.optional(),
+    sessionFields: z
+      .array(
+        z.object({
+          name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,49}$/),
+          source: z.enum(["json", "header", "cookie"]),
+          selector: variablePathSchema,
+          required: z.boolean(),
+        }),
+      )
+      .max(12)
+      .optional(),
+    tokenField: z
+      .string()
+      .regex(/^[A-Za-z][A-Za-z0-9_]{0,49}$/)
+      .nullable()
+      .optional(),
+    refreshWorkflow: workflowStepSchema
+      .pick({ method: true, url: true, headers: true, query: true, body: true })
+      .extend({ url: z.string().trim().max(1000) })
+      .nullable()
+      .optional(),
+    retainedRefreshFields: z
+      .array(z.array(z.string().min(1).max(100)).min(1).max(20))
+      .max(200)
+      .optional(),
+    refreshTtlSeconds: z.number().int().min(60).max(86400).optional(),
+    sessionAllowedOrigins: z
+      .array(
+        z
+          .string()
+          .url()
+          .max(1000)
+          .refine((value) => {
+            const url = new URL(value);
+            return url.protocol === "https:" && url.origin === value;
+          }),
+      )
+      .max(5)
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    const fields = value.sessionFields ?? [];
+    const refreshUrlRetained = value.retainedRefreshFields?.some((path) => path.length === 1 && path[0] === "url");
+    if (
+      new Set(fields.map((field) => field.name)).size !== fields.length ||
+      (value.tokenField && !fields.some((field) => field.name === value.tokenField)) ||
+      (value.refreshWorkflow &&
+        !refreshUrlRetained &&
+        !z.string().url().safeParse(value.refreshWorkflow.url).success) ||
+      (refreshUrlRetained && (!value.expectedRevision || value.refreshWorkflow?.url !== "")) ||
+      (value.retainedRefreshFields?.length && !value.expectedRevision)
+    )
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid session field configuration" });
+    const retainedUrl = value.retainedFields?.some((path) => path.length === 1 && path[0] === "url");
+    if (
+      (!retainedUrl && !z.string().url().safeParse(value.loginWorkflow.url).success) ||
+      (retainedUrl && value.loginWorkflow.url !== "") ||
+      ((value.retainedFields?.length || value.credentialUpdates) && !value.expectedRevision) ||
+      (value.credentials && value.credentialUpdates)
+    )
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid account edit configuration" });
   })
   .refine(
     (value) => Boolean(value.expiresPath) === Boolean(value.expiresMode),
     "expiresPath and expiresMode must be configured together",
   );
 export const relayChannelProbeAccountParamsSchema = z.object({ accountId: z.string().trim().min(1) });
+export const relayChannelProbeAccountsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  search: z.string().trim().max(100).optional(),
+});

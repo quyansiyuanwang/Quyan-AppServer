@@ -152,6 +152,9 @@ importers:
       swagger-ui-express:
         specifier: ^5.0.1
         version: 5.0.1(express@5.2.1)
+      tough-cookie:
+        specifier: 6.0.1
+        version: 6.0.1
       tsc-alias:
         specifier: ^1.8.10
         version: 1.8.17

@@ -52,12 +52,17 @@ export class PlatformRelayProbeAccountUpdateRepository implements PlatformRelayP
       await recheck();
       if (!persist) return undefined;
       // Replacement credentials do not require decrypting the previous secret.
-      const previous = input.credentials
-        ? undefined
-        : await tx.relayChannelProbeAccount.findUniqueOrThrow({
-            where: { id },
-            select: { encryptedCredentials: true, credentialIv: true, credentialAuthTag: true },
-          });
+      const previous =
+        input.credentials &&
+        !input.expectedRevision &&
+        !input.retainedFields?.length &&
+        !input.retainedRefreshFields?.length &&
+        !input.credentialUpdates
+          ? undefined
+          : await tx.relayChannelProbeAccount.findUniqueOrThrow({
+              where: { id },
+              select: { encryptedCredentials: true, credentialIv: true, credentialAuthTag: true },
+            });
       const encrypted = encrypt(input, previous);
       const account = await tx.relayChannelProbeAccount.update({
         where: { id },
