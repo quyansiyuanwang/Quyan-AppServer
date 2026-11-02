@@ -160,8 +160,11 @@ export class NotificationService {
       });
       throw new Error("Round notification email unavailable");
     }
-    const sendEmail = await this.emailSender();
-    await deliver("email", "email", () => sendEmail(email, document, deliveryId));
+    await deliver("email", "email", async () => {
+      const sendEmail = await this.emailSender();
+      await recheck();
+      await sendEmail(email, document, deliveryId);
+    });
     const webhooks = await this.repository.findWebhooksByUserId(userId);
     for (const webhook of webhooks.filter((row) => row.enabled))
       await deliver("webhook", webhook.id, () => this.sendWebhook(webhook, document));

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   preference: vi.fn(),
   account: vi.fn(),
   webhooks: vi.fn(),
+  smtp: vi.fn(),
 }));
 vi.mock("@/config/database", () => ({ prisma: {} }));
 vi.mock("nodemailer", () => ({ default: { createTransport: () => ({ sendMail: mocks.email }) } }));
@@ -27,11 +28,7 @@ vi.mock("@/services/notification/notification-preference-initializer.service", (
 vi.mock("@/services/system/config.service", () => ({
   ConfigService: {
     getInstance: () => ({
-      getSmtpConfig: async () => ({
-        host: "fixture.invalid",
-        senderEmail: "no-reply@example.invalid",
-        senderName: "Fixture",
-      }),
+      getSmtpConfig: mocks.smtp,
       getSiteConfig: async () => ({ backendPublicUrl: "https://fixture.invalid" }),
     }),
   },
@@ -76,6 +73,11 @@ beforeEach(() => {
   mocks.log.mockResolvedValue({ deliveryStatus: "pending" });
   mocks.email.mockResolvedValue({});
   mocks.webhooks.mockResolvedValue([]);
+  mocks.smtp.mockResolvedValue({
+    host: "fixture.invalid",
+    senderEmail: "no-reply@example.invalid",
+    senderName: "Fixture",
+  });
 });
 describe("registered round notification", () => {
   it("renders numeric data, changes, failure stage and report link in the event document", () => {
@@ -94,7 +96,7 @@ describe("registered round notification", () => {
     expect(mocks.email).toHaveBeenCalledWith(
       expect.objectContaining({ to: "account@example.invalid", messageId: "<delivery@example.invalid>" }),
     );
-    expect(recheck).toHaveBeenCalledTimes(2);
+    expect(recheck).toHaveBeenCalledTimes(3);
   });
   it("retries a failed delivery but does not resend an already successful log", async () => {
     mocks.email.mockRejectedValueOnce(new Error("fixture-secret-response"));
@@ -105,6 +107,29 @@ describe("registered round notification", () => {
     mocks.log.mockResolvedValue({ deliveryStatus: "success" });
     await NotificationService.getInstance().dispatchProbeRound("actor", "delivery", input, async () => {});
     expect(mocks.email).toHaveBeenCalledTimes(1);
+    expect(mocks.smtp).toHaveBeenCalledTimes(1);
+  });
+  it("records SMTP preparation failures in the notification center without exposing their details", async () => {
+    mocks.smtp.mockRejectedValueOnce(new Error("fixture-sensitive-smtp-configuration"));
+    await expect(
+      NotificationService.getInstance().dispatchProbeRound("actor", "delivery", input, async () => {}),
+    ).rejects.toThrow("Round notification delivery failed");
+    expect(mocks.log).toHaveBeenCalledWith("delivery-email", expect.objectContaining({ channel: "email" }));
+    expect(mocks.finish).toHaveBeenCalledWith("delivery-email", "failed", "notification-delivery-failed");
+    expect(mocks.email).not.toHaveBeenCalled();
+  });
+  it("rechecks authorization after preparing SMTP and prevents delivery following revocation", async () => {
+    const recheck = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("fixture-revoked"));
+    await expect(
+      NotificationService.getInstance().dispatchProbeRound("actor", "delivery", input, recheck),
+    ).rejects.toThrow("Round notification delivery failed");
+    expect(mocks.smtp).toHaveBeenCalledOnce();
+    expect(mocks.email).not.toHaveBeenCalled();
+    expect(mocks.finish).toHaveBeenCalledWith("delivery-email", "failed", "notification-delivery-failed");
   });
   it("preserves inbox results but respects an explicitly unsubscribed email event", async () => {
     mocks.preference.mockResolvedValue({ subscribedEvents: [], notificationEmail: "account@example.invalid" });
