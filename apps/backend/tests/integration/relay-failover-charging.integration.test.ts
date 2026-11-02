@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { getCredentialPrefix } from "@quyan/shared";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
 import { hashPassword } from "../../src/util/crypto";
@@ -191,7 +192,7 @@ describe("Relay Failover Charging Integration Tests", () => {
       data: {
         userId: testUserId,
         name: "Failover Test Token",
-        token: `rlt_failover_test_${suffix}`,
+        token: `${getCredentialPrefix("relayToken")}failover-test-${suffix.replaceAll("_", "-")}`,
         channelId: null, // Use multi-channel config instead of legacy single channel
       },
     });
