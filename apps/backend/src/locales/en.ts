@@ -682,10 +682,16 @@ const en = {
     accountNotFound: "Probe account not found",
     accountCredentialsRequired: "New accounts require login credentials",
     accountReservedVariable: "accountToken is a reserved variable",
+    accountSessionInvalid:
+      "The panel session fields could not be extracted or cannot be used for this request. Check field mapping and permitted origins.",
+    scheduleEmailRequired: "Set a notification email or account email before enabling the daily probe summary.",
+    accountConfigurationChanged: "This account was changed by another operation. Reopen the editor and try again.",
     accountBackendUnavailable: "Probe account session backend is unavailable",
     accountLoginCooldown: "Login is cooling down; retry later",
     accountLoginInProgress: "Account login is in progress; retry later",
     accountLoginFailed: "Account login or token extraction failed",
+    accountRefreshFailed:
+      "The panel session refresh failed. Check the refresh request and field mapping, then log in again if necessary.",
     pooledProfileCopyUnsupported:
       "Pool member credentials cannot be copied to another pool; configure members individually",
     apiFormatIncompatible: "探针接口与请求格式不兼容",

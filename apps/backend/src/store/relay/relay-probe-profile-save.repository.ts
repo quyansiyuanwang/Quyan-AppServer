@@ -8,7 +8,7 @@ import {
 } from "@/iam/resources/platform-relay-probe-resources";
 import { platformManagementGroupSnapshot } from "../users/platform-management-principal";
 import { iamAccountDenied } from "../users/iam-account-principal";
-import { BadRequestError } from "@/util/errors";
+import { BadRequestError, ConflictError } from "@/util/errors";
 import { mutatePlatformRelayProbe, type RelayProbeMutationContext } from "./platform-relay-probe-mutation";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { relayProbeReadTarget, relayProbeUpstreamConfigured } from "./relay-probe-read-target";
@@ -35,6 +35,10 @@ export class RelayProbeProfileSaveRepository {
       previous: RelayProbeProfileReadRecord | undefined,
     ) => Omit<Prisma.RelayChannelProbeProfileUncheckedCreateInput, "id" | "relayChannelId">,
     map: (profile: RelayProbeProfileReadRecord) => T,
+    atomic?: {
+      expectedUpdatedAt: string | null;
+      afterSave: (tx: Prisma.TransactionClient, profile: RelayProbeProfileReadRecord) => Promise<void>;
+    },
   ): Promise<T | undefined> {
     const { principal, snapshot, authorize, recheck, visible, persist } = guard,
       limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
@@ -56,6 +60,15 @@ export class RelayProbeProfileSaveRepository {
           select: { id: true, updateTime: true },
         });
         const profileId = identity?.id ?? reservedId;
+        if (atomic && (identity?.updateTime.toISOString() ?? null) !== atomic.expectedUpdatedAt)
+          throw new ConflictError("Probe profile changed", undefined, { messageKey: "errors.conflict" });
+        if (
+          atomic &&
+          (await tx.relayChannelProbeRun.count({
+            where: { relayChannelId: channelId, status: { in: ["queued", "running"] } },
+          }))
+        )
+          throw new ConflictError("Probe is active", undefined, { messageKey: "relayChannelProbe.probeAlreadyQueued" });
         await authorize([platformRelayProbeProfileArn(channelId, profileId)]);
         const identifiers = [...members];
         for (let offset = 0; offset < identifiers.length; offset += limit)
@@ -148,6 +161,7 @@ export class RelayProbeProfileSaveRepository {
               select: relayProbeProfileReadSelect,
             });
         if (record.id !== profileId || record.relayChannelId !== channelId) throw iamAccountDenied();
+        await atomic?.afterSave(tx, record);
         return map(record);
       },
     );

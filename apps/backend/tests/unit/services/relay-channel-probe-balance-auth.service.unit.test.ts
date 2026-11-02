@@ -72,6 +72,9 @@ describe("balance 401 account-session handling", () => {
     const session = vi
       .spyOn(RelayChannelProbeAccountService.getInstance(), "getToken")
       .mockResolvedValue("session-secret");
+    vi.spyOn(RelayChannelProbeAccountService.getInstance(), "getRequestVariables").mockImplementation(
+      async (_id, _step, variables) => variables,
+    );
     let reads = 0;
     const balance = vi.spyOn(axios, "request").mockImplementation(async () => {
       reads += 1;

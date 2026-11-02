@@ -49,6 +49,7 @@ export class RelayProbeRunCreateRepository {
     guard: RelayProbeMutationContext,
     endpoint: (format: string, previous: string, override: boolean) => string,
     reserve: (target: RelayProbeRunAdmissionTarget) => Promise<void>,
+    afterCreate?: (tx: Prisma.TransactionClient, target: RelayProbeRunAdmissionTarget) => Promise<void>,
   ): Promise<RelayProbeRunPublicRecord | undefined> {
     const { principal, snapshot, authorize, recheck, visible, persist } = guard;
     return mutatePlatformRelayProbe(
@@ -160,15 +161,16 @@ export class RelayProbeRunCreateRepository {
           });
         await recheck();
         if (!persist) return undefined;
-        await reserve({
+        const admission = {
           profileId: profile.id,
           profileUpdatedAt: profile.updateTime.toISOString(),
           targetConfigId: identity?.id ?? null,
           targetConfigUpdatedAt: identity?.updateTime.toISOString() ?? null,
           accountId: identity?.accountId ?? null,
-        });
+        };
+        await reserve(admission);
         await recheck();
-        return tx.relayChannelProbeRun.create({
+        const created = await tx.relayChannelProbeRun.create({
           data: {
             id: runId,
             relayChannelId: channelId,
@@ -189,6 +191,8 @@ export class RelayProbeRunCreateRepository {
           },
           select: relayProbeRunPublicSelect,
         });
+        await afterCreate?.(tx, admission);
+        return created;
       },
     );
   }

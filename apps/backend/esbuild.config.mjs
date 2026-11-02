@@ -18,12 +18,16 @@ const generatedPrismaClientDir = path.dirname(prismaRequire.resolve(".prisma/cli
 const swaggerUiDistDir = path.dirname(require.resolve("swagger-ui-dist"));
 
 await esbuild.build({
-  entryPoints: ["./src/main.ts"],
+  entryPoints: {
+    index: "./src/main.ts",
+    "operations/initialize-probe-plan": "./src/operations/initialize-probe-plan.ts",
+  },
   bundle: true,
   platform: "node",
   target: "node20",
   format: "cjs", // 输出 CommonJS 格式
-  outfile: "./dist/index.cjs", // 使用 .cjs 扩展名
+  outdir: "./dist",
+  outExtension: { ".js": ".cjs" },
   sourcemap: isProduction ? false : true, // 生产环境不生成 sourcemap
   minify: isProduction, // 生产环境启用压缩
   treeShaking: true, // 启用 tree-shaking

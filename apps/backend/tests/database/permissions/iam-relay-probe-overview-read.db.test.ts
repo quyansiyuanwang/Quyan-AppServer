@@ -148,7 +148,76 @@ afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: [actor, owner] } } });
   await prisma.group.deleteMany({ where: { id: groupId } });
 });
-describe("resource-scoped probe overview", () => {
+// Each case exercises several real database-backed IAM requests and revocation checks.
+describe("resource-scoped probe overview", { timeout: 20_000 }, () => {
+  it("loads complete target payloads only for the requested authorized editor", async () => {
+    const payload = { fixture: "saved-target-payload" };
+    await prisma.relayChannelProbeTargetConfig.create({
+      data: { profileId: standaloneProfile, targetChannelId: standalone, probePayload: payload },
+    });
+    const service = RelayChannelProbeService.getInstance();
+    expect(
+      (await service.listOverviewPage({ channelId: standalone }, actor, request())).items[0]?.targetConfig,
+    ).not.toHaveProperty("probePayload");
+    expect(
+      (await service.getConfiguration(standalone, undefined, actor, request())).targetConfig?.probePayload,
+    ).toEqual(payload);
+    expect((await service.getConfiguration(pool, member, actor, request())).members).toHaveLength(1);
+    await policy("Deny", platformRelayChannelArn(member));
+    await expect(service.getConfiguration(pool, member, actor, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("matches authorized member group overrides without exposing a denied target", async () => {
+    await prisma.relayChannelProbeTargetConfig.create({
+      data: { profileId: poolProfile, targetChannelId: member, probeGroup: "fixture-member-group" },
+    });
+    const service = RelayChannelProbeService.getInstance();
+    expect(
+      (await service.listOverviewPage({ channelId: pool, group: "fixture-member-group" }, actor, request())).total,
+    ).toBe(1);
+    await policy("Deny", platformRelayChannelArn(member), "quyan:relay:GetProbeTargetConfig");
+    expect(
+      (await service.listOverviewPage({ channelId: pool, group: "fixture-member-group" }, actor, request())).total,
+    ).toBe(0);
+  });
+  it("counts only admitted summary rows and preserves topology beyond the selected page", async () => {
+    const service = RelayChannelProbeService.getInstance();
+    const page = await service.listOverviewPage({ channelId: member, page: 1, pageSize: 1 }, actor, request());
+    expect(page.total).toBe(1);
+    expect(page.items[0]?.customerFacingTargets).toEqual([{ channelId: pool, channelName: prefix }]);
+    await policy("Deny", platformRelayChannelArn(member));
+    const denied = await service.listOverviewPage({ channelId: member, page: 1, pageSize: 1 }, actor, request());
+    expect(denied).toMatchObject({ total: 0, items: [] });
+  });
+  it("does not decrypt profile secrets for summaries and applies profile filters after grants", async () => {
+    await prisma.relayChannelProbeProfile.update({
+      where: { id: standaloneProfile },
+      data: { encryptedCredentials: "invalid" },
+    });
+    const service = RelayChannelProbeService.getInstance();
+    const page = await service.listOverviewPage({ channelId: standalone, profile: "configured" }, actor, request());
+    expect(page.items[0]?.profile).toBeDefined();
+    expect(page.items[0]?.profile).not.toHaveProperty("workflow");
+    await policy("Deny", platformRelayProbeProfileArn(standalone, standaloneProfile), "quyan:relay:GetProbeProfile");
+    expect(
+      (await service.listOverviewPage({ channelId: standalone, profile: "configured" }, actor, request())).total,
+    ).toBe(0);
+    expect(
+      (await service.listOverviewPage({ channelId: standalone }, actor, request())).items[0]?.profile,
+    ).toBeUndefined();
+  });
+  it("paginates members after authorization without falling back when strict children are denied", async () => {
+    const service = RelayChannelProbeService.getInstance();
+    expect(await service.listMemberPage(pool, 1, 1, actor, request())).toMatchObject({
+      total: 1,
+      items: [{ channelId: member }],
+    });
+    expect(await service.listMemberPage(pool, 2, 1, actor, request())).toMatchObject({ total: 1, items: [] });
+    await prisma.relayChannelMember.create({
+      data: { relayChannelId: pool, memberChannelId: outsider, priority: 0, weight: 1 },
+    });
+    await policy("Deny", platformRelayChannelArn(member));
+    expect(await service.listMemberPage(pool, 1, 1, actor, request())).toMatchObject({ total: 0, items: [] });
+  });
   it("returns safe channel metadata, profile names and effective strict members", async () => {
     const result = await overview(),
       pooled = result.find((row) => row.channelId === pool)!;

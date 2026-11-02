@@ -1,4 +1,5 @@
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent, NOTIFICATION_EVENT_LABELS } from "@/constant/notification-event";
+import type { RelayProbeRoundTargetReportDto } from "@/api/dto/relay/relay-probe-round.dto";
 
 export type NotificationSeverity = "info" | "success" | "warning" | "error";
 
@@ -44,6 +45,14 @@ export interface DeveloperMonitorNotificationInput extends NotificationTemplateI
 }
 
 export interface NotificationEventInputMap {
+  [NotificationEvent.RELAY_PROBE_ROUND_COMPLETED]: NotificationTemplateInput & {
+    roundId: string;
+    scheduledFor: string;
+    targets: RelayProbeRoundTargetReportDto[];
+    errorStage?: string;
+    errorCode?: string;
+    detailsUrl: string;
+  };
   [NotificationEvent.DEVELOPER_MONITOR_DOWN]: DeveloperMonitorNotificationInput;
   [NotificationEvent.DEVELOPER_MONITOR_RECOVERED]: DeveloperMonitorNotificationInput;
   [NotificationEvent.BALANCE_LOW]: NotificationTemplateInput & {
@@ -207,6 +216,67 @@ const rechargeTemplate = (event: NotificationEvent.RECHARGE_SUCCESS | Notificati
     },
   }) satisfies NotificationTemplate<NotificationEventInputMap[NotificationEvent.RECHARGE_SUCCESS]>;
 
+const probeRoundTemplate: NotificationTemplate<
+  NotificationEventInputMap[NotificationEvent.RELAY_PROBE_ROUND_COMPLETED]
+> = {
+  build(input, timestamp) {
+    const succeeded = input.targets.filter((target) => target.state === "succeeded").length;
+    return {
+      event: NotificationEvent.RELAY_PROBE_ROUND_COMPLETED,
+      subject: "每日余额探针汇总",
+      summary: `${input.scheduledFor}：${input.targets.length} 个目标，${succeeded} 个成功。倍率建议需手动确认，未自动改价。`,
+      severity: !input.errorCode && succeeded === input.targets.length ? "success" : "warning",
+      blocks: compactBlocks([
+        ...(input.errorCode
+          ? [
+              notificationBlocks.fields(
+                [field("错误阶段", input.errorStage), field("错误原因", input.errorCode)],
+                "轮次未能正常发现或执行目标",
+              ),
+            ]
+          : []),
+        ...input.targets.map((target) =>
+          notificationBlocks.fields(
+            [
+              field("状态", target.state),
+              field("上游币种", target.upstreamCurrency),
+              field("余额（前）", target.balanceBefore),
+              field("余额（后）", target.balanceAfter),
+              field("余额变化", target.balanceDelta),
+              field("本地币种", target.localCurrency),
+              field("本地余额（前）", target.localBalanceBefore),
+              field("本地余额（后）", target.localBalanceAfter),
+              field("本地余额变化", target.localBalanceDelta),
+              field(
+                "输入 / 输出 Token",
+                target.inputTokens === undefined ? undefined : `${target.inputTokens} / ${target.outputTokens ?? 0}`,
+              ),
+              field("缓存读取 Token", target.cacheReadTokens),
+              field("缓存写入 Token", target.cacheCreationTokens),
+              field("基础成本", target.baseLocalCost),
+              field("测量时倍率", target.measuredMultiplier),
+              field("汇总时倍率", target.currentMultiplier),
+              field("建议倍率", target.suggestedMultiplier),
+              field("建议与测量值差额", target.multiplierChange),
+              field("建议与测量值变化率（%）", target.multiplierChangePercent),
+              field("上次有效建议", target.previousSuggestedMultiplier),
+              field("相对上次建议变化", target.suggestionChange),
+              field("相对上次建议变化率（%）", target.suggestionChangePercent),
+              field("校准状态", target.calibrationStatus),
+              field("错误阶段", target.errorStage),
+              field("错误原因", target.errorCode),
+            ],
+            target.memberChannelName ? `${target.channelName} / ${target.memberChannelName}` : target.channelName,
+          ),
+        ),
+        notificationBlocks.actions([{ label: "查看轮次详情并手动确认建议", url: input.detailsUrl }]),
+      ]),
+      timestamp,
+      metadata: businessMetadata(input),
+    };
+  },
+};
+
 export class NotificationTemplateRegistry {
   private static readonly templates: Record<NotificationEvent, NotificationTemplate> = {
     ...Object.fromEntries(ALL_NOTIFICATION_EVENTS.map((event) => [event, genericTemplate])),
@@ -215,6 +285,7 @@ export class NotificationTemplateRegistry {
     [NotificationEvent.REDEMPTION_SUCCESS]: rechargeTemplate(NotificationEvent.REDEMPTION_SUCCESS),
     [NotificationEvent.DEVELOPER_MONITOR_DOWN]: monitorTemplate,
     [NotificationEvent.DEVELOPER_MONITOR_RECOVERED]: monitorTemplate,
+    [NotificationEvent.RELAY_PROBE_ROUND_COMPLETED]: probeRoundTemplate,
   } as Record<NotificationEvent, NotificationTemplate>;
 
   static build<E extends NotificationEvent>(event: E, input: NotificationInputFor<E>): NotificationDocument {
