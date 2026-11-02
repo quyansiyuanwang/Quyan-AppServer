@@ -61,11 +61,11 @@ Strict calibration validation is off by default. One comparable sample can produ
 
 ## Find and review results
 
-Name/ID search is case-insensitive and immediately filters loaded channel rows. It does not search member names or historical bodies. Serial group, profile state, enabled state, latest run status, and suggestion filters combine; changing filters clears the current selection.
+Name/ID search is case-insensitive and runs on the server. It does not search member names or historical bodies. Serial group, profile state, enabled state, latest run status, and suggestion filters combine; changing filters clears the current selection.
 
-While known tasks are queued/running, the page polls latest states about every three seconds and stops when they finish. **Refresh** reloads the overview. A failed load can leave old rows visible; resolve the error and retry.
+While known tasks are queued/running, the page polls latest states about every three seconds and stops when they finish. Polling pauses on other tabs and while the browser window is hidden. **Refresh** reloads the overview. A failed load can leave old rows visible; resolve the error and retry.
 
-Expand pools for each member's latest task. Member details show history for that member. Current details retrieve the most recent 20 records without history pagination controls; older results require the authorized paginated history API. Retention and current visibility still apply.
+Channel lists load the current page of summaries; opening the editor loads full configuration. Expand pools to page through members and their latest tasks. Member details include paginated history. Server-side filters and totals respect your current access, and retention still applies.
 
 Successful execution does not guarantee an applicable suggestion. Check raw usage, samples, balance snapshots, calibration, and cost breakdown. Different currencies, missing local pricing, small balance movements, unverified cache hits, or unstable settlement can prevent a usable suggestion.
 
@@ -94,7 +94,7 @@ Changes exceeding 20% of the current multiplier normally require another `verifi
 
 Pools share workflows and calibration settings. Each physical member can override format, model, payload, and serial group, and use its own balance credentials or a shared account. A task stays pinned to its selected member. Disabled members, missing credentials, or incompatible formats/models prevent execution.
 
-Workflow/calibration changes in a member drawer still affect the shared profile. The page saves the shared profile, member overrides, and any account binding sequentially, **not as one transaction**. Later failure can leave earlier steps saved. Refresh and inspect the shared profile, member settings, and binding separately before retrying failed steps.
+Workflow/calibration changes in a member drawer affect the entire shared pool, including members on other pages; the editor shows this impact. Saving one target commits its shared profile, credentials, member overrides, and account binding together. Any failed check rolls back the whole save. Concurrent edits cause a version conflict; reopen the editor and review the current configuration before saving again.
 
 With account-management permission, create a login configuration in the shared accounts tab:
 
@@ -103,9 +103,32 @@ With account-management permission, create a login configuration in the shared a
 3. Remove old login steps from the balance workflow manually. Binding does not edit the workflow; old steps otherwise keep running.
 4. Check session state and the next permitted login time. Failed attempts count toward cooldown, and manual refresh does not bypass the interval. Probes sharing the account are mutually exclusive.
 
-Editing does not display the saved login URL, method, headers, query, or body. Re-enter the complete login request; leaving it blank fails validation. Omitted credentials remain unchanged; supplied credentials replace the map. Creation requires credentials. Expiry mode `seconds` means duration from login; `iso` means an absolute time, not a Unix timestamp. Missing expiry data uses the fallback. Bound accounts cannot be deleted directly.
+The account list supports pagination and name search. Safe configuration loads when you open an account for editing. Add headers, query parameters, and body fields as rows; body values support text, numbers, booleans, and advanced JSON. Start with the username / password fields if appropriate, then fill in the credential inputs generated from variable references.
+
+Saved sensitive request values and credentials display a saved indicator. Leave them blank to retain them or enter replacements for individual fields, without re-entering the entire request. Delete a request row to remove that field. If another operation changes the configuration, saving is rejected; reopen the editor and review the latest version. References such as `{{username}}` and `{{password}}` help configure the request without returning saved credential values.
+
+Enter the referenced credentials when creating an account. Expiry mode `seconds` means duration from login; `iso` means an ISO 8601 absolute time. `unixSeconds` and `unixMillis` mean Unix timestamps in seconds and milliseconds. Missing expiry data uses the fallback. Bound accounts cannot be deleted directly.
 
 Batch configuration can use an existing profile as a shared template, with compatible per-target format, model, payload, group, and account selections. Targets save independently; inspect each result. Templates do not transfer source credentials or bindings. Format changes require a compatible payload. Queued/running work can block target changes. The legacy standalone profile-copy behavior below differs from batch target configuration.
+
+### Panel sessions and New API
+
+Choose the **New API 0.12+** preset and enter the panel origin to fill in login and refresh endpoints. Username and password sign in to the panel. Balance workflows commonly use `Authorization: Bearer {{accountToken}}`, plus `New-Api-User: {{account.userId}}` when required. Check the balance field and units against your actual panel.
+
+Recent versions use an access token and a refresh Cookie scoped to its refresh path. Older New API, One API, and custom panels can use different protocols. For custom sessions, name each field, choose JSON, response header, or Cookie extraction, and reference it as `{{account.fieldName}}`. One named field can also supply the `{{accountToken}}` alias.
+
+Configure refresh headers, parameters, and body separately. Cookies are sent only when domain, path, expiry, and security requirements match. Keep refresh Cookies out of balance reads and model requests. Additional panel origins must be explicitly configured. Panel credentials remain separate from model invocation keys.
+
+## Daily plans and summary notifications
+
+1. Open **Daily plan**, enable the plan, and confirm its Beijing time. The default is **03:00 every day**; each account can adjust its own time.
+2. Check your notification email. Your account email is used when no notification email is configured. Enabling the plan subscribes to the probe round summary event. You can change the event subscription and notification email in notification settings.
+3. The plan covers enabled, completely configured standalone channels and pool members you can currently access. Each round fixes its target list at the start. Targets with active tasks are skipped with a reason. Later requests recheck disabled plans, revoked access, and changed configuration.
+4. Review round state, target count, and delivery state. A single summary is generated only after every target succeeds, fails, is cancelled/skipped, or times out.
+5. Summaries include balances before/after and their change, usage and base cost, measured/current multipliers, suggested multiplier and absolute/percentage changes, changes from the previous valid suggestion, calibration state, and error stage/reason. Follow the details link to review each target.
+6. **Daily probes never apply prices automatically.** Review and apply suggestions manually through the existing confirmation and validation flow.
+
+Restarts recover started rounds and at most today's missed execution; multiple missed days are not replayed together. Rounds close timed-out targets after 12 hours. The notification center records delivery results and failures. Transient delivery failures are retried; inspect the actual delivery state when troubleshooting.
 
 ## Reset tasks, clear history, and remove profiles
 
