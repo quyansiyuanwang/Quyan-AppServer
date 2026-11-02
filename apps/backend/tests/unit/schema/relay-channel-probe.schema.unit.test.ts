@@ -202,6 +202,18 @@ describe("probe account and per-member configuration schemas", () => {
       false,
     );
   });
+  it.each([
+    [{ ...account, tokenField: "missing", sessionFields: [] }, "relayChannelProbe.accountSessionConfigurationInvalid"],
+    [
+      { ...account, credentialUpdates: { password: "replacement" } },
+      "relayChannelProbe.accountEditConfigurationInvalid",
+    ],
+  ])("describes invalid panel account configuration without exposing credentials", (input, messageKey) => {
+    const result = saveRelayChannelProbeAccountBodySchema.safeParse(input);
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues).toContainEqual(expect.objectContaining({ code: "custom", params: { messageKey } }));
+  });
   it("allows per-target formats, models and groups but rejects duplicate members", () => {
     const target = {
       channelId: "pool",

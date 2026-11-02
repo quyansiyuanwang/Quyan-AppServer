@@ -347,7 +347,11 @@ export const saveRelayChannelProbeAccountBodySchema = z
       (refreshUrlRetained && (!value.expectedRevision || value.refreshWorkflow?.url !== "")) ||
       (value.retainedRefreshFields?.length && !value.expectedRevision)
     )
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid session field configuration" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid session field configuration",
+        params: { messageKey: "relayChannelProbe.accountSessionConfigurationInvalid" },
+      });
     const retainedUrl = value.retainedFields?.some((path) => path.length === 1 && path[0] === "url");
     if (
       (!retainedUrl && !z.string().url().safeParse(value.loginWorkflow.url).success) ||
@@ -355,7 +359,11 @@ export const saveRelayChannelProbeAccountBodySchema = z
       ((value.retainedFields?.length || value.credentialUpdates) && !value.expectedRevision) ||
       (value.credentials && value.credentialUpdates)
     )
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid account edit configuration" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid account edit configuration",
+        params: { messageKey: "relayChannelProbe.accountEditConfigurationInvalid" },
+      });
   })
   .refine(
     (value) => Boolean(value.expiresPath) === Boolean(value.expiresMode),

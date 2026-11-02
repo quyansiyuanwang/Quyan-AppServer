@@ -684,6 +684,10 @@ const zhCN = {
     accountNotFound: "号池账号不存在",
     accountCredentialsRequired: "首次创建号池账号必须填写登录凭据",
     accountReservedVariable: "accountToken 是保留变量",
+    accountSessionConfigurationInvalid:
+      "请检查会话字段名称、选中的令牌字段和刷新地址。保留已保存的刷新字段时须携带当前号池配置版本。",
+    accountEditConfigurationInvalid:
+      "请检查登录地址和号池配置版本。完整凭据与凭据更新只能提交一种，且仅在编辑已有号池时可保留已保存字段。",
     accountSessionInvalid: "面板会话字段提取失败或不能用于此请求，请检查字段映射及允许的请求来源。",
     scheduleEmailRequired: "请先配置通知邮箱或账号邮箱，再启用每日探针汇总。",
     accountConfigurationChanged: "号池配置已被其他操作修改，请重新打开编辑界面后再保存。",

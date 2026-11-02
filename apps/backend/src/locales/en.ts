@@ -682,6 +682,10 @@ const en = {
     accountNotFound: "Probe account not found",
     accountCredentialsRequired: "New accounts require login credentials",
     accountReservedVariable: "accountToken is a reserved variable",
+    accountSessionConfigurationInvalid:
+      "Check session field names, the selected token field and the refresh URL. Retaining saved refresh fields requires the current account revision.",
+    accountEditConfigurationInvalid:
+      "Check the login URL and account revision. Submit either complete credentials or credential updates, and retain saved fields only when editing an existing account.",
     accountSessionInvalid:
       "The panel session fields could not be extracted or cannot be used for this request. Check field mapping and permitted origins.",
     scheduleEmailRequired: "Set a notification email or account email before enabling the daily probe summary.",
