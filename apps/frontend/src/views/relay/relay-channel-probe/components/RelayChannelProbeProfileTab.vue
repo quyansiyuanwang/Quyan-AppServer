@@ -1,5 +1,13 @@
 <template>
   <el-form label-position="top" class="profile-form" @submit.prevent="saveProfile">
+    <el-alert
+      v-if="selected?.channelType === 'pooled'"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb-3"
+      :title="i18ns.t('relay.probeSharedProfileImpact')"
+    />
     <div class="profile-editor-layout">
       <div class="profile-editor-main">
         <section class="profile-section">
@@ -31,16 +39,36 @@
               v-model="selectedAccountId"
               clearable
               filterable
+              remote
+              :remote-method="searchAccounts"
+              :loading="accountsLoading"
+              @visible-change="(visible: boolean) => visible && loadAccounts()"
               :disabled="!canExecute"
               class="w-full"
               :placeholder="i18ns.t('relay.probeAccountNoBinding')"
             >
+              <el-option
+                v-if="
+                  selectedAccountId && !accounts.some((account) => account.id === selectedAccountId)
+                "
+                :value="selectedAccountId"
+                :label="i18ns.t('relay.probeAccountSavedValue')"
+              />
               <el-option
                 v-for="account in accounts"
                 :key="account.id"
                 :label="account.name"
                 :value="account.id"
               />
+              <template #footer
+                ><el-button
+                  v-if="accountsHasMore"
+                  link
+                  :loading="accountsLoading"
+                  @click="loadMoreAccounts"
+                  >{{ i18ns.t('chat.loadMore') }}</el-button
+                ></template
+              >
             </el-select>
             <span class="probe-form-help">{{ i18ns.t('relay.probeAccountBindingHelp') }}</span>
           </el-form-item>
@@ -629,6 +657,10 @@ import ProbeKeyValueEditor from '../../components/ProbeKeyValueEditor.vue'
 import { useRelayChannelProbeManagementContext } from '../context'
 
 const {
+  searchAccounts,
+  accountsLoading,
+  accountsHasMore,
+  loadMoreAccounts,
   addCredential,
   addMemberCredential,
   addWorkflowStep,
@@ -645,6 +677,7 @@ const {
   credentials,
   memberCredentials,
   accounts,
+  loadAccounts,
   canManageAccounts,
   selectedAccountId,
   selectedMemberChannelId,

@@ -4,6 +4,12 @@
       <el-tab-pane :label="i18ns.t('relay.channelProbeTitle')" name="probes">
         <RelayChannelProbeOverview />
       </el-tab-pane>
+      <el-tab-pane :label="i18ns.t('relay.probeDailySchedule')" name="schedule" lazy>
+        <RelayProbeRoundsTab
+          :active="activePageTab === 'schedule'"
+          :can-execute="state.canExecute.value"
+        />
+      </el-tab-pane>
       <el-tab-pane
         v-if="state.canManageAccounts.value"
         :label="i18ns.t('relay.probeAccounts')"
@@ -21,7 +27,8 @@
 </template>
 
 <script setup lang="ts">
-import { provide, ref } from 'vue'
+import { provide, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { i18ns } from '@/locales'
 import RelayChannelProbeAccountsTab from './relay-channel-probe/components/RelayChannelProbeAccountsTab.vue'
 import RelayChannelProbeApplyDialog from './relay-channel-probe/components/RelayChannelProbeApplyDialog.vue'
@@ -29,12 +36,20 @@ import RelayChannelProbeBatchProfileDialog from './relay-channel-probe/component
 import RelayChannelProbeChangeAnalysisDialog from './relay-channel-probe/components/RelayChannelProbeChangeAnalysisDialog.vue'
 import RelayChannelProbeDrawer from './relay-channel-probe/components/RelayChannelProbeDrawer.vue'
 import RelayChannelProbeOverview from './relay-channel-probe/components/RelayChannelProbeOverview.vue'
+import RelayProbeRoundsTab from './relay-channel-probe/components/RelayProbeRoundsTab.vue'
 import { relayChannelProbeManagementContextKey } from './relay-channel-probe/context'
 import { useRelayChannelProbeManagement } from './relay-channel-probe/useRelayChannelProbeManagement'
 import './relay-channel-probe/relay-channel-probe.scss'
 
 const state = useRelayChannelProbeManagement()
-const activePageTab = ref('probes')
+const activePageTab = ref(useRoute().query.round ? 'schedule' : 'probes')
+watch(
+  activePageTab,
+  (tab) => {
+    state.probePageActive.value = tab === 'probes'
+  },
+  { immediate: true },
+)
 
 provide(relayChannelProbeManagementContextKey, state)
 </script>

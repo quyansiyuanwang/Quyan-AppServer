@@ -1,4 +1,5 @@
 import type { SiteProfile, SiteRouteGroup } from '@/config/site-registry'
+import { RELAY_PROBE_MANAGEMENT_PATH } from '@quyan/shared'
 
 export type OverviewCategory =
   | 'account'
@@ -98,7 +99,7 @@ const legacyRoutePathByName: Record<string, string> = {
   relayChannelHealth: '/relay/channel-health',
   relayRequestDiagnostics: '/relay/request-diagnostics',
   relayAIRequestLogs: '/relay/ai-request-logs',
-  relayChannelProbes: '/relay/channel-probes',
+  relayChannelProbes: RELAY_PROBE_MANAGEMENT_PATH,
   upstreamStatus: '/relay/upstream-status',
   developerServiceManagement: '/developer/management',
   developerServiceConfig: '/developer/config',
