@@ -1,4 +1,4 @@
-import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@quyan/shared";
+import type { RelayChannelRequestHeaderMode, RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@quyan/shared";
 
 export interface TimePeriodMultiplierRule {
   /** Omitted/ignore preserves legacy local-time rules; holiday filters use Asia/Shanghai. */
@@ -115,7 +115,11 @@ export interface RelayChannelTopologyAuditDto {
 }
 
 export interface RelayChannelRoutingConfigDto {
-  /** Forward all eligible request headers on this physical channel. Defaults to false; reserved fields stay excluded. */
+  /** Inherit the system mode unless this physical channel explicitly specializes it. */
+  requestHeaderMode?: RelayChannelRequestHeaderMode;
+  /** Additional denials; system denials cannot be overridden by the channel. */
+  blockedRequestHeaders?: string[];
+  /** Legacy mode flag: true maps to blacklist, false to whitelist; ignored when requestHeaderMode is set. */
   forwardAllRequestHeaders?: boolean;
   /** Extra exact request-header names forwarded by this physical channel; reserved names are rejected. */
   forwardedRequestHeaders?: string[];

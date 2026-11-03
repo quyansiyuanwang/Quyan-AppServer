@@ -147,6 +147,7 @@ const createService = () => {
     extendIfValueMatches: vi.fn().mockResolvedValue(true),
   };
   const configService = {
+    getRelayRequestHeaderPolicy: vi.fn().mockResolvedValue({ mode: "whitelist", allowlist: [], blocklist: [] }),
     getAutoProxyPoolConfig: vi.fn().mockResolvedValue({
       cacheHitRateMinSamples: 10,
       cacheHitRateWindowHours: 168,

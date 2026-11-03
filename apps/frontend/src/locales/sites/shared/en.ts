@@ -2860,6 +2860,21 @@ const en = {
     channelMultiplier: 'Channel Multiplier',
     channelMultiplierHelp: 'Price multiplier for this channel, stacked with global multiplier',
     requestHeaderForwarding: 'Request header forwarding',
+    systemRequestHeaderPolicy: 'System request-header forwarding policy',
+    systemRequestHeaderPolicyHelp:
+      'Default policy for all channels. Save this page to apply; system configuration access is required. Channels without a mode override inherit it; explicit legacy switches retain their mode. System denials always apply.',
+    requestHeaderMode: 'Forwarding mode',
+    requestHeaderInherit: 'Inherit system',
+    requestHeaderWhitelist: 'Whitelist mode',
+    requestHeaderBlacklist: 'Blacklist mode',
+    requestHeaderModeHelp:
+      'Whitelist: forward protocol defaults and extra allowed names. Blacklist: forward all eligible headers except denied names. The extra allowlist is retained but does not bypass denials. Credentials, cookies, internal and hop-by-hop fields always remain excluded.',
+    requestHeaderInheritanceHelp:
+      'Channel specialization adds to system lists. Combined denials win over allowances, and channels cannot undo system denials. Logical pools use the selected physical member policy.',
+    blockedRequestHeaders: 'Extra blocklist',
+    blockedRequestHeadersPlaceholder: 'Enter a header name and press Enter, e.g. x-debug',
+    blockedRequestHeadersHelp:
+      'Exact, case-insensitive names; no wildcards. Applies in both modes and can block protocol defaults. Only incoming headers are filtered; generated upstream credentials and required protocol headers remain.',
     forwardAllRequestHeaders: 'Forward all eligible request headers',
     forwardAllRequestHeadersHelp:
       'Off by default. When enabled, forward all eligible headers. Credentials, cookies, internal routing and connection headers remain excluded. Turn off to restore the default and extra allowlists.',
@@ -2871,7 +2886,7 @@ const en = {
     forwardedRequestHeadersPlaceholder:
       'Enter a header name and press Enter, e.g. x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      'Enter exact header names, without values or wildcards. This list is retained while forwarding all headers and applies again when that option is off. Pools use the selected physical member’s configuration.',
+      'Enter exact header names, without values or wildcards. Whitelist mode allows these alongside protocol defaults, but denials always win. Blacklist mode retains this list. Pools use the selected physical member’s configuration.',
     forwardedRequestHeadersInvalid:
       'Enter up to 64 safe exact header names (128 characters each). Credentials, cookies, internal/connection headers and wildcards are prohibited.',
     channelSettings: 'Channel Settings',

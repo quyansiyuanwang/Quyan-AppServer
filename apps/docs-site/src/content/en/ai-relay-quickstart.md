@@ -100,26 +100,26 @@ Manual retries submit another request and can generate and charge again. Check t
 
 Use this reference when customizing a client or troubleshooting upstream compatibility. A first call does not require changing forwarding allowlists.
 
-The relay uses a default protocol allowlist plus channel-specific additions rather than forwarding every field unchanged. Regular, streaming, and image requests follow the same rules:
+The relay uses a system policy with channel inheritance or specialized modes. Whitelist mode is the system default, retaining the protocol defaults below plus extra allowances. Blacklist mode allows all eligible fields. System and channel denials always win. Regular, streaming, and image requests follow the same rules:
 
 - Common fields: `Content-Type`, `Accept`, `Accept-Encoding`, `User-Agent`, `X-Request-Id`, `X-Client-Request-Id`, and `Idempotency-Key`.
 - All formats preserve `X-Opencode-Session` by default for compatible upstreams that require a session identifier.
 - OpenAI formats additionally preserve `OpenAI-Organization`, `OpenAI-Project`, and `OpenAI-Beta`.
-- Anthropic additionally preserves `anthropic-version` and `anthropic-beta`. The default version `2023-06-01` is supplied only when omitted; an explicitly requested version is not overwritten.
+- Anthropic additionally preserves `anthropic-version` and `anthropic-beta`. If no forwardable version remains, the relay supplies `2023-06-01`; a valid version not blocked by policy is not overwritten.
 - Gemini additionally preserves `X-Goog-Api-Client`.
 
-Acceptance of these fields, their features, and idempotency semantics depend on the upstream provider. During format conversion, protocol-specific headers are selected for the actual upstream format, not forwarded across unrelated protocols.
+Defaults can also be blocklisted. Acceptance of these fields, features and idempotency semantics depends on the upstream. During format conversion, defaults follow the actual upstream format; blacklist mode allows all eligible fields that are not denied.
 
-Credentials such as `Authorization` and `X-Api-Key` used to authenticate to this platform are replaced with the selected channel's credentials, not passed through as upstream credentials. `Cookie`, `Host`, hop-by-hop fields, fields named by `Connection`, proxy-origin fields, and custom headers not on an allowlist are not forwarded. `Content-Length` is recalculated from the actual outgoing body. Do not use custom request headers to control channels, billing, or platform permissions.
+Credentials such as `Authorization` and `X-Api-Key` used to authenticate to this platform are replaced with the selected channel's credentials. `Cookie`, `Host`, hop-by-hop fields, names nominated by `Connection` and proxy-origin fields always remain filtered. Whitelist mode also filters unlisted custom headers. `Content-Length` is recalculated from the outgoing body. Do not use custom headers to control channels, billing or permissions.
 
 ### Configure extra forwarded headers
 
-Administrators with channel-edit permission can open **AI relay settings → Channel management → Create/edit physical channel → Extra forwarded request headers**, enter a name, and press Enter to add it, for example `x-stainless-retry-count` or `x-opencode-session`. Settings are saved per channel without restarting the service. Standalone and physical member channels are supported; pools use the selected physical channel's configuration, and failover uses each new channel's own list.
+With system configuration access, open **Relay settings → System request-header forwarding policy** to set the system mode and lists. With channel-edit access, open **Channel list → Create/edit physical channel → Request header forwarding** to inherit the system or specialize its mode and lists. Enter a name and press Enter to add it. Save in the corresponding page or editor; no restart is required. Pools and failover use the selected physical channel's policy. See [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings).
 
 - Enter exact header names only, without values. Wildcards and prefix patterns are not supported. Names are case-insensitive and deduplicated.
 - Up to 64 extra names, each at most 128 characters. Invalid, sensitive or reserved names cause a save error rather than silently enabling forwarding.
-- Default protocol headers remain enabled. Clearing the extra list removes only additional forwarding.
-- Add specific SDK metadata names as needed, such as `x-stainless-retry-count`; other unlisted `X-Stainless-*` fields remain filtered.
+- In whitelist mode, clearing extras retains protocol defaults. To suppress an incoming default header, add it to the blocklist; generated authentication and required protocol fields remain.
+- Add specific SDK names as needed, such as `x-stainless-retry-count`; other unlisted `X-Stainless-*` fields stay filtered in whitelist mode. System and channel blocklists combine in both modes; denials win and channels cannot undo system denials.
 - Authorization, API keys, cookies, internal/replay/proxy-origin and hop-by-hop headers cannot be added. Headers named by `Connection` remain filtered even when allowlisted.
 - Only valid values actually present in the caller's request are copied. Configuration does not generate or override values. Do not put secrets in custom metadata: these values are sent to the selected upstream.
 

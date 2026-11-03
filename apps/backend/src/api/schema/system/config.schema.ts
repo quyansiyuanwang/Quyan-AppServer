@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AUTO_PROXY_POOL_CONFIG_POLICY } from "@/constant/auto-proxy-pool-policy";
-import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
+import { SERVER_CONFIG_SECRET_PLACEHOLDER, normalizeRelayRequestHeaderPolicy } from "@quyan/shared";
 import type { MessageKey } from "@/locales";
 import { ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { TICKET_PRIORITIES, TICKET_TYPES } from "@/constant/ticket";
@@ -237,6 +237,21 @@ export const setRegistrationConfigBodySchema = z.object({
 });
 
 export const setRelayConfigBodySchema = z.object({
+  requestHeaderPolicy: z
+    .unknown()
+    .transform((value, ctx) => {
+      const policy = normalizeRelayRequestHeaderPolicy(value);
+      if (!policy) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Invalid system request-header policy",
+          params: { messageKey: "relayChannel.forwardedRequestHeadersInvalid" },
+        });
+        return z.NEVER;
+      }
+      return policy;
+    })
+    .optional(),
   upstreamUrl: z.string().max(500),
   upstreamApiKey: z.string().max(500),
   allowedModels: z.string().max(2000),

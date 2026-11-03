@@ -7,6 +7,9 @@ import {
   isSensitiveServerConfigValue,
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   writableServerConfigs,
+  normalizeRelayRequestHeaderPolicy,
+  RELAY_DEFAULT_REQUEST_HEADER_POLICY,
+  type RelayRequestHeaderPolicy,
 } from "@quyan/shared";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { TypedRequest } from "@/types/express";
@@ -31,6 +34,7 @@ import { env } from "@/config/env";
 import { ServerConfigRepository } from "@/store/system/server-config.repository";
 import type { ServerConfigStore } from "@/store/system/server-config.store";
 import type { Request } from "express";
+import type { SetRelayConfigDto } from "@/api/dto/system/config.dto";
 import { extractClientIp } from "@/util/ip-extractor";
 
 const DEFAULT_RECHARGE_RATIO = 100;
@@ -106,15 +110,7 @@ export interface RelayCustomKeyConfig {
   createLimitMaxCount: number;
 }
 
-export interface RelayConfig {
-  upstreamUrl: string;
-  upstreamApiKey: string;
-  allowedModels: string;
-  customKeyEnabled: boolean;
-  customKeyMaxTokensPerUser: number;
-  customKeyCreateLimitWindowMinutes: number;
-  customKeyCreateLimitMaxCount: number;
-}
+export type RelayConfig = SetRelayConfigDto;
 
 export interface RelayProxyConfig {
   enabled: boolean;
@@ -258,6 +254,7 @@ export class ConfigService {
   }
 
   async set(key: string, value: string, actorUserId?: string, request?: Request): Promise<void> {
+    this.validateRequestHeaderPolicySetting(key, value);
     const resourceSettings =
       key === AI_RESOURCE_CONFIG_KEY ? AIResourceConfigService.getInstance().parse(value) : undefined;
     const row = await this.serverConfigRepository.upsert(key, value);
@@ -287,6 +284,7 @@ export class ConfigService {
   }
 
   async setMultiple(configs: Record<string, string>, actorUserId?: string, request?: Request): Promise<void> {
+    for (const [key, value] of Object.entries(configs)) this.validateRequestHeaderPolicySetting(key, value);
     if (configs[AI_RESOURCE_CONFIG_KEY] !== undefined)
       AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
     for (const [key, value] of Object.entries(configs)) await this.set(key, value, actorUserId, request);
@@ -362,6 +360,7 @@ export class ConfigService {
   }
 
   async setManagedConfigs(configs: Record<string, string>, userId: string, request: TypedRequest) {
+    for (const [key, value] of Object.entries(configs ?? {})) this.validateRequestHeaderPolicySetting(key, value);
     if (env.security.iamAuthorizationMode !== "enforce") {
       await this.assertConfigurationPermission(request, userId);
       if (env.security.iamAuthorizationMode === "shadow") {
@@ -790,9 +789,31 @@ export class ConfigService {
     }
   }
 
+  private parseRequestHeaderPolicy(value: string | undefined | null): RelayRequestHeaderPolicy {
+    if (value === undefined || value === null) return structuredClone(RELAY_DEFAULT_REQUEST_HEADER_POLICY);
+    try {
+      const policy = normalizeRelayRequestHeaderPolicy(JSON.parse(value));
+      if (policy) return policy;
+    } catch {
+      /* Fail closed for malformed stored configuration. */
+    }
+    throw new BadRequestError("Invalid system request-header policy", undefined, {
+      messageKey: "relayChannel.requestHeaderPolicyInvalid",
+    });
+  }
+
+  private validateRequestHeaderPolicySetting(key: string, value: string): void {
+    if (key === CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY) this.parseRequestHeaderPolicy(value);
+  }
+
+  async getRelayRequestHeaderPolicy(): Promise<RelayRequestHeaderPolicy> {
+    return this.parseRequestHeaderPolicy(await this.get(CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY));
+  }
+
   async getRelayConfig(): Promise<RelayConfig> {
     const configs = await this.getMultiple(RELAY_CONFIGURATION_KEYS);
     return {
+      requestHeaderPolicy: this.parseRequestHeaderPolicy(configs[CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY]),
       upstreamUrl: configs[CONFIG_KEYS.RELAY.UPSTREAM_URL] || "",
       upstreamApiKey: configs[CONFIG_KEYS.RELAY.UPSTREAM_API_KEY] || "",
       allowedModels: configs[CONFIG_KEYS.RELAY.ALLOWED_MODELS] || "",

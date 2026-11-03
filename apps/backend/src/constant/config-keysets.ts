@@ -2,6 +2,7 @@ import { CONFIG_KEYS, configurationKeys } from "./config-keys";
 
 /** Exact configuration dependencies shared by getters and IAM resource resolvers. */
 export const RELAY_CONFIGURATION_KEYS = Object.freeze([
+  CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY,
   CONFIG_KEYS.RELAY.UPSTREAM_URL,
   CONFIG_KEYS.RELAY.UPSTREAM_API_KEY,
   CONFIG_KEYS.RELAY.ALLOWED_MODELS,

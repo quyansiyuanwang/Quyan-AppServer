@@ -58,6 +58,7 @@ const config = () => ({
   ],
 })
 const system = () => ({
+  requestHeaderPolicy: { mode: 'whitelist', allowlist: [], blocklist: [] },
   upstreamUrl: '',
   upstreamApiKey: '',
   allowedModels: '',
@@ -80,6 +81,61 @@ beforeEach(() => {
   mocks.setSystem.mockResolvedValue(undefined)
 })
 describe('independent relay configuration editing', () => {
+  it('defaults an omitted legacy policy but never overwrites a malformed returned policy', async () => {
+    const legacy = system()
+    mocks.getSystem.mockResolvedValue({ ...legacy, requestHeaderPolicy: undefined })
+    const { api } = await loaded()
+    expect(api.systemRelayConfigurationLoaded.value).toBe(true)
+    expect(api.requestHeaderPolicy.value).toEqual({
+      mode: 'whitelist',
+      allowlist: [],
+      blocklist: [],
+    })
+    mocks.getSystem.mockResolvedValue({
+      ...legacy,
+      requestHeaderPolicy: { mode: 'blacklist', allowlist: [], blocklist: null },
+    })
+    await api.loadConfig()
+    expect(api.systemRelayConfigurationLoaded.value).toBe(false)
+    api.requestHeaderPolicy.value.mode = 'blacklist'
+    await api.save()
+    expect(mocks.setSystem).not.toHaveBeenCalled()
+    expect(mocks.notice).toHaveBeenCalledWith(expect.any(Error), 'ServerConfigView.loadFailed')
+  })
+  it('loads and saves the system header policy without submitting model prices', async () => {
+    mocks.getSystem.mockResolvedValue({
+      ...system(),
+      requestHeaderPolicy: { mode: 'blacklist', allowlist: ['X-Sdk'], blocklist: ['X-Debug'] },
+    })
+    const { api } = await loaded()
+    expect(api.requestHeaderPolicy.value).toEqual({
+      mode: 'blacklist',
+      allowlist: ['x-sdk'],
+      blocklist: ['x-debug'],
+    })
+    api.requestHeaderPolicy.value.blocklist.push('x-extra')
+    await api.save()
+    expect(mocks.setSystem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestHeaderPolicy: {
+          mode: 'blacklist',
+          allowlist: ['x-sdk'],
+          blocklist: ['x-debug', 'x-extra'],
+        },
+      }),
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    await api.save()
+    expect(mocks.setSystem).toHaveBeenCalledTimes(1)
+  })
+  it('rejects malformed header lists before either configuration request', async () => {
+    const { api } = await loaded()
+    api.requestHeaderPolicy.value.blocklist = ['*']
+    await api.save()
+    expect(mocks.setSystem).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.error).toHaveBeenCalledWith('relay.forwardedRequestHeadersInvalid')
+  })
   it('does not save unchanged forms or replace a filtered pricing list', async () => {
     const { api } = await loaded()
     await api.save()

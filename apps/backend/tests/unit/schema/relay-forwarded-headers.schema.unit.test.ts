@@ -8,6 +8,33 @@ import {
 } from "@/api/schema/relay/relay-channel.schema";
 
 describe("relay forwarded request-header configuration", () => {
+  it.each(["inherit", "whitelist", "blacklist"])(
+    "preserves layered mode %s and denials across import/export",
+    (requestHeaderMode) => {
+      const input = {
+        name: "fixture",
+        routingConfig: { requestHeaderMode, blockedRequestHeaders: [" X-Debug ", "x-debug"] },
+      };
+      for (const schema of [
+        createRelayChannelBodySchema,
+        updateRelayChannelBodySchema,
+        relayChannelExportConfigurationSchema,
+      ])
+        expect(schema.parse(input).routingConfig).toMatchObject({
+          requestHeaderMode,
+          blockedRequestHeaders: ["x-debug"],
+        });
+      expect(importRelayChannelsBodySchema.parse({ channels: [input] }).channels[0]?.routingConfig).toMatchObject({
+        requestHeaderMode,
+        blockedRequestHeaders: ["x-debug"],
+      });
+    },
+  );
+  it.each(["*", "authorization", "bad name", "x-quyan-route"])("rejects invalid blacklist name %s", (name) => {
+    expect(updateRelayChannelBodySchema.safeParse({ routingConfig: { blockedRequestHeaders: [name] } }).success).toBe(
+      false,
+    );
+  });
   it.each([true, false])(
     "preserves the forwarding mode across create, update, export and import: %s",
     (forwardAllRequestHeaders) => {

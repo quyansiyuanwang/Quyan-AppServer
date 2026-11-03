@@ -45,9 +45,13 @@ In strict two-tier mode, the pool editor first saves the logical pool, then save
 
 ### Request header forwarding
 
-Open **Relay settings (`/relay/settings`) → Channel list → Create or edit a standalone channel/physical member → Request header forwarding**. You need channel-create or update permission. Save in the channel editor to apply changes. Logical and automatic proxy pools use the selected physical member's configuration; edit that member channel.
+Open **Relay settings (`/relay/settings`) → System request-header forwarding policy** with system configuration permission. Choose a mode and edit the lists, then use the page save button. No restart is required. This section is disabled without system configuration access.
 
-“Forward all eligible request headers” is off by default. Only the defaults below and your extra allowlist are forwarded. Protocol-specific rows follow the actual upstream protocol, including when requests are converted.
+For channel specialization, open **Channel list → Create or edit a standalone channel/physical member → Request header forwarding** with channel-create or update permission, and save in the channel editor. New channels default to **Inherit system**; a channel may instead select whitelist or blacklist mode. For legacy channels with a saved **Forward all eligible request headers** switch, enabled maps to blacklist mode and disabled maps to whitelist mode. Channels without a saved mode override inherit the system mode. Select **Inherit system** to replace an explicit legacy mode. Logical and automatic pools use the selected physical member's policy, including after failover.
+
+The system defaults to **whitelist mode**: forward the protocol defaults below plus system and channel extra allowlists. **Blacklist mode** forwards all eligible incoming headers except system and channel denials. Switching modes retains both lists.
+
+**Denials win**: system and channel blocklists are combined and apply in both modes. Allowlisting a denied name does not unblock it, and channels cannot undo system denials. Protocol-specific rows follow the actual upstream protocol, including after format conversion.
 
 | Scope                                             | Default headers                                                                                                                           |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,9 +60,11 @@ Open **Relay settings (`/relay/settings`) → Channel list → Create or edit a 
 | Anthropic                                         | `anthropic-version`, `anthropic-beta`                                                                                                     |
 | Gemini                                            | `x-goog-api-client`                                                                                                                       |
 
-Enter exact names in “Extra allowlist” and press Enter; do not enter values or wildcards. Up to 64 names are allowed, each at most 128 characters. Saving trims whitespace, lowercases names and removes duplicates.
+Both lists accept exact, case-insensitive header names, not values or wildcards. Each list supports up to 64 names of at most 128 characters; names are trimmed, lowercased and deduplicated. In whitelist mode, clearing extras does not remove protocol defaults; add a default name to the blocklist to suppress its incoming value.
 
-Enable “Forward all eligible request headers” to forward eligible fields without listing each name. Your extra allowlist is retained; turning the switch off restores the defaults plus the saved extra names. Both modes exclude caller credentials, cookies, Host, message framing, hop-by-hop fields and fields nominated by `Connection`, internal routing and security-verification metadata. Invalid names or values are not forwarded. Upstream authentication always uses credentials from the selected physical channel.
+Both modes exclude caller credentials, cookies, Host, message framing, hop-by-hop fields and names nominated by `Connection`, internal routing and security-verification metadata. Invalid names or values are not forwarded. Denials filter incoming headers, not generated upstream credentials or required protocol fields. Upstream authentication always uses credentials from the selected physical channel.
+
+For example, if the system denies `x-debug` and a channel allows both `x-debug` and `x-sdk-version`, `x-debug` stays blocked while `x-sdk-version` may be forwarded. Blacklist mode sends more client metadata; do not put secrets or private information in custom headers.
 
 ### Batch operations
 

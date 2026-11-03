@@ -612,6 +612,8 @@ const zhCN = {
     targetSelectionRequired: "必须提供 userIds 或 targetFilter",
   },
   relayChannel: {
+    requestHeaderModeInvalid: "请求头策略必须为继承系统、白名单或黑名单",
+    requestHeaderPolicyInvalid: "请求头策略无效，请检查模式及黑白名单配置",
     forwardAllRequestHeadersInvalid: "放行所有请求头必须设置为开启或关闭",
     forwardedRequestHeadersInvalid:
       "额外转发请求头必须是安全的精确头名（最多 64 个，每个最多 128 字符）；禁止凭据、Cookie、内部及连接级请求头。",

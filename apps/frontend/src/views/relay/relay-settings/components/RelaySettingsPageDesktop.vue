@@ -190,6 +190,13 @@
             </el-form>
           </el-collapse-item>
 
+          <el-collapse-item name="requestHeaders">
+            <template #title>{{ i18ns.t('relay.systemRequestHeaderPolicy') }}</template>
+            <RelaySystemHeaderPolicyEditor
+              v-model="requestHeaderPolicy"
+              :disabled="!systemRelayConfigurationLoaded || saving"
+            />
+          </el-collapse-item>
           <el-collapse-item name="customKey">
             <template #title>
               <span class="collapse-title">{{
@@ -831,6 +838,7 @@ import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 import RelayChannelManagementPanel from './RelayChannelManagementPanel.vue'
+import RelaySystemHeaderPolicyEditor from './RelaySystemHeaderPolicyEditor.vue'
 
 const state = useRelaySettingsManagementContext()
 
@@ -853,6 +861,7 @@ const {
   preflightBufferLimitMB,
   apiCatalogPoolVisibility,
   relayCustomKeyEnabled,
+  requestHeaderPolicy,
   relayCustomKeyMaxTokensPerUser,
   relayCustomKeyCreateLimitWindowMinutes,
   relayCustomKeyCreateLimitMaxCount,

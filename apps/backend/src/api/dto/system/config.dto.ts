@@ -1,4 +1,5 @@
 import type { AIResourceConfigurationDto } from "./ai-resources.dto";
+import type { RelayRequestHeaderPolicy } from "@quyan/shared";
 export interface ServerConfigDto {
   key: string;
   value: string;
@@ -174,6 +175,8 @@ export interface SetRegistrationConfigDto {
 }
 
 export interface SetRelayConfigDto {
+  /** System-wide forwarding policy; omitted by legacy clients to preserve the saved policy. */
+  requestHeaderPolicy?: RelayRequestHeaderPolicy;
   upstreamUrl: string;
   upstreamApiKey: string;
   allowedModels: string;

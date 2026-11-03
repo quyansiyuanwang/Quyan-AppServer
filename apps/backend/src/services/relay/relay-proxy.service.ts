@@ -3046,6 +3046,7 @@ export class RelayProxyService {
         ? resolveRelayRequestFormatTransform(relayToken.requestFormatTransforms, clientRequestFormat)
         : undefined;
     const requestFormat = requestFormatTransform?.targetFormat ?? clientRequestFormat;
+    const systemRequestHeaderPolicy = await this.configService.getRelayRequestHeaderPolicy();
     const relayConfig = await this.relayConfigService.getRelayConfig();
     const resourceGuard = getAIResourceConfig().relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
@@ -3480,6 +3481,12 @@ export class RelayProxyService {
               upstreamApiKey,
               (channel.routingConfig as { forwardedRequestHeaders?: unknown } | null)?.forwardedRequestHeaders,
               (channel.routingConfig as { forwardAllRequestHeaders?: unknown } | null)?.forwardAllRequestHeaders,
+              {
+                systemPolicy: systemRequestHeaderPolicy,
+                channelMode: (channel.routingConfig as { requestHeaderMode?: unknown } | null)?.requestHeaderMode,
+                blockedHeaders: (channel.routingConfig as { blockedRequestHeaders?: unknown } | null)
+                  ?.blockedRequestHeaders,
+              },
             );
 
             let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);

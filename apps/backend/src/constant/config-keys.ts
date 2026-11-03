@@ -132,6 +132,7 @@ export const CONFIG_KEYS = {
     },
   },
   RELAY: {
+    REQUEST_HEADER_POLICY: "relay.requestHeaderPolicy",
     UPSTREAM_URL: "relay.upstreamUrl",
     UPSTREAM_API_KEY: "relay.upstreamApiKey",
     OPENAI_UPSTREAM_URL: "relay.openaiUpstreamUrl",

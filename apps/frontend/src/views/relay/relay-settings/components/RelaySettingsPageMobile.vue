@@ -18,6 +18,10 @@
           :closable="false"
           :title="i18ns.t('ServerConfigView.systemRelayConfigurationUnavailable')"
         />
+        <RelaySystemHeaderPolicyEditor
+          v-model="requestHeaderPolicy"
+          :disabled="!systemRelayConfigurationLoaded || saving"
+        />
         <div class="flex flex-col gap-3">
           <section
             class="border border-[var(--el-border-color-lighter)] rounded-xl bg-[var(--el-fill-color-blank)] overflow-hidden"
@@ -1151,6 +1155,7 @@
 </template>
 
 <script setup lang="ts">
+import RelaySystemHeaderPolicyEditor from './RelaySystemHeaderPolicyEditor.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
@@ -1183,6 +1188,7 @@ const {
   preflightBufferLimitMB,
   apiCatalogPoolVisibility,
   relayCustomKeyEnabled,
+  requestHeaderPolicy,
   relayCustomKeyMaxTokensPerUser,
   relayCustomKeyCreateLimitWindowMinutes,
   relayCustomKeyCreateLimitMaxCount,
