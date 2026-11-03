@@ -19685,6 +19685,168 @@
 				]
 			}
 		},
+		"/v1/relay-channel-probes/daily-schedule": {
+			"get": {
+				"operationId": "RelayProbeRoundControllerGetDailySchedule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeDailyScheduleDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Probe Rounds"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "RelayProbeRoundControllerSaveDailySchedule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeDailyScheduleDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Probe Rounds"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveRelayProbeDailyScheduleRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/relay-channel-probes/rounds": {
+			"get": {
+				"operationId": "RelayProbeRoundControllerListProbeRounds",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeRoundPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Probe Rounds"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/rounds/{roundId}": {
+			"get": {
+				"operationId": "RelayProbeRoundControllerGetProbeRound",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeRoundTargetPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Probe Rounds"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "roundId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay-config": {
 			"get": {
 				"operationId": "RelayConfigControllerGetRelayConfig",
@@ -21916,6 +22078,263 @@
 				}
 			}
 		},
+		"/v1/relay-channel-probes/page": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerListOverviewPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeOverviewPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "search",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "channelId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "profile",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"all",
+								"configured",
+								"unconfigured"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "enabled",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"all",
+								"enabled",
+								"disabled"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "runStatus",
+						"required": false,
+						"schema": {}
+					},
+					{
+						"in": "query",
+						"name": "suggestion",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"all",
+								"applicable",
+								"not_applicable"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "group",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/members": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerListMemberPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProbeMemberPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/configuration": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerGetConfiguration",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeOverviewItemDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "memberChannelId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "RelayChannelProbeControllerSaveConfiguration",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaveRelayProbeConfigurationResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveRelayProbeConfigurationRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay-channel-probes": {
 			"get": {
 				"operationId": "RelayChannelProbeControllerListOverview",
@@ -22472,6 +22891,96 @@
 						}
 					}
 				}
+			}
+		},
+		"/v1/relay-channel-probes/accounts/page": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerListAccountPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeAccountPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "search",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/accounts/{accountId}/editor": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerGetAccountEditor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeAccountEditorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/relay-channel-probes/accounts/{accountId}": {
@@ -54161,6 +54670,300 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayProbeDailyScheduleDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"timezone": {
+						"type": "string",
+						"enum": [
+							"Asia/Shanghai"
+						],
+						"nullable": false
+					},
+					"minuteOfDay": {
+						"type": "number",
+						"format": "double"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"nextRunAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"enabled",
+					"timezone",
+					"minuteOfDay",
+					"version",
+					"nextRunAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveRelayProbeDailyScheduleRequest": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"minuteOfDay": {
+						"type": "number",
+						"format": "double",
+						"description": "Minutes since midnight in Asia/Shanghai. Defaults to 03:00."
+					},
+					"expectedVersion": {
+						"type": "number",
+						"format": "double",
+						"description": "Zero creates a schedule; subsequent edits must match the saved version."
+					}
+				},
+				"required": [
+					"enabled",
+					"minuteOfDay",
+					"expectedVersion"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeRoundDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"scheduledFor": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"startedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"finishedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"state": {
+						"type": "string"
+					},
+					"targetCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"notificationState": {
+						"type": "string"
+					},
+					"errorStage": {
+						"type": "string"
+					},
+					"errorCode": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"scheduledFor",
+					"state",
+					"targetCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeRoundPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayProbeRoundDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeRoundTargetReportDto": {
+				"description": "A deliberately allowlisted projection: no workflow, credentials or raw upstream response.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"memberChannelName": {
+						"type": "string"
+					},
+					"runId": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					},
+					"upstreamCurrency": {
+						"type": "string"
+					},
+					"localCurrency": {
+						"type": "string"
+					},
+					"balanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"baseLocalCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"measuredMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"currentMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"multiplierChange": {
+						"type": "number",
+						"format": "double"
+					},
+					"multiplierChangePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"previousSuggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestionChange": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestionChangePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"calibrationStatus": {
+						"type": "string"
+					},
+					"errorStage": {
+						"type": "string"
+					},
+					"errorCode": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"channelId",
+					"channelName",
+					"state"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeRoundTargetPageDto": {
+				"properties": {
+					"round": {
+						"$ref": "#/components/schemas/RelayProbeRoundDto"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayProbeRoundTargetReportDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"round",
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"ModelPricingItemDto": {
 				"properties": {
 					"model": {
@@ -54699,6 +55502,10 @@
 			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
+					"forwardAllRequestHeaders": {
+						"type": "boolean",
+						"description": "Forward all eligible request headers on this physical channel. Defaults to false; reserved fields stay excluded."
+					},
 					"forwardedRequestHeaders": {
 						"items": {
 							"type": "string"
@@ -57822,36 +58629,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RelayChannelProbeCustomerFacingTargetDto": {
-				"description": "A routing entry that represents this standalone channel in customer-facing price notices.",
-				"properties": {
-					"channelId": {
-						"type": "string"
-					},
-					"channelName": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"channelId",
-					"channelName"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayProbeFormat": {
-				"type": "string",
-				"enum": [
-					"openai-chat-completions",
-					"openai-responses",
-					"anthropic",
-					"openai",
-					"gemini"
-				]
-			},
-			"RelayChannelProbeFormat": {
-				"$ref": "#/components/schemas/RelayProbeFormat"
-			},
 			"RelayChannelProbeEndpoint": {
 				"type": "string",
 				"enum": [
@@ -57869,67 +58646,40 @@
 					"warm-and-read"
 				]
 			},
-			"RelayChannelProbeWorkflowStepDto": {
-				"properties": {
-					"name": {
-						"type": "string"
-					},
-					"method": {
-						"type": "string",
-						"enum": [
-							"GET",
-							"POST"
-						]
-					},
-					"url": {
-						"type": "string"
-					},
-					"headers": {
-						"$ref": "#/components/schemas/Record_string.string_"
-					},
-					"query": {
-						"$ref": "#/components/schemas/Record_string.string_"
-					},
-					"body": {
-						"$ref": "#/components/schemas/Record_string.unknown_"
-					},
-					"extract": {
-						"$ref": "#/components/schemas/Record_string.string_"
-					},
-					"balancePath": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"name",
-					"method",
-					"url"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayChannelProbeProfileDto": {
+			"Pick_RelayChannelProbeProfileDto.Exclude_keyofRelayChannelProbeProfileDto.workflow-or-probePayload-or-credentialNames__": {
 				"properties": {
 					"id": {
 						"type": "string"
 					},
-					"relayChannelId": {
-						"type": "string"
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
 					},
 					"enabled": {
 						"type": "boolean"
 					},
+					"relayChannelId": {
+						"type": "string"
+					},
 					"probeFormat": {
-						"$ref": "#/components/schemas/RelayChannelProbeFormat"
+						"type": "string",
+						"enum": [
+							"openai-chat-completions",
+							"openai-responses",
+							"anthropic",
+							"openai",
+							"gemini"
+						]
 					},
 					"probeEndpoint": {
 						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
 					},
 					"probeModel": {
 						"type": "string"
-					},
-					"probePayload": {
-						"$ref": "#/components/schemas/Record_string.unknown_"
 					},
 					"preventCache": {
 						"type": "boolean",
@@ -57979,36 +58729,17 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
-					},
-					"workflow": {
-						"items": {
-							"$ref": "#/components/schemas/RelayChannelProbeWorkflowStepDto"
-						},
-						"type": "array"
-					},
-					"credentialNames": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					},
-					"createTime": {
-						"type": "string",
-						"format": "date-time"
-					},
-					"updateTime": {
-						"type": "string",
-						"format": "date-time"
 					}
 				},
 				"required": [
 					"id",
-					"relayChannelId",
+					"createTime",
+					"updateTime",
 					"enabled",
+					"relayChannelId",
 					"probeFormat",
 					"probeEndpoint",
 					"probeModel",
-					"probePayload",
 					"preventCache",
 					"cacheMode",
 					"sampleCount",
@@ -58020,11 +58751,70 @@
 					"localCurrency",
 					"upstreamBalanceDivisor",
 					"upstreamRateMultiplier",
-					"distributionMultiplier",
-					"workflow",
-					"credentialNames",
-					"createTime",
-					"updateTime"
+					"distributionMultiplier"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_RelayChannelProbeProfileDto.workflow-or-probePayload-or-credentialNames_": {
+				"$ref": "#/components/schemas/Pick_RelayChannelProbeProfileDto.Exclude_keyofRelayChannelProbeProfileDto.workflow-or-probePayload-or-credentialNames__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"Pick_RelayChannelProbeTargetConfigDto.Exclude_keyofRelayChannelProbeTargetConfigDto.probePayload__": {
+				"properties": {
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"probeFormat": {
+						"type": "string",
+						"enum": [
+							"openai-chat-completions",
+							"openai-responses",
+							"anthropic",
+							"openai",
+							"gemini"
+						]
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probeGroup": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string"
+					},
+					"accountId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_RelayChannelProbeTargetConfigDto.probePayload_": {
+				"$ref": "#/components/schemas/Pick_RelayChannelProbeTargetConfigDto.Exclude_keyofRelayChannelProbeTargetConfigDto.probePayload__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"RelayChannelProbeCustomerFacingTargetDto": {
+				"description": "A routing entry that represents this standalone channel in customer-facing price notices.",
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -58493,6 +59283,199 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"Pick_RelayChannelProbeOverviewItemDto.Exclude_keyofRelayChannelProbeOverviewItemDto.profile-or-members-or-targetConfig__": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "Visibility of the standalone upstream channel itself."
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"customerFacingTargets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
+						},
+						"type": "array",
+						"description": "Pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
+					},
+					"allowedProbeFormats": {
+						"items": {
+							"type": "string",
+							"enum": [
+								"openai-chat-completions",
+								"openai-responses",
+								"anthropic",
+								"gemini"
+							]
+						},
+						"type": "array",
+						"description": "Formats that can be used for the minimal AI request on this channel."
+					},
+					"allowedProbeModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit model allow-list for the channel. Empty means no channel-level model allow-list."
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					}
+				},
+				"required": [
+					"enabled",
+					"channelId",
+					"channelName",
+					"channelType",
+					"visibilityMode",
+					"multiplier",
+					"customerFacingTargets",
+					"allowedProbeFormats",
+					"allowedProbeModels"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"RelayProbeOverviewSummaryDto": {
+				"description": "List projection: request templates, credentials and member details are loaded on demand.",
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "Visibility of the standalone upstream channel itself."
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"customerFacingTargets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
+						},
+						"type": "array",
+						"description": "Pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
+					},
+					"allowedProbeFormats": {
+						"items": {
+							"type": "string",
+							"enum": [
+								"openai-chat-completions",
+								"openai-responses",
+								"anthropic",
+								"gemini"
+							]
+						},
+						"type": "array",
+						"description": "Formats that can be used for the minimal AI request on this channel."
+					},
+					"allowedProbeModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit model allow-list for the channel. Empty means no channel-level model allow-list."
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					},
+					"profile": {
+						"$ref": "#/components/schemas/Omit_RelayChannelProbeProfileDto.workflow-or-probePayload-or-credentialNames_"
+					},
+					"targetConfig": {
+						"$ref": "#/components/schemas/Omit_RelayChannelProbeTargetConfigDto.probePayload_"
+					},
+					"memberCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasCredentials": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled",
+					"channelId",
+					"channelName",
+					"channelType",
+					"visibilityMode",
+					"multiplier",
+					"customerFacingTargets",
+					"allowedProbeFormats",
+					"allowedProbeModels",
+					"memberCount",
+					"hasCredentials"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeOverviewPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayProbeOverviewSummaryDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeFormat": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic",
+					"openai",
+					"gemini"
+				]
+			},
+			"RelayChannelProbeFormat": {
+				"$ref": "#/components/schemas/RelayProbeFormat"
+			},
 			"RelayChannelProbeTargetConfigDto": {
 				"properties": {
 					"channelId": {
@@ -58515,6 +59498,10 @@
 					},
 					"accountId": {
 						"type": "string"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
 					}
 				},
 				"required": [
@@ -58570,6 +59557,196 @@
 					"allowedProbeFormats",
 					"allowedProbeModels",
 					"compatible"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayProbeMemberPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeMemberDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeWorkflowStepDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST"
+						]
+					},
+					"url": {
+						"type": "string"
+					},
+					"headers": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"query": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"body": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"extract": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"balancePath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"method",
+					"url"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeProfileDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"relayChannelId": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"probeFormat": {
+						"$ref": "#/components/schemas/RelayChannelProbeFormat"
+					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probePayload": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"preventCache": {
+						"type": "boolean",
+						"description": "Inject a unique marker into each probe request to prevent upstream cache collisions."
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"strictCalibrationValidation": {
+						"type": "boolean",
+						"description": "Enables the conservative three-sample, MAD outlier, and stability checks."
+					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementReads": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamCurrency": {
+						"type": "string"
+					},
+					"localCurrency": {
+						"type": "string"
+					},
+					"upstreamBalanceDivisor": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"probeGroup": {
+						"type": "string",
+						"description": "Channels in the same non-empty probe group are calibrated serially."
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"workflow": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeWorkflowStepDto"
+						},
+						"type": "array"
+					},
+					"credentialNames": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"relayChannelId",
+					"enabled",
+					"probeFormat",
+					"probeEndpoint",
+					"probeModel",
+					"probePayload",
+					"preventCache",
+					"cacheMode",
+					"sampleCount",
+					"strictCalibrationValidation",
+					"measurementInputTokens",
+					"balanceSettlementTolerance",
+					"balanceSettlementReads",
+					"upstreamCurrency",
+					"localCurrency",
+					"upstreamBalanceDivisor",
+					"upstreamRateMultiplier",
+					"distributionMultiplier",
+					"workflow",
+					"credentialNames",
+					"createTime",
+					"updateTime"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -58644,6 +59821,21 @@
 					"multiplier",
 					"allowedProbeFormats",
 					"allowedProbeModels"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveRelayProbeConfigurationResponse": {
+				"properties": {
+					"profile": {
+						"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
+					},
+					"targetConfig": {
+						"$ref": "#/components/schemas/RelayChannelProbeTargetConfigDto"
+					}
+				},
+				"required": [
+					"profile"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -58746,6 +59938,64 @@
 					"probeModel",
 					"probePayload",
 					"workflow"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_RelayChannelProbeTargetConfigDto.probeFormat-or-probeModel-or-probePayload-or-probeGroup_": {
+				"properties": {
+					"probePayload": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"probeFormat": {
+						"type": "string",
+						"enum": [
+							"openai-chat-completions",
+							"openai-responses",
+							"anthropic",
+							"openai",
+							"gemini"
+						]
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probeGroup": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"SaveRelayProbeConfigurationRequest": {
+				"properties": {
+					"profile": {
+						"$ref": "#/components/schemas/UpsertRelayChannelProbeProfileRequest"
+					},
+					"memberChannelId": {
+						"type": "string"
+					},
+					"target": {
+						"$ref": "#/components/schemas/Pick_RelayChannelProbeTargetConfigDto.probeFormat-or-probeModel-or-probePayload-or-probeGroup_"
+					},
+					"accountId": {
+						"type": "string",
+						"nullable": true,
+						"description": "Omit to retain the existing binding; null unbinds it."
+					},
+					"expectedProfileUpdatedAt": {
+						"type": "string",
+						"nullable": true
+					},
+					"expectedTargetUpdatedAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"profile",
+					"expectedProfileUpdatedAt",
+					"expectedTargetUpdatedAt"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -59073,6 +60323,15 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayProbeAccountExpiryMode": {
+				"type": "string",
+				"enum": [
+					"seconds",
+					"iso",
+					"unixSeconds",
+					"unixMillis"
+				]
+			},
 			"RelayChannelProbeAccountDto": {
 				"properties": {
 					"id": {
@@ -59088,11 +60347,7 @@
 						"type": "string"
 					},
 					"expiresMode": {
-						"type": "string",
-						"enum": [
-							"seconds",
-							"iso"
-						]
+						"$ref": "#/components/schemas/RelayProbeAccountExpiryMode"
 					},
 					"fallbackTtlSeconds": {
 						"type": "number",
@@ -59129,6 +60384,36 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeAccountPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelProbeLoginDto": {
 				"description": "Login response and credentials are never exposed to clients.",
 				"properties": {
@@ -59159,6 +60444,110 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayProbeAccountSessionFieldDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"json",
+							"header",
+							"cookie"
+						]
+					},
+					"selector": {
+						"type": "string"
+					},
+					"required": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"name",
+					"source",
+					"selector",
+					"required"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeAccountEditorDto": {
+				"properties": {
+					"account": {
+						"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+					},
+					"revision": {
+						"type": "string"
+					},
+					"loginWorkflow": {
+						"$ref": "#/components/schemas/RelayChannelProbeLoginDto"
+					},
+					"retainedFields": {
+						"items": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"credentialNames": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"requiredCredentialNames": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"sessionFields": {
+						"items": {
+							"$ref": "#/components/schemas/RelayProbeAccountSessionFieldDto"
+						},
+						"type": "array"
+					},
+					"tokenField": {
+						"type": "string"
+					},
+					"refreshWorkflow": {
+						"$ref": "#/components/schemas/RelayChannelProbeLoginDto"
+					},
+					"retainedRefreshFields": {
+						"items": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"refreshTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"sessionAllowedOrigins": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"account",
+					"revision",
+					"loginWorkflow",
+					"retainedFields",
+					"credentialNames",
+					"requiredCredentialNames"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SaveRelayChannelProbeAccountRequest": {
 				"properties": {
 					"name": {
@@ -59174,11 +60563,7 @@
 						"type": "string"
 					},
 					"expiresMode": {
-						"type": "string",
-						"enum": [
-							"seconds",
-							"iso"
-						]
+						"$ref": "#/components/schemas/RelayProbeAccountExpiryMode"
 					},
 					"fallbackTtlSeconds": {
 						"type": "number",
@@ -59190,6 +60575,63 @@
 					},
 					"credentials": {
 						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"expectedRevision": {
+						"type": "string",
+						"description": "Safe editor revision. Rejects writes after the encrypted configuration changes."
+					},
+					"retainedFields": {
+						"items": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						},
+						"type": "array",
+						"description": "Paths in loginWorkflow whose saved values should be retained without disclosing them."
+					},
+					"credentialUpdates": {
+						"$ref": "#/components/schemas/Record_string.string_",
+						"description": "Replaces only the named credentials; omitted credentials remain unchanged."
+					},
+					"sessionFields": {
+						"items": {
+							"$ref": "#/components/schemas/RelayProbeAccountSessionFieldDto"
+						},
+						"type": "array"
+					},
+					"tokenField": {
+						"type": "string",
+						"nullable": true,
+						"description": "Named session field used as the legacy accountToken alias."
+					},
+					"refreshWorkflow": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelProbeLoginDto"
+							}
+						],
+						"nullable": true
+					},
+					"retainedRefreshFields": {
+						"items": {
+							"items": {
+								"type": "string"
+							},
+							"type": "array"
+						},
+						"type": "array"
+					},
+					"refreshTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"sessionAllowedOrigins": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Additional explicit HTTPS origins permitted to receive panel session values."
 					}
 				},
 				"required": [

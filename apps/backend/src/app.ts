@@ -20,6 +20,7 @@ import { createRequestSizeGuard } from "./middleware/request-size-guard";
 import { startMemoryMonitor } from "./middleware/memory-monitor";
 import { DeveloperMonitorSchedulerService } from "./services/developer/developer-monitor-scheduler.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
+import { RelayProbeRoundSchedulerService } from "./services/relay/relay-probe-round-scheduler.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
@@ -267,6 +268,7 @@ export function setupService() {
 
   DeveloperMonitorSchedulerService.getInstance().start();
   RelayChannelProbeService.getInstance().start();
+  RelayProbeRoundSchedulerService.getInstance().start();
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
   DataLifecycleSchedulerService.getInstance().start();
   CarpoolExpirationSchedulerService.getInstance().start();

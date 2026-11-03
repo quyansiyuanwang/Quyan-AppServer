@@ -99,6 +99,11 @@ jobs:
           fi
 
   backend-runtime-tests:
+    name: ${{ matrix.mysql == '8.0' && 'backend-runtime-tests' || 'backend-mysql57-probe-tests' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql: ['8.0', '5.7']
     needs: changes
     if: >-
       (github.event_name == 'workflow_dispatch') ||
@@ -110,7 +115,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:${{ matrix.mysql }}
         env:
           MYSQL_ROOT_PASSWORD: 123456
           MYSQL_DATABASE: QysywDB_test
@@ -173,7 +178,15 @@ jobs:
           FULL_CHANGED: ${{ needs.changes.outputs.full }}
           MANUAL_SUITE: ${{ inputs.suite }}
         run: |
-          if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
+          if [ "${{ matrix.mysql }}" = "5.7" ]; then
+            pnpm --filter @quyan/backend exec prisma migrate deploy
+            pnpm --filter @quyan/backend test -- \
+              tests/database/permissions/relay-probe-round-scheduler.db.test.ts \
+              tests/database/permissions/iam-relay-probe-overview-read.db.test.ts \
+              tests/database/permissions/iam-relay-probe-account-read.db.test.ts \
+              tests/database/permissions/iam-relay-probe-account-update.db.test.ts \
+              tests/integration/relay-channel-probe-account.integration.test.ts
+          elif [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
             pnpm --filter @quyan/backend run test:runtime
           elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
             pnpm --filter @quyan/backend run test:runtime

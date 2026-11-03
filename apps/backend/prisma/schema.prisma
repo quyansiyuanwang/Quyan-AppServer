@@ -1316,6 +1316,98 @@ model RelayChannelProviderEarning {
   @@map("relay_channel_provider_earnings")
 }
 
+model RelayProbeDailySchedule {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  actorUserId        String   @unique @db.VarChar(191)
+  enabled            Boolean  @default(false)
+  timezone           String   @default("Asia/Shanghai") @db.VarChar(64)
+  minuteOfDay        Int      @default(180)
+  nextRunAt          DateTime
+  version            Int      @default(1)
+  rounds             RelayProbeRound[]
+
+  @@index([status, enabled, nextRunAt])
+  @@map("relay_probe_daily_schedules")
+}
+
+model RelayProbeRound {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  scheduleId         String
+  scheduleVersion    Int
+  actorUserId        String   @db.VarChar(191)
+  scheduledFor       DateTime
+  state              String   @default("pending") @db.VarChar(20)
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  leaseOwner         String?  @db.VarChar(100)
+  leaseExpiresAt     DateTime?
+  targetCount        Int      @default(0)
+  errorStage         String?  @db.VarChar(40)
+  errorCode          String?  @db.VarChar(100)
+  schedule           RelayProbeDailySchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  targets            RelayProbeRoundTarget[]
+  notification       RelayProbeRoundNotification?
+
+  @@unique([scheduleId, scheduledFor])
+  @@index([state, leaseExpiresAt])
+  @@index([actorUserId, createTime])
+  @@map("relay_probe_rounds")
+}
+
+model RelayProbeRoundTarget {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  roundId            String
+  channelId          String   @db.VarChar(191)
+  memberChannelId    String   @default("") @db.VarChar(191)
+  channelName        String   @db.VarChar(100)
+  memberChannelName  String?  @db.VarChar(100)
+  profileId          String   @db.VarChar(191)
+  profileUpdatedAt   DateTime
+  targetConfigId     String?  @db.VarChar(191)
+  targetUpdatedAt    DateTime?
+  accountId          String?  @db.VarChar(191)
+  accountRevision    String?  @db.VarChar(64)
+  runId              String?  @unique
+  state              String   @default("pending") @db.VarChar(20)
+  errorStage         String?  @db.VarChar(40)
+  errorCode          String?  @db.VarChar(100)
+  report             Json?
+  round              RelayProbeRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  run                RelayChannelProbeRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, channelId, memberChannelId])
+  @@index([roundId, state])
+  @@map("relay_probe_round_targets")
+}
+
+model RelayProbeRoundNotification {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  roundId            String   @unique
+  state              String   @default("pending") @db.VarChar(20)
+  attempts           Int      @default(0)
+  nextAttemptAt      DateTime @default(now())
+  leaseOwner         String?  @db.VarChar(100)
+  leaseExpiresAt     DateTime?
+  lastErrorCode      String?  @db.VarChar(100)
+  inboxItemId        String?  @db.VarChar(191)
+  round              RelayProbeRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+
+  @@index([state, nextAttemptAt, leaseExpiresAt])
+  @@map("relay_probe_round_notifications")
+}
+
 model RelayChannelProbeProfile {
   id                          String   @id @default(cuid())
   relayChannelId              String   @unique
@@ -1400,6 +1492,7 @@ model RelayChannelProbeRun {
   probeMemberChannelName      String?   @db.VarChar(100)
   profileId                   String?
   requestedByUserId           String
+  scheduledTarget             RelayProbeRoundTarget?
   status                      String    @default("queued") @db.VarChar(20)
   queuedAt                    DateTime  @default(now())
   startedAt                   DateTime?

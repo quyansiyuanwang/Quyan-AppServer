@@ -1,3 +1,27 @@
+import type { RelayRequestFormat } from './relay-model-availability'
+
+/** Built-in forwarding policy, shared by the proxy and the channel editor's default table. */
+export const RELAY_DEFAULT_FORWARDED_HEADERS = {
+  common: [
+    'content-type',
+    'accept',
+    'accept-encoding',
+    'user-agent',
+    'x-request-id',
+    'x-client-request-id',
+    'idempotency-key',
+    'x-opencode-session',
+  ],
+  openai: ['openai-organization', 'openai-project', 'openai-beta'],
+  anthropic: ['anthropic-version', 'anthropic-beta'],
+  gemini: ['x-goog-api-client'],
+} as const
+
+export function getRelayDefaultForwardedHeaderNames(format: RelayRequestFormat): readonly string[] {
+  const protocol = format === 'anthropic' || format === 'gemini' ? format : 'openai'
+  return [...RELAY_DEFAULT_FORWARDED_HEADERS.common, ...RELAY_DEFAULT_FORWARDED_HEADERS[protocol]]
+}
+
 /** Limits and reserved names for administrator-configured request-header forwarding. */
 export const RELAY_FORWARDED_HEADER_LIMITS = { maxNames: 64, maxNameLength: 128 } as const
 

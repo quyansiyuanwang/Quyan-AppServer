@@ -18,12 +18,19 @@ export const relayProbeAccountPublicSelect = {
 export type RelayProbeAccountPublicRecord = Prisma.RelayChannelProbeAccountGetPayload<{
   select: typeof relayProbeAccountPublicSelect;
 }> & { hasCredentials: boolean };
+export interface ProbeAccountReadWindow {
+  page: number;
+  pageSize: number;
+  search?: string;
+  onTotal: (total: number) => void;
+}
 export interface PlatformRelayProbeAccountReadStore {
   list<T>(
     principal: IamPrincipal,
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
     recheck: () => Promise<void>,
     map: (account: RelayProbeAccountPublicRecord) => Promise<T>,
+    window?: ProbeAccountReadWindow,
   ): Promise<T[]>;
 }
 export class PlatformRelayProbeAccountReadRepository implements PlatformRelayProbeAccountReadStore {
@@ -36,6 +43,7 @@ export class PlatformRelayProbeAccountReadRepository implements PlatformRelayPro
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
     recheck: () => Promise<void>,
     map: (account: RelayProbeAccountPublicRecord) => Promise<T>,
+    window?: ProbeAccountReadWindow,
   ) {
     const limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
     return readIamPersonalCollection(principal, decide, recheck, async (tx, checkedDecide) => {
@@ -43,7 +51,10 @@ export class PlatformRelayProbeAccountReadRepository implements PlatformRelayPro
       let after: string | undefined;
       for (;;) {
         const rows = await tx.relayChannelProbeAccount.findMany({
-          where: after ? { id: { gt: after } } : {},
+          where: {
+            ...(after ? { id: { gt: after } } : {}),
+            ...(window?.search ? { name: { contains: window.search } } : {}),
+          },
           select: { id: true, updateTime: true },
           orderBy: { id: "asc" },
           take: limit,
@@ -56,15 +67,20 @@ export class PlatformRelayProbeAccountReadRepository implements PlatformRelayPro
         after = rows[rows.length - 1]!.id;
         if (rows.length < limit) break;
       }
+      window?.onTotal(admitted.length);
       if (!admitted.length) return [];
       const revisions = new Map(admitted.map((row) => [row.id, row.updateTime])),
         rows = await tx.relayChannelProbeAccount.findMany({
           where: { id: { in: [...revisions.keys()] } },
-          orderBy: { name: "asc" },
+          orderBy: [{ name: "asc" }, { id: "asc" }],
           select: relayProbeAccountPublicSelect,
+          ...(window ? { skip: (window.page - 1) * window.pageSize, take: window.pageSize } : {}),
         });
       if (
-        rows.length !== admitted.length ||
+        rows.length !==
+          (window
+            ? Math.min(window.pageSize, Math.max(0, admitted.length - (window.page - 1) * window.pageSize))
+            : admitted.length) ||
         rows.some((row) => revisions.get(row.id)?.getTime() !== row.updateTime.getTime())
       )
         throw iamAccountDenied();

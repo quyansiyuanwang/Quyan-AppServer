@@ -3,7 +3,7 @@
     v-model="drawerOpen"
     :title="selected?.channelName"
     direction="rtl"
-    size="min(66vw, 100vw)"
+    size="min(960px, 100vw)"
     append-to-body
     destroy-on-close
     @closed="resetDrawer"
@@ -78,9 +78,10 @@
         </div>
       </div>
     </section>
-    <el-tabs v-model="tab">
+    <el-alert v-if="profileError" type="error" :closable="false" :title="profileError" />
+    <el-tabs v-else v-model="tab" v-loading="profileLoading">
       <el-tab-pane :label="i18ns.t('relay.channelProbeProfile')" name="profile">
-        <RelayChannelProbeProfileTab />
+        <RelayChannelProbeProfileTab v-if="!profileLoading" />
       </el-tab-pane>
       <el-tab-pane :label="i18ns.t('relay.channelProbeRuns')" name="runs">
         <RelayChannelProbeRunsTab />
@@ -99,6 +100,8 @@ import RelayChannelProbeRunsTab from './RelayChannelProbeRunsTab.vue'
 
 const {
   drawerOpen,
+  profileLoading,
+  profileError,
   selected,
   tab,
   formatDate,

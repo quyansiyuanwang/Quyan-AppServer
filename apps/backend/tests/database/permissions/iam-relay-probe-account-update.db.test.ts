@@ -233,6 +233,26 @@ describe("probe account update authorization", () => {
       ),
     ).toBe(true);
   });
+  it("retains saved login fields, updates a single credential, and rejects stale editor writes", async () => {
+    await update();
+    const editor = await service.getEditor(accounts[0]!, request());
+    expect(JSON.stringify(editor)).not.toContain("fixture-workflow-secret");
+    expect(JSON.stringify(editor)).not.toContain("fixture-password");
+    const body = {
+      ...input(),
+      credentials: undefined,
+      expectedRevision: editor.revision,
+      loginWorkflow: editor.loginWorkflow,
+      retainedFields: editor.retainedFields,
+      credentialUpdates: { password: "fixture-replacement" },
+    };
+    await update(accounts[0], body);
+    const current = await prisma.relayChannelProbeAccount.findUniqueOrThrow({ where: { id: accounts[0] } });
+    await expect(update(accounts[0], body)).rejects.toMatchObject({ statusCode: 409 });
+    expect(
+      (await prisma.relayChannelProbeAccount.findUniqueOrThrow({ where: { id: accounts[0] } })).encryptedCredentials,
+    ).toBe(current.encryptedCredentials);
+  });
   it("rejects duplicate names with a safe conflict and no cache invalidation", async () => {
     const redis = vi.spyOn(RedisService.getInstance(), "delete");
     await expect(update(accounts[0], { ...input(), name: prefix + "A" })).rejects.toMatchObject({ statusCode: 409 });

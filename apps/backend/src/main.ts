@@ -10,6 +10,7 @@ import { RemoteTerminalGatewayService } from "./modules/remote-terminal/gateway/
 import { DeveloperMonitorSchedulerService } from "./services/developer/developer-monitor-scheduler.service";
 import { RedisService } from "./services/infrastructure/redis.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
+import { RelayProbeRoundSchedulerService } from "./services/relay/relay-probe-round-scheduler.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
@@ -84,6 +85,7 @@ async function startBackend() {
     try {
       DeveloperMonitorSchedulerService.getInstance().stop();
       RelayChannelProbeService.getInstance().stop();
+      RelayProbeRoundSchedulerService.getInstance().stop();
       RelayChannelProviderSettlementSchedulerService.getInstance().stop();
       DataLifecycleSchedulerService.getInstance().stop();
       CarpoolExpirationSchedulerService.getInstance().stop();

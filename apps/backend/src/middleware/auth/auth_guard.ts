@@ -21,7 +21,7 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 import { buildForceOfflineUserKey, buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import { Permission } from "@/constant/permission";
-import { getOAuthScopeAliases, isCredentialOfType } from "@quyan/shared";
+import { classifyCredential, getOAuthScopeAliases, isValidCredential } from "@quyan/shared";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 
 const logger = getLogger("AuthGuard", LogCategory.SYSTEM);
@@ -416,7 +416,7 @@ export async function expressAuthentication(
   if (securityName === "project-key") {
     const authHeader = request.headers["authorization"];
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (!token || !isCredentialOfType(token, "projectKey"))
+    if (!isValidCredential(token, "projectKey"))
       throw new UnauthorizedError("Unauthorized: No project API key provided", undefined, {
         messageKey: "auth.missingProductApiKey",
       });
@@ -465,7 +465,7 @@ export async function expressAuthentication(
     let token = authHeader.replace("Bearer ", "").trim();
 
     // 检查是否为中转令牌
-    if (isCredentialOfType(token, "relayToken")) {
+    if (isValidCredential(token, "relayToken")) {
       const relayTokenService = new RelayTokenService();
       const relayToken = await relayTokenService.validateToken(token, request);
 
@@ -496,7 +496,7 @@ export async function expressAuthentication(
     }
 
     // 检查是否为 AccessKey
-    if (isCredentialOfType(token, "accessKey")) {
+    if (isValidCredential(token, "accessKey")) {
       const { AccessKeyService } = await import("@/services/users/accesskey.service");
       const accessKeyService = new AccessKeyService();
       const accessKey = await accessKeyService.validateKey(token);
@@ -523,6 +523,11 @@ export async function expressAuthentication(
       request.accessKey = accessKey;
       return attachAuthContext(request, payload, user, "access_key");
     }
+
+    if (token.startsWith("sk-") || classifyCredential(token) !== "unknown")
+      throw new UnauthorizedError("Invalid credential type or format", undefined, {
+        messageKey: "errors.invalidToken",
+      });
 
     // 检查是否为 reurl 格式
     if (token.startsWith("reurl:")) {

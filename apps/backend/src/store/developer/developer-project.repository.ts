@@ -8,7 +8,7 @@ import {
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { DeveloperItemResourceType } from "@/iam/resources/developer-resources";
-import { toCanonicalCredential } from "@quyan/shared";
+import { isValidCredential, toCanonicalCredential } from "@quyan/shared";
 import { isIP } from "node:net";
 import nodemailer from "nodemailer";
 import { createConnection } from "mysql2/promise";
@@ -507,6 +507,10 @@ export class DeveloperProjectRepository {
   }
 
   async authenticateProjectKey(rawKey: string, requiredScopes: string[]): Promise<NonNullable<ProjectKeyRecord>> {
+    if (!isValidCredential(rawKey, "projectKey"))
+      throw new UnauthorizedError("项目 API Key 无效或已过期", undefined, {
+        messageKey: "developerProject.apiKeyInvalid",
+      });
     const key = await prisma.developerProjectApiKey.findFirst({
       where: { OR: [{ keyHash: hash(rawKey) }, { legacyKeyHash: hash(rawKey) }], status: 1, project: { status: 1 } },
       include: { project: { select: { userId: true } } },

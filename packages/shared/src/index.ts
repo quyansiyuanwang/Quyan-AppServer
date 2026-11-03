@@ -136,3 +136,4 @@ export * from './user-group'
 export * from './relay-upstream-headers'
 
 export * from './support-knowledge'
+export * from './relay-probe'

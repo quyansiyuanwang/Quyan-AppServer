@@ -43,6 +43,23 @@ Zero input/output token prices can be saved. Although a per-request fixed price 
 
 In strict two-tier mode, the pool editor first saves the logical pool, then saves each physical member's parent, priority, weight and enabled state individually. These requests are not one transaction. A later failure may leave the pool and some members saved. Removing a member from the draft does not detach its persisted parent relationship. To move a member, select and save it in the destination pool, then check both pools.
 
+### Request header forwarding
+
+Open **Relay settings (`/relay/settings`) → Channel list → Create or edit a standalone channel/physical member → Request header forwarding**. You need channel-create or update permission. Save in the channel editor to apply changes. Logical and automatic proxy pools use the selected physical member's configuration; edit that member channel.
+
+“Forward all eligible request headers” is off by default. Only the defaults below and your extra allowlist are forwarded. Protocol-specific rows follow the actual upstream protocol, including when requests are converted.
+
+| Scope                                             | Default headers                                                                                                                           |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| All protocols                                     | `content-type`, `accept`, `accept-encoding`, `user-agent`, `x-request-id`, `x-client-request-id`, `idempotency-key`, `x-opencode-session` |
+| OpenAI (including Chat Completions and Responses) | `openai-organization`, `openai-project`, `openai-beta`                                                                                    |
+| Anthropic                                         | `anthropic-version`, `anthropic-beta`                                                                                                     |
+| Gemini                                            | `x-goog-api-client`                                                                                                                       |
+
+Enter exact names in “Extra allowlist” and press Enter; do not enter values or wildcards. Up to 64 names are allowed, each at most 128 characters. Saving trims whitespace, lowercases names and removes duplicates.
+
+Enable “Forward all eligible request headers” to forward eligible fields without listing each name. Your extra allowlist is retained; turning the switch off restores the defaults plus the saved extra names. Both modes exclude caller credentials, cookies, Host, message framing, hop-by-hop fields and fields nominated by `Connection`, internal routing and security-verification metadata. Invalid names or values are not forwarded. Upstream authentication always uses credentials from the selected physical channel.
+
 ### Batch operations
 
 Filter by name, type, enablement or submission status, then select targets. Select all covers only the current page. Existing selections survive page and filter changes; check the selected count and clear selections when needed before acting.

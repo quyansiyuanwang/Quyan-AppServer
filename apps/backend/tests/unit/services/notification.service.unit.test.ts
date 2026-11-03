@@ -81,7 +81,7 @@ describe("NotificationService", () => {
 
     repoMock.createLog.mockResolvedValue({});
     redisMock.setIfNotExists.mockResolvedValue(true);
-    repoMock.createInboxItem.mockResolvedValue({});
+    repoMock.createInboxItem.mockResolvedValue({ id: "fixture-inbox" });
     configMock.getSiteConfig.mockResolvedValue({ backendPublicUrl: "" });
   });
 
@@ -186,6 +186,8 @@ describe("NotificationService", () => {
         secure: true,
         user: "noreply@example.com",
         password: "secret",
+        senderName: "Fixture notifications",
+        senderEmail: "noreply@example.com",
       });
 
       const nodemailer = await import("nodemailer");
@@ -201,6 +203,7 @@ describe("NotificationService", () => {
           to: "user@example.com",
           subject: "余额不足提醒",
           text: expect.stringContaining("当前余额: 5.00"),
+          messageId: "<fixture-inbox@example.com>",
         }),
       );
       expect(repoMock.createLog).toHaveBeenCalledWith(

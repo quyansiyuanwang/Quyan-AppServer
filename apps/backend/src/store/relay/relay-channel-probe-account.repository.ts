@@ -1,5 +1,6 @@
 import { relayProbeAccountPublicSelect } from "./platform-relay-probe-account-read.repository";
 import { prisma } from "@/config/database";
+import { ConflictError } from "@/util/errors";
 
 export class RelayChannelProbeAccountRepository {
   private static instance: RelayChannelProbeAccountRepository;
@@ -8,6 +9,28 @@ export class RelayChannelProbeAccountRepository {
   }
   list() {
     return prisma.relayChannelProbeAccount.findMany({ orderBy: { name: "asc" } });
+  }
+  async page(page: number, pageSize: number, search?: string) {
+    const where = search ? { name: { contains: search } } : {};
+    return prisma.$transaction(async (tx) => {
+      const total = await tx.relayChannelProbeAccount.count({ where });
+      const items = await tx.relayChannelProbeAccount.findMany({
+        where,
+        select: relayProbeAccountPublicSelect,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      });
+      const configured = new Set(
+        (
+          await tx.relayChannelProbeAccount.findMany({
+            where: { id: { in: items.map((row) => row.id) }, encryptedCredentials: { not: "" } },
+            select: { id: true },
+          })
+        ).map((row) => row.id),
+      );
+      return { total, items: items.map((row) => ({ ...row, hasCredentials: configured.has(row.id) })) };
+    });
   }
   find(id: string) {
     return prisma.relayChannelProbeAccount.findUnique({ where: { id } });
@@ -20,6 +43,23 @@ export class RelayChannelProbeAccountRepository {
   }
   update(id: string, data: Parameters<typeof prisma.relayChannelProbeAccount.update>[0]["data"]) {
     return prisma.relayChannelProbeAccount.update({ where: { id }, data });
+  }
+  updateConfiguration(
+    id: string,
+    data: Parameters<typeof prisma.relayChannelProbeAccount.updateMany>[0]["data"],
+    expectedCiphertext: string,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const result = await tx.relayChannelProbeAccount.updateMany({
+        where: { id, encryptedCredentials: expectedCiphertext },
+        data,
+      });
+      if (result.count !== 1)
+        throw new ConflictError("Probe account configuration changed", undefined, {
+          messageKey: "relayChannelProbe.accountConfigurationChanged",
+        });
+      return tx.relayChannelProbeAccount.findUniqueOrThrow({ where: { id } });
+    });
   }
   countBoundTargets(profileId: string) {
     return prisma.relayChannelProbeTargetConfig.count({ where: { profileId, accountId: { not: null } } });
