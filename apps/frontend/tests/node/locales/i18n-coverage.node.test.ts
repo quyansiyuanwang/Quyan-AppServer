@@ -11,6 +11,10 @@ import {
   readLocaleCatalog,
 } from '../../../scripts/i18n/catalog'
 import { analyzeLocaleCoverage } from '../../../scripts/i18n/manifest'
+import {
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+} from '@quyan/shared'
 
 const fixtureRoots: string[] = []
 const fixture = () => {
@@ -98,6 +102,49 @@ describe('i18n coverage enforcement', () => {
       { routeName: 'fixturePage', group: 'example', files: [path.join(root, 'views/Page.vue')] },
     ])
     expect(audit.routeNamespaces.fixturePage).toEqual(['relay'])
+  })
+
+  it('derives lazy namespaces from canonical shared key maps, including aliased imports', () => {
+    const { root, write } = fixture()
+    const mappedMessages = (keys: Record<string, string>) =>
+      Object.fromEntries(Object.values(keys).map((key) => [key.split('.')[1]!, 'Fixture label']))
+    const messages = {
+      notificationEvent: mappedMessages(NOTIFICATION_EVENT_I18N_KEYS),
+      notificationEventThresholdUnit: mappedMessages(NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS),
+    }
+    for (const locale of ['en', 'zh-CN', 'emoji'])
+      write(
+        'locales/sites/notifications/' + locale + '.ts',
+        'export default ' + JSON.stringify(messages),
+      )
+    write(
+      'helpers/event-label.ts',
+      "import { NOTIFICATION_EVENT_I18N_KEYS as eventKeys, NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS as unitKeys } from '@quyan/shared'; export const label = event => i18ns.t(eventKeys[event]); export const unit = event => i18ns.t(unitKeys[event])",
+    )
+    write(
+      'views/Page.vue',
+      '<script setup>import { label } from "@/helpers/event-label"</script><template>{{ label(event) }}</template>',
+    )
+    const audit = analyzeLocaleCoverage(root, [
+      { routeName: 'fixturePage', group: 'example', files: [path.join(root, 'views/Page.vue')] },
+    ])
+    expect(audit.routeNamespaces.fixturePage).toEqual([
+      'notificationEvent',
+      'notificationEventThresholdUnit',
+    ])
+    expect(audit.common).toEqual([])
+  })
+
+  it('does not preload shared translation maps for unrelated values or type-only imports', () => {
+    const { root, write } = fixture()
+    write(
+      'views/Page.vue',
+      '<script setup>import type { NOTIFICATION_EVENT_I18N_KEYS } from "@quyan/shared"; import { NotificationEvent, type NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS } from "@quyan/shared"</script><template>{{ NotificationEvent.BALANCE_LOW }}</template>',
+    )
+    const audit = analyzeLocaleCoverage(root, [
+      { routeName: 'fixturePage', group: 'example', files: [path.join(root, 'views/Page.vue')] },
+    ])
+    expect(audit.routeNamespaces.fixturePage).toEqual([])
   })
 
   it('combines same-name compatibility routes without letting redirects erase page requirements', () => {
