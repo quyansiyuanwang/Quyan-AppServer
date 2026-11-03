@@ -180,7 +180,7 @@ jobs:
         run: |
           if [ "${{ matrix.mysql }}" = "5.7" ]; then
             pnpm --filter @quyan/backend exec prisma migrate deploy
-            pnpm --filter @quyan/backend test -- \
+            pnpm --filter @quyan/backend exec node tests/scripts/run-vitest.mjs run --project backend-database \
               tests/database/permissions/relay-probe-round-scheduler.db.test.ts \
               tests/database/permissions/iam-relay-probe-overview-read.db.test.ts \
               tests/database/permissions/iam-relay-probe-account-read.db.test.ts \

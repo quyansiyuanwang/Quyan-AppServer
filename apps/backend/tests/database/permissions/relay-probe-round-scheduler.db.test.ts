@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, afterEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { Permission } from "@quyan/shared";
@@ -26,9 +26,11 @@ const authorizeActor = async (actor: string) => {
   const guard = await RelayProbeScheduledAuthorityService.getInstance().context(actor);
   await guard.recheck();
 };
-let actor: string, group: string, channel: string, schedule: string;
+let actor: string, group: string, channel: string, schedule: string, minuteOfDay: number;
 beforeEach(async () => {
   env.security.iamAuthorizationMode = "legacy";
+  const localNow = new Date(Date.now() + RELAY_PROBE_ROUND_POLICY.utcOffsetMs);
+  minuteOfDay = localNow.getUTCHours() * 60 + localNow.getUTCMinutes();
   const prefix = "fixture-probe-round-" + randomUUID();
   group = (
     await prisma.group.create({
@@ -61,7 +63,12 @@ beforeEach(async () => {
   });
   schedule = (
     await prisma.relayProbeDailySchedule.create({
-      data: { actorUserId: actor, enabled: true, minuteOfDay: 0, nextRunAt: new Date(Date.now() - 5 * 86_400_000) },
+      data: {
+        actorUserId: actor,
+        enabled: true,
+        minuteOfDay,
+        nextRunAt: new Date(Date.now() - 5 * RELAY_PROBE_ROUND_POLICY.dayMs),
+      },
     })
   ).id;
 });
@@ -172,6 +179,10 @@ describe("persistent scheduled probe rounds on native MySQL", { timeout: 20_000 
     }
   });
   it("preflights and initializes a plan idempotently without invoking upstreams or changing permissions", async () => {
+    await prisma.relayProbeDailySchedule.update({
+      where: { id: schedule },
+      data: { minuteOfDay: RELAY_PROBE_ROUND_POLICY.defaultMinuteOfDay + 1 },
+    });
     const user = await prisma.user.findUniqueOrThrow({ where: { id: actor } });
     const service = RelayProbePlanInitializerService.getInstance();
     const before = await prisma.relayProbeDailySchedule.findUniqueOrThrow({ where: { id: schedule } });
@@ -198,7 +209,7 @@ describe("persistent scheduled probe rounds on native MySQL", { timeout: 20_000 
     await Promise.all([rounds.due(new Date(), authorizeActor), rounds.due(new Date(), authorizeActor)]);
     const rows = await prisma.relayProbeRound.findMany({ where: { scheduleId: schedule } });
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.scheduledFor).toEqual(probeDailyOccurrence(new Date(), 0));
+    expect(rows[0]!.scheduledFor).toEqual(probeDailyOccurrence(new Date(), minuteOfDay));
     const [a, b] = await Promise.all([
       rounds.claimRounds("worker-a", new Date()),
       rounds.claimRounds("worker-b", new Date()),
@@ -287,6 +298,27 @@ describe("persistent scheduled probe rounds on native MySQL", { timeout: 20_000 
     });
     await expect(recheck()).rejects.toMatchObject({ statusCode: 403 });
   });
+  it.each(["2026-11-03T02:00:00Z", "2026-11-03T10:00:00Z"])(
+    "permits a recent round and rejects an expired round at %s regardless of runner time",
+    async (instant) => {
+      const { round, target } = await snapshot();
+      await RelayChannelProbeService.getInstance().createScheduledRun(target, "fixture-worker");
+      const now = new Date(instant).getTime();
+      await prisma.relayProbeRound.update({ where: { id: round.id }, data: { scheduledFor: new Date(now - 60_000) } });
+      await prisma.relayChannelProbeRun.update({
+        where: { id: target.id },
+        data: { status: "running", leaseOwner: "run-worker", leaseExpiresAt: new Date(now + 60_000) },
+      });
+      vi.spyOn(Date, "now").mockReturnValue(now);
+      const recheck = await RelayProbeRunExecutionIamService.getInstance().prepare(target.id, "run-worker");
+      await expect(recheck()).resolves.toBeUndefined();
+      await prisma.relayProbeRound.update({
+        where: { id: round.id },
+        data: { scheduledFor: new Date(now - RELAY_PROBE_ROUND_POLICY.roundTimeoutMs - 1) },
+      });
+      await expect(recheck()).rejects.toMatchObject({ statusCode: 403 });
+    },
+  );
   it("requires report access when enabling a plan", async () => {
     await prisma.group.update({
       where: { id: group },
@@ -299,7 +331,9 @@ describe("persistent scheduled probe rounds on native MySQL", { timeout: 20_000 
         expectedVersion: 1,
       }),
     ).rejects.toMatchObject({ statusCode: 403 });
-    expect((await prisma.relayProbeDailySchedule.findUniqueOrThrow({ where: { id: schedule } })).minuteOfDay).toBe(0);
+    expect((await prisma.relayProbeDailySchedule.findUniqueOrThrow({ where: { id: schedule } })).minuteOfDay).toBe(
+      minuteOfDay,
+    );
   });
   it("recovers an expired notification lease and rejects a stale delivery worker", async () => {
     const { round, target } = await snapshot();
