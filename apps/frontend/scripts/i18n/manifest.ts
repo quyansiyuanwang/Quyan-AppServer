@@ -4,6 +4,8 @@ import ts from 'typescript'
 import { SUPPORTED_LOCALES } from '../../src/locales/locale'
 import { format } from 'prettier'
 import { inspectTranslationReferences, readLocaleCatalog, sourceFilesUnder } from './catalog'
+// Bundle workspace source when Vite loads its config instead of externalizing raw TypeScript.
+import * as shared from '../../../../packages/shared/src/index'
 
 export interface LocaleRouteReference {
   routeName: string
@@ -25,6 +27,27 @@ export const analyzeLocaleCoverage = (srcRoot: string, routes: readonly LocaleRo
     components.set(name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase(), file)
   }
   const graph = new Map<string, { dependencies: string[]; namespaces: Set<string> }>()
+  const sharedReferences = new Map<string, Set<string>>()
+  const sharedNamespaces = (name: string): Set<string> => {
+    const cached = sharedReferences.get(name)
+    if (cached) return cached
+    const namespaces = new Set<string>()
+    const visited = new Set<object>()
+    const inspect = (value: unknown) => {
+      if (typeof value === 'string') {
+        for (const namespace of inspectTranslationReferences(JSON.stringify(value), catalog)
+          .namespaces)
+          namespaces.add(namespace)
+      } else if (value && typeof value === 'object' && !visited.has(value)) {
+        visited.add(value)
+        for (const item of Object.values(value)) inspect(item)
+      }
+    }
+    // Read the canonical exported values; pages keep using their shared key maps.
+    inspect((shared as Record<string, unknown>)[name])
+    sharedReferences.set(name, namespaces)
+    return namespaces
+  }
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8')
     const inspected = inspectTranslationReferences(text, catalog)
@@ -60,6 +83,18 @@ export const analyzeLocaleCoverage = (srcRoot: string, routes: readonly LocaleRo
         return
       if (ts.isExportDeclaration(node) && node.isTypeOnly) return
       if (ts.isImportTypeNode(node)) return
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === '@quyan/shared' &&
+        node.importClause?.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      )
+        for (const binding of node.importClause.namedBindings.elements) {
+          if (binding.isTypeOnly) continue
+          for (const namespace of sharedNamespaces((binding.propertyName ?? binding.name).text))
+            inspected.namespaces.add(namespace)
+        }
       if (
         (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
         node.moduleSpecifier &&

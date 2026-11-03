@@ -98,8 +98,8 @@ jobs:
             VITEST_PROJECT_SELECTOR=backend-unit node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi
 
-  backend-runtime-tests:
-    name: ${{ matrix.mysql == '8.0' && 'backend-runtime-tests' || 'backend-mysql57-probe-tests' }}
+  backend-runtime-matrix:
+    name: Backend runtime (MySQL ${{ matrix.mysql }})
     strategy:
       fail-fast: false
       matrix:
@@ -193,3 +193,30 @@ jobs:
           else
             VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi
+
+  # Branch protection needs a fixed check name even when the matrix is skipped.
+  backend-runtime-tests:
+    needs: [changes, backend-runtime-matrix]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require every selected runtime job to succeed
+        env:
+          FILTER_RESULT: ${{ needs.changes.result }}
+          RUNTIME_RESULT: ${{ needs.backend-runtime-matrix.result }}
+          RUNTIME_REQUIRED: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.full == 'true' }}
+        run: |
+          if [ "$FILTER_RESULT" != "success" ]; then
+            echo "Backend change detection did not succeed."
+            exit 1
+          fi
+          if [ "$RUNTIME_RESULT" = "success" ]; then
+            exit 0
+          fi
+          if [ "$RUNTIME_RESULT" = "skipped" ] && [ "$RUNTIME_REQUIRED" = "false" ]; then
+            echo "No backend runtime tests selected for this change."
+            exit 0
+          fi
+          echo "Required backend runtime tests did not succeed: $RUNTIME_RESULT"
+          exit 1
