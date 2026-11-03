@@ -227,16 +227,16 @@ Each result commits independently. The multiplier update and applied marker shar
 
 ## Troubleshooting
 
-| Symptom                                | Suggested action                                                                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Channel or member is missing           | Clear name/group/state filters, check channel visibility and current membership, and verify separate reading actions              |
-| Balance or variable path fails         | Check paths against the actual response, use exactly one balance path, define variables before use, and ensure a numeric balance  |
-| Settlement timeout or low signal       | Check upstream posting delays, balance precision, divisor, and measurement input; do not use failed calibration to change prices  |
-| Cache marker cannot be injected        | Use a compatible minimal preset or correct the custom text structure before explicitly allowing marker-free execution             |
-| Account login fails or is cooling down | Check the complete login request, token/expiry paths, credentials, and next login time; repeated refresh does not bypass cooldown |
-| Successful result cannot be applied    | Check calibration, completion time, billing snapshot, current multiplier, large-change confirmation, and resource authorization   |
-| Save failed but some settings changed  | Refresh and check the shared profile, overrides, and binding independently; sequential saves do not guarantee overall rollback    |
-| Reset request failed                   | Cancellation may have committed before queue cleanup failed. Refresh task state and have an authorized operator retry             |
+| Symptom                                   | Suggested action                                                                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Channel or member is missing              | Clear name/group/state filters, check channel visibility and current membership, and verify separate reading actions                                                  |
+| Balance or variable path fails            | Check paths against the actual response, use exactly one balance path, define variables before use, and ensure a numeric balance                                      |
+| Settlement timeout or low signal          | Check upstream posting delays, balance precision, divisor, and measurement input; do not use failed calibration to change prices                                      |
+| Cache marker cannot be injected           | Use a compatible minimal preset or correct the custom text structure before explicitly allowing marker-free execution                                                 |
+| Account login fails or is cooling down    | Check the complete login request, token/expiry paths, credentials, and next login time; repeated refresh does not bypass cooldown                                     |
+| Successful result cannot be applied       | Check calibration, completion time, billing snapshot, current multiplier, large-change confirmation, and resource authorization                                       |
+| Save failed or a version conflict appears | A failed single-target save leaves no partial configuration. Reopen the editor to review current settings; check each target's result separately for batch operations |
+| Reset request failed                      | Cancellation may have committed before queue cleanup failed. Refresh task state and have an authorized operator retry                                                 |
 
 ## Related pages
 
