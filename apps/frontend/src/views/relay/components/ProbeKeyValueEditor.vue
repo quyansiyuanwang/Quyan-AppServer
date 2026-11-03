@@ -23,7 +23,11 @@
         <el-input
           :model-value="entry.value"
           :disabled="disabled"
-          :placeholder="valuePlaceholder"
+          :placeholder="
+            savedKeys.includes(entry.key)
+              ? i18ns.t('relay.probeAccountSavedValue')
+              : valuePlaceholder
+          "
           @update:model-value="updateEntry(index, 'value', $event)"
         />
         <el-tooltip :content="i18ns.t('delete')">
@@ -65,11 +69,13 @@ interface Props {
   keyPlaceholder: string
   valuePlaceholder: string
   valueMode?: 'text' | 'json'
+  savedKeys?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   valueMode: 'text',
+  savedKeys: () => [],
 })
 
 const emit = defineEmits<{

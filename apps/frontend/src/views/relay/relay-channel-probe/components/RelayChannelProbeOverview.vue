@@ -111,10 +111,22 @@
     row-key="channelId"
     class="w-full"
     @selection-change="onSelectionChange"
+    @expand-change="onExpandChange"
   >
     <el-table-column type="expand" width="44">
       <template #default="{ row }">
-        <el-table v-if="row.channelType === 'pooled'" :data="row.members ?? []" size="small">
+        <el-alert
+          v-if="memberPages[row.channelId]?.error"
+          type="error"
+          :closable="false"
+          :title="memberPages[row.channelId]?.error"
+        />
+        <el-table
+          v-if="row.channelType === 'pooled'"
+          v-loading="memberPages[row.channelId]?.loading"
+          :data="row.members ?? []"
+          size="small"
+        >
           <el-table-column
             prop="channelName"
             :label="i18ns.t('relay.channelName')"
@@ -174,6 +186,14 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination
+          v-if="row.channelType === 'pooled' && memberPages[row.channelId]"
+          v-model:current-page="memberPages[row.channelId]!.page"
+          :page-size="memberPages[row.channelId]!.pageSize"
+          :total="memberPages[row.channelId]!.total"
+          layout="total, prev, pager, next"
+          @current-change="(page: number) => loadMembers(row.channelId, page)"
+        />
       </template>
     </el-table-column>
     <el-table-column type="selection" width="46" :selectable="canSelectRow" />
@@ -223,13 +243,7 @@
           v-if="canExecute && row.channelType === 'pooled'"
           link
           type="primary"
-          :disabled="
-            !row.profile ||
-            !(row.members ?? []).some(
-              (member: RelayChannelProbeMemberDto) =>
-                member.enabled && member.compatible && member.hasCredentials,
-            )
-          "
+          :disabled="!row.profile || !row.enabled || !row.memberCount"
           :loading="batchRunning"
           @click="confirmRunAllMembers(row)"
           >{{ i18ns.t('relay.channelProbeBatchRun') }}</el-button
@@ -256,15 +270,27 @@
       ><el-empty :description="i18ns.t('relay.channelProbeNoStandalone')" :image-size="88"
     /></template>
   </el-table>
+  <el-pagination
+    v-model:current-page="overviewPage"
+    v-model:page-size="overviewPageSize"
+    :total="overviewTotal"
+    :page-sizes="[20, 50, 100]"
+    layout="total, prev, pager, next, sizes"
+  />
 </template>
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
-import type { RelayChannelProbeMemberDto } from '@/client/types.gen'
 import { useRelayChannelProbeManagementContext } from '../context'
 
 const {
+  overviewPage,
+  overviewPageSize,
+  overviewTotal,
+  memberPages,
+  loadMembers,
+  onExpandChange,
   applying,
   batchRunning,
   canAdjust,

@@ -1,4 +1,17 @@
+import { resolveProbeCustomerFacingTargets, type RelayChannelProbeTopologyItem } from "./relay-probe-topology";
+export { resolveProbeCustomerFacingTargets, type RelayChannelProbeTopologyItem } from "./relay-probe-topology";
 import { RelayProbeRunApplyRepository } from "@/store/relay/relay-probe-run-apply.repository";
+import { RelayProbeRoundRepository } from "@/store/relay/relay-probe-round.repository";
+import { RelayProbeConfigurationRepository } from "@/store/relay/relay-probe-configuration.repository";
+import { saveRelayProbeConfigurationSchema } from "@/api/schema/relay/relay-channel-probe.schema";
+import type {
+  SaveRelayProbeConfigurationRequest,
+  SaveRelayProbeConfigurationResponse,
+  RelayProbeOverviewPageDto,
+  RelayProbeOverviewQueryDto,
+  RelayProbeMemberPageDto,
+} from "@/api/dto/relay/relay-channel-probe.dto";
+import { RelayProbeScheduledAuthorityService } from "./relay-probe-scheduled-authority.service";
 import {
   buildProbePricingSnapshot,
   fingerprintProbePricing,
@@ -49,6 +62,7 @@ import type { RelayProbeProfileReadRecord } from "@/store/relay/relay-probe-prof
 import {
   RelayProbeOverviewReadRepository,
   type RelayProbeOverviewRecord,
+  type ProbeOverviewReadWindow,
 } from "@/store/relay/relay-probe-overview-read.repository";
 import { RelayProbeProfileDeleteRepository } from "@/store/relay/relay-probe-profile-delete.repository";
 import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
@@ -71,7 +85,7 @@ import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-confi
 import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
-import type { Prisma, RelayChannel } from "@prisma/client";
+import type { Prisma, RelayChannel, RelayProbeRoundTarget, RelayChannelProbeProfile } from "@prisma/client";
 import { env } from "@/config/env";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import {
@@ -134,7 +148,6 @@ import type {
   RelayChannelProbeTargetDto,
   RelayChannelProbeLatestRunDto,
   RelayChannelProbeLatestRunRequest,
-  RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunHistoryScope,
@@ -150,7 +163,7 @@ import type {
   BindRelayChannelProbeAccountsRequest,
   RelayChannelProbeTargetConfigDto,
 } from "@/api/dto/relay/relay-channel-probe.dto";
-import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
+import type { RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
 import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
 // Upstream authentication, balance ledgers, and low-priority probe requests
@@ -176,10 +189,6 @@ const LARGE_MULTIPLIER_CHANGE_RATIO = RELAY_PROBE_APPLY_POLICY.largeChangeRatio;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
-export type RelayChannelProbeTopologyItem = Pick<
-  RelayChannelDto,
-  "id" | "name" | "enabled" | "channelType" | "poolMembers"
->;
 
 type ProbeCompatibilityMetadata = Pick<RelayChannel, "allowedFormats" | "allowedModels"> & {
   upstreamConfigured: boolean;
@@ -392,52 +401,6 @@ export function injectProbeMeasurementInput(
     return payload;
   }
   return undefined;
-}
-
-/**
- * Converts internal standalone members to the routing entries a customer
- * actually sees. Visibility mode governs management access, not token routing,
- * so a pooled channel takes precedence regardless of that internal setting.
- */
-export function resolveProbeCustomerFacingTargets(
-  channels: RelayChannelProbeTopologyItem[],
-  standaloneChannelId: string,
-): RelayChannelProbeCustomerFacingTargetDto[] {
-  const channelById = new Map(channels.map((channel) => [channel.id, channel]));
-  const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>();
-  const requested = channelById.get(standaloneChannelId);
-  if (requested?.enabled && requested.channelType === "pooled") {
-    return [{ channelId: requested.id, channelName: requested.name }];
-  }
-
-  const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
-    if (path.has(channelId)) return [];
-    const channel = channelById.get(channelId);
-    if (!channel?.enabled) return [];
-    if (channel.channelType === "standalone") return [channel.id];
-
-    const nextPath = new Set(path).add(channelId);
-    return (channel.poolMembers ?? []).flatMap((member) => {
-      if (member.enabled === false || member.memberChannelEnabled === false) return [];
-      return collectStandaloneMembers(member.memberChannelId, nextPath);
-    });
-  };
-
-  for (const channel of channels) {
-    if (!channel.enabled || channel.channelType !== "pooled") continue;
-    if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
-      targetById.set(channel.id, { channelId: channel.id, channelName: channel.name });
-    }
-  }
-
-  if (targetById.size === 0) {
-    const standalone = channelById.get(standaloneChannelId);
-    if (standalone?.enabled) {
-      targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name });
-    }
-  }
-
-  return [...targetById.values()].sort((left, right) => left.channelName.localeCompare(right.channelName));
 }
 
 export function interpolateProbeVariables(value: unknown, variables: Record<string, string>): unknown {
@@ -760,6 +723,140 @@ export class RelayChannelProbeService {
     );
   }
 
+  private async readOverviewWindow<T>(
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    window: ProbeOverviewReadWindow,
+    map: (records: RelayProbeOverviewRecord[]) => T,
+  ): Promise<T> {
+    const repository = RelayProbeOverviewReadRepository.getInstance();
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:ListProbeOverview",
+      actorUserId,
+      request,
+      ({ principal, decide, decideRelated, recheck, visible }) =>
+        repository.list(principal, decide, decideRelated, recheck, visible, map, window),
+      async () => {
+        const recheck = async () => {
+          if (!(await PermissionService.getInstance().hasPermission(actorUserId, Permission.RELAY_CHANNEL_PROBE_READ)))
+            throw iamAccountDenied();
+        };
+        await recheck();
+        const allow = async (resources: readonly string[]) => resources.map(() => "Allow");
+        return repository.list(
+          undefined,
+          allow,
+          (_action, resources) => allow(resources),
+          recheck,
+          (channel) => RelayChannelService.getInstance().canAccessChannelMetadata(channel, actorUserId),
+          map,
+          window,
+        );
+      },
+    );
+  }
+
+  async listOverviewPage(
+    query: RelayProbeOverviewQueryDto,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayProbeOverviewPageDto> {
+    const page = query.page ?? 1,
+      pageSize = query.pageSize ?? 20;
+    let total = 0;
+    const items = await this.readOverviewWindow(
+      actorUserId,
+      request,
+      {
+        ...query,
+        page,
+        pageSize,
+        summary: true,
+        onTotal: (value) => {
+          total = value;
+        },
+      },
+      (records) => {
+        const mapped = this.toIamOverview(records);
+        return mapped.map((row, index) => {
+          const { members: _members, profile, targetConfig, ...rest } = row;
+          const { workflow: _workflow, probePayload: _payload, credentialNames: _names, ...summary } = profile ?? {};
+          const { probePayload: _targetPayload, ...targetSummary } = targetConfig ?? {};
+          return {
+            ...rest,
+            ...(profile
+              ? { profile: summary as NonNullable<RelayProbeOverviewPageDto["items"][number]["profile"]> }
+              : {}),
+            ...(targetConfig
+              ? {
+                  targetConfig: targetSummary as NonNullable<
+                    RelayProbeOverviewPageDto["items"][number]["targetConfig"]
+                  >,
+                }
+              : {}),
+            memberCount: records[index]!.memberCount ?? 0,
+            hasCredentials: Boolean(records[index]!.hasCredentials || targetConfig?.accountId),
+          };
+        });
+      },
+    );
+    return { items, total, page, pageSize };
+  }
+
+  async getConfiguration(
+    channelId: string,
+    memberChannelId: string | undefined,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeOverviewItemDto> {
+    const rows = await this.readOverviewWindow(
+      actorUserId,
+      request,
+      {
+        channelId,
+        memberChannelId,
+        page: 1,
+        pageSize: 1,
+        members: { page: 1, pageSize: 1, onTotal: () => {} },
+        onTotal: () => {},
+      },
+      (records) => this.toIamOverview(records),
+    );
+    const row = rows[0];
+    if (!row || (memberChannelId && !row.members?.some((member) => member.channelId === memberChannelId)))
+      throw iamAccountDenied();
+    return row;
+  }
+
+  async listMemberPage(
+    channelId: string,
+    page: number,
+    pageSize: number,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayProbeMemberPageDto> {
+    let total = 0;
+    const items = await this.readOverviewWindow(
+      actorUserId,
+      request,
+      {
+        channelId,
+        page: 1,
+        pageSize: 1,
+        members: {
+          page,
+          pageSize,
+          onTotal: (value) => {
+            total = value;
+          },
+        },
+        onTotal: () => {},
+      },
+      (records) => this.toIamOverview(records)[0]?.members ?? [],
+    );
+    return { items, total, page, pageSize };
+  }
+
   private toIamOverview(records: RelayProbeOverviewRecord[]): RelayChannelProbeOverviewItemDto[] {
     const enabled = (channel: RelayProbeOverviewRecord["channel"]) =>
       channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.providerServiceEnabled !== false;
@@ -790,7 +887,7 @@ export class RelayChannelProbeService {
         channelType: channel.channelType as RelayChannelType,
         enabled: enabled(channel),
         visibilityMode: channel.visibilityMode as RelayChannelProbeOverviewItemDto["visibilityMode"],
-        customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
+        customerFacingTargets: row.customerFacingTargets ?? resolveProbeCustomerFacingTargets(topology, channel.id),
         multiplier: Number(channel.multiplier),
         allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats ?? ""),
         allowedProbeModels: parseAllowedModelsJson(channel.allowedModels) ?? [],
@@ -1100,6 +1197,92 @@ export class RelayChannelProbeService {
     }
   }
 
+  async saveConfiguration(
+    channelId: string,
+    input: SaveRelayProbeConfigurationRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ): Promise<SaveRelayProbeConfigurationResponse> {
+    const body = saveRelayProbeConfigurationSchema.parse(input);
+    const authority = RelayProbeScheduledAuthorityService.getInstance();
+    const guard = await authority.context(
+      actorUserId,
+      "quyan:relay:SaveProbeProfile",
+      Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+      request,
+    );
+    const targetGuard = body.target
+      ? await authority.context(
+          actorUserId,
+          "quyan:relay:ConfigureProbeTarget",
+          Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+          request,
+        )
+      : undefined;
+    const bindingGuard =
+      body.accountId !== undefined
+        ? await authority.context(
+            actorUserId,
+            "quyan:relay:BindProbeAccount",
+            Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+            request,
+          )
+        : undefined;
+    const unbindGuard = bindingGuard
+      ? await authority.context(
+          actorUserId,
+          "quyan:relay:UnbindProbeAccount",
+          Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+          request,
+        )
+      : undefined;
+    const extra = [targetGuard, bindingGuard, unbindGuard].filter((value) => value !== undefined);
+    const originalRecheck = guard.recheck;
+    guard.recheck = async () => {
+      await originalRecheck();
+      for (const check of extra) await check.recheck();
+    };
+    guard.authorizeBoundProfileEdit = async (resources) => {
+      const bound = await authority.context(
+        actorUserId,
+        "quyan:relay:ModifyBoundProbeProfile",
+        Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+        request,
+      );
+      await bound.authorize(resources);
+      extra.push(bound);
+    };
+    let targetConfig: RelayChannelProbeTargetConfigDto | undefined;
+    const result = await this.channelLockService.withWrite(channelId, () =>
+      RelayProbeProfileSaveRepository.getInstance().save(
+        channelId,
+        createId(),
+        body.profile.probeFormat,
+        guard,
+        (metadata, previous) => {
+          if (metadata.channelType !== "pooled")
+            this.assertProbeRelayChannelCompatibility(metadata, body.profile.probeFormat, body.profile.probeModel);
+          return this.prepareProfileConfiguration(body.profile, metadata, previous);
+        },
+        (profile) => ({ profile: this.toProfileDto(profile), targetConfig }),
+        {
+          expectedUpdatedAt: body.expectedProfileUpdatedAt,
+          afterSave: async (tx, profile) => {
+            targetConfig = await RelayProbeConfigurationRepository.getInstance().saveTarget(
+              tx,
+              channelId,
+              profile,
+              body,
+              { profile: guard, target: targetGuard, binding: bindingGuard, unbind: unbindGuard },
+            );
+          },
+        },
+      ),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+
   async upsertProfile(
     channelId: string,
     input: UpsertRelayChannelProbeProfileRequest,
@@ -1373,6 +1556,83 @@ export class RelayChannelProbeService {
     const observed = await this.readProbeQueueSlots(channelId, slots);
     await this.repository.cancelActiveRuns(channelId, "Probe task reset by operator", memberChannelId);
     await this.releaseObservedProbeQueueSlots(channelId, observed);
+  }
+
+  async scheduledTargetConfigured(
+    profile: RelayChannelProbeProfile,
+    targetId: string,
+    pooled: boolean,
+    accountId: string | null,
+  ): Promise<boolean> {
+    try {
+      const saved = profile.encryptedCredentials ? this.decryptCredentials(profile) : {};
+      const candidate = pooled ? saved[targetId] : saved;
+      if ((!candidate || typeof candidate !== "object" || Array.isArray(candidate)) && !accountId) return false;
+      const variables = { ...(candidate && typeof candidate === "object" ? candidate : {}) } as Record<string, string>;
+      if (Object.values(variables).some((value) => typeof value !== "string")) return false;
+      if (accountId) {
+        const names = await this.accountService.configuredVariableNames(accountId);
+        if (!names) return false;
+        names.forEach((name) => {
+          variables[name] = "configured";
+        });
+      }
+      const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
+      if (!Array.isArray(workflow) || workflow.filter((step) => step.balancePath).length !== 1) return false;
+      for (const step of workflow) {
+        interpolateRequiredProbeVariables(
+          { url: step.url, headers: step.headers, query: step.query, body: step.body },
+          variables,
+        );
+        Object.keys(step.extract ?? {}).forEach((name) => {
+          variables[name] = "extracted";
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async createScheduledRun(target: RelayProbeRoundTarget, roundOwner: string): Promise<void> {
+    const round = await RelayProbeRoundRepository.getInstance().execution(target.id);
+    if (round) return; // The deterministic run ID has already been attached atomically.
+    const actor = await RelayProbeRoundRepository.getInstance().actorForRound(target.roundId);
+    const guard = await RelayProbeScheduledAuthorityService.getInstance().context(actor);
+    const runId = target.id;
+    const queueKey = relayProbeQueueSlotKey(target.channelId, target.memberChannelId || undefined);
+    await this.channelLockService.withQueueWrite(target.channelId, async () => {
+      let owned = false;
+      try {
+        await RelayProbeRunCreateRepository.getInstance().create(
+          target.channelId,
+          runId,
+          { memberChannelId: target.memberChannelId || undefined },
+          guard,
+          (format, previous, override) =>
+            override
+              ? defaultProbeEndpoint(format as ProbeFormat)
+              : normalizeProbeEndpoint(previous, format as ProbeFormat),
+          async () => {
+            const reserved = await this.redis.setIfNotExists(queueKey, runId, RELAY_PROBE_QUEUE_POLICY.slotTtlMs);
+            if (reserved === null)
+              throw new LockBackendUnavailableError("Probe queue unavailable", undefined, {
+                messageKey: "relayChannelProbe.queueBackendUnavailable",
+              });
+            if (reserved !== true)
+              throw new ConflictError("Probe queue occupied", undefined, {
+                messageKey: "relayChannelProbe.probeAlreadyQueued",
+              });
+            owned = true;
+          },
+          (tx, admission) =>
+            RelayProbeRoundRepository.getInstance().attachRun(tx, target, roundOwner, runId, admission),
+        );
+      } catch (error) {
+        if (owned) await this.redis.deleteIfValueMatches(queueKey, runId).catch(() => null);
+        throw error;
+      }
+    });
   }
 
   async createRun(
@@ -1839,6 +2099,7 @@ export class RelayChannelProbeService {
       ...(config.probePayload ? { probePayload: config.probePayload as Record<string, unknown> } : {}),
       ...(config.probeGroup !== null ? { probeGroup: config.probeGroup } : {}),
       ...(config.accountId ? { accountId: config.accountId } : {}),
+      updateTime: config.updateTime,
     };
   }
 
@@ -2592,7 +2853,7 @@ export class RelayChannelProbeService {
         const cacheBusterId = run.cacheMode === "allow-cache" ? undefined : randomUUID();
         if (run.cacheMode === "warm-and-read") {
           const warmupBefore = await this.runProbePhase("读取预热前稳定余额", () =>
-            this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads),
+            this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads, undefined, accountId),
           );
           const warmup = await this.runProbePhase("缓存预热请求", () => {
             modelRequestSent = true;
@@ -2621,10 +2882,11 @@ export class RelayChannelProbeService {
             balanceTolerance,
             balanceReads,
             warmupBefore.balance,
+            accountId,
           );
         }
         const before = await this.runProbePhase("读取请求前稳定余额", () =>
-          this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads),
+          this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads, undefined, accountId),
         );
         await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
         const upstream = await this.runProbePhase("最小模型请求", () => {
@@ -2643,7 +2905,14 @@ export class RelayChannelProbeService {
         const usage = this.extractUsage(upstream.response);
         assertProbeUsage(usage);
         const after = await this.runProbePhase("等待上游扣费稳定", () =>
-          this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads, before.balance),
+          this.readSettledBalance(
+            workflow,
+            { ...variables },
+            balanceTolerance,
+            balanceReads,
+            before.balance,
+            accountId,
+          ),
         );
         const divisor = Number(profile.upstreamBalanceDivisor);
         if (!Number.isFinite(divisor) || divisor <= 0)
@@ -2783,9 +3052,11 @@ export class RelayChannelProbeService {
   private async readBalanceSnapshot(
     workflow: RelayChannelProbeWorkflowStepDto[],
     variables: Record<string, string>,
+    accountId?: string,
   ): Promise<ProbeBalanceSnapshot> {
     let balance: number | undefined;
     for (const step of workflow) {
+      if (accountId) variables = await this.accountService.getRequestVariables(accountId, step, variables);
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(rawUrl));
       try {
@@ -2854,6 +3125,7 @@ export class RelayChannelProbeService {
     tolerance: number,
     stableReadCount: number,
     baseline?: number,
+    accountId?: string,
   ): Promise<{ balance: number; snapshots: ProbeBalanceSnapshot[] }> {
     const normalizedTolerance = Number.isFinite(tolerance) && tolerance > 0 ? tolerance : 0.000001;
     const requiredReads = Math.max(2, Math.floor(stableReadCount || 2));
@@ -2862,7 +3134,7 @@ export class RelayChannelProbeService {
     let stableReads = 0;
     let previous: ProbeBalanceSnapshot | undefined;
     while (Date.now() <= deadline) {
-      const snapshot = await this.readBalanceSnapshot(workflow, { ...variables });
+      const snapshot = await this.readBalanceSnapshot(workflow, { ...variables }, accountId);
       snapshots.push(snapshot);
       const chargeObserved = baseline == null || snapshot.balance < baseline - normalizedTolerance;
       stableReads =
@@ -2911,7 +3183,9 @@ export class RelayChannelProbeService {
     try {
       const interpolatedPayload = interpolateRequiredProbeVariables(
         { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
-        variables,
+        Object.fromEntries(
+          Object.entries(variables).filter(([name]) => name !== "accountToken" && !name.startsWith("account.")),
+        ),
       );
       if (!isRecord(interpolatedPayload))
         throw new BadRequestError("探针请求体必须是 JSON 对象", undefined, {

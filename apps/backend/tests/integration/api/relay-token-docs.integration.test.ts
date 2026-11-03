@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { getCredentialPrefix } from "@quyan/shared";
 import { createApp } from "../../../src/app";
 import { prisma } from "../../../src/config/database";
 import { hashPassword } from "../../../src/util/crypto";
@@ -13,7 +14,7 @@ describe("Relay Token Docs Helper Integration", () => {
   let relayTokenId = "";
   let balanceAccountId = "";
   const relayUsageIds: string[] = [];
-  const relayTokenValue = `rlt_docs_${Date.now().toString(16)}`;
+  const relayTokenValue = `${getCredentialPrefix("relayToken")}docs-${Date.now().toString(16)}`;
 
   const shortSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`;
   const groupUsername = `rtdg_${shortSuffix}`;

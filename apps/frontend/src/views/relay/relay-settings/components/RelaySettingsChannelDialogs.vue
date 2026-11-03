@@ -7,7 +7,7 @@
     class="relay-channel-editor-drawer"
     destroy-on-close
   >
-    <el-form :model="channelForm" label-width="180px" label-position="right">
+    <el-form :model="channelForm" label-width="180px" :label-position="isDesktop ? 'right' : 'top'">
       <el-form-item :label="i18ns.t('relay.channelName')" required>
         <el-input
           v-model="channelForm.name"
@@ -787,23 +787,13 @@
         v-if="
           channelForm.channelType === 'standalone' || channelForm.channelType === 'pooled-member'
         "
-        :label="i18ns.t('relay.forwardedRequestHeaders')"
+        :label="i18ns.t('relay.requestHeaderForwarding')"
         data-testid="forwarded-request-headers"
       >
-        <div class="w-full">
-          <el-select
-            v-model="channelForm.routingConfig.forwardedRequestHeaders"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            :multiple-limit="RELAY_FORWARDED_HEADER_LIMITS.maxNames"
-            :reserve-keyword="false"
-            :placeholder="i18ns.t('relay.forwardedRequestHeadersPlaceholder')"
-            class="w-full"
-          />
-          <div class="form-help">{{ i18ns.t('relay.forwardedRequestHeadersHelp') }}</div>
-        </div>
+        <RelayForwardedHeadersEditor
+          v-model:extra-headers="channelForm.routingConfig.forwardedRequestHeaders"
+          v-model:forward-all="channelForm.routingConfig.forwardAllRequestHeaders"
+        />
       </el-form-item>
 
       <el-divider content-position="left">{{ i18ns.t('relay.providers') }}</el-divider>
@@ -1694,13 +1684,13 @@
 </template>
 
 <script setup lang="ts">
-import { RELAY_FORWARDED_HEADER_LIMITS } from '@quyan/shared'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import RelayProviderShareEditor from '../../components/RelayProviderShareEditor.vue'
+import RelayForwardedHeadersEditor from './RelayForwardedHeadersEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 

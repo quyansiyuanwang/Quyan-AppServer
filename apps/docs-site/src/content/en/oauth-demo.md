@@ -1,461 +1,272 @@
-# OAuth Demo
+# OAuth authorization-code example
 
-This page provides a complete minimal authorization-code demo, including diagrams plus Node and Python templates.
+Use this local Node.js example to complete an authorization-code flow with PKCE (S256), then retrieve the current user's profile from the server. It displays only the outcome. It does not establish a business login session, save access tokens, or return them to the browser.
 
-If you would rather start from a full runnable project instead of assembling the snippets manually, start with `integrations/server-sdk/demos/oauth/node/`, or pick a language-specific sample from `integrations/server-sdk/sdks/oauth/*`.
+## Before you begin
 
-<div class="docs-jump-grid">
-  <a class="docs-jump-card" href="/en/node-sdk">
-    <span class="docs-jump-eyebrow">Direct API calls</span>
-    <strong>Node SDK</strong>
-    <span>Use this if you only need server-to-server API calls and do not need OAuth login.</span>
-  </a>
-  <a class="docs-jump-card" href="/en/python-sdk">
-    <span class="docs-jump-eyebrow">Direct API calls</span>
-    <strong>Python SDK</strong>
-    <span>Use this when the integrator is Python and only needs direct API access.</span>
-  </a>
-  <a class="docs-jump-card current" href="/en/oauth-demo">
-    <span class="docs-jump-eyebrow">Current page</span>
-    <strong>OAuth Demo</strong>
-    <span>This page covers standard authorization-code flow, PKCE, callback handling, and minimal runnable demos.</span>
-  </a>
-</div>
+1. Create an application in [OAuth app management](/en/oauth-app-management), register `http://127.0.0.1:3000/oauth/callback`, select `profile`, and submit it for review. Its status must be `approved`.
+2. Confirm the identity and API origins, using only the scheme, host, and optional port. The browser visits `/oauth/authorize` on the identity site; the server calls `/v1/oauth/token` and `/v1/users/me` on the API site. Do not use console or documentation site addresses.
+3. Use Node.js 22.12 or later and a browser that can reach the identity site. Confidential applications need a Client Secret; public applications omit it. The public-client demonstration also exchanges tokens through the local server; it is not a browser-only SPA example.
+4. The user must be able to grant `profile` and have the account and resource permissions needed to retrieve their profile. Scopes do not replace endpoint authorization.
 
-## OAuth sequence diagram
+## Configure and start
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant Client as Third-party app
-    participant Auth as AppServer Authorization
-    participant Token as AppServer Token
-    participant Api as AppServer API
+Install dependencies in an empty directory:
 
-    User->>Client: Click "Sign in with AppServer"
-    Client->>Auth: GET /v1/oauth/authorize\nclient_id + redirect_uri + scope + state
-    Auth->>User: Show login / consent page
-    User->>Auth: Sign in and approve
-    Auth-->>Client: 302 redirect\ncode + state
-    Client->>Token: POST /v1/oauth/token\ncode + client_id + client_secret
-    Token-->>Client: access_token
-    Client->>Api: GET /api/user/profile\nAuthorization: Bearer access_token
-    Api-->>Client: User profile data
-    Client-->>User: Login or linking completed
+```bash
+npm install express express-session dotenv
 ```
 
-## OAuth flowchart
+Generate a random session secret and put the output in `SESSION_SECRET` below:
 
-```mermaid
-flowchart TD
-    A[Create OAuth app] --> B[Register Redirect URI]
-    B --> C[Build /v1/oauth/authorize URL]
-    C --> D[User signs in and approves]
-    D --> E{Approved?}
-    E -- No --> F[Return cancel or error result]
-    E -- Yes --> G[Callback receives code]
-    G --> H[Backend calls /v1/oauth/token]
-    H --> I{Token exchange success?}
-    I -- No --> J[Log error and retry safely]
-    I -- Yes --> K[Call business API with access_token]
-    K --> L[Complete login / linking / resource access]
+```bash
+node --input-type=module -e "import crypto from 'node:crypto'; console.log(crypto.randomBytes(32).toString('hex'))"
 ```
 
-## Node minimal OAuth demo
-
-### Suggested structure
-
-```text
-integrations/server-sdk/demos/oauth/node/
-├─ package.json
-├─ .env
-└─ src/server.mjs
-```
-
-### `package.json`
-
-```json
-{
-  "name": "quyan-oauth-demo-node",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "node index.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2"
-  }
-}
-```
-
-### `.env`
+Create `.env` and replace the placeholders. Keep this file and application secrets out of version control. For public applications, remove `CLIENT_SECRET`. For confidential applications, keep it and supply a valid secret.
 
 ```env
-PORT=3000
-APP_BASE_URL=http://localhost:3000
-APPSERVER_BASE_URL=http://localhost:10001
-CLIENT_ID=oc_live_your_client_id
+AUTH_FRONTEND_URL=https://auth.example.com
+APPSERVER_BASE_URL=https://api.example.com
+CLIENT_ID=your_client_id
 CLIENT_SECRET=your_client_secret
-REDIRECT_URI=http://localhost:3000/oauth/callback
-SCOPE=profile email
+SESSION_SECRET=replace_with_generated_value
 ```
 
-### `index.js`
+Both origins require HTTPS, with HTTP allowed only on loopback. Do not include a path, query, fragment, or username and password. The example listens on `127.0.0.1:3000` and constructs a fixed callback URI in code. Make sure that port is free.
+
+Save the following as `index.mjs`:
 
 ```js
 import 'dotenv/config'
+import crypto from 'node:crypto'
 import express from 'express'
+import session from 'express-session'
 
-const app = express()
-const port = Number(process.env.PORT || 3000)
-const appBaseUrl = process.env.APP_BASE_URL
-const apiBaseUrl = process.env.APPSERVER_BASE_URL
-const clientId = process.env.CLIENT_ID
-const clientSecret = process.env.CLIENT_SECRET
-const redirectUri = process.env.REDIRECT_URI
-const scope = process.env.SCOPE || 'profile'
-
-app.get('/', (_req, res) => {
-  res.type('html').send(`
-    <h1>OAuth Demo</h1>
-    <a href="/login">Use AppServer Login</a>
-  `)
-})
-
-app.get('/login', (_req, res) => {
-  const state = crypto.randomUUID()
-  const authorizeUrl = new URL(
-    '/oauth/authorize',
-    process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn',
+const required = (name) => {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`Missing ${name}`)
+  return value
+}
+const origin = (name) => {
+  const url = new URL(required(name))
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
+  if (
+    (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
   )
-  authorizeUrl.searchParams.set('response_type', 'code')
-  authorizeUrl.searchParams.set('client_id', clientId)
-  authorizeUrl.searchParams.set('redirect_uri', redirectUri)
-  authorizeUrl.searchParams.set('scope', scope)
-  authorizeUrl.searchParams.set('state', state)
-
-  res.redirect(authorizeUrl.toString())
-})
-
-app.get('/oauth/callback', async (req, res) => {
-  const code = String(req.query.code || '')
-
-  if (!code) {
-    res.status(400).json({ error: 'missing_code', query: req.query })
-    return
-  }
-
-  const tokenResponse = await fetch(new URL('/v1/oauth/token', apiBaseUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      code,
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: redirectUri,
-    }),
-  })
-
-  const tokenPayload = await tokenResponse.json()
-  const accessToken = tokenPayload?.data?.accessToken || tokenPayload?.access_token
-
-  if (!accessToken) {
-    res.status(502).json({ error: 'token_exchange_failed', tokenPayload })
-    return
-  }
-
-  const profileResponse = await fetch(new URL('/api/user/profile', apiBaseUrl), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-
-  const profilePayload = await profileResponse.json()
-
-  res.json({
-    message: 'oauth_success',
-    tokenPayload,
-    profilePayload,
-  })
-})
-
-app.listen(port, () => {
-  console.log(`Demo server ready at ${appBaseUrl}`)
-})
-```
-
-## Python minimal OAuth demo
-
-### Suggested structure
-
-```text
-integrations/server-sdk/sdks/oauth/python/
-├─ requirements.txt
-├─ .env
-└─ app.py
-```
-
-### `requirements.txt`
-
-```txt
-flask==3.0.3
-python-dotenv==1.0.1
-requests==2.32.3
-```
-
-### `.env`
-
-```env
-PORT=3000
-APP_BASE_URL=http://localhost:3000
-APPSERVER_BASE_URL=http://localhost:10001
-CLIENT_ID=oc_live_your_client_id
-CLIENT_SECRET=your_client_secret
-REDIRECT_URI=http://localhost:3000/oauth/callback
-SCOPE=profile email
-```
-
-### `app.py`
-
-```python
-import os
-import secrets
-from urllib.parse import urlencode
-
-import requests
-from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, request
-
-load_dotenv()
-
-app = Flask(__name__)
-
-PORT = int(os.getenv("PORT", "3000"))
-APP_BASE_URL = os.getenv("APP_BASE_URL", f"http://localhost:{PORT}")
-APPSERVER_BASE_URL = os.getenv("APPSERVER_BASE_URL", "http://localhost:10001")
-CLIENT_ID = os.getenv("CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET", "")
-REDIRECT_URI = os.getenv("REDIRECT_URI", f"{APP_BASE_URL}/oauth/callback")
-SCOPE = os.getenv("SCOPE", "profile")
-
-
-@app.get("/")
-def home():
-    return '<h1>OAuth Demo</h1><a href="/login">Use AppServer Login</a>'
-
-
-@app.get("/login")
-def login():
-    state = secrets.token_urlsafe(24)
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "scope": SCOPE,
-            "state": state,
-        }
-    )
-    return redirect(f"{APPSERVER_BASE_URL}/v1/oauth/authorize?{query}")
-
-
-@app.get("/oauth/callback")
-def oauth_callback():
-    code = request.args.get("code", "")
-
-    if not code:
-        return jsonify({"error": "missing_code", "query": request.args}), 400
-
-    token_response = requests.post(
-        f"{APPSERVER_BASE_URL}/v1/oauth/token",
-        json={
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-        },
-        timeout=15,
-    )
-    token_payload = token_response.json()
-
-    access_token = (
-        token_payload.get("data", {}).get("accessToken")
-        or token_payload.get("access_token")
-    )
-    if not access_token:
-        return jsonify({"error": "token_exchange_failed", "tokenPayload": token_payload}), 502
-
-    profile_response = requests.get(
-        f"{APPSERVER_BASE_URL}/v1/users/me",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=15,
-    )
-    profile_payload = profile_response.json()
-
-    return jsonify(
-        {
-            "message": "oauth_success",
-            "tokenPayload": token_payload,
-            "profilePayload": profile_payload,
-        }
-    )
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT, debug=True)
-```
-
-## PKCE example for public clients
-
-If the app is a public client, such as a desktop app, CLI, mobile app, or another environment that should not store `client_secret`, use **Authorization Code + PKCE**.
-
-Key differences:
-
-- send `code_challenge` and `code_challenge_method=S256` to `/v1/oauth/authorize`
-- send `code_verifier` to `/v1/oauth/token`
-- public clients normally do **not** send `client_secret`
-
-### Node PKCE example
-
-```js
-import crypto from 'crypto'
-
-function toBase64Url(buffer) {
-  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    throw new Error(`${name} must be an HTTPS origin (HTTP is allowed only on loopback)`)
+  return url.origin
 }
-
-function createPkcePair() {
-  const codeVerifier = toBase64Url(crypto.randomBytes(32))
-  const codeChallenge = toBase64Url(crypto.createHash('sha256').update(codeVerifier).digest())
-
-  return { codeVerifier, codeChallenge, codeChallengeMethod: 'S256' }
+const authOrigin = origin('AUTH_FRONTEND_URL')
+const apiOrigin = origin('APPSERVER_BASE_URL')
+const clientId = required('CLIENT_ID')
+const clientSecret = process.env.CLIENT_SECRET?.trim()
+const sessionSecret = required('SESSION_SECRET')
+if (Buffer.byteLength(sessionSecret, 'utf8') < 32) {
+  throw new Error('SESSION_SECRET must contain at least 32 random bytes')
 }
-
-const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
-const state = crypto.randomUUID()
-
-const authorizeUrl = new URL(
-  '/oauth/authorize',
-  process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn',
-)
-authorizeUrl.searchParams.set('response_type', 'code')
-authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
-authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
-authorizeUrl.searchParams.set('scope', process.env.SCOPE || 'profile email')
-authorizeUrl.searchParams.set('state', state)
-authorizeUrl.searchParams.set('code_challenge', codeChallenge)
-authorizeUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
-
-console.log('Open this URL in the browser:')
-console.log(authorizeUrl.toString())
-
-// After the browser redirects back, paste the callback code here.
-const code = 'paste_callback_code_here'
-
-const tokenResponse = await fetch(new URL('/v1/oauth/token', process.env.APPSERVER_BASE_URL), {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    grant_type: 'authorization_code',
-    code,
-    client_id: process.env.CLIENT_ID,
-    redirect_uri: process.env.REDIRECT_URI,
-    code_verifier: codeVerifier,
+const localOrigin = 'http://127.0.0.1:3000'
+const redirectUri = `${localOrigin}/oauth/callback`
+const flowLifetimeMs = 10 * 60 * 1000
+const requestTimeoutMs = 15_000
+const requestJson = async (pathname, options = {}) => {
+  const controller = new AbortController()
+  let timer
+  const deadline = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('Upstream request timed out'))
+      controller.abort()
+    }, requestTimeoutMs)
+  })
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(new URL(pathname, apiOrigin), {
+          ...options,
+          redirect: 'error',
+          signal: controller.signal,
+        })
+        const data = await response.json()
+        return { response, data }
+      })(),
+      deadline,
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+// This single-process registry makes each flow consumable only once.
+const pendingStates = new Set()
+const app = express()
+app.use((req, res, next) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' })
+  next()
+})
+// MemoryStore and HTTP cookies are for this loopback demonstration only.
+app.use(
+  session({
+    name: 'oauth_demo_session',
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, sameSite: 'lax', secure: false, maxAge: flowLifetimeMs },
   }),
+)
+
+app.get('/login', (req, res, next) => {
+  if (req.session.oauth) pendingStates.delete(req.session.oauth.state)
+  req.session.regenerate((error) => {
+    if (error) return next(error)
+    const state = crypto.randomBytes(32).toString('base64url')
+    const verifier = crypto.randomBytes(32).toString('base64url')
+    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url')
+    req.session.oauth = { state, verifier }
+    pendingStates.add(state)
+    setTimeout(() => pendingStates.delete(state), flowLifetimeMs).unref()
+    const url = new URL('/oauth/authorize', authOrigin)
+    url.search = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: 'profile',
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    }).toString()
+    req.session.save((saveError) => {
+      if (saveError) {
+        pendingStates.delete(state)
+        return next(saveError)
+      }
+      res.redirect(url.toString())
+    })
+  })
 })
 
-console.log(await tokenResponse.json())
+app.get('/oauth/callback', async (req, res, next) => {
+  const flow = req.session.oauth
+  if (
+    !flow ||
+    typeof req.query.state !== 'string' ||
+    req.query.state !== flow.state ||
+    !pendingStates.delete(flow.state)
+  )
+    return res.status(400).send('Invalid or expired authorization response; restart at /login')
+
+  // Consume synchronously above, then persist removal before any token request.
+  delete req.session.oauth
+  try {
+    await new Promise((resolve, reject) =>
+      req.session.save((error) => (error ? reject(error) : resolve())),
+    )
+  } catch (error) {
+    return next(error)
+  }
+  if (req.query.error !== undefined) {
+    return res.status(400).send('Authorization was not granted; restart at /login')
+  }
+  if (typeof req.query.code !== 'string' || !req.query.code.trim()) {
+    return res.status(400).send('Missing authorization code; restart at /login')
+  }
+
+  let stage = 'Token exchange'
+  try {
+    const { response: tokenResponse, data: token } = await requestJson('/v1/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code: req.query.code,
+        redirect_uri: redirectUri,
+        code_verifier: flow.verifier,
+        ...(clientSecret ? { client_secret: clientSecret } : {}),
+      }),
+    })
+    if (
+      !tokenResponse.ok ||
+      !token ||
+      Array.isArray(token) ||
+      typeof token.access_token !== 'string' ||
+      !token.access_token.trim() ||
+      typeof token.token_type !== 'string' ||
+      token.token_type.toLowerCase() !== 'bearer'
+    )
+      throw new Error('Invalid token response')
+
+    stage = 'Profile request'
+    const { response: profileResponse, data: profile } = await requestJson('/v1/users/me', {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    })
+    if (
+      !profileResponse.ok ||
+      !profile ||
+      Array.isArray(profile) ||
+      profile.code !== 0 ||
+      typeof profile.data?.id !== 'string' ||
+      !profile.data.id
+    )
+      throw new Error('Invalid profile response')
+
+    // A real application establishes its own user session here.
+    // This demo discards the profile and tokens without returning or logging them.
+    return res.send('Authorization succeeded')
+  } catch {
+    return res.status(502).send(`${stage} failed; restart at /login`)
+  }
+})
+
+app.use((error, req, res, next) => {
+  res.status(500).send('Local session failed; restart at /login')
+})
+app.listen(3000, '127.0.0.1', () => console.log(`Open ${localOrigin}/login`))
 ```
 
-### Python PKCE example
+Start the server:
 
-```python
-import base64
-import hashlib
-import os
-import secrets
-from urllib.parse import urlencode
-
-import requests
-
-
-def to_base64url(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("utf-8")
-
-
-def create_pkce_pair() -> tuple[str, str]:
-    code_verifier = to_base64url(secrets.token_bytes(32))
-    code_challenge = to_base64url(hashlib.sha256(code_verifier.encode("utf-8")).digest())
-    return code_verifier, code_challenge
-
-
-code_verifier, code_challenge = create_pkce_pair()
-state = secrets.token_urlsafe(24)
-
-authorize_query = urlencode(
-    {
-        "response_type": "code",
-        "client_id": os.getenv("CLIENT_ID", ""),
-        "redirect_uri": os.getenv("REDIRECT_URI", ""),
-        "scope": os.getenv("SCOPE", "profile email"),
-        "state": state,
-        "code_challenge": code_challenge,
-        "code_challenge_method": "S256",
-    }
-)
-
-print("Open this URL in the browser:")
-print(f"{os.getenv('AUTH_FRONTEND_URL', 'https://auth.qysyw.cn')}/oauth/authorize?{authorize_query}")
-
-# After the browser redirects back, paste the callback code here.
-code = "paste_callback_code_here"
-
-token_response = requests.post(
-    f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/token",
-    json={
-        "grant_type": "authorization_code",
-        "code": code,
-        "client_id": os.getenv("CLIENT_ID", ""),
-        "redirect_uri": os.getenv("REDIRECT_URI", ""),
-        "code_verifier": code_verifier,
-    },
-    timeout=15,
-)
-
-print(token_response.json())
+```bash
+node index.mjs
 ```
 
-### PKCE guidance
+Open `http://127.0.0.1:3000/login` in your browser, sign in on the identity site, and approve authorization. A successful callback displays `Authorization succeeded`. Start and finish in the same browser with the same hostname; do not replace `127.0.0.1` with `localhost`.
 
-- prefer `S256` for public clients, not `plain`
-- keep `code_verifier` only in the local active session
-- still validate `state`; PKCE does not replace CSRF protection
-- if the server can safely store a secret, confidential clients are still simpler for backend-only apps
+## Flow and response formats
 
-## Pre-launch checklist
+1. `/login` regenerates the local session, generates random state, a PKCE verifier, and an S256 challenge, then saves the session before redirecting.
+2. The callback checks both session and state and consumes the attempt before network requests. Each attempt is processed at most once, including duplicate or concurrent callbacks. User denial does not call the token endpoint.
+3. The server sends JSON to `POST /v1/oauth/token` with the code, exact callback URI, and verifier, plus the Client Secret for confidential applications. Successful token responses use OAuth fields such as `access_token` and `token_type`, without the general business envelope.
+4. The server calls `GET /v1/users/me` with the Bearer token. This endpoint uses the business envelope: check HTTP status, numeric `code: 0`, and profile data. HTTP 200 alone is insufficient.
 
-- correct OAuth app type created: confidential or public
-- production redirect URI registered
-- `client_secret` stored only on the server
-- `state` parameter verified
-- token exchange failure logging added
-- successful user-profile read verified after authorization
-- development, staging, and production configs separated
+Each upstream request has its own 15-second timeout, including response-body reading. The whole flow does not have a combined 15-second limit. The example rejects upstream redirects and does not automatically retry token exchange or profile lookup. Pending authorization attempts expire after 10 minutes, and session cookies also use a 10-minute lifetime. Restarting the local server invalidates unfinished attempts. Opening `/login` again in the same session replaces the previous attempt.
 
-<div class="docs-jump-grid">
-  <a class="docs-jump-card" href="/en/node-sdk">
-    <span class="docs-jump-eyebrow">Back to direct calls</span>
-    <strong>Return to Node SDK</strong>
-    <span>Go back if you want the lighter server-to-server template instead of OAuth login.</span>
-  </a>
-  <a class="docs-jump-card" href="/en/python-sdk">
-    <span class="docs-jump-eyebrow">Back to direct calls</span>
-    <strong>Return to Python SDK</strong>
-    <span>Go back if the Python integration only needs direct API access.</span>
-  </a>
-</div>
+## Troubleshooting
+
+| Message or symptom                          | What to check                                                                                                                           |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Invalid configuration at startup            | Check origins, Client ID, and session secret; use the random-secret command above                                                       |
+| `Invalid or expired authorization response` | Check cookies, browser session, and hostname; restart at `/login` instead of refreshing or reusing callbacks                            |
+| `Authorization was not granted`             | The user denied access or the authorization server returned an error; confirm intent and configuration before restarting                |
+| `Missing authorization code`                | The callback has no valid code; restart authorization at `/login`                                                                       |
+| `Token exchange failed`                     | Check approval, client type and secret, exact callback, and PKCE; network errors, timeouts, non-JSON responses, and redirects also fail |
+| `Profile request failed`                    | Check `profile` consent and account and resource permissions; investigate HTTP and business errors, then restart                        |
+| `Local session failed`                      | Local session storage failed; fix the runtime environment and restart                                                                   |
+
+A consumed attempt is not restored. If token exchange times out or disconnects, the local error cannot prove whether the server issued tokens. Do not resend the same authorization code. The example does not display raw upstream responses. Investigate through controlled server diagnostics without logging codes, tokens, secrets, session cookies, or verifiers.
+
+## Changes required for production
+
+The in-memory session store and one-time state set support only local, single-process verification. Production requires HTTPS, secure cookies, trusted proxies configured for the actual topology, persistent sessions, and authorization transaction storage with atomic consumption across instances and expiry cleanup. Manage business user sessions separately from temporary OAuth attempts.
+
+If tokens must be retained, store them securely on the server and handle expiry, refresh rotation, and revocation. The example does not do those steps automatically. Never package Client Secrets into browsers or user devices.
+
+## Related documentation
+
+- [OAuth app management](/en/oauth-app-management)
+- [API documentation](/en/api-documentation)
+- [Node.js API examples](/en/node-sdk)
+- [Python API examples](/en/python-sdk)

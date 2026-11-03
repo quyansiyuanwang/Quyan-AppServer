@@ -7,10 +7,10 @@ export default defineDocsPage({
   category: { en: 'System', 'zh-CN': '系统' },
   title: { en: 'Data archive and cleanup', 'zh-CN': '数据归档与清理' },
   summary: {
-    en: 'Configure retention, inspect verified archives and control dataset and file access with IAM.',
-    'zh-CN': '配置数据保留、查看已校验归档，并通过 IAM 控制数据集与文件访问。',
+    en: 'Set retention, archive hot data, download verified files, and safely preview imports and table maintenance.',
+    'zh-CN': '设置保留策略、归档热数据与下载文件，按预览执行历史导入和表维护。',
   },
   tags: ['archive', 'cleanup', 'oss', 'retention', 'iam', 'authorization'],
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

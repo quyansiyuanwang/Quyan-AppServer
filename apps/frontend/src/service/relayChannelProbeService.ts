@@ -13,9 +13,19 @@ import type {
   ConfigureRelayChannelProbeTargetsRequest,
   BindRelayChannelProbeAccountsRequest,
   RelayChannelProbeAccountDto,
+  RelayChannelProbeAccountEditorDto,
+  RelayChannelProbeAccountPageDto,
+  SaveRelayProbeConfigurationRequest,
+  SaveRelayProbeConfigurationResponse,
+  RelayProbeOverviewPageDto,
+  RelayChannelProbeControllerListOverviewPageData,
+  RelayProbeMemberPageDto,
 } from '@/client/types.gen'
 
 const api = cacheObject(() => createRelayChannelProbeControllerApi(useRequestStore().getAxios()))
+export type ProbeOverviewQuery = NonNullable<
+  RelayChannelProbeControllerListOverviewPageData['query']
+>
 
 export interface RelayChannelProbeOverviewResult {
   items: RelayChannelProbeOverviewItemDto[]
@@ -23,6 +33,22 @@ export interface RelayChannelProbeOverviewResult {
 }
 
 class RelayChannelProbeService {
+  async listOverviewPage(query: ProbeOverviewQuery): Promise<RelayProbeOverviewPageDto> {
+    return checkApiResult<{ data: RelayProbeOverviewPageDto }>(
+      await api.listOverviewPage({ params: query }),
+      true,
+    ).data
+  }
+  async listMemberPage(
+    channelId: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<RelayProbeMemberPageDto> {
+    return checkApiResult<{ data: RelayProbeMemberPageDto }>(
+      await api.listMemberPage({ path: { channelId }, params: { page, pageSize } }),
+      true,
+    ).data
+  }
   async listOverview(): Promise<RelayChannelProbeOverviewResult> {
     const response = checkApiResult<{ data: RelayChannelProbeOverviewItemDto[] }>(
       await api.listOverview(),
@@ -46,9 +72,27 @@ class RelayChannelProbeService {
   async getProfile(channelId: string) {
     return checkApiResult<any>(await api.getProfile({ path: { channelId } }), true).data
   }
+  async getConfiguration(
+    channelId: string,
+    memberChannelId?: string,
+  ): Promise<RelayChannelProbeOverviewItemDto> {
+    return checkApiResult<{ data: RelayChannelProbeOverviewItemDto }>(
+      await api.getConfiguration({ path: { channelId }, params: { memberChannelId } }),
+      true,
+    ).data
+  }
 
   async saveProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest) {
     return checkApiResult<any>(await api.upsertProfile({ path: { channelId }, body }), true).data
+  }
+  async saveConfiguration(
+    channelId: string,
+    body: SaveRelayProbeConfigurationRequest,
+  ): Promise<SaveRelayProbeConfigurationResponse> {
+    return checkApiResult<{ data: SaveRelayProbeConfigurationResponse }>(
+      await api.saveConfiguration({ path: { channelId }, body }),
+      true,
+    ).data
   }
 
   async clearProfile(channelId: string): Promise<void> {
@@ -78,12 +122,29 @@ class RelayChannelProbeService {
     return checkApiResult<{ data: RelayChannelProbeAccountDto[] }>(await api.listAccounts(), true)
       .data
   }
+  async listAccountPage(
+    page = 1,
+    pageSize = 20,
+    search?: string,
+  ): Promise<RelayChannelProbeAccountPageDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountPageDto }>(
+      await api.listAccountPage({ params: { page, pageSize, search } }),
+      true,
+    ).data
+  }
 
   async createAccount(
     body: SaveRelayChannelProbeAccountRequest,
   ): Promise<RelayChannelProbeAccountDto> {
     return checkApiResult<{ data: RelayChannelProbeAccountDto }>(
       await api.createAccount({ body }),
+      true,
+    ).data
+  }
+
+  async getAccountEditor(accountId: string): Promise<RelayChannelProbeAccountEditorDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountEditorDto }>(
+      await api.getAccountEditor({ path: { accountId } }),
       true,
     ).data
   }

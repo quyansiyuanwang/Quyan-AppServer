@@ -612,6 +612,7 @@ const zhCN = {
     targetSelectionRequired: "必须提供 userIds 或 targetFilter",
   },
   relayChannel: {
+    forwardAllRequestHeadersInvalid: "放行所有请求头必须设置为开启或关闭",
     forwardedRequestHeadersInvalid:
       "额外转发请求头必须是安全的精确头名（最多 64 个，每个最多 128 字符）；禁止凭据、Cookie、内部及连接级请求头。",
     timeRuleSameStartEnd: "非全天规则的开始和结束时间不能相同",
@@ -683,10 +684,18 @@ const zhCN = {
     accountNotFound: "号池账号不存在",
     accountCredentialsRequired: "首次创建号池账号必须填写登录凭据",
     accountReservedVariable: "accountToken 是保留变量",
+    accountSessionConfigurationInvalid:
+      "请检查会话字段名称、选中的令牌字段和刷新地址。保留已保存的刷新字段时须携带当前号池配置版本。",
+    accountEditConfigurationInvalid:
+      "请检查登录地址和号池配置版本。完整凭据与凭据更新只能提交一种，且仅在编辑已有号池时可保留已保存字段。",
+    accountSessionInvalid: "面板会话字段提取失败或不能用于此请求，请检查字段映射及允许的请求来源。",
+    scheduleEmailRequired: "请先配置通知邮箱或账号邮箱，再启用每日探针汇总。",
+    accountConfigurationChanged: "号池配置已被其他操作修改，请重新打开编辑界面后再保存。",
     accountBackendUnavailable: "号池会话服务暂时不可用",
     accountLoginCooldown: "号池账号登录冷却中，请稍后重试",
     accountLoginInProgress: "号池账号正在登录，请稍后重试",
     accountLoginFailed: "号池账号登录或令牌提取失败",
+    accountRefreshFailed: "面板会话刷新失败，请检查刷新请求和字段映射，必要时重新登录。",
     pooledProfileCopyUnsupported: "混池探针不能跨池复制成员凭据，请逐成员配置",
     apiFormatIncompatible: "探针接口与请求格式不兼容",
     modelNoLocalPricing: "探针模型没有本地定价配置",

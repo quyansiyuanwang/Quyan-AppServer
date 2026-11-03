@@ -3,7 +3,7 @@ import contentZh from '@/content/zh-CN/server-configuration.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-30',
   slug: 'server-configuration',
   category: {
     en: 'System',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '服务端配置',
   },
   summary: {
-    en: 'Maintain registration, billing, SMTP, and IP-ban related settings.',
-    'zh-CN': '说明注册、计费、SMTP 与 IP 封禁相关设置。',
+    en: 'Read and save global settings, manage secrets, and verify security and capacity changes.',
+    'zh-CN': '读取和保存全局配置、维护密钥，核对安全规则与 AI 容量设置。',
   },
   tags: ['server', 'config', 'smtp'],
   content: {

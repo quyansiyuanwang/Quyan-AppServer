@@ -43,6 +43,9 @@ import {
   bindRelayChannelProbeAccountsBodySchema,
   saveRelayChannelProbeAccountBodySchema,
   relayChannelProbeAccountParamsSchema,
+  relayChannelProbeAccountsQuerySchema,
+  saveRelayProbeConfigurationSchema,
+  relayProbeOverviewQuerySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import type {
   ApplyRelayChannelProbeRunsRequest,
@@ -64,9 +67,16 @@ import type {
   UpsertRelayChannelProbeProfileRequest,
   SaveRelayChannelProbeAccountRequest,
   RelayChannelProbeAccountDto,
+  RelayChannelProbeAccountEditorDto,
+  RelayChannelProbeAccountPageDto,
   ConfigureRelayChannelProbeTargetsRequest,
   ConfigureRelayChannelProbeTargetsResponse,
   BindRelayChannelProbeAccountsRequest,
+  SaveRelayProbeConfigurationRequest,
+  SaveRelayProbeConfigurationResponse,
+  RelayProbeOverviewPageDto,
+  RelayProbeOverviewQueryDto,
+  RelayProbeMemberPageDto,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
 @Route("v1/relay-channel-probes")
@@ -74,6 +84,103 @@ import type {
 export class RelayChannelProbeController extends Controller {
   private readonly service = RelayChannelProbeService.getInstance();
   private readonly accountService = RelayChannelProbeAccountService.getInstance();
+
+  @Get("page")
+  @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeOverview",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+    validateQuery(relayProbeOverviewQuerySchema),
+  )
+  public listOverviewPage(
+    @Request() request: TypedRequest,
+    @Query() page = 1,
+    @Query() pageSize = 20,
+    @Query() search?: string,
+    @Query() channelId?: string,
+    @Query() profile?: RelayProbeOverviewQueryDto["profile"],
+    @Query() enabled?: RelayProbeOverviewQueryDto["enabled"],
+    @Query() runStatus?: RelayProbeOverviewQueryDto["runStatus"],
+    @Query() suggestion?: RelayProbeOverviewQueryDto["suggestion"],
+    @Query() group?: string,
+  ): Promise<RelayProbeOverviewPageDto> {
+    return this.service.listOverviewPage(
+      { page, pageSize, search, channelId, profile, enabled, runStatus, suggestion, group },
+      request.user!.userId,
+      request,
+    );
+  }
+
+  @Get("{channelId}/members")
+  @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeOverview",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    validateQuery(relayChannelProbeRunsQuerySchema),
+  )
+  public listMemberPage(
+    @Path() channelId: string,
+    @Request() request: TypedRequest,
+    @Query() page = 1,
+    @Query() pageSize = 20,
+  ): Promise<RelayProbeMemberPageDto> {
+    return this.service.listMemberPage(channelId, page, pageSize, request.user!.userId, request);
+  }
+
+  @Get("{channelId}/configuration")
+  @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeOverview",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    validateQuery(relayChannelProbeRunsQuerySchema),
+  )
+  public getConfiguration(
+    @Path() channelId: string,
+    @Request() request: TypedRequest,
+    @Query() memberChannelId?: string,
+  ): Promise<RelayChannelProbeOverviewItemDto> {
+    return this.service.getConfiguration(channelId, memberChannelId, request.user!.userId, request);
+  }
+
+  @Put("{channelId}/configuration")
+  @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SaveProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    replayProtectionMiddleware,
+    validateBody(saveRelayProbeConfigurationSchema),
+  )
+  public saveConfiguration(
+    @Path() channelId: string,
+    @Body() body: SaveRelayProbeConfigurationRequest,
+    @Request() request: TypedRequest,
+  ): Promise<SaveRelayProbeConfigurationResponse> {
+    return this.service.saveConfiguration(channelId, body, request.user!.userId, request);
+  }
 
   @Get()
   @Security("jwt")
@@ -357,6 +464,47 @@ export class RelayChannelProbeController extends Controller {
   )
   public listAccounts(@Request() request: TypedRequest): Promise<RelayChannelProbeAccountDto[]> {
     return this.accountService.list(request);
+  }
+
+  @Get("accounts/page")
+  @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE],
+    }),
+    validateQuery(relayChannelProbeAccountsQuerySchema),
+  )
+  public listAccountPage(
+    @Request() request: TypedRequest,
+    @Query() page = 1,
+    @Query() pageSize = 20,
+    @Query() search?: string,
+  ): Promise<RelayChannelProbeAccountPageDto> {
+    return this.accountService.page(page, pageSize, search, request);
+  }
+
+  @Post("accounts/{accountId}/editor")
+  @Security("jwt")
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:UpdateProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeAccountParamsSchema),
+    replayProtectionMiddleware,
+  )
+  public getAccountEditor(
+    @Path() accountId: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeAccountEditorDto> {
+    return this.accountService.getEditor(accountId, request);
   }
 
   @Post("accounts")

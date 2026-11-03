@@ -337,11 +337,7 @@ export const generateDomainViewManifests = async (): Promise<{ sites: number; vi
   await generateLocaleManifest(srcRoot, readLocaleRouteReferences())
 
   fs.mkdirSync(outputRoot, { recursive: true })
-  for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith('.gen.ts'))
-      fs.rmSync(path.join(outputRoot, entry.name))
-  }
-
+  const expectedFiles = new Set([...bySite.keys()].map((siteId) => `${siteId}.gen.ts`))
   let viewCount = 0
   for (const [siteId, paths] of [...bySite.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const target = path.join(outputRoot, `${siteId}.gen.ts`)
@@ -352,10 +348,15 @@ export const generateDomainViewManifests = async (): Promise<{ sites: number; vi
       singleQuote: true,
       printWidth: 100,
     })
-    fs.writeFileSync(temporary, formatted, 'utf8')
-    fs.rmSync(target, { force: true })
-    fs.renameSync(temporary, target)
+    if (!fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== formatted) {
+      fs.writeFileSync(temporary, formatted, 'utf8')
+      fs.renameSync(temporary, target)
+    }
     viewCount += paths.size
+  }
+  for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.gen.ts') && !expectedFiles.has(entry.name))
+      fs.rmSync(path.join(outputRoot, entry.name), { force: true })
   }
 
   return { sites: bySite.size, views: viewCount }

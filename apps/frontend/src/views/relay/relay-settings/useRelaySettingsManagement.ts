@@ -98,6 +98,7 @@ const toSupportedFormatsArray = (formats: string[] | string | undefined): string
 }
 
 const recommendedRoutingConfigForm = () => ({
+  forwardAllRequestHeaders: false,
   forwardedRequestHeaders: [] as string[],
   maxRetries: 2,
   failoverThreshold: 0,
@@ -155,6 +156,7 @@ const normalizeOptionalThreshold = (value?: number | null): number | null => {
 }
 
 const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | null) => ({
+  forwardAllRequestHeaders: config?.forwardAllRequestHeaders === true,
   forwardedRequestHeaders:
     normalizeRelayForwardedHeaderNames(config?.forwardedRequestHeaders ?? []) ?? [],
   maxRetries:
@@ -2263,6 +2265,7 @@ export const useRelaySettingsManagement = () => {
         ? buildRoutingConfigPayload()
         : {
             ...buildStandaloneHealthTrackingPayload(),
+            forwardAllRequestHeaders: channelForm.value.routingConfig.forwardAllRequestHeaders,
             forwardedRequestHeaders: forwardedRequestHeaders!,
           }
       const visibilityConfig =

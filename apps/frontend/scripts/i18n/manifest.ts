@@ -137,7 +137,9 @@ export const analyzeLocaleCoverage = (srcRoot: string, routes: readonly LocaleRo
 const writeChanged = (file: string, text: string) => {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === text) return false
-  fs.writeFileSync(file, text)
+  const temporary = `${file}.${process.pid}.tmp`
+  fs.writeFileSync(temporary, text)
+  fs.renameSync(temporary, file)
   return true
 }
 

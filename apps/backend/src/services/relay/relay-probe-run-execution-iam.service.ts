@@ -18,6 +18,7 @@ import { RelayChannelService } from "./relay-channel.service";
 import { RelayProbeRunAdmissionStore } from "./relay-probe-run-admission";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { getLogger, LogCategory } from "@/util/logger";
+import { RelayProbeScheduledExecutionIamService } from "./relay-probe-scheduled-execution-iam.service";
 export class RelayProbeRunExecutionIamService {
   private static instance: RelayProbeRunExecutionIamService;
   static getInstance() {
@@ -37,6 +38,8 @@ export class RelayProbeRunExecutionIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async prepare(runId: string, owner: string): Promise<() => Promise<void>> {
+    const scheduled = await RelayProbeScheduledExecutionIamService.getInstance().prepare(runId, owner);
+    if (scheduled) return scheduled;
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     const claim = async () => {
@@ -77,6 +80,11 @@ export class RelayProbeRunExecutionIamService {
         if (
           !parent ||
           !(await this.channels.canAccessChannelMetadata(parent, principal.subjectUserId, principal.roleSessionId)) ||
+          !(await this.channels.canAccessChannelMetadata(
+            parent.physicalTarget,
+            principal.subjectUserId,
+            principal.roleSessionId,
+          )) ||
           fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint
         )
           throw iamAccountDenied();

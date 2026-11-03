@@ -3,18 +3,19 @@ import contentZh from '@/content/zh-CN/auth-center-client-management.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
+  updatedAt: '2026-10-30',
   slug: 'auth-center-client-management',
   category: {
-    en: 'Admin',
-    'zh-CN': '管理',
+    en: 'Account',
+    'zh-CN': '账号',
   },
   title: {
-    en: 'Auth Center client management',
+    en: 'Auth Center app management',
     'zh-CN': '认证中心应用管理',
   },
   summary: {
-    en: 'Maintain Auth Center apps in the admin console, including review submission, secret rotation, and deletion.',
-    'zh-CN': '说明后台中认证中心应用的创建、编辑、提交审核、轮换密钥和删除。',
+    en: 'Create your own applications, configure grants and lifetimes, submit for review, and manage client credentials.',
+    'zh-CN': '创建自有应用，配置授权类型与有效期，提交审核并管理客户端凭据。',
   },
   tags: ['auth-center', 'application', 'review', 'pkce', 'jwks'],
   content: {

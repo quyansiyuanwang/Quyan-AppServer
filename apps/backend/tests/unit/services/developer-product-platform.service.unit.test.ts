@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     $transaction: vi.fn(),
     developerProductEntitlement: { findUnique: vi.fn() },
     developerProductConfig: { findUnique: vi.fn() },
+    developerProductApiKey: { findFirst: vi.fn() },
     developerProductQuotaUsage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     developerProductRefundRetry: {
       findUnique: vi.fn(),
@@ -32,6 +33,24 @@ describe("DeveloperProductPlatformService", () => {
     mocks.prisma.developerProductRefundRetry.updateMany.mockResolvedValue({ count: 1 });
     mocks.prisma.developerProductRefundRetry.update.mockResolvedValue({});
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
+  });
+
+  it.each(["sk-dpk-", "dpk_", "sk-dk-fixture", "sk-dpk-fixture_secret", "sk-dpk-fixture\n"])(
+    "rejects malformed product credentials before querying persistence: %j",
+    async (rawKey) => {
+      await expect(
+        DeveloperProductPlatformService.getInstance().authenticateProductKey(rawKey, []),
+      ).rejects.toMatchObject({ messageKey: "auth.missingProductApiKey" });
+      expect(mocks.prisma.developerProductApiKey.findFirst).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["sk-dpk-fixture-A9", "dpk_fixture-A9"])("looks up well-formed product credentials: %s", async (rawKey) => {
+    mocks.prisma.developerProductApiKey.findFirst.mockResolvedValue(null);
+    await expect(
+      DeveloperProductPlatformService.getInstance().authenticateProductKey(rawKey, []),
+    ).rejects.toMatchObject({ messageKey: "developerProduct.apiKeyInvalid" });
+    expect(mocks.prisma.developerProductApiKey.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it("retries quota creation in a new transaction after a first-use race", async () => {

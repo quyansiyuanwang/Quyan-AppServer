@@ -1,16 +1,12 @@
 # RAM (Resource Access Management)
 
-RAM is the authorization and access control hub. It lets you create sub-users, define roles, write permission policies, and bind them together. Every mutating operation requires a 2FA step-up challenge, and all role/policy/attachment changes trigger security notification events.
-
-Remote terminal product entitlements, device bindings and registration-token metadata can be added to resource groups using their database resource IDs. Disabled or expired product metadata remains addressable; deleted products and deleted parents are excluded. A published-template member represents an offer for the user in its ARN and must refer to an enabled, published plan. It grants no access to platform template management. Product ownership and parent relationships are checked without reading credential values; membership removal changes scoped decisions on the next request.
-
-RAM user, group, role, policy and role-session lists apply IAM to each returned resource. A grant for a specific resource is sufficient to see that resource; an account-wide Allow is not required. Authorization and resource-group lists also filter rows by their respective list Actions. Candidate pages can be empty while hasNext remains true. In legacy and shadow rollout modes, existing user, role, policy and session list permission checks remain enforced; the native authorization and resource-group APIs retain IAM enforcement in every mode.
+RAM manages sub-users, roles, policies and authorization scopes under an account. Start with the creation and authorization workflows, then consult the IAM JSON, API and business-resource reference.
 
 ## What you can manage
 
 - **RAM Users** — Sub-accounts under your main account with separate credentials.
 - **RAM Roles** — Named collections of permissions with optional trust policies and session duration limits.
-- **Permission Policies** — Custom JSON permission lists that can be attached to users, roles, or groups.
+- **Permission Policies** — Reusable permission-tree or JSON policies that can be attached to users, roles, or groups.
 - **Role Bindings** — Grant a role to a user or group.
 - **Policy Attachments** — Attach a permission policy to a user, role, or group.
 - **Role Sessions** — Active sessions created when a user assumes a role.
@@ -27,7 +23,7 @@ Create and manage RAM sub-users. Each user can have console access, API access k
 - Display name, RAM username, email, group, status, and creation date.
 - Set a custom password or auto-generate one.
 - Force password reset on first login.
-- Password is shown once after creation — copy it immediately.
+- Automatically generated console passwords and new AccessKey secrets are shown once after successful creation.
 
 ### Roles
 
@@ -55,7 +51,7 @@ Monitor active role sessions.
 
 ### Authorization
 
-Select a user to view their complete effective permissions.
+Select a user to view an effective-permission summary and its sources.
 
 - Direct permissions assigned to the user.
 - Group permissions inherited from their group.
@@ -63,11 +59,76 @@ Select a user to view their complete effective permissions.
 - Policy permissions from attached policies.
 - Removed permissions that are explicitly excluded.
 
-Authenticated identities can read their own permission summary. This baseline applies only to their own user resource and grants no account administration. In enforce mode, reading or checking another identity requires an Allow for `quyan:permission:Manage` on that exact user ARN; the target must also be active and belong to the current account. View on an `account` ARN exposes the full permission catalog but does not grant access to every user. View on a specific user does not expose the full catalog. Explicit Deny can block self inspection. AccessKey identities follow the same rules; AssumeRole uses a valid role session and role policies without inheriting the caller's administrative grants. These three query endpoints retain their original permission checks in legacy/shadow and apply resource checks in enforce.
+## Security notes
 
-Personal heartbeat operations use the authenticated user's own ARN: `quyan:user:GetHeartbeatConfig`, `quyan:user:SendHeartbeat`, and `quyan:user:StopHeartbeat`. Catalog metadata `defaultAuthorizationScope: "self"` identifies a narrow default self-service Allow. It grants no online-monitor visibility, authority to force other users offline, or cross-account access. To restrict this baseline, publish an explicit Deny matching the Action and user ARN; a conditional Allow does not narrow an existing default Allow. Client-supplied user IDs, account IDs, and Action headers cannot change the heartbeat target.
+- **Two-factor verification**: Management writes enforce the endpoint’s step-up requirements. Trusted-device acceptance depends on the operation; not every write prompts for a new code.
+- **Fresh verification**: Deleting users, roles or policies, detaching policies, deleting scoped authorizations, removing resource-group members and restoring policy versions ignore the trusted-device window.
+- **Notifications**: Creation, deletion and binding operations send applicable events according to notification settings. Ordinary user or role edits do not necessarily send a RAM notification. Confirm results using the response and refreshed state.
+
+When adding or removing user permissions, clearing overrides, or replacing group permissions, a change to the checked permissions, group hierarchy, or account ownership returns **409 Conflict** instead of overwriting a concurrent update. Reload the current target, review both grants and revocations, and submit again. A failed request has not taken effect; do not automatically retry stale content.
+
+## Common workflows
+
+### Create a RAM user and save credentials
+
+1. Open RAM Users and select Create User. Use 3–50 letters, digits or underscores for the username. The optional RAM username accepts 3–64 of the same characters and defaults to the username.
+2. Enter a display name and email, and optionally select a group from the paged choices. Group selection also requires group-read access and delegation authority. Check pages and permissions if an option is missing.
+3. Select at least one access method. For console access, generate a password or enter a custom password of 6–50 characters, and optionally require a password change at first login. API access creates an AccessKey with the user.
+4. Confirm and complete any requested two-factor verification. Only console access with an automatically generated password displays a password after success; custom passwords are not shown again. The new AccessKey secret is also shown only once. Save credentials securely before closing the dialogs.
+5. Refresh the list to confirm creation, then configure the required policies or roles separately. Creating a user does not automatically grant all business features.
+
+API-only creation does not provide an initial console password; this choice is not a persistent policy that prohibits console sign-in. Manage the account and its credentials accordingly. A clipboard failure does not undo creation: keep the dialog open and save credentials manually. After a creation error, refresh to check whether the user already exists before submitting again.
+
+### Edit and delete users
+
+Edit a user row to change its display name, email and enabled status. The current form cannot change the username, RAM username, group, password or original access methods. It always submits email, and the server rejects an empty email; saving through this form currently requires a valid email address.
+
+Confirm the target and impact before deleting. Batch user and role deletion submits independent requests. If one fails, other deletions may already have completed. An error does not mean the batch rolled back: refresh and check the remaining records before retrying.
+
+### Create a role and configure permissions and trust
+
+1. Create a role on Roles. Names accept 2–64 letters, digits or `+=,.@_-`. Maximum session duration defaults to 3600 seconds and accepts 900–43200 seconds.
+2. After saving, attach the required policies to the role from Policies. When role assignment is needed, bind users or groups from Roles. Bindings and policy attachments save separately and require their own permissions.
+3. In enforce mode, use Role trust policy to configure which same-account principals may assume the role. Diagnose the JSON, review the scope and confirm publication. Role assignment, identity-side AssumeRole Allow and trust-side Allow do not substitute for each other.
+4. When assuming a role through the role-session API, account for the session using only that role's current permissions. To terminate an issued session, revoke it separately on Sessions.
+
+Ordinary role editing changes only description and maximum session duration, without renaming the role or editing trust. Clone opens a creation form with the name, description and duration prefilled; it still requires saving. Policies, principal bindings and trust are not copied. Replace the generated name with one that satisfies the character requirements before saving.
+
+### Create, edit and attach policies
+
+1. Select Create on Policies, enter a name and description, then choose Permission tree or IAM JSON. Publishing and attaching IAM JSON requires an enforce-mode deployment; see the Action and Resource reference below.
+2. For IAM JSON, validate the original text, fix errors, and review Deny, wildcard and delegation notices. Optionally simulate saved permissions or an unpublished draft. Simulation does not save a policy, and the two sources must be compared separately.
+3. Confirm the save, then open the policy's attachments, select a user, group or role and submit the attachment. Closing the editor or passing validation does not publish a policy; creating one does not attach it automatically.
+4. Only custom policies can be edited. Existing IAM policies remain JSON. Updates include the document hash from when the editor was opened. On 409, reload the current policy, reconcile changes and validate again. Restoring a historical version immediately changes attached identities' permissions; review the impact before confirming.
+
+Detaching requires confirmation and does not delete the policy. Saving, attaching, detaching and simulating require separate permissions; a visible button or list does not establish authority for every action.
+
+### Create resource groups and scoped authorizations
+
+On Authorization, create a resource group with a name and optional description. Select the saved group, enter an exact same-account resource ARN and add the member. Each addition saves immediately; removal requires confirmation. A resource group is distinct from a user group, and membership alone grants no access.
+
+Choose account, specific-resource or resource-group scope, then select principals of one type and policies. Enter an exact ARN for resource scope, or use Use in authorization to preselect a group. Review the principal × policy count and scope before confirming. At most 50 combinations save per submission, each as an independent request. A failure stops later requests and leaves saved authorizations active. Retry handles only the remaining original scope snapshot; discarding pending items does not revoke saved grants.
+
+### Inspect effective permissions and revoke sessions
+
+Select a user in the effective-permission query to inspect final permissions and their sources. In enforce mode, the summary does not replace an authorization decision for a specific ARN; use simulation when needed. Changing candidate pages clears the previous selection and result. Reading your own summary and another user's summary has different authorization requirements.
+
+On Sessions, check the principal, role and expiration, then select Revoke and confirm. Subsequent requests cannot use the revoked session. Changing trust does not automatically revoke issued sessions. Revoking a session does not delete its user or role.
+
+## Common problems
+
+| Symptom                                          | What to check                                                                                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The menu is visible but a list or page is empty  | Entry, per-resource reads and writes have separate checks. Continue when a next page is available. User, role and policy list search filters only the current page. |
+| A group, role or policy option is missing        | Check the account, read grants and candidate pages. Reselect the target after paging or a failed load.                                                              |
+| JSON passes validation but cannot save or attach | Validation does not prove delegation. Check deployment mode, operation grants, resources, conditions and current policy versions.                                   |
+| 409 Conflict                                     | Reload current data, review concurrent changes and resubmit; do not automatically retry stale content.                                                              |
+| A batch deletion or authorization partly fails   | Refresh to identify completed work. Reselect remaining deletion targets, or use the scoped-authorization form's remaining-request retry.                            |
+| A security notification is missing               | Check the operation response and refreshed state, then notification preferences. Some ordinary edits do not send RAM events.                                        |
 
 ## Permission requirements
+
+These are legacy Permission identifiers for existing permission configuration and compatibility modes. In enforce mode, grant the catalog Action on the correct resources. Scoped authorizations, resource groups, trust publication and simulation have separate Actions.
 
 | Action              | Required permission  |
 | ------------------- | -------------------- |
@@ -92,22 +153,15 @@ Personal heartbeat operations use the authenticated user's own ARN: `quyan:user:
 | View sessions       | `RAM_SESSION_READ`   |
 | Revoke session      | `RAM_SESSION_REVOKE` |
 
-## Security notes
-
-- **2FA required**: All create, update, delete, attach, detach, and bind operations require a 2FA challenge.
-- **Always-require endpoints**: Deleting users, roles, policies, and detaching policies require fresh 2FA (the trusted-device window is ignored).
-- **Notifications**: All RAM mutating operations dispatch security notification events. Ensure your notification preferences include RAM events.
-
-When adding or removing user permissions, clearing overrides, or replacing group permissions, a change to the checked permissions, group hierarchy, or account ownership returns **409 Conflict** instead of overwriting a concurrent update. Reload the current target, review both grants and revocations, and submit again. A failed request has not taken effect; do not automatically retry stale content.
-
-## Common workflows
-
-1. **Create a RAM user**: RAM Users → Create User → fill in username, RAM username, and choose console/API access → Submit.
-2. **Define a role**: Roles → Create Role → name the role and set max session duration → attach policies.
-3. **Grant access**: Bind a role to a user, or attach a policy directly to a user.
-4. **Audit permissions**: Permission Diagnostics → select a user → review their effective permissions from all sources.
-
 ## IAM JSON policies
+
+Remote terminal product entitlements, device bindings and registration-token metadata can be added to resource groups using their database resource IDs. Disabled or expired product metadata remains addressable; deleted products and deleted parents are excluded. A published-template member represents an offer for the user in its ARN and must refer to an enabled, published plan. It grants no access to platform template management. Product ownership and parent relationships are checked without reading credential values; membership removal changes scoped decisions on the next request.
+
+RAM user, group, role, policy and role-session lists apply IAM to each returned resource. A grant for a specific resource is sufficient to see that resource; an account-wide Allow is not required. Authorization and resource-group lists also filter rows by their respective list Actions. Candidate pages can be empty while hasNext remains true. In legacy and shadow rollout modes, existing user, role, policy and session list permission checks remain enforced; the native authorization and resource-group APIs retain IAM enforcement in every mode.
+
+Authenticated identities can read their own permission summary. This baseline applies only to their own user resource and grants no account administration. In enforce mode, reading or checking another identity requires an Allow for `quyan:permission:Manage` on that exact user ARN; the target must also be active and belong to the current account. View on an `account` ARN exposes the full permission catalog but does not grant access to every user. View on a specific user does not expose the full catalog. Explicit Deny can block self inspection. AccessKey identities follow the same rules; AssumeRole uses a valid role session and role policies without inheriting the caller's administrative grants. These three query endpoints retain their original permission checks in legacy/shadow and apply resource checks in enforce.
+
+Personal heartbeat operations use the authenticated user's own ARN: `quyan:user:GetHeartbeatConfig`, `quyan:user:SendHeartbeat`, and `quyan:user:StopHeartbeat`. Catalog metadata `defaultAuthorizationScope: "self"` identifies a narrow default self-service Allow. It grants no online-monitor visibility, authority to force other users offline, or cross-account access. To restrict this baseline, publish an explicit Deny matching the Action and user ARN; a conditional Allow does not narrow an existing default Allow. Client-supplied user IDs, account IDs, and Action headers cannot change the heartbeat target.
 
 The operation picker groups actions by the catalog’s Read, Write and List categories and shows category counts. After selecting a service, you can add every exact action in one category without introducing a service wildcard or clearing other selections. A separate “all service operations (\*)” option is available only when the service scope can be determined and all categories are shown. This wildcard includes every matching operation in the service, including future additions; review the wildcard warning before using it.
 
@@ -115,7 +169,13 @@ The selected operations include an expandable **Additional authorization checks*
 
 The resource builder derives all identifier fields from the selected action’s registered ARN templates, including users, parents and three-level children. Enter an exact ID or explicitly enable a wildcard for that field; an empty field never becomes `*`. The account comes from your trusted identity, while platform resources use the catalog’s fixed platform account. Changing the resource type clears unfinished identifier inputs and preserves ARNs already added to the policy for review. Server validation still checks resource compatibility and delegation scope.
 
-The policy drawer offers **Permission tree** and **IAM JSON** formats. Choose IAM JSON to paste a policy, then select **Validate JSON** to check it on the server. Validation displays explicit Deny and broad-wildcard warnings; changes to the text invalidate the previous result. Saving validates any unvalidated text first. Existing IAM policies stay in JSON format, and the list shows their default version. Updates include the original document hash: a concurrent change returns 409; reload the policy and review the changes before trying again. With policy-read permission, the JSON editor can load the server Action catalog: place the cursor inside an Action string and select an Action to insert it. Resource examples explain the currently available global and account scopes. The **Simulate authorization** drawer accepts a same-account principal user ID, an Action from the catalog, and a Resource. It evaluates saved policies only, excludes unsaved editor text, and displays the decision, reason, and matched identifiers. Changing the inputs clears the result. Simulation requires its dedicated permission even when the drawer is visible. Select **Version history** on an IAM policy to page through immutable versions and preview their JSON. With update permission, select **Restore** on a non-default custom version and confirm; the operation requires account-owner authorization and two-factor verification. It immediately changes the permissions used by attached identities. A conflict or failed restore requires refreshing and reviewing the current default before retrying. Identity policies support only `Version: "1"`, `Statement`, optional `Sid`, `Effect`, exactly one of `Action`/`NotAction`, `Resource`, and optional `Condition`. Statement accepts an object or array; Action and Resource accept a string or array. Only `*` is a wildcard, and matching is case-sensitive. Unknown fields/versions, Principal, NotResource, and policy variables are rejected rather than ignored.
+The policy drawer offers **Permission tree** and **IAM JSON** formats. Choose IAM JSON to paste a policy, then select **Validate JSON** to check it on the server. Validation displays explicit Deny and broad-wildcard warnings; changes to the text invalidate the previous result. Saving validates any unvalidated text first. Existing IAM policies stay in JSON format, and the list shows their default version. Updates include the original document hash: a concurrent change returns 409; reload the policy and review the changes before trying again. With catalog access, the JSON editor can load the server Action catalog: place the cursor inside an Action string and select an Action to insert it. Resource examples explain the currently available global and account scopes.
+
+The **Simulate authorization** drawer accepts a same-account principal user ID, an Action from the catalog, and a Resource. It displays the decision, reason and matched identifiers. By default it evaluates saved policies; draft mode evaluates only the submitted identity draft. These sources are not combined; see Simulate unpublished drafts. Changing the inputs clears the result. Simulation requires its dedicated permission even when the drawer is visible.
+
+Select **Version history** on an IAM policy to page through immutable versions and preview their JSON. With update permission, select **Restore** on a non-default custom version and confirm; the operation requires the corresponding authorization, delegation checks and two-factor verification. It immediately changes the permissions used by attached identities. A conflict or failed restore requires refreshing and reviewing the current default before retrying.
+
+Identity policies support only `Version: "1"`, `Statement`, optional `Sid`, `Effect`, exactly one of `Action`/`NotAction`, `Resource`, and optional `Condition`. Statement accepts an object or array; Action and Resource accept a string or array. Only `*` is a wildcard, and matching is case-sensitive. Unknown fields/versions, Principal, NotResource, and policy variables are rejected rather than ignored.
 
 RAM management operations use specific user, group, role, policy, and other resources as declared in the Action catalog. Creation operations use account scope `acs:quyan:*:<account-owner-id>:account`, and collection reads also filter unauthorized entries individually. Actions are declared by the server, and target ownership remains checked separately. These management operations follow the configured legacy/shadow/enforce rollout mode; the dedicated simulation Action is always enforced.
 
@@ -157,7 +217,7 @@ Action autocomplete and Schema downloads request static catalog access directly;
 
 - `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.
 - `POST /v1/ram/policies/validate`: submit document for normalization, SHA-256 hash, and a broad-wildcard warning; requires policy-create or policy-update permission.
-- `GET /v1/ram/iam/actions`: list actions; requires policy-read permission. The catalog contains only implemented platform APIs; the AliCloud DNS policy is a JSON compatibility example, not a provided DNS API.
+- `GET /v1/ram/iam/actions`: list actions. Enforce mode uses `quyan:iam:GetCatalog` on the authenticated user resource; legacy/shadow retain the policy-read gate. The catalog contains only implemented platform APIs; the AliCloud DNS policy is a JSON compatibility example, not a provided DNS API.
 - `GET /v1/ram/policies/{policyId}/versions`: page through immutable versions using `page` (default 1) and `pageSize` (default 20, maximum 100); returns `items`, `total`, `page`, `pageSize`, `defaultVersionId`, and `defaultDocumentHash`. Requires policy-read permission.
 - `POST /v1/ram/policies/{policyId}/versions`: append a version and make it default. Submit document and the current expectedDocumentHash. The hash is optional only for the first legacy-to-IAM conversion. Requires policy-update permission, 2FA, and replay protection.
 - `PUT /v1/ram/policies/{policyId}/default-version`: submit versionId and current expectedDocumentHash to restore a historical version; requires policy-update permission, mandatory fresh 2FA, and replay protection. Stale hashes return 409 instead of overwriting another update.
@@ -170,47 +230,6 @@ Creating, updating, switching defaults, and attaching JSON policies requires the
 `IAM_AUTHORIZATION_MODE` defaults to `legacy`, preserving legacy enforcement. `shadow` also enforces legacy permissions while auditing IAM differences. `enforce` uses IAM only for checks with an explicitly declared server Action and Resource Resolver, and never falls back on authorization-data failure. Undeclared legacy checks return 403 even if a policy allows `Action: "*"` and `Resource: "*"`; the server does not guess an account resource for these endpoints. Unsupported authorization modes also reject requests. Explicit IAM middleware endpoints, including simulation, always enforce IAM. Current JWT routes declare server-controlled Actions and resource resolvers. Route coverage is not a substitute for validating real deployment data; complete backfill and difference checks before enabling enforce.
 
 Legacy-to-IAM conversion preserves legacy fields for configuration rollback without removing version data. New JSON-only policies do not acquire legacy grants when rolled back. Decisions are uncached; subsequent requests reread bindings, disabled policies, and revoked sessions. Collection filtering, per-resource batch authorization, and ownership checks cannot be replaced by account-level authorization; complete real-account migration checks and shadow comparisons before full rollout.
-
-### One-time deployment migration (operators)
-
-The production bundle includes `dist/iam-migrate.cjs`; servers do not need TypeScript or development dependencies. Migration never changes `IAM_AUTHORIZATION_MODE` or invents trust policies for legacy roles.
-
-In the existing Build and Deploy workflow, enable **iam-migration** and **iam-backup-confirmed**. Confirmation means you have verified a database backup, arranged a maintenance window, and paused writers on other nodes or jobs; the workflow does not create a backup for you. Alternatively, dispatch the release branch:
-
-```bash
-gh workflow run deploy.yml --ref master \
-  -f deploy-backend=true \
-  -f iam-migration=true \
-  -f iam-backup-confirmed=true
-```
-
-The workflow applies schema migrations, then runs a read-only IAM preflight. After preflight succeeds it stops the existing PM2 `backend` process, migrates policies and authorizations by account, verifies the results, and reloads the backend only on success. This is a maintenance-window option for an existing deployment, not a zero-downtime release. Preflight failure does not actively stop the backend; failure after stopping leaves it stopped rather than serving unverified authorization data. Fix reported issues and rerun safely; completed records are not duplicated. Push deployments do not enable this business-data backfill by default.
-
-For manual operation from the deployed backend root:
-
-```bash
-# Prerequisite: prisma migrate deploy has succeeded. This command is read-only.
-NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts
-
-# With a backup and other writers paused: preflight → stop → backfill and verify
-bash ./scripts/deploy-iam.sh
-
-# Reload only after the preceding command succeeds
-pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
-```
-
-For a single account, replace `--all-accounts` with `--account-owner-id <id>`. Only explicit `--apply` writes data. Credentials are read from the deployment `.env`; use `ENV_FILE_PATH` for a custom file. Never put database passwords in command-line arguments.
-
-Preflight checks user permission additions/removals, group permissions, legacy policies and attachments, and hashes of migrated default versions. Unknown permissions, corrupted versions, cross-account bindings, or concurrent source changes prevent completion. Backfill commits individual record transactions, not one database-wide transaction; repair and rerun after an interruption. Legacy fields and attachments remain available for rollback.
-
-The report's `rolesRequiringTrustPolicy` counts legacy roles without trust policies. Legacy/shadow deployments can migrate other data first. If deployment configuration already uses enforce, preflight rejects roles without trust policies: an administrator must explicitly configure trusted principals rather than bypassing the requirement with automatically generated broad trust. Successful migration does not enable enforce or certify every production business scenario.
-
-## Related pages
-
-- `user-management`
-- `group-management`
-- `permission-management`
-- `access-key-management`
 
 ## Scoped authorizations and resource-group APIs
 
@@ -244,7 +263,7 @@ Create an authorization using:
 - `resource`: supply a registered current-account ARN or resource-path wildcard; standalone `*` is forbidden.
 - `resource-group`: supply a current-account scopeResourceId; omit scopeArn.
 
-Create groups with name and optional description; add members with resourceArn. Members must be real active resources owned by the account, never wildcards or invented ownership. Removing a member immediately stops group-scoped grants; disabled resources or resources that leave the account also stop receiving these grants. Admission rechecks delegation, preventing beneficiaries from expanding their own scope. The authorization page supports paged groups, member management and selecting a group for authorization.
+Create groups with name and optional description; add members with resourceArn. Members must be real resources in the current account and satisfy their resource type’s state and parent requirements, never wildcards or invented ownership. Some disabled or expired product metadata remains manageable. Removing a member makes that group scope inapplicable on subsequent requests; other authorizations are still evaluated independently. Removal also affects Deny statements limited to that group scope. Admission rechecks delegation, preventing beneficiaries from expanding their own scope. The authorization page supports paged groups, member management and selecting a group for authorization.
 
 One policy may have multiple scopes. Deny applies only within its authorization scope. Concurrent policy-version or group changes require rereading and retrying; a failed change does not authorize anything. Sub-users cannot mutate recovery relations of the owner, the owner's group or recovery roles.
 
@@ -309,7 +328,7 @@ Replace `account-id` and `user-id` with your actual identifiers. This allows rea
 }
 ```
 
-Only `*` is a wildcard. `user/*` is broader than one user; an `account` ARN is a distinct target, not shorthand for all account resources. Action and Resource must both match and be compatible in the catalog. Conditions combine operators and keys with AND, and values of one key with OR; the server supplies condition context, not client headers or arbitrary JSON. A matching explicit Deny overrides every Allow; without a matching Allow the default is rejection. Trust uses the separate Principal syntax described below and also requires an identity Allow for AssumeRole.
+Only `*` is a wildcard. `user/*` is broader than one user; an `account` ARN is a distinct target, not shorthand for all account resources. Action and Resource must both match and be compatible in the catalog. Conditions combine operators and keys with AND, and values of one key with OR; the server supplies condition context, not client headers or arbitrary JSON. A matching explicit Deny overrides every Allow; without a matching Allow the default is rejection. Trust uses the separate Principal syntax in Role trust policies and also requires an identity Allow for AssumeRole.
 
 ### Fix diagnostics without widening access
 
@@ -360,7 +379,9 @@ Identity `NotAction` uses conservative snapshot semantics: the server selects on
 
 In enforce, replacing user overrides checks the actual changes: adding grants or removing Deny requires Add on the target user; deleting grants or adding Deny requires Remove, and mixed changes require both. Add-only managers cannot bypass removal checks through replacement, and Remove-only managers cannot restore denied capabilities. Restored access still requires delegation proof. Legacy/shadow retain this endpoint’s historical Add admission rule.
 
-## Developer project resource authorization
+## Business-resource authorization reference
+
+### Developer project resource authorization
 
 Project management uses `acs:developer:*:<accountId>:project/<projectId>`. `quyan:developer:GetProject`, `GetProjectUsage`, and `UpdateStatusPage` independently control project details, usage, and status-page publication. In enforce mode, a same-account identity can receive access to a specific project while its stored owner remains unchanged. IDs in an ARN cannot grant access to foreign or disabled projects or projects whose owner is disabled.
 
@@ -368,7 +389,7 @@ Project management uses `acs:developer:*:<accountId>:project/<projectId>`. `quya
 
 Creation requires `quyan:developer:CreateProject` on the authenticated user's `acs:quyan:*:<accountId>:user/<userId>` ARN, and the created project belongs to that user. Personal baseline capabilities do not include project management. legacy/shadow retain individual project ownership checks, shadow records differences, and enforce never falls back after an evaluation failure.
 
-## Developer KV and Secret resource authorization
+### Developer KV and Secret resource authorization
 
 JWT project management can delegate a single KV key or a single Secret alias. Resource formats are:
 
@@ -383,13 +404,13 @@ KV uses `quyan:developer:ListKv`, `GetKv`, `SetKv`, and `DeleteKv`; Secret uses 
 
 KV and Secret resources can join a resource group. Removal changes the scope on the next request. Members must exist, be active, and belong to the current account; expired KV, disabled resources, and projects with disabled owners cannot provide group-scoped access. These rules apply to JWT project management; product-instance API keys retain their independent permission checks.
 
-## Short Link resource authorization
+### Short Link resource authorization
 
 Short Links use `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`. `quyan:developer:CreateShortLink` controls project-scoped creation; `ListShortLinks`, `UpdateShortLink`, `DeleteShortLink`, and `GetShortLinkStats` control individual links. Statistics include visitor details and require a separate grant. Creation and project listing do not automatically expand to every link.
 
 `GET /v1/developer/projects/{projectId}/short-links/page` paginates candidates before per-resource filtering, returning resourceArn and hasNext without an unauthorized total. Empty pages remain traversable; the old array endpoint returns only the default first page in enforce. Individual links support resource-group scope. Cross-project IDs, foreign accounts, disabled rows, and disabled project owners are rejected; paused or expired links remain manageable with the appropriate grant. See [Short Link](./developer-product-short-link).
 
-## Project API key metadata and revocation
+### Project API key metadata and revocation
 
 Project API keys use `acs:developer:*:<accountId>:project-api-key/<projectId>/<keyId>`, identifying the credential record without full key material or hashes. `quyan:developer:ListProjectApiKeys` controls per-key metadata; `RevokeProjectApiKey` controls revocation of a specific credential. Listing does not grant revocation, and project-level listing does not automatically cover child resources.
 
@@ -399,19 +420,19 @@ Same-account identities can receive metadata or revocation authority on one cred
 
 Resource identifiers must exactly match the stored letter case. Even when the database considers two keys equal, enforce rejects differently cased keys or IDs rather than treating them as a different authorized resource. A case change cannot bypass an existing Deny. KV writes and deletion recheck exact identity in a transaction; resource groups also require ARNs matching stored identifiers.
 
-## Status Monitor resource authorization
+### Status Monitor resource authorization
 
 Status Monitors use `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`. Creation is authorized on the project ARN, while listing filters individual monitors. Update, deletion, and manual HTTP checks are independent Actions; modification or listing does not imply checking. Enforce supports same-account single-monitor delegation and resource-group scope, rejects foreign accounts, wrong projects, and inactive resources, and retains SSRF validation. Pages expose hasNext rather than an unauthorized total, and empty pages remain traversable. See [Status Monitoring](./developer-product-status) for the available JSON Action names and details.
 
-## Project Push Channel resource authorization
+### Project Push Channel resource authorization
 
 Channels use `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`. Creation is project-scoped, sensitive configuration listing filters individual channels, and updates and deletion are independent grants. Binding a managed Secret, or changing a destination or enabling a channel while retaining the reference, additionally requires `quyan:developer:UseSecret` on the exact Secret ARN. Ordinary channel management or Secret writes do not imply this capability. Management does not decrypt; transaction-time checks prevent concurrent replacements from inheriting stale authorization. See [Push Aggregation](./developer-product-push) for pagination, resource groups, and mode boundaries.
 
-## Project Delivery record authorization
+### Project Delivery record authorization
 
 Delivery records use `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`. ListPushDeliveries and GetPushDelivery independently control lists and details; channel management does not imply record access. Row filtering and resource groups verify the record and channel share an active project and account. No message body or raw error is returned. Failures expose a fixed failureReason; the old error field is no longer populated, preventing historical credential disclosure. See [Push Aggregation](./developer-product-push) for APIs, pagination, and deletion effects.
 
-## Balance and gift-code resource authorization
+### Balance and gift-code resource authorization
 
 In enforce mode, personal balance reads, usage, transfer configuration, gift-code creation, transfers, and redemption use `quyan:balance:GetAccount`, `GetUsage`, `GetTransferConfig`, `CreateGiftCode`, `CreateTransfer`, and `RedeemCode` respectively (the latter five share the `quyan:balance:` prefix). Their target is `acs:quyan:*:<accountId>:user/<userId>`. These operations have a narrow default self-service Allow for the authenticated user; a matching explicit Deny takes precedence. Sending a transfer grants no authority to inspect or manage the recipient's account. Balance, fee, 2FA, and replay checks still apply.
 
@@ -438,7 +459,7 @@ For example, this policy blocks viewing and cancelling a specific gift code whil
 
 Adding an Allow with stricter conditions does not narrow an existing default Allow. Use a Deny matching the operation and resource to restrict default capabilities. Authentication determines the resource account; client-supplied account IDs and Action headers cannot change the target. legacy retains the previous rules, shadow compares IAM and legacy list results, and enforce denies requests when resource resolution or authorization data retrieval fails.
 
-## Carpool order resource authorization
+### Carpool order resource authorization
 
 In enforce mode, `quyan:carpool:ListMyOrders` evaluates each `acs:carpool:*:<accountId>:order/<orderId>` resource. List records and totals include only orders allowed for viewing. Storage checks the authenticated user's active membership before authorization; granting an order ARN to a nonmember does not expose its content. Detail reads use `quyan:carpool:GetOrder`; list permission does not automatically grant detail reads or writes.
 
@@ -448,13 +469,13 @@ Inviting, allocating ratios, confirming a share, leaving, cancelling, and submit
 
 legacy retains the previous membership rules, shadow preserves business results and compares the IAM list population, and enforce rejects requests when resolution, policy retrieval, or final grant revalidation fails. Package operations and administrative fulfillment have separate management permissions; self-service order grants do not provide those capabilities.
 
-## Chat, gift-code, and carpool resource groups
+### Chat, gift-code, and carpool resource groups
 
 Resource groups can contain chat conversations, messages, balance gift codes, and carpool orders. Actual ownership is checked when adding a resource and on every authorization: chat resources require an active conversation owner; gift codes require the creator to match the user in the ARN; carpool orders require at least one active member in the account who has not left. Deleting a resource, disabling its owner, or removing the last eligible member stops the group from granting an Allow for that resource. Any other grants still follow the normal policy rules.
 
 Published, active carpool templates can also be included to limit the offerings an account may use. This ARN scopes the account's use of a shared template and does not confer template ownership or administration rights. Unpublished, archived, or disabled templates cannot supply resource-group grants.
 
-## User script resource authorization
+### User script resource authorization
 
 Scripts use `acs:script:*:<accountId>:script/<userId>/<scriptId>`. Creating a script with `quyan:script:CreateScript` checks the current user's resource, `acs:quyan:*:<accountId>:user/<userId>`. Updating and deleting use `quyan:script:UpdateScript` and `quyan:script:DeleteScript` against the specific script resource.
 
@@ -464,19 +485,19 @@ Execution histories use `acs:script:*:<accountId>:execution/<userId>/<executionI
 
 Saving a history with `quyan:script:SaveExecution` checks the current user's resource and, when linked, the specific script. Another user's script, a deleted script, or a foreign-account script cannot be linked. The history API stores execution snapshots; it does not execute script code on the server.
 
-## Own ticket resource authorization
+### Own ticket resource authorization
 
 Tickets use `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`. Creating a ticket with `quyan:ticket:CreateTicket` checks the current user's resource. Reading, updating and adding comments use `quyan:ticket:GetOwnTicket`, `quyan:ticket:UpdateOwnTicket` and `quyan:ticket:AddOwnComment` against the specific ticket.
 
 `quyan:ticket:ListOwnTickets` authorizes each ticket before pagination and counting. Unauthorized ticket bodies and contact details are not returned. Account policies do not override ownership: self-service endpoints cannot access another user's tickets, even in the same account. Internal comments remain hidden from the submitter, and closed tickets cannot be edited or commented on. Active tickets can join resource groups in their own account. Authentication alone does not grant these ticket operations.
 
-## MCP server configuration resource authorization
+### MCP server configuration resource authorization
 
 MCP servers use `acs:mcp:*:<accountId>:server/<userId>/<serverId>`. `quyan:mcp:ListServers` authorizes each configuration; denied configurations are excluded. The server reads only permitted endpoints, tool allowlists and a credential-existence marker, not credential ciphertext.
 
 Creating a configuration with `quyan:mcp:CreateServer` checks the current user's resource and verifies that the user is active in the current account. MCP configurations can join resource groups in their account. Self-service management cannot access a foreign account's, another user's or a deleted configuration. Configuration authorization does not approve Agent tasks or tool execution; their own permissions and runtime safety constraints still apply.
 
-## Agent machine resource authorization
+### Agent machine resource authorization
 
 Machines use `acs:agent:*:<accountId>:machine/<userId>/<machineId>`. `quyan:agent:ListMachines` authorizes each machine and shows only permitted state and capabilities, without reading registration credential hashes. `quyan:agent:CreateMachine` checks the current user's resource and verifies active account membership. The registration token is provided only in the successful creation response, not in lists.
 
@@ -484,7 +505,7 @@ Machines use `acs:agent:*:<accountId>:machine/<userId>/<machineId>`. `quyan:agen
 
 Revoking a machine closes its existing connection on the current server. Connections on other servers recheck machine validity on their next heartbeat, task send or response, and reject communication after revocation. Disabling a user or account or changing account ownership also invalidates the old connection. Reconnecting replaces the previous connection; task responses are accepted only from the authenticated connection that received the task.
 
-## Agent workspace list authorization
+### Agent workspace list authorization
 
 Workspaces use `acs:agent:*:<accountId>:workspace/<userId>/<workspaceId>`. `quyan:agent:ListWorkspaces` evaluates each workspace; the list shows only permitted workspaces and their runtime policies and capacity settings. The linked machine's name and state also require `quyan:agent:ListMachines` permission on that machine; these fields are omitted without that permission. Account isolation and self-service ownership checks remain in place. Workspaces can join resource groups in their own account.
 
@@ -492,17 +513,17 @@ Creating a workspace requires `quyan:agent:CreateWorkspace` on the current user 
 
 Deleting a workspace requires `quyan:agent:DeleteWorkspace` on that workspace and, for a linked remote machine, `quyan:agent:UseMachine` on that machine. Deletion releases the runtime before removing the workspace. If cleanup fails, the workspace remains in a failed state and can be retried after runtime connectivity and permissions are restored. Concurrent deletion and stale provisioning writes cannot overwrite the deletion state.
 
-## Agent task events and cancellation
+### Agent task events and cancellation
 
 Tasks use `acs:agent:*:<accountId>:task/<userId>/<taskId>`. `quyan:agent:GetTaskEvents` controls event payload reads. The server reads ordered, bounded pages and rechecks authorization throughout the stream and before sending each event; permission revocation stops delivery. `quyan:agent:CancelTask` cancels only queued, running or approval-waiting tasks and checks their current state and data version. Terminal tasks cannot be cancelled again, and stale workers cannot return a cancelled task to running. Tasks must still belong to the current user and account and reference an active workspace and conversation owned by that user.
 
-## Agent approval resource authorization
+### Agent approval resource authorization
 
 Approvals use `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`. Reading pending approvals requires `quyan:agent:ListTaskApprovals` on the task; each tool call also requires `quyan:agent:GetApproval` on its approval resource. Approving or rejecting requires `quyan:agent:DecideApproval` on both the task and approval. The server checks ownership of the task, workspace, conversation and step and accepts only pending, unexpired approvals. The decision and task state change in one transaction; an older approval cannot resume a cancelled task.
 
 Creating a task requires `quyan:agent:CreateTask` on the selected workspace and conversation, plus `quyan:agent:UseRelayToken` on the token actually used. Token resources use `acs:relay:*:<accountId>:token/<userId>/<tokenId>`; explicitly selecting a token requires authorization for that token rather than inheriting permission for the conversation default. The server reads model settings only after authorization and checks account ownership and data versions of the workspace, conversation and token in the creation transaction. Disabled or expired tokens cannot create tasks. Existing model mappings, permitted models, budgets and step limits still apply.
 
-## Passkey resource authorization
+### Passkey resource authorization
 
 Passkey management does not use the entire account as its resource. Registration options and verification require `quyan:auth:GetPasskeyRegistrationOptions` and `quyan:auth:RegisterPasskey`, respectively, on the current user's `acs:quyan:*:<accountId>:user/<userId>` resource. These sensitive operations require an explicit grant; no default self-service grant applies.
 
@@ -510,7 +531,7 @@ Listing and deletion use `quyan:auth:ListPasskeys` and `quyan:auth:DeletePasskey
 
 Authorization does not override ownership: users can manage only their own Passkeys, even with wildcard grants. A matching Deny overrides Allow. Invalid accounts, users, role sessions, or authorization data cause rejection. Anonymous Passkey login does not require a prior IAM grant. Registration challenges can succeed only once; start a new registration after challenge expiration, concurrent use, or a failed registration attempt.
 
-## JSON Endpoint reads and owner selection
+### JSON Endpoint reads and owner selection
 
 In IAM enforce mode, management lists and details use `quyan:json_endpoint:ListEndpoints` and `quyan:json_endpoint:GetEndpoint` on `acs:json-endpoint:*:<accountId>:endpoint/<userId>/<endpointId>`. The server isolates the current account before evaluating individual endpoints. Unauthorized endpoints are omitted from lists, and detail access is rejected. Custom policies may grant specific endpoints belonging to another user in the same account, but never endpoints in other accounts.
 
@@ -522,13 +543,13 @@ Public JSON password checks, Ed25519 signatures, time validity, and nonce replay
 
 Creation uses `quyan:json_endpoint:CreateEndpoint`. Since the endpoint does not have an ID yet, its resource is the target owner's `acs:quyan:*:<accountId>:user/<userId>`. Endpoints default to the current user. Selecting another owner requires an explicit grant on that user resource, and the owner must belong to the same account. Root-slug creation additionally requires `quyan:json_endpoint:SetRootSlug` on that user resource. Authorization is checked before preparing access configuration and again before commit. Renamed, changed, disabled owners or revoked grants prevent creation. The old create permission remains limited to the current user. Read, delete, and update Actions do not substitute for creation permission.
 
-## OJ API Key revocation authorization
+### OJ API Key revocation authorization
 
 Revoking an owned OJ API Key uses `quyan:oj:DeleteApiKey` on `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`. Two-factor verification and replay protection remain required. Wildcard grants do not override key ownership and cannot revoke another user's key. The server checks actual key metadata, current policy, account and role-session validity, then validates the resource revision in the revocation transaction. Matching Deny, revoked grants, concurrent changes, or disabled accounts block the operation.
 
 Revocation checks do not read or return key values, historical keys, or Relay upstream configuration. The old OJ delete permission retains owned-key revocation through its migration mapping. Other OJ key endpoints still use the existing permission bridge.
 
-## OJ API Key reads and credential disclosure
+### OJ API Key reads and credential disclosure
 
 `quyan:oj:ListApiKeys`, `quyan:oj:GetApiKey`, and `quyan:oj:GetApiKeyStats` authorize each owned key on `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`. Lists and usage totals include only allowed keys. A grant for one key does not reveal another key's existence or usage. Wildcard grants do not override ownership or account isolation.
 
@@ -538,29 +559,29 @@ Reading metadata does not grant the credential value. The sensitive `quyan:oj:Re
 
 `quyan:oj:UpdateApiKey` authorizes name, expiration and channel changes on a specific OJ API Key resource, while retaining the requirement that it is an active key owned by the authenticated user. Updating does not grant access to the existing key value: returning that value also requires `quyan:oj:RevealApiKey` on the same resource, and a matching Deny hides the field. User identity, role session, key revision and policy authorization are checked within the transaction. A selected channel must pass visibility and revision checks again. Channel selection reads only selection metadata and its display name, without returning upstream credentials or configuration. Existing restrictions on hidden channels, inaccessible private channels and automatic proxy pools continue to apply.
 
-## Online monitor resource permissions
+### Online monitor resource permissions
 
 In IAM enforcement mode, online monitoring stays within the current account. `quyan:user:ListOnlineSessions` and `quyan:user:GetOnlineUserTimeline` authorize individual `acs:quyan:*:<accountId>:online-session/<userId>/<sessionId>` resources. The overview and timeline include only authorized sessions, with filtering and pagination applied to visible records. Totals and overview statistics do not include hidden sessions or users from other accounts. The overview reports distinct visible online users and the number of visible active sessions separately.
 
 User details require `quyan:user:GetOnlineUser` on `acs:quyan:*:<accountId>:user/<userId>`. This separate grant reveals that user's aggregate session statistics and most recent connection information. A session-list grant alone does not grant user-detail access. Expired heartbeats display as offline without changing stored sessions as a side effect of reading. The legacy and shadow modes retain the previous monitoring behavior while enforcing the existing monitoring permission.
 
-## Online session revocation
+### Online session revocation
 
 In IAM enforcement mode, `quyan:user:ForceOfflineSession` applies to the actual `online-session/<userId>/<sessionId>` resource, and `quyan:user:ForceOfflineUser` applies to the selected `user/<userId>` resource. Ending one session does not grant the ability to end all of a user's sessions. Both operations retain replay protection and require current account, identity, role-session, policy and resource revision checks. Ordinary delegated users cannot force the account owner offline through these APIs, preserving the recovery identity.
 
 The server confirms the revocation marker before committing session closure. If that write is unavailable, the request fails and session changes roll back. For whole-user revocation, the user's credential revision also changes so pre-existing JWTs stay invalid after the temporary marker expires or a new login clears it. A concurrent change or revoked permission causes failure; refreshing the monitor and retrying starts a new authorization check. Shadow mode evaluates native permissions without performing an additional revocation.
 
-## Reading another user's support conversation
+### Reading another user's support conversation
 
 `quyan:support:GetUserConversation` authorizes the selected `acs:quyan:*:<accountId>:user/<userId>` resource. In IAM enforcement mode, the target must be an active user within the current account, even when a policy uses wildcards. This sensitive permission has no automatic self-service grant and does not authorize changing support configuration or accessing usage analytics. The server checks current authorization before reading the conversation and again before returning it. A revoked grant, changed user revision, invalid role session or disabled account blocks the response. Existing own-conversation operations keep their separate permissions.
 
-## Support usage analytics scope
+### Support usage analytics scope
 
 `quyan:support:GetUserUsageAnalytics` authorizes support usage analytics on `acs:quyan:*:<accountId>:user/<userId>`. It is separate from reading support conversations and has no default self-service grant. Enforce mode includes only authorized users in the current account when calculating requests, tokens, estimated costs and daily trends. User tables are paginated after authorization, and unauthorized users do not count toward totals. A selected-user query requires authorization on that user resource, and cross-account targets are denied. An empty authorized set yields zero statistics. Authorization and user revisions are checked before returning; revoked grants or changed user status or revisions prevent previously computed statistics from being returned.
 
 Query parameters cover page, page size, user and start/end time. Pages contain at most 100 users. The default window is the last 30 days, capped at 90 days. Invalid dates, date ordering and user identifiers produce parameter errors. Legacy and shadow modes retain existing permission checks, with shadow diagnostics evaluated against user resources.
 
-## Personal OAuth application read authorization
+### Personal OAuth application read authorization
 
 Personal applications use `acs:oauth:*:<accountId>:client/<userId>/<clientId>`. `quyan:oauth:ListClients` filters the list per application, and `quyan:oauth:GetClient` controls one application’s details. Neither action has a default self grant. Matching Deny takes precedence, and unauthorized applications are omitted from the list. Wildcard grants still restrict these operations to the authenticated user’s own ordinary applications; they do not expose other users’ or system applications.
 
@@ -591,3 +612,50 @@ In IAM enforce mode, generic server configuration uses `quyan:system:ListConfigu
 In enforce mode, monthly pass template creation, update, deletion, publication, and unpublication use `quyan:monthly_pass:CreateTemplate`, `UpdateTemplate`, `DeleteTemplate`, `PublishTemplate`, and `UnpublishTemplate` respectively. Specific templates use `acs:platform:*:platform:monthly-pass-template/<templateId>`. Creation requires both `acs:platform:*:platform:monthly-pass-template-control` and authority over the new template. An explicit Deny on the new template prevents saving both the template and its quota windows.
 
 These operations additionally require monthly pass template management eligibility from an active global group; a personal policy alone cannot grant platform management capability. Setting deleted status through the update API also requires `DeleteTemplate`. Existing 2FA, replay protection, and business checks remain active. Revoked policies, changed management eligibility, or concurrent template/quota changes cause the write to fail; refreshing and retrying checks current authority again. Legacy/shadow modes retain the former permission gate; shadow evaluates IAM but performs only one business write.
+
+## One-time deployment migration (operators)
+
+First-time IAM adoption requires a separate business-data migration. Ordinary backend builds and deployments do not run it. The migration runner does not back up the database, stop or resume services, or change `IAM_AUTHORIZATION_MODE` or secrets. Deployment operators should follow this sequence.
+
+1. Verify a restorable database backup, arrange a maintenance window, and pause all writers, including other nodes, scheduled jobs and management operations.
+2. Complete the standard Prisma schema migrations while keeping business writes paused. Coordinate automatic reloads in ordinary deployment so traffic does not resume early.
+3. Use a runner matching the deployed version to run a read-only preflight in the actual target environment. Review reports and resolve unknown permissions, corrupted versions, cross-account bindings or source changes before applying.
+4. Run `--apply` against the same environment and account scope to backfill and verify integrity. Records commit separately rather than in one database-wide transaction. On failure, keep the maintenance window, fix the issue and rerun the same scope; completed records are handled idempotently.
+5. Review the successful report and outstanding role trust, validate permission differences, then resume services and other writers yourself. Failure exits nonzero and never automatically resumes business traffic or switches authorization mode.
+
+From the repository root in a trusted environment with source and development tools:
+
+```bash
+# Read-only preflight by default
+pnpm --filter @quyan/backend run migration:iam -- --all-accounts
+
+# Write and verify only after backup, write suspension and successful preflight
+pnpm --filter @quyan/backend run migration:iam -- --all-accounts --apply
+```
+
+For production servers without source, explicitly bundle the runner in a trusted build environment matching the deployment:
+
+```bash
+pnpm --filter @quyan/backend run migration:iam:bundle
+```
+
+The artifact is `apps/backend/.tmp/migrations/20261023-iam-policy-authorization/runner.cjs`. Upload it separately as `migrations/20261023-iam-policy-authorization/runner.cjs` under the deployment root. Production dependencies, Prisma Client and database engine files must match the target environment. From the deployment root, run (POSIX shell examples):
+
+```bash
+# Read-only preflight by default
+NODE_ENV=production node ./migrations/20261023-iam-policy-authorization/runner.cjs --all-accounts
+
+# Explicitly write and verify during the maintenance window
+NODE_ENV=production node ./migrations/20261023-iam-policy-authorization/runner.cjs --all-accounts --apply
+```
+
+Choose exactly one of `--all-accounts` and `--account-owner-id <id>`. For one account, replace the former in every command above. Source commands read `.env` from the backend directory; production commands read it from the working directory. Use `ENV_FILE_PATH` for another file and never put database passwords on the command line. `iam:migrate` is only a compatibility alias for the source command.
+
+Preflight checks user permission additions/removals, group permissions, legacy policies and bindings, and migrated-version hashes. Backfill preserves legacy fields and bindings for rollback. `rolesRequiringTrustPolicy` counts legacy roles missing trust. Legacy/shadow deployments may migrate other data first; enforce-mode preflight rejects missing trust. Before enabling enforce, an administrator must explicitly configure trusted principals rather than generating broad trust automatically. A successful migration does not enable enforce or certify every business scenario.
+
+## Related pages
+
+- [User management](./user-management)
+- [Group management](./group-management)
+- [Permission management](./permission-management)
+- [AccessKey management](./access-key-management)

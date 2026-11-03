@@ -6,10 +6,10 @@ export default defineDocsPage({
   category: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   title: { en: 'Secret Vault API', 'zh-CN': '密钥托管 API' },
   summary: {
-    en: 'Store aliases without exposing secret values.',
-    'zh-CN': '保存别名而不暴露密钥明文。',
+    en: 'Write and rotate credentials, configure push references, and manage metadata permissions.',
+    'zh-CN': '写入与轮换凭据、配置推送引用，并管理元数据及使用权限。',
   },
-  tags: ['secret'],
-  updatedAt: '2026-10-09',
+  tags: ['secret', 'rotation', 'push', 'permissions'],
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

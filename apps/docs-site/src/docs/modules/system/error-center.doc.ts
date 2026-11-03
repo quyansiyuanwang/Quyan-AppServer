@@ -7,10 +7,10 @@ export default defineDocsPage({
   category: { en: 'System', 'zh-CN': '系统' },
   title: { en: 'Error center', 'zh-CN': '错误中心' },
   summary: {
-    en: 'Investigate aggregated errors and control error group browsing, details, occurrences, and status updates with IAM.',
-    'zh-CN': '查看聚合错误，并通过 IAM 控制错误组列表、详情、发生记录及状态更新。',
+    en: 'Find error groups, inspect recent occurrences, track handling status, and understand collection and retention limits.',
+    'zh-CN': '查找错误组、排查最近发生记录、更新处理状态，了解采集和保留范围。',
   },
   tags: ['errors', 'diagnostics', 'retention', 'iam', 'authorization'],
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

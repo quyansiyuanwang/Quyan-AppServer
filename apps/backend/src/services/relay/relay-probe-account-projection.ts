@@ -1,5 +1,5 @@
 import type { RelayProbeAccountPublicRecord } from "@/store/relay/platform-relay-probe-account-read.repository";
-import type { RelayChannelProbeAccountDto } from "@/api/dto/relay/relay-channel-probe.dto";
+import type { RelayChannelProbeAccountDto, RelayProbeAccountExpiryMode } from "@/api/dto/relay/relay-channel-probe.dto";
 export function projectRelayProbeAccount(
   account: Omit<RelayProbeAccountPublicRecord, "updateTime">,
   cached: boolean,
@@ -9,7 +9,7 @@ export function projectRelayProbeAccount(
     name: account.name,
     tokenPath: account.tokenPath,
     expiresPath: account.expiresPath ?? undefined,
-    expiresMode: (account.expiresMode as "seconds" | "iso" | null) ?? undefined,
+    expiresMode: (account.expiresMode as RelayProbeAccountExpiryMode | null) ?? undefined,
     fallbackTtlSeconds: account.fallbackTtlSeconds,
     minLoginIntervalSeconds: account.minLoginIntervalSeconds,
     lastLoginAttemptAt: account.lastLoginAttemptAt ?? undefined,

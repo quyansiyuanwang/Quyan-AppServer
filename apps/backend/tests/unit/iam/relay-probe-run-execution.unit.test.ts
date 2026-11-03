@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/database", () => ({ prisma: {} }));
+vi.mock("@/services/relay/relay-probe-scheduled-execution-iam.service", () => ({
+  RelayProbeScheduledExecutionIamService: { getInstance: () => ({ prepare: async () => undefined }) },
+}));
 vi.mock("@/services/infrastructure/redis.service", () => ({ RedisService: { getInstance: vi.fn() } }));
 vi.mock("@/iam/iam-authorization.service", () => ({ IamAuthorizationService: { getInstance: vi.fn() } }));
 vi.mock("@/services/relay/relay-channel.service", () => ({ RelayChannelService: { getInstance: vi.fn() } }));
@@ -49,6 +52,7 @@ beforeEach(() => {
     id: "channel",
     visibilityMode: "public",
     visibilityConfig: null,
+    physicalTarget: { id: "member", visibilityMode: "public", visibilityConfig: null },
   } as Awaited<ReturnType<typeof repository.inspect>>);
   vi.spyOn(identities, "snapshot").mockResolvedValue({
     group: { id: "global", updateTime: new Date(0) },

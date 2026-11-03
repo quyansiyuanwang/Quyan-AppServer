@@ -4,7 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 
 const { repository, redis, login } = vi.hoisted(() => ({
-  repository: { find: vi.fn(), list: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  repository: {
+    find: vi.fn(),
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateConfiguration: vi.fn(),
+    delete: vi.fn(),
+  },
   redis: {
     isRedisAvailable: vi.fn(),
     get: vi.fn(),
@@ -18,6 +25,13 @@ const { repository, redis, login } = vi.hoisted(() => ({
 vi.mock("@/services/relay/platform-relay-probe-account-read-iam.service", () => ({
   PlatformRelayProbeAccountReadIamService: {
     getInstance: () => ({ list: (_request: unknown, _map: unknown, legacy: () => Promise<unknown>) => legacy() }),
+  },
+}));
+vi.mock("@/services/relay/relay-probe-account-editor-iam.service", () => ({
+  RelayProbeAccountEditorIamService: {
+    getInstance: () => ({
+      read: (_id: string, _request: unknown, _project: unknown, legacy: () => Promise<unknown>) => legacy(),
+    }),
   },
 }));
 vi.mock("@/services/relay/platform-relay-probe-account-refresh-iam.service", () => ({
@@ -65,7 +79,15 @@ vi.mock("@/util/developer-outbound-url", () => ({
     httpsAgent: { destroy: vi.fn() },
   })),
 }));
-vi.mock("axios", () => ({ default: { request: login, post: vi.fn(), isAxiosError: () => false } }));
+vi.mock("axios", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("axios")>()),
+  default: { request: login, post: vi.fn(), isAxiosError: () => false },
+}));
+vi.mock("@/services/relay/relay-channel-probe-lock.service", () => ({
+  RelayChannelProbeLockService: {
+    getInstance: () => ({ withWrite: async (_key: string, operation: () => Promise<unknown>) => operation() }),
+  },
+}));
 
 const accountRequest = {
   name: "upstream-a",
@@ -103,6 +125,12 @@ describe("shared probe account login", () => {
     );
     repository.update.mockImplementation(
       async (_id: string, data: Record<string, unknown>) => (account = { ...account, ...data }),
+    );
+    repository.updateConfiguration.mockImplementation(
+      async (_id: string, data: Record<string, unknown>, previous: string) => {
+        if (account.encryptedCredentials !== previous) throw new Error("fixture revision conflict");
+        return (account = { ...account, ...data });
+      },
     );
     redis.isRedisAvailable.mockReturnValue(true);
     redis.get.mockImplementation(async (key: string) => cache.get(key) ?? null);
@@ -142,6 +170,30 @@ describe("shared probe account login", () => {
     expect(JSON.stringify(await service.list())).not.toContain("secret-value");
     expect(JSON.stringify(await service.list())).not.toContain("session-secret");
   });
+  it("edits a saved account without disclosing its URL or replacing omitted credentials", async () => {
+    const service = RelayChannelProbeAccountService.getInstance();
+    const editor = await service.getEditor("account-1");
+    expect(JSON.stringify(editor)).not.toContain("secret-value");
+    expect(JSON.stringify(editor)).not.toContain("api.example.com");
+    const update = {
+      ...accountRequest,
+      credentials: undefined,
+      expectedRevision: editor.revision,
+      retainedFields: editor.retainedFields,
+      loginWorkflow: editor.loginWorkflow,
+      credentialUpdates: { password: "replacement-password" },
+    };
+    await service.save(update, "account-1");
+    await service.getToken("account-1");
+    expect(login).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://api.example.com/login",
+        data: { username: "alice", password: "replacement-password" },
+      }),
+    );
+    await expect(service.save(update, "account-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(repository.updateConfiguration).toHaveBeenCalledOnce();
+  });
 
   it("invalidates only the observed 401 session and respects cooldown on renewal", async () => {
     const service = RelayChannelProbeAccountService.getInstance();
@@ -151,6 +203,42 @@ describe("shared probe account login", () => {
     await service.invalidateSession("account-1", "session-secret");
     await expect(service.getToken("account-1")).rejects.toThrow();
     expect(login).toHaveBeenCalledTimes(1);
+  });
+  it("renews multiple panel session fields with the configured refresh request", async () => {
+    const service = RelayChannelProbeAccountService.getInstance();
+    await service.save(
+      {
+        ...accountRequest,
+        sessionFields: [
+          { name: "accessToken", source: "json", selector: "data.access_token", required: true },
+          { name: "refreshToken", source: "json", selector: "data.refresh_token", required: false },
+        ],
+        tokenField: "accessToken",
+        refreshTtlSeconds: 3600,
+        refreshWorkflow: {
+          method: "POST",
+          url: "https://api.example.com/refresh",
+          body: { token: "{{account.refreshToken}}" },
+        },
+      },
+      "account-1",
+    );
+    login.mockResolvedValueOnce({
+      data: { data: { access_token: "fixture-access", refresh_token: "fixture-refresh", expires_in: 900 } },
+    });
+    expect(await service.getToken("account-1")).toBe("fixture-access");
+    const time = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 901000);
+    try {
+      login.mockResolvedValueOnce({ data: { data: { access_token: "renewed-access", expires_in: 900 } } });
+      const results = await Promise.all([service.getToken("account-1"), service.getToken("account-1")]);
+      expect(results).toEqual(["renewed-access", "renewed-access"]);
+      expect(login).toHaveBeenCalledTimes(2);
+      expect(login).toHaveBeenLastCalledWith(
+        expect.objectContaining({ url: "https://api.example.com/refresh", data: { token: "fixture-refresh" } }),
+      );
+    } finally {
+      time.mockRestore();
+    }
   });
 
   it("enforces cooldown when the cached session expires or disappears", async () => {

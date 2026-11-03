@@ -1,202 +1,55 @@
-# Auth Center Browser / SPA Example
+# Auth Center browser integration
 
-Use this example when the integrating application is a browser-first app, SPA, or other public client.
+A browser application cannot keep a client secret confidential. Register it as a public client and use authorization code with PKCE (S256). This guide describes the integration boundary; the Auth Center authorization APIs must be called by an authorization interface with a signed-in platform identity.
 
-Related pages:
+## Before you begin
 
-- **Setup first:** [`Auth Center App Management`](/en/auth-center-app-management)
-- **Backend version:** [`Auth Center Node SDK`](/en/auth-center-node-sdk)
-- **Current:** `Browser / SPA Example`
+1. Create a public client in [Auth Center application management]({{DOCS_BASE_URL}}/en/auth-center-client-management), enable `authorization_code`, register the exact callback URI and required scopes, and confirm that the client is approved and enabled. Public authorization-code clients must use PKCE. Enable `refresh_token` if needed; public clients cannot enable `client_credentials`.
+2. Confirm the Auth Center authorization interface provided by your deployment. `GET /v1/auth-center/authorize` is an authenticated authorization-preview API, not a page to open directly in the browser. The built-in OAuth authorization page uses separate OAuth APIs.
+3. Plan your own backend and session storage: keep Auth Center tokens on the trusted backend, and give the browser only your application's session identifier.
 
-## Important browser guidance
+This guide uses a browser plus trusted backend. It does not provide a ready-to-deploy browser-only login application. If your deployment supplies no Auth Center authorization interface, implement that interface first. An Auth Center Client ID cannot simply be used with the built-in OAuth authorization page. Discovery metadata does not create an interactive login page.
 
-For browser or SPA integrations:
+## Distinguish the authorization interface from APIs
 
-- register the app as a **public client**
-- enable `authorization_code`
-- enable PKCE
-- do not embed a client secret in frontend code
-- do not treat browser storage as a secure place for long-lived refresh tokens
+These paths are relative to the deployment's API root. The authorization interface displays the application and scopes, obtains explicit approval or denial, then handles the returned callback URL.
 
-A common production pattern is:
+| API                                         | Caller and result                                                                                                                                                            |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/auth-center/authorize`             | The authorization interface uses a signed-in platform identity to load a preview. Success uses `{ code, message, data }`.                                                    |
+| `POST /v1/auth-center/authorize`            | The interface submits the same authorization parameters plus `approve`. Success returns the callback URL in `data.redirectTo`; the API does not itself redirect the browser. |
+| `POST /v1/auth-center/token`                | The trusted application backend exchanges a code or refresh token. Success returns the token object directly, without a `data` wrapper.                                      |
+| `GET /v1/auth-center/.well-known/jwks.json` | The trusted backend retrieves verification keys from `data.keys` in the success response.                                                                                    |
 
-1. browser starts the authorization request with PKCE
-2. auth center returns an authorization code
-3. your backend exchanges the code
-4. your backend stores the refresh token securely
-5. browser receives only the short-lived session it needs
+Preview and consent decisions require a platform login. IAM enforcement additionally requires `quyan:auth_center:GetAuthorizationPreview` and `quyan:auth_center:DecideAuthorization`, respectively. A Client ID, authorization code, or Auth Center access token does not replace that platform identity.
 
-## Minimal PKCE helpers
+## Start authorization and handle the callback
 
-```ts
-function base64UrlEncode(input: ArrayBuffer) {
-  const bytes = new Uint8Array(input)
-  let text = ''
-  bytes.forEach((value) => {
-    text += String.fromCharCode(value)
-  })
-  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-}
+1. Generate an unpredictable `state` and PKCE verifier for each authorization, then derive the S256 challenge. Keep `state` and the verifier in the current authorization session; do not share them across users or browser sessions.
+2. Start authorization through the deployment's interface with `response_type=code`, the Client ID, registered callback URI, scopes, `state`, `code_challenge`, and `code_challenge_method=S256`. Do not omit the method: the server defaults to `plain`, which does not match an S256 challenge. List required scopes explicitly; omitting them uses all scopes configured for the client. After the user signs in and consents, the interface handles the returned callback URL.
+3. **Before** exchanging the code, compare the returned `state` with the value saved for that session. Stop and restart if it is missing, mismatched, or expired. Use the verifier from the same authorization attempt and clear temporary data after processing.
+4. Have the trusted backend call `POST /v1/auth-center/token` with the code, Client ID, exact callback URI, and `code_verifier`. Public clients omit the client secret. Keep the token response on the backend; do not return or log the refresh token.
+5. Follow the [token verification guide]({{DOCS_BASE_URL}}/en/auth-center-node-sdk) to validate signature, issuer, audience, expiry, token use, and required scopes before creating your own application session. Reuse its verification functions, but omit `client_secret` when exchanging for this public client; do not copy the confidential-client registration requirements. Use `HttpOnly`, `Secure`, and an appropriate `SameSite` cookie policy, together with server-side CSRF protection.
 
-async function sha256(text: string) {
-  const data = new TextEncoder().encode(text)
-  return crypto.subtle.digest('SHA-256', data)
-}
+Authorization codes expire after five minutes and are single-use. Successful refresh rotates the refresh token. After a network failure, do not assume the server did not process the request; authorize again if the new token cannot be recovered. A refresh token is returned only when the client has enabled the refresh grant.
 
-export async function createPkcePair() {
-  const verifier = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
-  const challenge = base64UrlEncode(await sha256(verifier))
-  return { verifier, challenge }
-}
-```
+Denial returns `error=access_denied` and the original `state` to the callback without a code. Validate `state`, show the cancellation result, and clear the temporary session without exchanging tokens. Even for previous consent, `requireConsent=false` in a preview is not a new code; complete the authorization-decision step. Approval fails if requested scopes are currently unavailable for that user.
 
-## Build the authorization URL
+## Session and sign-out boundaries
 
-```ts
-export async function buildAuthorizeUrl() {
-  const clientId = 'ac_public_example123'
-  const redirectUri = 'https://spa.example.com/auth/callback'
-  const baseUrl = 'http://localhost:10001'
-  const { verifier, challenge } = await createPkcePair()
+Local verification does not query remote revocation, user status, or client disablement. Your application session also does not automatically end when the user signs out of the platform. Manage session lifetime, sign-out, token storage, and revocation in your backend, and recheck returned scopes after refreshing. Decoding a JWT alone must not create a browser login session.
 
-  sessionStorage.setItem('auth_center_pkce_verifier', verifier)
+Codes in callback URLs are temporary. After processing, clear the URL and temporary authorization session to avoid repeated exchange. Use preconfirmed deployment settings for the issuer and JWKS address; do not select a trusted issuer from unverified token contents.
 
-  const url = new URL('/auth-center/authorize', baseUrl)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('client_id', clientId)
-  url.searchParams.set('redirect_uri', redirectUri)
-  url.searchParams.set('scope', 'profile')
-  url.searchParams.set('state', crypto.randomUUID())
-  url.searchParams.set('code_challenge', challenge)
-  url.searchParams.set('code_challenge_method', 'S256')
+## Troubleshooting
 
-  return url.toString()
-}
-```
+- **Authorization preview returns 401 or 403**: confirm the authorization interface has a valid platform login and permissions, and the application is approved.
+- **Callback rejected**: check that the callback URI exactly matches the registered value and the session's `state` is still valid.
+- **Token exchange fails**: confirm the PKCE verifier matches the original challenge and the authorization code has not expired or already been used.
+- **Token verification fails**: check the deployment's JWKS, configured issuer, Client ID, and required scopes. Parsing JWT contents alone does not establish authorization.
 
-## Handle the callback in the browser
+## Related documentation
 
-```ts
-export function readAuthCallback() {
-  const url = new URL(window.location.href)
-  const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
-  const verifier = sessionStorage.getItem('auth_center_pkce_verifier')
-
-  if (!code || !verifier) {
-    throw new Error('Missing code or PKCE verifier')
-  }
-
-  return { code, state, verifier }
-}
-```
-
-## Exchange the code through your backend
-
-Do **not** place client secret logic or refresh token storage in the browser.
-
-```ts
-export async function exchangeCodeWithBackend(payload: {
-  code: string
-  state: string | null
-  verifier: string
-}) {
-  const response = await fetch('/api/auth-center/session/exchange', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to exchange auth code')
-  }
-
-  return response.json()
-}
-```
-
-A typical backend handler would:
-
-- call `POST /auth-center/token`
-- store the refresh token server-side or in an HTTP-only cookie strategy
-- return only the short-lived app session or minimum token information to the browser
-
-### A concrete backend storage example
-
-Two common, safe patterns for the backend step above:
-
-**Option A — server-side store keyed by your own session ID.** The browser only ever holds your app's own session identifier, not the refresh token itself:
-
-```ts
-// Backend (Node/Express), after exchanging the code:
-const tokenSet = await exchangeCodeWithAuthCenter(code, codeVerifier)
-
-// Persist the refresh token in your own database or Redis, keyed by a
-// session ID you generate — never by anything derived from the browser.
-const sessionId = crypto.randomUUID()
-await sessionStore.set(sessionId, {
-  refreshToken: tokenSet.refresh_token,
-  userId: tokenSet.sub,
-  expiresAt: Date.now() + tokenSet.expires_in * 1000,
-})
-
-// The browser only receives this opaque session ID, via an HTTP-only,
-// Secure, SameSite=Lax cookie — never via localStorage or a JS-readable cookie.
-res.cookie('app_session', sessionId, {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-})
-```
-
-**Option B — encrypted HTTP-only cookie.** If you prefer not to maintain a server-side session store, encrypt the refresh token itself before placing it in a cookie with the same `httpOnly`/`secure`/`sameSite` flags, and decrypt it server-side on each request that needs to refresh the access token. Either option keeps the raw refresh token out of any code the browser can read — the failure mode to avoid is writing `tokenSet.refresh_token` directly into `localStorage` or a non-`httpOnly` cookie.
-
-## Local JWT validation in browser-only scenarios
-
-If a browser-only integration must validate the JWT locally, it can use the JWKS document. But this should be treated as a UI/session optimization, not a substitute for backend authorization.
-
-```ts
-import jwtDecode from 'jwt-decode'
-
-export async function readJwtKid(token: string) {
-  const headerPart = token.split('.')[0]
-  if (!headerPart) throw new Error('Invalid JWT')
-  const json = JSON.parse(atob(headerPart.replace(/-/g, '+').replace(/_/g, '/')))
-  return json.kid as string | undefined
-}
-
-export async function fetchJwks(baseUrl: string) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
-  if (!response.ok) throw new Error('Failed to load JWKS')
-  return response.json()
-}
-```
-
-In most real deployments, the backend should remain the trust boundary.
-
-## What not to do
-
-- do not put `client_secret` in SPA code
-- do not persist long-lived refresh tokens in localStorage unless you fully accept the risk
-- do not use `client_credentials` from a public browser app
-- do not assume `client_credentials` returns a refresh token
-
-## Recommended architecture
-
-```text
-Browser -> /auth-center/authorize with PKCE
-Browser <- redirect with code
-Browser -> Your Backend /exchange
-Your Backend -> Auth Center /token
-Your Backend stores refresh token securely
-Your Backend -> Browser session / short token view
-```
-
-## Recommended follow-up reading
-
-- `Auth Center App Management`
-- `Auth Center Node SDK`
-- `Auth Center Python SDK`
+- [Auth Center integration]({{DOCS_BASE_URL}}/en/auth-center-app-management)
+- [Auth Center Node SDK]({{DOCS_BASE_URL}}/en/auth-center-node-sdk)
+- [Auth Center Python SDK]({{DOCS_BASE_URL}}/en/auth-center-python-sdk)

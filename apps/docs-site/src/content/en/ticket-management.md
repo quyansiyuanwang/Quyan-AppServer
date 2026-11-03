@@ -1,85 +1,98 @@
 # Ticket management
 
-Use this page to review, process, and respond to user-submitted tickets such as suggestions and bug reports.
+Reviewers use this page to handle suggestions, bugs, and other tickets, maintain status and assignment, and record progress in public replies or internal notes. To submit your own issue, use [My tickets]({{DOCS_BASE_URL}}/en/my-tickets).
 
-## Page purpose
+## Before you begin
 
-- Browse all user tickets.
-- Filter by type, workflow status, priority, assignee, and date range.
-- Update status and priority.
-- Add internal review comments.
-- Delete inappropriate entries.
-- Maintain auto-assignment rules for incoming tickets.
+Open **Ticket Reviews** on the **Developer Operations** site. Listing tickets and reading details require `TICKET_REVIEW_READ`. Updating, replying, deleting, and managing assignment rules require `TICKET_REVIEW_UPDATE`.
 
-## What you will see
+In IAM enforcement mode, you must also belong to an active deployment-managed global group with the relevant permission and be authorized for the specific operation. Personal permissions, private groups, or account-owner identity cannot replace global-group eligibility. See Permission scope below for actions and resources.
 
-### Ticket list
+## Find and review tickets
 
-- Title, type (`suggestion` / `bug` / `other`), and submitting user.
-- Workflow status: `pending`, `processing`, `accepted`, `rejected`, `completed`.
-- Priority: `low` / `medium` / `high` / `urgent`.
-- Assignee and submission time.
-- Date-range filter (`startTime` / `endTime`).
+1. Enter a keyword from the ticket ID, title, description, or submitter username, then select **Search** or press Enter. Clearing the keyword also runs a search. Comment text is not searched.
+2. Filter by status, type, priority, or assignee. Changing a filter queries the first page. Select **Reset** to clear all filters.
+3. Select **View detail**, check the title and submitter, and read the original description, reproduction steps, contact information, and comment timeline.
 
-### Ticket detail
+Types include suggestion, bug, and other; priorities include low, medium, high, and urgent. Pages can contain 10, 20, 50, or 100 items. The page has no time-range control; API queries support `startTime` and `endTime`.
 
-- Original content submitted by the user.
-- User follow-up comments.
-- Public reviewer replies and internal notes.
+In IAM enforcement mode, the list and total include only authorized tickets, ordered by last reply. List and detail grants are separate: a visible entry does not guarantee access to its details.
 
-### Assignment rules drawer
+## Update status and assignment
 
-- Rule list with match conditions for ticket type and priority.
-- Assignee pool configuration for round-robin assignment.
-- Validation summary for incomplete rules before saving.
+1. In the detail's review form, change the type, status, priority, or assignee.
+2. Clear the assignee to remove the assignment. **Reset** restores values from the currently loaded detail.
+3. Select **Save review changes** and check the returned status and assignee. Form changes are not saved automatically, and replies must be submitted separately.
 
-In enforcement mode, reading or updating `notification.ticketAssignmentRules` through the general configuration API also requires active global-group eligibility for `TICKET_REVIEW_UPDATE` and the corresponding `quyan:ticket:GetAssignmentRules` or `quyan:ticket:UpdateAssignmentRules` grant. A Deny on the dedicated operation also restricts the general configuration entry point. Without these permissions, the generic list hides the key; reads of the notification section and batch saves containing that key are rejected.
+Status affects the submitter's actions as follows:
 
-## Common actions
+| Status                        | Can the submitter edit or reply?                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| Pending, processing, accepted | Yes, with the required permission. Accepted does not mean the issue has been resolved.          |
+| Rejected, completed           | No. To continue the discussion, a reviewer can change the status back to pending or processing. |
 
-1. Filter by `pending` status to find new unprocessed submissions.
-2. Open the detail view, read the content, then set priority and status.
-3. Add a reviewer note to record the decision or progress.
-4. Assign the item to a responsible team member or adjust auto-assignment rules.
-5. Set status to `completed` when the issue is resolved.
+Reviewers can still add replies or internal notes to rejected or completed tickets. Assigning a user does not grant review access. A manually selected assignee must be active and still needs the relevant permissions to handle the ticket.
 
-## Permission requirements
+## Send a reply or internal note
 
-| Action                              | Required permission    |
-| ----------------------------------- | ---------------------- |
-| View ticket list / detail           | `TICKET_REVIEW_READ`   |
-| Update status / priority / comments | `TICKET_REVIEW_UPDATE` |
-| Delete ticket                       | `TICKET_REVIEW_UPDATE` |
-| Manage assignment rules             | `TICKET_REVIEW_UPDATE` |
+1. Choose public or internal visibility in the detail's reply form.
+2. Enter up to 5000 characters. Whitespace alone is not accepted.
+3. Select **Post reply** and check the content and visibility in the timeline.
 
-## Resource permissions for review reads
+Public replies are visible to the submitter and authorized reviewers. Internal notes are hidden from the submitter. The page does not provide editing, deletion, or visibility changes for submitted comments, so check before sending.
 
-In IAM enforcement mode, the review queue uses `quyan:ticket:ListReviewTickets` and details use `quyan:ticket:GetReviewTicket`. Each ticket is identified by `acs:platform:*:platform:ticket-review/<submitterUserId>/<ticketId>`. The server resolves the submitting user from the stored ticket. These are platform review resources; the submitting user's own ticket permissions remain separate.
+An unsent reply and its visibility may remain when switching tickets or closing the details. Before each submission, check the current ticket, content, and visibility. Resetting the reply form or submitting successfully clears its content and restores public visibility. Select internal visibility again before writing another internal note.
 
-Both operations require membership in an active deployment-managed global group with `TICKET_REVIEW_READ`. Personal permissions, private groups, or an account-owner identity cannot replace that eligibility. Policies can further restrict eligible reviewers to specific tickets, and an explicit Deny takes precedence. List permission does not grant detail permission.
+## Configure automatic assignment for new tickets
 
-Denied tickets do not appear in the queue or contribute to its total, pagination, or `hasMore`. An empty authorized set returns an empty page. Pages retain the review queue's last-reply order; page sizes are limited to 100 and page numbers to 10,000. An unavailable or denied detail returns a generic authorization error without contact information or comments. Changes to ticket content, comment content, related display identities, eligibility, or authorization during a read cause rejection.
+1. Open the assignment rules drawer from the top of the page and wait for a successful load.
+2. Add a rule, choose at least a type or priority, and select assignees. If both conditions are set, both must match.
+3. Check the validation summary and select **Save**. If you confirm saving incomplete rules, rules missing match conditions or assignees are excluded. **Reset** reloads saved rules and discards your edits.
+4. Create a matching ticket and check its assignee. Saving rules does not reassign existing tickets. Later changes to a ticket's type or priority do not automatically reassign it either.
 
-## Resource permissions for review changes
+Matching prefers a rule with both type and priority, then type alone, then priority alone. The first rule within a matching category wins. New tickets start as pending with medium priority; rules restricted to high or urgent priority do not match these new tickets.
 
-In IAM enforcement mode, updates use `quyan:ticket:UpdateReviewTicket`, reviewer replies use `quyan:ticket:AddReviewComment`, and deletion uses `quyan:ticket:DeleteReviewTicket`. All three use the same `acs:platform:*:platform:ticket-review/<submitterUserId>/<ticketId>` resource as review reads. The subject must belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`. A policy can restrict each operation independently; an update grant does not grant deletion or replies.
+The system filters the selected rule's assignees to active users with review-update permission and assigns among them in rotation. If there is no matching rule or the selected rule has no eligible assignee, the ticket remains unassigned; it does not try the next rule. Each save supports up to 100 rules and each rule up to 50 assignee IDs. Duplicate IDs are removed.
 
-Authorization and live request conditions are checked inside the write transaction before commit. Failure rolls back the entire operation, including any comment and its last-reply timestamp. Updates return the detail from that transaction using the update grant, without requiring a separate detail-read grant. Changing the submitting user or supplying an author ID is not supported. Assignees must still be active when the assignment is saved. Deletion removes the item from active views. Existing replay protection, audit records, and public-reply notifications remain in effect.
+The user selector supports keyword search and loads at most 50 results per request, rather than a complete directory. A failed search can show an empty list; check user-query permissions and connectivity, then retry. Rules do not grant review access to assignees.
 
-## Resource permissions for assignment rules
+## Delete a ticket
 
-In IAM enforcement mode, reading and updating assignment rules use `quyan:ticket:GetAssignmentRules` and `quyan:ticket:UpdateAssignmentRules`. Both use `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`, the same resource identity as the general configuration API. A Deny with `Action: "*"` can therefore restrict both entry points. The authenticated subject must also belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`; personal permissions, a private group, or account-owner identity cannot replace that eligibility.
+Find the ticket in the list, select **Delete**, and confirm. On success, it leaves active lists and the submitter can no longer access it through active ticket views. This page has no restore action. Use a status update to complete ordinary handling; deletion is unnecessary for that task.
 
-Read access does not grant updates, and update access does not grant reads. Reading an unconfigured resource returns empty rules without creating configuration; the first authorized save can create it. Writes retain replay protection. Changes to configuration content, eligibility, authorization, or role sessions during a request cause rejection. Malformed stored rules are not reported as valid empty configuration.
+## Permission scope
 
-A save can contain at most 100 rules and each rule at most 50 assignee IDs. Duplicate assignee IDs are removed. Each rule needs at least one ticket type or priority condition. Automatic assignment still selects only active reviewers with review permission; editing rules does not grant new review permissions to assignees.
+In IAM enforcement mode, the following operations can be authorized independently. Explicit Deny takes precedence.
 
-## Notes
+| Operation                     | IAM Action                           | Required global-group permission |
+| ----------------------------- | ------------------------------------ | -------------------------------- |
+| Review queue                  | `quyan:ticket:ListReviewTickets`     | `TICKET_REVIEW_READ`             |
+| Review details                | `quyan:ticket:GetReviewTicket`       | `TICKET_REVIEW_READ`             |
+| Save review                   | `quyan:ticket:UpdateReviewTicket`    | `TICKET_REVIEW_UPDATE`           |
+| Send a reviewer reply or note | `quyan:ticket:AddReviewComment`      | `TICKET_REVIEW_UPDATE`           |
+| Delete ticket                 | `quyan:ticket:DeleteReviewTicket`    | `TICKET_REVIEW_UPDATE`           |
+| Read assignment rules         | `quyan:ticket:GetAssignmentRules`    | `TICKET_REVIEW_UPDATE`           |
+| Save assignment rules         | `quyan:ticket:UpdateAssignmentRules` | `TICKET_REVIEW_UPDATE`           |
 
-- Users can only see their own tickets and public status updates; they cannot see internal reviewer notes.
-- Deletion is permanent — use it only for spam or policy violations.
+Review resources use `acs:platform:*:platform:ticket-review/<submitterUserId>/<ticketId>`. The stored ticket determines the submitter; supplying another user cannot change the target. Policies can restrict access to individual tickets. Listing, detail, update, reply, and deletion grants do not imply one another. Submitter access to their own tickets uses separate permissions.
+
+Assignment rules use `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`. An authorized read of unconfigured rules returns an empty list; the first authorized save can create them. Reads and saves require separate grants. Reading or updating the same key through general configuration also requires the dedicated operation grant and global-group eligibility. Without access, the generic list hides the key, and section reads or batch saves containing it are rejected. A Deny with `Action: "*"` on this resource can restrict both entry points.
+
+Changes to identity, role session, group eligibility, authorization, or ticket content during an operation can cause rejection. Refresh and check the latest state before retrying instead of continuing from old details.
+
+## Troubleshooting
+
+| Situation                                                    | What to do                                                                                                                                                           |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Searching, paging, or refreshing fails                       | The old list and total may remain. Refresh and wait for success before judging the results.                                                                          |
+| Details fail to load and the previous ticket remains visible | Close and reopen the intended ticket. Confirm a successful load and the correct title and submitter before saving or replying.                                       |
+| Assignment rules fail to load                                | Old rules may remain. Close and reopen the drawer and wait for success before editing to avoid overwriting another reviewer's changes.                               |
+| Saving, replying, or deleting produces an unexpected result  | The operation may have succeeded while refresh failed. A timeout can also leave the result uncertain. Reload and check before retrying or posting a duplicate reply. |
+| Deleting the last item leaves an empty page                  | Move to the previous page. The refresh after deletion does not do this automatically.                                                                                |
+| An assigned user cannot review the ticket                    | Assignment names a responsible person but grants no permissions. Check their global-group eligibility and authorization for that ticket.                             |
 
 ## Related pages
 
-- `user-management`
-- `business-logs`
+- [My tickets]({{DOCS_BASE_URL}}/en/my-tickets)
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)

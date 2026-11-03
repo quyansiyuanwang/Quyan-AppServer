@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'business-logs',
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-30',
   category: {
     en: 'System',
     'zh-CN': '系统',
@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '业务日志',
   },
   summary: {
-    en: 'Review audit-style business activity, changes, and error details.',
-    'zh-CN': '说明审计型业务活动、变更记录和错误详情。',
+    en: 'Find business operations, interpret audit details, and compare authorized statistics.',
+    'zh-CN': '查找业务操作、阅读审计详情，并核对筛选范围和获准统计。',
   },
   tags: ['logs', 'audit', 'business'],
   content: {

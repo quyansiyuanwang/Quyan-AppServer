@@ -1,3 +1,11 @@
+import { useProbeAccountOptions } from './useProbeAccountOptions'
+import { useProbeOverview, type ProbeOverviewRow } from './useProbeOverview'
+import {
+  makeKeyValueEntries,
+  textFields,
+  bodyFields,
+  ensureUniqueFieldKey,
+} from './probe-form-fields'
 import { createUserFacingError } from '@/utils/error-utils'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -11,7 +19,6 @@ import { getErrorMessage } from '@/utils/error-utils'
 import StorageKey from '@/constant/storagekey'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { relayChannelProbeService } from '@/service/relayChannelProbeService'
-import { relayChannelService } from '@/service/relayChannelService'
 import { type ProbeKeyValueEntry } from '../components/ProbeKeyValueEditor.vue'
 import type { TableInstance } from 'element-plus'
 import type {
@@ -20,12 +27,10 @@ import type {
   RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeLatestRunDto,
   RelayChannelProbeMemberDto,
-  RelayChannelProbeAccountDto,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunStatus,
   RelayChannelProbeWorkflowStepDto,
-  RelayChannelDto,
 } from '@/client/types.gen'
 type RelayChannelProbeFormat = SharedRelayChannelProbeFormat
 
@@ -129,12 +134,9 @@ export const useRelayChannelProbeManagement = () => {
   const canManageAccounts = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE),
   )
-  const accounts = ref<RelayChannelProbeAccountDto[]>([])
-  async function loadAccounts() {
-    if (canManageAccounts.value) accounts.value = await relayChannelProbeService.listAccounts()
-  }
+  const accountOptions = useProbeAccountOptions(canManageAccounts)
+  const { accounts, loadAccounts } = accountOptions
   const selectedAccountId = ref('')
-  const groupFilter = ref('')
   const availableGroups = computed(() =>
     [
       ...new Set(
@@ -151,7 +153,6 @@ export const useRelayChannelProbeManagement = () => {
   const canAdjust = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST),
   )
-  const loading = ref(false)
   const saving = ref(false)
   const clearingProfile = ref(false)
   const applying = ref(false)
@@ -203,9 +204,6 @@ export const useRelayChannelProbeManagement = () => {
   const resettingChannelId = ref('')
   const clearingHistoryScope = ref<'' | 'all' | 'failed'>('')
   const forceWithoutCacheBuster = ref(false)
-  const pageError = ref('')
-  const items = ref<RelayChannelProbeOverviewItemDto[]>([])
-  const legacyChannelTopology = ref<RelayChannelDto[] | null>(null)
   const selected = ref<RelayChannelProbeOverviewItemDto | null>(null)
   const selectedMemberChannelId = ref<string | undefined>()
   const drawerOpen = ref(false)
@@ -213,11 +211,28 @@ export const useRelayChannelProbeManagement = () => {
   const runs = ref<RelayChannelProbeRunDto[]>([])
   const selectedRows = ref<RelayChannelProbeOverviewItemDto[]>([])
   const tableRef = ref<TableInstance>()
-  const keyword = ref('')
-  const profileFilter = ref<'all' | 'configured' | 'unconfigured'>('all')
-  const enabledFilter = ref<'all' | 'enabled' | 'disabled'>('enabled')
-  const runStatusFilter = ref<'all' | 'none' | RelayChannelProbeRunStatus>('all')
-  const suggestionFilter = ref<'all' | 'applicable' | 'not_applicable'>('all')
+  const overview = useProbeOverview()
+  const {
+    items,
+    loading,
+    pageError,
+    keyword,
+    groupFilter,
+    profileFilter,
+    enabledFilter,
+    runStatusFilter,
+    suggestionFilter,
+    filteredItems,
+    loadOverview,
+    refreshOverviewRow,
+  } = overview
+  const profileLoading = ref(false),
+    profileError = ref('')
+  let drawerRequest = 0
+  const runsPage = ref(1),
+    runsPageSize = ref(20),
+    runsTotal = ref(0)
+  const probePageActive = ref(true)
   const runStatuses: RelayChannelProbeRunStatus[] = [
     'queued',
     'running',
@@ -226,41 +241,6 @@ export const useRelayChannelProbeManagement = () => {
     'timed_out',
     'cancelled',
   ]
-  const filteredItems = computed(() =>
-    items.value.filter((item) => {
-      const matchKeyword =
-        !keyword.value ||
-        [item.channelName, item.channelId].some((value) =>
-          value.toLowerCase().includes(keyword.value.toLowerCase()),
-        )
-      const matchProfile =
-        profileFilter.value === 'all' ||
-        (profileFilter.value === 'configured' ? Boolean(item.profile) : !item.profile)
-      const matchEnabled =
-        enabledFilter.value === 'all' ||
-        (enabledFilter.value === 'enabled' ? item.enabled : !item.enabled)
-      const matchRun =
-        runStatusFilter.value === 'all' ||
-        (runStatusFilter.value === 'none'
-          ? !item.latestRun
-          : item.latestRun?.status === runStatusFilter.value)
-      const matchSuggestion =
-        suggestionFilter.value === 'all' ||
-        (suggestionFilter.value === 'applicable'
-          ? isApplicable(item.latestRun)
-          : !isApplicable(item.latestRun))
-      const matchGroup =
-        !groupFilter.value ||
-        [
-          item.profile?.probeGroup,
-          item.targetConfig?.probeGroup,
-          ...(item.members ?? []).map((member) => member.targetConfig?.probeGroup),
-        ].includes(groupFilter.value)
-      return (
-        matchKeyword && matchProfile && matchEnabled && matchRun && matchSuggestion && matchGroup
-      )
-    }),
-  )
   const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     const rows = items.value.flatMap((item) => {
       const run = item.latestRun
@@ -408,13 +388,7 @@ export const useRelayChannelProbeManagement = () => {
     return targets
   })
   const runnableTargets = computed(() =>
-    selectedRows.value.flatMap((row) => {
-      if (!isRunnable(row)) return []
-      if (row.channelType !== 'pooled') return [{ channelId: row.channelId }]
-      return (row.members ?? [])
-        .filter((member) => member.enabled && member.compatible && member.hasCredentials)
-        .map((member) => ({ channelId: row.channelId, memberChannelId: member.channelId }))
-    }),
+    selectedRows.value.filter(isRunnable).map((row) => ({ channelId: row.channelId })),
   )
   const batchProfileSources = computed(() =>
     selectedRows.value.filter((row) => Boolean(row.profile)),
@@ -425,7 +399,7 @@ export const useRelayChannelProbeManagement = () => {
       batchProfileSources.value.length > 0 &&
       selectedRows.value.some((row) =>
         row.channelType === 'pooled'
-          ? Boolean(row.members?.length)
+          ? Boolean((row as ProbeOverviewRow).memberCount ?? row.members?.length)
           : row.channelId !== batchProfileSourceChannelId.value,
       ),
   )
@@ -475,7 +449,7 @@ export const useRelayChannelProbeManagement = () => {
       .filter(
         (name) =>
           !extractedVariableNames.value.has(name) &&
-          !(name === 'accountToken' && selectedAccountId.value),
+          !(selectedAccountId.value && (name === 'accountToken' || name.startsWith('account.'))),
       )
       .sort((left, right) => left.localeCompare(right))
       .map((name) => {
@@ -513,7 +487,6 @@ export const useRelayChannelProbeManagement = () => {
       ]),
     ),
   )
-  let overviewRequest = 0
   let runsRequest = 0
   let latestRunRefreshRequest = 0
   let pollTimer: ReturnType<typeof setTimeout> | undefined
@@ -961,6 +934,7 @@ export const useRelayChannelProbeManagement = () => {
       row.enabled &&
         row.profile?.enabled &&
         (row.channelType === 'pooled' ||
+          (row as ProbeOverviewRow).hasCredentials ||
           row.profile.credentialNames?.length ||
           row.targetConfig?.accountId),
     )
@@ -1365,70 +1339,6 @@ export const useRelayChannelProbeManagement = () => {
       throw new Error(`${label}: ${i18ns.t('relay.channelProbeInvalidJson')}`)
     }
   }
-  function makeKeyValueEntries(
-    value: Record<string, unknown> | undefined,
-    body = false,
-  ): ProbeKeyValueEntry[] {
-    return Object.entries(value ?? {}).map(([key, entryValue]) => {
-      const valueType =
-        body && typeof entryValue === 'number'
-          ? 'number'
-          : body && typeof entryValue === 'boolean'
-            ? 'boolean'
-            : body && entryValue !== null && typeof entryValue === 'object'
-              ? 'json'
-              : 'text'
-      return {
-        id: crypto.randomUUID(),
-        key,
-        value: valueType === 'json' ? JSON.stringify(entryValue) : String(entryValue ?? ''),
-        valueType,
-      }
-    })
-  }
-  function ensureUniqueFieldKey(key: string, target: Record<string, unknown>, label: string) {
-    if (!key.trim() || Object.prototype.hasOwnProperty.call(target, key.trim()))
-      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidField', { label }))
-  }
-  function textFields(entries: ProbeKeyValueEntry[], label: string): Record<string, string> {
-    const result: Record<string, string> = {}
-    for (const entry of entries) {
-      if (!entry.key.trim() && !entry.value.trim()) continue
-      ensureUniqueFieldKey(entry.key, result, label)
-      result[entry.key.trim()] = entry.value
-    }
-    return result
-  }
-  function bodyFields(entries: ProbeKeyValueEntry[]): Record<string, unknown> {
-    const result: Record<string, unknown> = {}
-    for (const entry of entries) {
-      if (!entry.key.trim() && !entry.value.trim()) continue
-      ensureUniqueFieldKey(entry.key, result, i18ns.t('relay.channelProbeBody'))
-      const value = entry.value.trim()
-      if (entry.valueType === 'text') result[entry.key.trim()] = entry.value
-      else if (entry.valueType === 'number') {
-        const numeric = Number(value)
-        if (!Number.isFinite(numeric))
-          throw createUserFacingError(
-            i18ns.t('relay.channelProbeInvalidField', { label: entry.key }),
-          )
-        result[entry.key.trim()] = numeric
-      } else if (entry.valueType === 'boolean') {
-        if (value !== 'true' && value !== 'false')
-          throw createUserFacingError(
-            i18ns.t('relay.channelProbeInvalidField', { label: entry.key }),
-          )
-        result[entry.key.trim()] = value === 'true'
-      } else {
-        try {
-          result[entry.key.trim()] = JSON.parse(value)
-        } catch {
-          throw new Error(`${entry.key}: ${i18ns.t('relay.channelProbeInvalidJson')}`)
-        }
-      }
-    }
-    return result
-  }
   function formWorkflow(): RelayChannelProbeWorkflowStepDto[] {
     const balanceCount = workflowSteps.value.filter((step) => step.balancePath.trim()).length
     if (workflowSteps.value.length < 1 || balanceCount !== 1)
@@ -1447,63 +1357,6 @@ export const useRelayChannelProbeManagement = () => {
         ...(step.balancePath.trim() ? { balancePath: step.balancePath.trim() } : {}),
       }
     })
-  }
-  function resolveCustomerFacingTargets(
-    channels: RelayChannelDto[],
-    standaloneChannelId: string,
-  ): RelayChannelProbeCustomerFacingTargetDto[] {
-    const channelById = new Map(channels.map((channel) => [channel.id, channel]))
-    const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>()
-    const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
-      if (path.has(channelId)) return []
-      const channel = channelById.get(channelId)
-      if (!channel?.enabled) return []
-      if (channel.channelType === 'standalone') return [channel.id]
-      const nextPath = new Set(path).add(channelId)
-      return (channel.poolMembers ?? []).flatMap((member) => {
-        if (member.enabled === false || member.memberChannelEnabled === false) return []
-        return collectStandaloneMembers(member.memberChannelId, nextPath)
-      })
-    }
-    for (const channel of channels) {
-      if (!channel.enabled || channel.channelType !== 'pooled') continue
-      if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
-        targetById.set(channel.id, { channelId: channel.id, channelName: channel.name })
-      }
-    }
-    if (!targetById.size) {
-      const standalone = channelById.get(standaloneChannelId)
-      if (standalone?.enabled)
-        targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name })
-    }
-    return [...targetById.values()]
-  }
-  async function loadOverview() {
-    const requestId = ++overviewRequest
-    loading.value = true
-    pageError.value = ''
-    try {
-      const result = await relayChannelProbeService.listOverview()
-      let overviewItems = result.items
-      if (!result.hasCustomerFacingTargets) {
-        const channels =
-          legacyChannelTopology.value ??
-          (await relayChannelService.listChannels({ includeDisabled: true }))
-        legacyChannelTopology.value = channels
-        overviewItems = overviewItems.map((item) => ({
-          ...item,
-          customerFacingTargets: resolveCustomerFacingTargets(channels, item.channelId),
-        }))
-      }
-      if (requestId === overviewRequest) items.value = overviewItems
-    } catch (error) {
-      if (requestId === overviewRequest) {
-        pageError.value = getErrorMessage(error, i18ns.t('operationFailed'))
-        ElMessage.error(pageError.value)
-      }
-    } finally {
-      if (requestId === overviewRequest) loading.value = false
-    }
   }
   function updateChannelItem(
     channelId: string,
@@ -1576,16 +1429,48 @@ export const useRelayChannelProbeManagement = () => {
       // Polling is best-effort. Preserve the visible result and retry on the next interval.
     }
   }
-  async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
+  async function openDrawer(
+    row: RelayChannelProbeOverviewItemDto,
+    member?: RelayChannelProbeMemberDto,
+  ) {
     // Complete the drawer render before starting any remote request. A slow or stalled
     // run-history request must never delay the management surface becoming usable.
     ++runsRequest
     runs.value = []
     selected.value = row
-    selectedMemberChannelId.value = undefined
-    selectedAccountId.value = row.targetConfig?.accountId ?? ''
+    selectedMemberChannelId.value = member?.channelId
+    selectedAccountId.value = (member?.targetConfig ?? row.targetConfig)?.accountId ?? ''
     drawerOpen.value = true
     tab.value = 'profile'
+    const current = ++drawerRequest
+    profileLoading.value = true
+    profileError.value = ''
+    runsPage.value = 1
+    try {
+      const detail = await relayChannelProbeService.getConfiguration(
+        row.channelId,
+        member?.channelId,
+      )
+      if (current !== drawerRequest || !drawerOpen.value) return
+      if (member) member = detail.members?.find((target) => target.channelId === member!.channelId)
+      row = {
+        ...row,
+        ...detail,
+        members: member
+          ? row.members?.map((target) =>
+              target.channelId === member!.channelId ? member! : target,
+            )
+          : row.members,
+      }
+      selected.value = row
+      selectedAccountId.value = (member?.targetConfig ?? row.targetConfig)?.accountId ?? ''
+    } catch (error) {
+      if (current === drawerRequest)
+        profileError.value = getErrorMessage(error, i18ns.t('operationFailed'))
+      return
+    } finally {
+      if (current === drawerRequest) profileLoading.value = false
+    }
     const profile = row.profile
     form.value = profile
       ? {
@@ -1628,7 +1513,19 @@ export const useRelayChannelProbeManagement = () => {
       hasCredentials: member.hasCredentials,
       credentials: [],
     }))
+    const target =
+      member?.targetConfig ?? (row.channelType !== 'pooled' ? row.targetConfig : undefined)
+    if (target) {
+      if (target.probeFormat) {
+        form.value.probeFormat = target.probeFormat
+        form.value.probeEndpoint = defaultEndpointForFormat(target.probeFormat)
+      }
+      if (target.probeModel) form.value.probeModel = target.probeModel
+      if (target.probeGroup !== undefined) form.value.probeGroup = target.probeGroup
+      if (target.probePayload) payloadText.value = JSON.stringify(target.probePayload, null, 2)
+    }
     await nextTick()
+    if (current !== drawerRequest) return
     void loadRuns()
     startPolling()
   }
@@ -1636,19 +1533,7 @@ export const useRelayChannelProbeManagement = () => {
     row: RelayChannelProbeOverviewItemDto,
     member: RelayChannelProbeMemberDto,
   ) {
-    await openDrawer(row)
-    selectedMemberChannelId.value = member.channelId
-    selectedAccountId.value = member.targetConfig?.accountId ?? ''
-    if (member.targetConfig?.probeFormat) {
-      form.value.probeFormat = member.targetConfig.probeFormat
-      form.value.probeEndpoint = defaultEndpointForFormat(member.targetConfig.probeFormat)
-    }
-    if (member.targetConfig?.probeModel) form.value.probeModel = member.targetConfig.probeModel
-    if (member.targetConfig?.probeGroup !== undefined)
-      form.value.probeGroup = member.targetConfig.probeGroup
-    if (member.targetConfig?.probePayload)
-      payloadText.value = JSON.stringify(member.targetConfig.probePayload, null, 2)
-    void loadRuns()
+    await openDrawer(row, member)
   }
   function toWorkflowForm(step: RelayChannelProbeWorkflowStepDto): WorkflowFormStep {
     return {
@@ -1672,6 +1557,9 @@ export const useRelayChannelProbeManagement = () => {
     }
   }
   function resetDrawer() {
+    ++drawerRequest
+    profileLoading.value = false
+    profileError.value = ''
     ++runsRequest
     selected.value = null
     selectedMemberChannelId.value = undefined
@@ -1688,13 +1576,14 @@ export const useRelayChannelProbeManagement = () => {
     try {
       const result = await relayChannelProbeService.listRuns(
         selected.value.channelId,
-        1,
-        20,
+        runsPage.value,
+        runsPageSize.value,
         selectedMemberChannelId.value,
       )
       if (requestId === runsRequest) {
         runs.value = result.items
-        syncSelectedLatestRun()
+        runsTotal.value = result.total
+        if (runsPage.value === 1) syncSelectedLatestRun()
       }
     } catch (error) {
       if (requestId === runsRequest) showRequestErrorNotice(error, i18ns.t('operationFailed'))
@@ -1703,9 +1592,25 @@ export const useRelayChannelProbeManagement = () => {
     }
   }
   async function saveProfile() {
-    if (!selected.value || saving.value) return
+    if (!selected.value || saving.value || profileLoading.value || profileError.value) return
     if (!form.value.probeModel.trim())
       return ElMessage.warning(i18ns.t('relay.channelProbeModelRequired'))
+    const invalidCredentialNames = (rows: readonly { name: string }[]) => {
+      const names = rows.map((row) => row.name.trim()).filter(Boolean)
+      return (
+        new Set(names).size !== names.length ||
+        names.some((name) => ['__proto__', 'constructor', 'prototype'].includes(name))
+      )
+    }
+    if (
+      invalidCredentialNames(credentials.value) ||
+      memberCredentials.value.some((member) => invalidCredentialNames(member.credentials))
+    )
+      return ElMessage.warning(
+        i18ns.t('relay.channelProbeInvalidField', {
+          label: i18ns.t('relay.channelProbeCredentialName'),
+        }),
+      )
     const credentialMap = credentials.value.reduce<Record<string, string>>((result, row) => {
       if (row.name.trim() && row.value) result[row.name.trim()] = row.value
       return result
@@ -1726,75 +1631,84 @@ export const useRelayChannelProbeManagement = () => {
         return Object.keys(values).length ? [[member.memberChannelId, values] as const] : []
       }),
     )
+    const editorRequest = drawerRequest
+    const channelId = selected.value.channelId
+    const memberId = selectedMemberChannelId.value
     saving.value = true
     try {
       const isMember =
         selected.value.channelType === 'pooled' && Boolean(selectedMemberChannelId.value)
       const memberPayload = parseObject(payloadText.value, i18ns.t('relay.channelProbePayload'))
-      const profile = await relayChannelProbeService.saveProfile(selected.value.channelId, {
-        ...form.value,
-        ...(isMember && selected.value.profile
+      const previousTarget = isMember
+        ? selectedProbeMember.value?.targetConfig
+        : selected.value.targetConfig
+      const result = await relayChannelProbeService.saveConfiguration(selected.value.channelId, {
+        expectedProfileUpdatedAt: selected.value.profile?.updateTime ?? null,
+        expectedTargetUpdatedAt: previousTarget?.updateTime ?? null,
+        memberChannelId: selectedMemberChannelId.value,
+        ...(isMember ||
+        (previousTarget &&
+          [
+            previousTarget.probeFormat,
+            previousTarget.probeModel,
+            previousTarget.probeGroup,
+            previousTarget.probePayload,
+          ].some((value) => value !== undefined))
           ? {
-              probeFormat: selected.value.profile.probeFormat,
-              probeModel: selected.value.profile.probeModel,
-              probeEndpoint: selected.value.profile.probeEndpoint,
-              probeGroup: selected.value.profile.probeGroup ?? '',
+              target: {
+                probeFormat: form.value.probeFormat,
+                probeModel: form.value.probeModel,
+                probeGroup: form.value.probeGroup,
+                probePayload: memberPayload,
+              },
             }
           : {}),
-        upstreamCurrency: form.value.upstreamCurrency.toUpperCase(),
-        localCurrency: form.value.localCurrency.toUpperCase(),
-        probePayload:
-          isMember && selected.value.profile ? selected.value.profile.probePayload : memberPayload,
-        workflow: formWorkflow(),
-        ...(selected.value.channelType === 'pooled'
-          ? Object.keys(memberCredentialMap).length
-            ? { memberCredentials: memberCredentialMap }
-            : {}
-          : Object.keys(credentialMap).length
-            ? { credentials: credentialMap }
+        ...(canManageAccounts.value && selectedAccountId.value !== (previousTarget?.accountId ?? '')
+          ? { accountId: selectedAccountId.value || null }
+          : {}),
+        profile: {
+          ...form.value,
+          ...(isMember && selected.value.profile
+            ? {
+                probeFormat: selected.value.profile.probeFormat,
+                probeModel: selected.value.profile.probeModel,
+                probeEndpoint: selected.value.profile.probeEndpoint,
+                probeGroup: selected.value.profile.probeGroup ?? '',
+              }
             : {}),
+          upstreamCurrency: form.value.upstreamCurrency.toUpperCase(),
+          localCurrency: form.value.localCurrency.toUpperCase(),
+          probePayload:
+            isMember && selected.value.profile
+              ? selected.value.profile.probePayload
+              : memberPayload,
+          workflow: formWorkflow(),
+          ...(selected.value.channelType === 'pooled'
+            ? Object.keys(memberCredentialMap).length
+              ? { memberCredentials: memberCredentialMap }
+              : {}
+            : Object.keys(credentialMap).length
+              ? { credentials: credentialMap }
+              : {}),
+        },
       })
-      if (isMember) {
-        const configured = await relayChannelProbeService.configureTargets({
-          targets: [
-            {
-              channelId: selected.value.channelId,
-              memberChannelId: selectedMemberChannelId.value,
-              probeFormat: form.value.probeFormat,
-              probeModel: form.value.probeModel,
-              probeGroup: form.value.probeGroup,
-              probePayload: memberPayload,
-            },
-          ],
-        })
-        if (configured.rejected.length)
-          throw new Error(
-            configured.rejected.map((item: { reason: string }) => item.reason).join('；'),
-          )
+      const profile = result.profile
+      await refreshOverviewRow(channelId).catch((error) =>
+        showRequestErrorNotice(error, i18ns.t('operationFailed')),
+      )
+      if (editorRequest !== drawerRequest || !selected.value) return
+      selected.value = {
+        ...selected.value,
+        profile,
+        targetConfig: memberId
+          ? selected.value.targetConfig
+          : (result.targetConfig ?? selected.value.targetConfig),
+        members: selected.value.members?.map((member) =>
+          member.channelId === memberId
+            ? { ...member, targetConfig: result.targetConfig ?? member.targetConfig }
+            : member,
+        ),
       }
-      if (canManageAccounts.value) {
-        const previous = isMember
-          ? selectedProbeMember.value?.targetConfig?.accountId
-          : selected.value.targetConfig?.accountId
-        if (selectedAccountId.value !== (previous ?? '')) {
-          const bound = await relayChannelProbeService.bindAccounts({
-            targets: [
-              {
-                channelId: selected.value.channelId,
-                memberChannelId: selectedMemberChannelId.value,
-                accountId: selectedAccountId.value || null,
-              },
-            ],
-          })
-          if (bound.rejected.length)
-            throw new Error(
-              bound.rejected.map((item: { reason: string }) => item.reason).join('；'),
-            )
-        }
-      }
-      await loadOverview()
-      selected.value =
-        items.value.find((item) => item.channelId === selected.value?.channelId) ?? selected.value
       ElMessage.success(i18ns.t('success'))
       updateChannelItem(selected.value.channelId, (item) => ({ ...item, profile }))
       credentialNames.value = profile.credentialNames
@@ -1926,13 +1840,11 @@ export const useRelayChannelProbeManagement = () => {
     }
   }
   async function confirmRunAllMembers(row: RelayChannelProbeOverviewItemDto) {
-    const targets = (row.members ?? [])
-      .filter((member) => member.enabled && member.compatible && member.hasCredentials)
-      .map((member) => ({ channelId: row.channelId, memberChannelId: member.channelId }))
-    if (!targets.length || batchRunning.value) return
+    const count = (row as ProbeOverviewRow).memberCount ?? row.members?.length ?? 0
+    if (!count || batchRunning.value) return
     try {
       await ElMessageBox.confirm(
-        i18ns.t('relay.channelProbeBatchRunConfirm', { count: targets.length }),
+        i18ns.t('relay.channelProbeBatchRunConfirm', { count }),
         i18ns.t('warning'),
         {
           type: 'warning',
@@ -1946,7 +1858,7 @@ export const useRelayChannelProbeManagement = () => {
     batchRunning.value = true
     try {
       const result = await relayChannelProbeService.createRuns({
-        targets,
+        channelIds: [row.channelId],
         forceWithoutCacheBuster: forceWithoutCacheBuster.value,
       })
       for (const queued of result.queued) {
@@ -1986,7 +1898,7 @@ export const useRelayChannelProbeManagement = () => {
     batchRunning.value = true
     try {
       const result = await relayChannelProbeService.createRuns({
-        targets,
+        channelIds: targets.map((target) => target.channelId),
         forceWithoutCacheBuster: forceWithoutCacheBuster.value,
       })
       if (result.queued.length)
@@ -2069,7 +1981,29 @@ export const useRelayChannelProbeManagement = () => {
           : [makeDraft(row)],
     )
   }
-  function openBatchProfileDialog() {
+  async function openBatchProfileDialog() {
+    try {
+      const hydrated = await Promise.all(
+        selectedRows.value.map(async (row) => {
+          const profile = row.profile
+            ? await relayChannelProbeService.getProfile(row.channelId)
+            : undefined
+          if (row.channelType !== 'pooled') return { ...row, profile }
+          const first = await relayChannelProbeService.listMemberPage(row.channelId, 1, 100)
+          const members = [...first.items]
+          for (let page = 2; members.length < first.total; page++) {
+            const next = await relayChannelProbeService.listMemberPage(row.channelId, page, 100)
+            if (!next.items.length) break
+            members.push(...next.items)
+          }
+          return { ...row, profile, members }
+        }),
+      )
+      selectedRows.value = hydrated
+    } catch (error) {
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
+      return
+    }
     batchProfileSourceChannelId.value = batchProfileSources.value[0]?.channelId ?? ''
     batchProfileOverwriteExisting.value = false
     batchProfileDrafts.value = buildBatchProfileDrafts()
@@ -2246,7 +2180,8 @@ export const useRelayChannelProbeManagement = () => {
     if (!pollingEnabled || polling || pollTimer || !hasActiveProbeRuns.value) return
     pollTimer = setTimeout(async () => {
       pollTimer = undefined
-      if (!pollingEnabled || !hasActiveProbeRuns.value) return
+      if (!pollingEnabled || !hasActiveProbeRuns.value || !probePageActive.value || document.hidden)
+        return
       polling = true
       try {
         await refreshActiveRunStates()
@@ -2257,7 +2192,7 @@ export const useRelayChannelProbeManagement = () => {
     }, 3000)
   }
   function startPolling() {
-    if (!hasActiveProbeRuns.value) return
+    if (!hasActiveProbeRuns.value || !probePageActive.value || document.hidden) return
     pollingEnabled = true
     schedulePolling()
   }
@@ -2305,7 +2240,16 @@ export const useRelayChannelProbeManagement = () => {
       changePage.value = 1
     },
   )
+  const visibilityChanged = () => {
+    if (document.hidden) stopPolling()
+    else startPolling()
+  }
+  watch(probePageActive, visibilityChanged)
+  watch([runsPage, runsPageSize], () => {
+    if (drawerOpen.value) void loadRuns()
+  })
   onMounted(() => {
+    document.addEventListener('visibilitychange', visibilityChanged)
     try {
       const saved = TypedLocalStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
       if (saved) {
@@ -2336,11 +2280,22 @@ export const useRelayChannelProbeManagement = () => {
       TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
     }
     void loadOverview()
-    if (canManageAccounts.value) void loadAccounts()
   })
-  onBeforeUnmount(stopPolling)
+  onBeforeUnmount(() => {
+    stopPolling()
+    document.removeEventListener('visibilitychange', visibilityChanged)
+    ++drawerRequest
+  })
 
   return {
+    ...overview,
+    ...accountOptions,
+    profileLoading,
+    profileError,
+    runsPage,
+    runsPageSize,
+    runsTotal,
+    probePageActive,
     permissionStore,
     canExecute,
     canManageAccounts,
@@ -2390,7 +2345,6 @@ export const useRelayChannelProbeManagement = () => {
     forceWithoutCacheBuster,
     pageError,
     items,
-    legacyChannelTopology,
     selected,
     selectedMemberChannelId,
     drawerOpen,
@@ -2435,7 +2389,6 @@ export const useRelayChannelProbeManagement = () => {
     extractedVariableNames,
     requiredCredentialStates,
     availableVariables,
-    overviewRequest,
     runsRequest,
     pollTimer,
     emptyForm,
@@ -2515,7 +2468,6 @@ export const useRelayChannelProbeManagement = () => {
     textFields,
     bodyFields,
     formWorkflow,
-    resolveCustomerFacingTargets,
     loadOverview,
     refreshActiveRunStates,
     updateChannelItem,

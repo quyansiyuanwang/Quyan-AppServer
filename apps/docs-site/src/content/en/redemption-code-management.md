@@ -1,66 +1,77 @@
 # Redemption code management
 
-Use this page to create, copy, and track redemption codes.
+Administrators can generate codes with a fixed balance value for users to redeem from [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history). A complete code has redeemable value; share it only with the intended recipient.
 
-## Page purpose
+## Prerequisites
 
-- Generate redemption codes in batches.
-- Review redemption-code status.
-- Delete codes that are no longer needed.
-- Support balance top-ups or promotional distribution.
+Opening redemption code management requires read permission. Generation and deletion each require separate permissions. A visible button does not establish authorization. Accounts with two-factor authentication may need verification when generating or deleting codes.
 
-## What you will see
+This page manages administrator-issued redemption codes. Users manage gift codes funded from their own balance on their account balance page.
 
-### List information
+## Generate and distribute codes
 
-- Redemption code value.
-- Status such as unused, used, or expired.
-- Paginated list.
+1. Select **Generate Codes**.
+2. Enter **Amount** and **Count**. Amount is the value of each code, from 0.01 to 100000. The management page generates 1–100 codes at a time.
+3. Optionally set an expiry. Leaving it empty means no expiry; a supplied expiry must still be in the future when submitted.
+4. Check the form, select **Confirm**, and complete any requested verification.
+5. After success, the page returns to the first list page. Identify new records using creation time, creator, amount, and expiry. A batch can span multiple pages.
+6. Click each code to copy it. Paste in a trusted location and verify the complete value before sharing. The success notification does not guarantee clipboard completion; manually select and copy if needed. Mobile lists can truncate long codes, so do not send only the visible fragment.
 
-### Management actions
+There is no bulk export or automatic distribution on this page. The creation response is not displayed as a separate results list; retrieve complete codes from the list. Create permission does not include list access.
 
-- Batch create.
-- Click to copy.
-- Delete codes.
+Generation does not debit the creator's balance. Successful redemption adds the code's value to the recipient's balance and cumulative recharged amount and creates a redemption transaction. A code is not bound to a named recipient: a holder with redemption permission can claim it. Do not publish complete unused codes.
 
-## Common actions
+## Check status and recipient
 
-1. Define amount, count, and expiry before creating a batch.
-2. Copy generated codes to operations staff or recipients.
-3. Check the status first when a user reports that a code cannot be redeemed.
-4. Remove incorrectly created or obsolete codes.
+The list is newest first, with 20 records per page initially. Desktop users can change page size and inspect recipient, usage time, and creator. Mobile cards show fewer details; use desktop for a complete check. The page has no keyword or status filter.
 
-Expiry values are submitted as ISO datetime values and must be later than the current time.
+| Displayed status | Meaning and next step                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Unused           | No recipient is recorded and the page considers it unexpired. Actual redemption remains subject to server checks |
+| Used             | A recipient is recorded. Check recipient and usage time against the user's balance transactions                  |
+| Expired          | The code is unused and past its expiry; it cannot be redeemed                                                    |
 
-## Permission requirements
+Used codes remain displayed as used after their expiry. Expiry labels use the browser's clock, and the page does not continuously poll usage. Reopen the page or change pages to reload records before investigating a report. A missing record can reflect authorization filtering or deletion; an empty list alone does not prove that no code was generated.
 
-| Action                | Required permission      |
-| --------------------- | ------------------------ |
-| View redemption codes | `REDEMPTION_CODE_READ`   |
-| Create codes (batch)  | `REDEMPTION_CODE_CREATE` |
-| Delete codes          | `REDEMPTION_CODE_DELETE` |
+## Delete a code
 
-## Resource-scoped reads
+Check the complete code, amount, recipient, and expiry first. Selecting **Delete** immediately submits the operation, without an additional deletion confirmation dialog. Complete any requested verification; success reloads the current page.
 
-In IAM enforcement mode, `GET /v1/redemption-codes/list` uses `quyan:redemption_code:ListCodes`. The authenticated subject must also belong to an active deployment-managed global group with `REDEMPTION_CODE_READ`; personal permissions, a private group, or account-owner identity cannot replace that eligibility.
+An unused code cannot be redeemed after deletion. Used codes can also be deleted, but this does not reverse credited balance or delete the recipient's balance transaction. The page has no restore, amount-editing, or expiry-extension action. Deletion removes the code record without refunding or debiting the user's balance.
 
-The collection requires an Allow for `acs:platform:*:platform:redemption-code-control/default`; each code uses `acs:platform:*:platform:redemption-code/<redemption code ID>`. Only permitted records return their code value, amount, and usage state. A matching Deny takes precedence. Unpermitted records are excluded from records, pagination, and totals. Authorize by record ID; do not put the code value in an ARN.
+## Permissions and resource authorization
 
-In enforcement mode, `page` starts at 1 and cannot exceed 10000; `pageSize` defaults to 50 and cannot exceed 100. Legacy and shadow modes retain their original pagination default. Disabled records are excluded. Records are sorted newest first. Changes to record content, authorization, eligibility, or role sessions during reading, or conditions that cease to hold, cause the request to fail rather than return a stale snapshot.
+| Operation        | Required permission      |
+| ---------------- | ------------------------ |
+| View codes       | `REDEMPTION_CODE_READ`   |
+| Generate a batch | `REDEMPTION_CODE_CREATE` |
+| Delete           | `REDEMPTION_CODE_DELETE` |
 
-## Resource-scoped creation and deletion
+With IAM enforcement, operators must also belong to an active deployment-managed global group eligible for the operation. Personal permissions, private groups, or account-owner identity cannot replace that eligibility.
 
-In enforcement mode, batch issuance uses `quyan:redemption_code:CreateCodes` and requires deployment-managed global group eligibility for `REDEMPTION_CODE_CREATE`. The policy must allow both `acs:platform:*:platform:redemption-code-control/default` and the new record resources `acs:platform:*:platform:redemption-code/<redemption code ID>`. The server generates new record IDs; creation scope normally uses `acs:platform:*:platform:redemption-code/*`. A collection grant does not override a record-level Deny. A batch can contain at most 1000 records. If any record is denied or authorization ceases to hold before commit, the whole batch rolls back without returning or retaining partially generated results.
+Prefix the paths below with `acs:platform:*:platform:`. A code ID is its record ID, never the redeemable code value.
 
-Deletion uses `quyan:redemption_code:DeleteCode`, requires deployment-managed global group eligibility for `REDEMPTION_CODE_DELETE`, and needs an Allow on the target ARN. Changes to target content or authorization during deletion cause rejection. Both creation and deletion retain two-factor challenges and replay protection. Creating codes does not grant permission to read the code list.
+| Action                              | Required resource paths                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `quyan:redemption_code:ListCodes`   | Collection `redemption-code-control/default` and individual records `redemption-code/<id>` |
+| `quyan:redemption_code:CreateCodes` | Collection `redemption-code-control/default` and new records `redemption-code/<id>`        |
+| `quyan:redemption_code:DeleteCode`  | Target `redemption-code/<id>`                                                              |
 
-## Notes
+The server generates record IDs; `redemption-code/*` can define creation scope. Collection access does not override a record-level Deny. Unauthorized records are excluded from records, pagination, and totals. Enforcement mode excludes disabled records.
 
-- Redemption codes usually affect balance or user benefits.
-- If a state looks wrong, compare it with balance records and business logs.
-- The user usually enters codes from `balance-history`.
+In enforcement mode, denial of any new record rolls back the whole batch. Direct API creation supports up to 1000 codes per batch; the management page remains limited to 100. Changes to permissions, management eligibility, or target content during a request can cause failure. Recheck before retrying. Generation and deletion retain verification challenges and replay protection.
+
+## Troubleshooting
+
+| Symptom                                            | What to do                                                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Generation succeeds but some new codes are missing | Check the first and subsequent pages and read access before generating again                                         |
+| Connection drops after generation                  | Reload and compare creation time, creator, amount, and count. Consult business logs if the outcome remains uncertain |
+| A user receives an already-used message            | Check recipient, usage time, and balance transactions. Deleting the record does not undo redemption                  |
+| A user receives a missing or expired message       | Check the complete value, expiry, and deletion. Do not send a truncated display value                                |
+| Deleting the last record leaves an empty page      | Go to the previous page; pagination does not necessarily move back automatically                                     |
 
 ## Related pages
 
-- `balance-history`
-- `balance-management`
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)

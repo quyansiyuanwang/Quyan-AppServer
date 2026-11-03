@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'my-monthly-passes',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Account',
     'zh-CN': '账号',
@@ -13,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': '我的月卡',
   },
   summary: {
-    en: 'Review your assigned monthly passes, quotas, and validity windows.',
-    'zh-CN': '说明个人月卡、额度和有效期窗口。',
+    en: 'Check monthly pass validity, quotas, coverage, and remaining balance charges.',
+    'zh-CN': '查看月卡有效期、额度、抵扣规则和未覆盖费用的余额扣费。',
   },
   tags: ['monthly-pass', 'quota', 'benefit'],
   content: {

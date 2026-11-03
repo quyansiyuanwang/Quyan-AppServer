@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'group-management',
+  updatedAt: '2026-10-30',
   category: {
     en: 'Admin',
     'zh-CN': '管理',
@@ -13,10 +14,10 @@ export default defineDocsPage({
     'zh-CN': '群组管理',
   },
   summary: {
-    en: 'Maintain groups, descriptions, levels, and group permission sets.',
-    'zh-CN': '说明群组、等级、说明和群组权限集合维护。',
+    en: 'Find and create groups, apply level rules, edit permission sets, and handle deletion restrictions.',
+    'zh-CN': '查找和创建群组，了解等级规则、权限集合保存和删除限制。',
   },
-  tags: ['group', 'permission', 'admin'],
+  tags: ['group', 'permission', 'admin', '群组', '等级', '权限', '委派'],
   content: {
     en: contentEn,
     'zh-CN': contentZh,

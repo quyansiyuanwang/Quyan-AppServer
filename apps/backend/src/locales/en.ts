@@ -609,6 +609,7 @@ const en = {
     targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
+    forwardAllRequestHeadersInvalid: "Forward all request headers must be a boolean",
     forwardedRequestHeadersInvalid:
       "Extra forwarded headers must be exact safe header names (up to 64 names, 128 characters each); credentials, cookies, internal and connection headers are prohibited.",
     timeRuleSameStartEnd: "Start and end times must differ for a non-all-day rule",
@@ -681,10 +682,20 @@ const en = {
     accountNotFound: "Probe account not found",
     accountCredentialsRequired: "New accounts require login credentials",
     accountReservedVariable: "accountToken is a reserved variable",
+    accountSessionConfigurationInvalid:
+      "Check session field names, the selected token field and the refresh URL. Retaining saved refresh fields requires the current account revision.",
+    accountEditConfigurationInvalid:
+      "Check the login URL and account revision. Submit either complete credentials or credential updates, and retain saved fields only when editing an existing account.",
+    accountSessionInvalid:
+      "The panel session fields could not be extracted or cannot be used for this request. Check field mapping and permitted origins.",
+    scheduleEmailRequired: "Set a notification email or account email before enabling the daily probe summary.",
+    accountConfigurationChanged: "This account was changed by another operation. Reopen the editor and try again.",
     accountBackendUnavailable: "Probe account session backend is unavailable",
     accountLoginCooldown: "Login is cooling down; retry later",
     accountLoginInProgress: "Account login is in progress; retry later",
     accountLoginFailed: "Account login or token extraction failed",
+    accountRefreshFailed:
+      "The panel session refresh failed. Check the refresh request and field mapping, then log in again if necessary.",
     pooledProfileCopyUnsupported:
       "Pool member credentials cannot be copied to another pool; configure members individually",
     apiFormatIncompatible: "探针接口与请求格式不兼容",

@@ -13,6 +13,7 @@ describe("RelayTokenService", () => {
     findUsageSummaryTargetsByIds: vi.fn(),
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
+    findByToken: vi.fn(),
     update: vi.fn(),
     updateStatus: vi.fn(),
     withTransaction: vi.fn(),
@@ -127,6 +128,24 @@ describe("RelayTokenService", () => {
       async (callback: (tx: any) => Promise<unknown>) => callback({}),
     );
   });
+
+  it.each(["sk-rlt-", "rlt_", "sk-ak-fixture", "sk-rlt-fixture_secret", "sk-rlt-fixture\n"])(
+    "rejects malformed relay credentials before querying persistence: %j",
+    async (token) => {
+      await expect(service.validateToken(token)).rejects.toMatchObject({ messageKey: "relayToken.invalid" });
+      expect(relayTokenRepository.findByToken).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["sk-rlt-fixture-A9", "rlt_fixture-A9"])(
+    "looks up valid relay credentials without rewriting their alias: %s",
+    async (token) => {
+      const record = createToken({ token });
+      relayTokenRepository.findByToken.mockResolvedValue(record);
+      await expect(service.validateToken(token)).resolves.toBe(record);
+      expect(relayTokenRepository.findByToken).toHaveBeenCalledWith(token);
+    },
+  );
 
   it("does not persist or project an update when channel preparation fails", async () => {
     const token = createToken({ routingMode: "ordered" });

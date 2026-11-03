@@ -1335,92 +1335,106 @@ describe("RelayProxyService failover", () => {
     ]);
   });
 
-  it("retries the next channel on configured upstream status codes", async () => {
-    const relayToken = createRelayToken();
-    relayToken.channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-primary"] };
-    relayToken.channelConfigs[1].channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-secondary"] };
-    const req = createRequest({
-      headers: {
-        "content-type": "application/json",
-        "openai-beta": "responses=fixture",
-        "openai-project": "proj-fixture",
-        "idempotency-key": "retry-fixture",
-        authorization: "Bearer caller-fixture",
-        cookie: "session=fixture",
-        "x-opencode-session": "session-fixture",
-        "x-sdk-primary": "primary-fixture",
-        "x-sdk-secondary": "secondary-fixture",
-      },
-    });
-    const { service, relayTokenRepo, usageChargeService, businessLogService } = createService();
-
-    axiosMock
-      .mockResolvedValueOnce({
-        status: 503,
-        headers: { "content-type": "application/json" },
-        data: { error: { message: "primary unavailable" } },
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        headers: { "content-type": "application/json" },
-        data: {
-          id: "resp-1",
-          choices: [{ message: { content: "ok" } }],
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+  it.each([false, true])(
+    "uses each physical channel's header policy on failover (forward all: %s)",
+    async (forwardAllRequestHeaders) => {
+      const relayToken = createRelayToken();
+      relayToken.channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-primary"] };
+      relayToken.channelConfigs[1].channel.routingConfig = {
+        forwardAllRequestHeaders,
+        forwardedRequestHeaders: ["x-sdk-secondary"],
+      };
+      const req = createRequest({
+        headers: {
+          "content-type": "application/json",
+          "openai-beta": "responses=fixture",
+          "openai-project": "proj-fixture",
+          "idempotency-key": "retry-fixture",
+          authorization: "Bearer caller-fixture",
+          cookie: "session=fixture",
+          "x-opencode-session": "session-fixture",
+          "x-sdk-primary": "primary-fixture",
+          "x-sdk-secondary": "secondary-fixture",
+          "x-sdk-unlisted": "unlisted-fixture",
         },
       });
+      const { service, relayTokenRepo, usageChargeService, businessLogService } = createService();
 
-    const result = await service.forwardRequest(relayToken, req);
+      axiosMock
+        .mockResolvedValueOnce({
+          status: 503,
+          headers: { "content-type": "application/json" },
+          data: { error: { message: "primary unavailable" } },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          headers: { "content-type": "application/json" },
+          data: {
+            id: "resp-1",
+            choices: [{ message: { content: "ok" } }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          },
+        });
 
-    expect(result.status).toBe(200);
-    for (const [index, key] of ["channel-primary-key", "channel-secondary-key"].entries()) {
-      expect((axiosMock.mock.calls[index]?.[0] as any).headers).toMatchObject({
-        "openai-beta": "responses=fixture",
-        "openai-project": "proj-fixture",
-        "idempotency-key": "retry-fixture",
-        "x-opencode-session": "session-fixture",
-        Authorization: `Bearer ${key}`,
-      });
-      expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("cookie");
-      expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("authorization");
-    }
-    expect((axiosMock.mock.calls[0]?.[0] as any).headers).toHaveProperty("x-sdk-primary", "primary-fixture");
-    expect((axiosMock.mock.calls[0]?.[0] as any).headers).not.toHaveProperty("x-sdk-secondary");
-    expect((axiosMock.mock.calls[1]?.[0] as any).headers).toHaveProperty("x-sdk-secondary", "secondary-fixture");
-    expect((axiosMock.mock.calls[1]?.[0] as any).headers).not.toHaveProperty("x-sdk-primary");
-    expect(axiosMock).toHaveBeenCalledTimes(2);
-    expect(axiosMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ url: "https://primary.example.com/v1/chat/completions" }),
-    );
-    expect(axiosMock.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
-    );
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenNthCalledWith(1, {
-      relayTokenId: "token-1",
-      channelId: "channel-primary",
-      success: false,
-    });
-    expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
-      expect.objectContaining({
+      const result = await service.forwardRequest(relayToken, req);
+
+      expect(result.status).toBe(200);
+      for (const [index, key] of ["channel-primary-key", "channel-secondary-key"].entries()) {
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).toMatchObject({
+          "openai-beta": "responses=fixture",
+          "openai-project": "proj-fixture",
+          "idempotency-key": "retry-fixture",
+          "x-opencode-session": "session-fixture",
+          Authorization: `Bearer ${key}`,
+        });
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("cookie");
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("authorization");
+      }
+      expect((axiosMock.mock.calls[0]?.[0] as any).headers).toHaveProperty("x-sdk-primary", "primary-fixture");
+      expect((axiosMock.mock.calls[0]?.[0] as any).headers).not.toHaveProperty("x-sdk-secondary");
+      expect((axiosMock.mock.calls[1]?.[0] as any).headers).toHaveProperty("x-sdk-secondary", "secondary-fixture");
+      expect((axiosMock.mock.calls[0]?.[0] as any).headers).not.toHaveProperty("x-sdk-unlisted");
+      if (forwardAllRequestHeaders) {
+        expect((axiosMock.mock.calls[1]?.[0] as any).headers).toHaveProperty("x-sdk-primary", "primary-fixture");
+        expect((axiosMock.mock.calls[1]?.[0] as any).headers).toHaveProperty("x-sdk-unlisted", "unlisted-fixture");
+      } else {
+        expect((axiosMock.mock.calls[1]?.[0] as any).headers).not.toHaveProperty("x-sdk-primary");
+        expect((axiosMock.mock.calls[1]?.[0] as any).headers).not.toHaveProperty("x-sdk-unlisted");
+      }
+      expect(axiosMock).toHaveBeenCalledTimes(2);
+      expect(axiosMock.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({ url: "https://primary.example.com/v1/chat/completions" }),
+      );
+      expect(axiosMock.mock.calls[1]?.[0]).toEqual(
+        expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
+      );
+      expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenNthCalledWith(1, {
         relayTokenId: "token-1",
-        fromChannelId: "channel-primary",
-        toChannelId: "channel-secondary",
-        triggerStatusCode: 503,
-        attemptNumber: 1,
-      }),
-    );
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenNthCalledWith(2, {
-      relayTokenId: "token-1",
-      channelId: "channel-secondary",
-      success: true,
-    });
-    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ relayTokenId: "token-1", channelId: "channel-secondary", modelName: "gpt-4o-mini" }),
-    );
-    expect(businessLogService.logOperation).toHaveBeenCalledWith(
-      expect.objectContaining({ operationType: OperationType.RELAY_PROXY_REQUEST_SUCCESS, success: true }),
-    );
-  });
+        channelId: "channel-primary",
+        success: false,
+      });
+      expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relayTokenId: "token-1",
+          fromChannelId: "channel-primary",
+          toChannelId: "channel-secondary",
+          triggerStatusCode: 503,
+          attemptNumber: 1,
+        }),
+      );
+      expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenNthCalledWith(2, {
+        relayTokenId: "token-1",
+        channelId: "channel-secondary",
+        success: true,
+      });
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ relayTokenId: "token-1", channelId: "channel-secondary", modelName: "gpt-4o-mini" }),
+      );
+      expect(businessLogService.logOperation).toHaveBeenCalledWith(
+        expect.objectContaining({ operationType: OperationType.RELAY_PROXY_REQUEST_SUCCESS, success: true }),
+      );
+    },
+  );
 
   it("falls back when the primary channel locally rejects the model", async () => {
     const relayToken = createRelayToken();

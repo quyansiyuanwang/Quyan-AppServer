@@ -9,6 +9,7 @@ export enum NotificationEvent {
   RELAY_TOKEN_EXHAUSTED = 'relay_token_exhausted',
   DEVELOPER_MONITOR_DOWN = 'developer_monitor_down',
   DEVELOPER_MONITOR_RECOVERED = 'developer_monitor_recovered',
+  RELAY_PROBE_ROUND_COMPLETED = 'relay_probe_round_completed',
   TICKET_PENDING_REVIEW = 'ticket_pending_review',
   TICKET_STATUS_UPDATED = 'ticket_status_updated',
   TICKET_PUBLIC_REPLY = 'ticket_public_reply',
@@ -32,49 +33,54 @@ export enum NotificationEvent {
   RAM_POLICY_DELETED = 'ram_policy_deleted',
 }
 
-export const ALL_NOTIFICATION_EVENTS = Object.values(NotificationEvent);
+export const ALL_NOTIFICATION_EVENTS = Object.values(NotificationEvent)
 
 export const THRESHOLD_NOTIFICATION_EVENTS = [
   NotificationEvent.BALANCE_LOW,
   NotificationEvent.MONTHLY_PASS_QUOTA_LOW,
   NotificationEvent.MONTHLY_PASS_DAILY_LIMIT,
   NotificationEvent.RELAY_TOKEN_QUOTA_LOW,
-] as const;
+] as const
 
 export const NOTIFICATION_EVENT_I18N_KEYS = {
-  [NotificationEvent.BALANCE_LOW]: "notificationEvent.balance_low",
-  [NotificationEvent.RECHARGE_SUCCESS]: "notificationEvent.recharge_success",
-  [NotificationEvent.REDEMPTION_SUCCESS]: "notificationEvent.redemption_success",
-  [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: "notificationEvent.monthly_pass_quota_low",
-  [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "notificationEvent.monthly_pass_daily_limit",
-  [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "notificationEvent.relay_token_quota_low",
-  [NotificationEvent.RELAY_TOKEN_EXHAUSTED]: "notificationEvent.relay_token_exhausted",
-  [NotificationEvent.DEVELOPER_MONITOR_DOWN]: "notificationEvent.developer_monitor_down",
-  [NotificationEvent.DEVELOPER_MONITOR_RECOVERED]: "notificationEvent.developer_monitor_recovered",
-  [NotificationEvent.TICKET_PENDING_REVIEW]: "notificationEvent.ticket_pending_review",
-  [NotificationEvent.TICKET_STATUS_UPDATED]: "notificationEvent.ticket_status_updated",
-  [NotificationEvent.TICKET_PUBLIC_REPLY]: "notificationEvent.ticket_public_reply",
-  [NotificationEvent.TICKET_ASSIGNED]: "notificationEvent.ticket_assigned",
-  [NotificationEvent.ABNORMAL_LOGIN]: "notificationEvent.abnormal_login",
-  [NotificationEvent.LOGIN_FAILED_MULTIPLE]: "notificationEvent.login_failed_multiple",
-  [NotificationEvent.PASSWORD_CHANGED]: "notificationEvent.password_changed",
-  [NotificationEvent.TWO_FACTOR_STATUS_CHANGE]: "notificationEvent.two_factor_status_change",
-  [NotificationEvent.ACCOUNT_STATUS_CHANGED]: "notificationEvent.account_status_changed",
-  [NotificationEvent.CONTENT_SAFETY_BLOCKED]: "notificationEvent.content_safety_blocked",
-  [NotificationEvent.RAM_POLICY_ATTACHED]: "notificationEvent.ram_policy_attached",
-  [NotificationEvent.RAM_POLICY_DETACHED]: "notificationEvent.ram_policy_detached",
-  [NotificationEvent.RAM_ROLE_BINDING_UPDATED]: "notificationEvent.ram_role_binding_updated",
-  [NotificationEvent.RAM_USER_CREATED]: "notificationEvent.ram_user_created",
-  [NotificationEvent.RAM_USER_DELETED]: "notificationEvent.ram_user_deleted",
-  [NotificationEvent.RAM_ROLE_CREATED]: "notificationEvent.ram_role_created",
-  [NotificationEvent.RAM_ROLE_DELETED]: "notificationEvent.ram_role_deleted",
-  [NotificationEvent.RAM_POLICY_CREATED]: "notificationEvent.ram_policy_created",
-  [NotificationEvent.RAM_POLICY_DELETED]: "notificationEvent.ram_policy_deleted",
-} as const satisfies Record<NotificationEvent, `notificationEvent.${NotificationEvent}`>;
+  [NotificationEvent.BALANCE_LOW]: 'notificationEvent.balance_low',
+  [NotificationEvent.RECHARGE_SUCCESS]: 'notificationEvent.recharge_success',
+  [NotificationEvent.REDEMPTION_SUCCESS]: 'notificationEvent.redemption_success',
+  [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: 'notificationEvent.monthly_pass_quota_low',
+  [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: 'notificationEvent.monthly_pass_daily_limit',
+  [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: 'notificationEvent.relay_token_quota_low',
+  [NotificationEvent.RELAY_TOKEN_EXHAUSTED]: 'notificationEvent.relay_token_exhausted',
+  [NotificationEvent.DEVELOPER_MONITOR_DOWN]: 'notificationEvent.developer_monitor_down',
+  [NotificationEvent.DEVELOPER_MONITOR_RECOVERED]: 'notificationEvent.developer_monitor_recovered',
+  [NotificationEvent.RELAY_PROBE_ROUND_COMPLETED]: 'notificationEvent.relay_probe_round_completed',
+  [NotificationEvent.TICKET_PENDING_REVIEW]: 'notificationEvent.ticket_pending_review',
+  [NotificationEvent.TICKET_STATUS_UPDATED]: 'notificationEvent.ticket_status_updated',
+  [NotificationEvent.TICKET_PUBLIC_REPLY]: 'notificationEvent.ticket_public_reply',
+  [NotificationEvent.TICKET_ASSIGNED]: 'notificationEvent.ticket_assigned',
+  [NotificationEvent.ABNORMAL_LOGIN]: 'notificationEvent.abnormal_login',
+  [NotificationEvent.LOGIN_FAILED_MULTIPLE]: 'notificationEvent.login_failed_multiple',
+  [NotificationEvent.PASSWORD_CHANGED]: 'notificationEvent.password_changed',
+  [NotificationEvent.TWO_FACTOR_STATUS_CHANGE]: 'notificationEvent.two_factor_status_change',
+  [NotificationEvent.ACCOUNT_STATUS_CHANGED]: 'notificationEvent.account_status_changed',
+  [NotificationEvent.CONTENT_SAFETY_BLOCKED]: 'notificationEvent.content_safety_blocked',
+  [NotificationEvent.RAM_POLICY_ATTACHED]: 'notificationEvent.ram_policy_attached',
+  [NotificationEvent.RAM_POLICY_DETACHED]: 'notificationEvent.ram_policy_detached',
+  [NotificationEvent.RAM_ROLE_BINDING_UPDATED]: 'notificationEvent.ram_role_binding_updated',
+  [NotificationEvent.RAM_USER_CREATED]: 'notificationEvent.ram_user_created',
+  [NotificationEvent.RAM_USER_DELETED]: 'notificationEvent.ram_user_deleted',
+  [NotificationEvent.RAM_ROLE_CREATED]: 'notificationEvent.ram_role_created',
+  [NotificationEvent.RAM_ROLE_DELETED]: 'notificationEvent.ram_role_deleted',
+  [NotificationEvent.RAM_POLICY_CREATED]: 'notificationEvent.ram_policy_created',
+  [NotificationEvent.RAM_POLICY_DELETED]: 'notificationEvent.ram_policy_deleted',
+} as const satisfies Record<NotificationEvent, `notificationEvent.${NotificationEvent}`>
 
 export const NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS = {
-  [NotificationEvent.BALANCE_LOW]: "notificationEventThresholdUnit.balance_low",
-  [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: "notificationEventThresholdUnit.monthly_pass_quota_low",
-  [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "notificationEventThresholdUnit.monthly_pass_daily_limit",
-  [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "notificationEventThresholdUnit.relay_token_quota_low",
-} as const satisfies Partial<Record<NotificationEvent, `notificationEventThresholdUnit.${NotificationEvent}`>>;
+  [NotificationEvent.BALANCE_LOW]: 'notificationEventThresholdUnit.balance_low',
+  [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]:
+    'notificationEventThresholdUnit.monthly_pass_quota_low',
+  [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]:
+    'notificationEventThresholdUnit.monthly_pass_daily_limit',
+  [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: 'notificationEventThresholdUnit.relay_token_quota_low',
+} as const satisfies Partial<
+  Record<NotificationEvent, `notificationEventThresholdUnit.${NotificationEvent}`>
+>

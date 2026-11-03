@@ -1,5 +1,14 @@
 import { relayProbeUpstreamConfigured } from "./relay-probe-read-target";
 import { Prisma } from "@prisma/client";
+import { prisma } from "@/config/database";
+import type {
+  RelayProbeOverviewQueryDto,
+  RelayChannelProbeCustomerFacingTargetDto,
+} from "@/api/dto/relay/relay-channel-probe.dto";
+import {
+  resolveProbeCustomerFacingTargets,
+  type RelayChannelProbeTopologyItem,
+} from "@/services/relay/relay-probe-topology";
 import type { IamPrincipal } from "@quyan/shared";
 import { VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -54,6 +63,17 @@ export interface RelayProbeOverviewRecord extends RelayProbeOverviewTarget {
   profile?: RelayProbeProfileReadRecord;
   profileMembers: ReadonlySet<string>;
   members?: RelayProbeOverviewTarget[];
+  memberCount?: number;
+  hasCredentials?: boolean;
+  customerFacingTargets?: RelayChannelProbeCustomerFacingTargetDto[];
+}
+export interface ProbeOverviewReadWindow extends RelayProbeOverviewQueryDto {
+  page: number;
+  pageSize: number;
+  summary?: boolean;
+  memberChannelId?: string;
+  members?: { page: number; pageSize: number; onTotal: (total: number) => void };
+  onTotal: (total: number) => void;
 }
 export class RelayProbeOverviewReadRepository {
   private static instance: RelayProbeOverviewReadRepository;
@@ -61,12 +81,13 @@ export class RelayProbeOverviewReadRepository {
     return (this.instance ??= new RelayProbeOverviewReadRepository());
   }
   async list<T>(
-    principal: IamPrincipal,
+    principal: IamPrincipal | undefined,
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
     decideRelated: (action: string, resources: readonly string[]) => Promise<readonly string[]>,
     recheck: () => Promise<void>,
     visible: (channel: ProbeChannelVisibilityRecord) => Promise<boolean>,
     map: (records: RelayProbeOverviewRecord[]) => T,
+    window?: ProbeOverviewReadWindow,
   ): Promise<T> {
     const decisions = new Map<string, Map<string, string>>(),
       limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
@@ -102,7 +123,7 @@ export class RelayProbeOverviewReadRepository {
         if (current.some((value, index) => value !== entries[index]![1])) throw iamAccountDenied();
       }
     };
-    return readIamPersonalCollection(principal, decide, stable, async (tx, checkedDecide) => {
+    const read = async (tx: Prisma.TransactionClient, checkedDecide: typeof decide) => {
       const channels = new Map<string, Channel>();
       let after: string | undefined;
       for (;;) {
@@ -128,24 +149,175 @@ export class RelayProbeOverviewReadRepository {
         after = metadata[metadata.length - 1]!.id;
         if (metadata.length < limit) break;
       }
-      const output: RelayProbeOverviewRecord[] = [];
-      const permitted = async (action: string, resources: string[]) =>
-        (await related(action, resources)).every((value) => value === "Allow");
+      const permitted = async (action: string, resources: string[]) => {
+        const missing = resources.filter((resource) => !decisions.get(action)?.has(resource));
+        if (missing.length) await related(action, [...new Set(missing)]);
+        // All contributing grants are still evaluated again by stable() before returning data.
+        return resources.every((resource) => decisions.get(action)?.get(resource) === "Allow");
+      };
+      // Topology contains only admitted public metadata. Strict membership takes precedence before filtering.
+      const edgesByParent = new Map<string, { memberChannelId: string; enabled: boolean }[]>();
       for (const channel of channels.values()) {
+        if (channel.channelType !== "pooled") continue;
+        const children = await tx.relayChannel.findMany({
+          where: { pooledParentId: channel.id },
+          select: { id: true },
+        });
+        const edges = children.length
+          ? children.map((row) => ({ memberChannelId: row.id, enabled: true }))
+          : await tx.relayChannelMember.findMany({
+              where: { relayChannelId: channel.id },
+              select: { memberChannelId: true, enabled: true },
+            });
+        edgesByParent.set(channel.id, [
+          ...new Map(
+            edges.filter((edge) => channels.has(edge.memberChannelId)).map((edge) => [edge.memberChannelId, edge]),
+          ).values(),
+        ]);
+      }
+      const topology: RelayChannelProbeTopologyItem[] = [...channels.values()].map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        channelType: channel.channelType as RelayChannelProbeTopologyItem["channelType"],
+        enabled: channel.status === 1 && channel.providerServiceEnabled !== false,
+        poolMembers: edgesByParent.get(channel.id)?.map((edge) => {
+          const member = channels.get(edge.memberChannelId)!;
+          return {
+            ...edge,
+            priority: 0,
+            weight: 1,
+            memberChannelEnabled:
+              member.status === 1 && member.providerServiceEnabled !== false && member.pooledMemberEnabled !== false,
+          };
+        }),
+      }));
+      const filterProfiles =
+        window && ((window.profile && window.profile !== "all") || window.group)
+          ? await tx.relayChannelProbeProfile.findMany({
+              where: { relayChannelId: { in: [...channels.keys()] } },
+              select: { id: true, relayChannelId: true, probeGroup: true },
+            })
+          : [];
+      const profileFilters = new Map(filterProfiles.map((profile) => [profile.relayChannelId, profile]));
+      if (filterProfiles.length)
+        await related("quyan:relay:GetProbeProfile", [
+          ...new Set(
+            filterProfiles.flatMap((profile) => [
+              platformRelayChannelArn(profile.relayChannelId),
+              platformRelayProbeProfileArn(profile.relayChannelId, profile.id),
+            ]),
+          ),
+        ]);
+      const eligible: Channel[] = [];
+      for (const channel of channels.values()) {
+        if (channel.channelType !== "standalone" && channel.channelType !== "pooled") continue;
+        if (window?.channelId && window.channelId !== channel.id) continue;
+        const search = window?.search?.toLowerCase();
+        if (search && !channel.name.toLowerCase().includes(search) && !channel.id.toLowerCase().includes(search))
+          continue;
+        const enabled = channel.status === 1 && channel.providerServiceEnabled !== false;
+        if (window?.enabled && window.enabled !== "all" && enabled !== (window.enabled === "enabled")) continue;
+        if (window && ((window.profile && window.profile !== "all") || window.group)) {
+          const profile = profileFilters.get(channel.id);
+          const admitted =
+            profile &&
+            (await permitted("quyan:relay:GetProbeProfile", [
+              platformRelayChannelArn(channel.id),
+              platformRelayProbeProfileArn(channel.id, profile.id),
+            ]));
+          if (window.profile && window.profile !== "all" && Boolean(admitted) !== (window.profile === "configured"))
+            continue;
+          if (window.group) {
+            if (!admitted || !profile) continue;
+            const targetIds = [
+              channel.id,
+              ...(edgesByParent.get(channel.id) ?? []).map((edge) => edge.memberChannelId),
+            ];
+            const overrides = await tx.relayChannelProbeTargetConfig.findMany({
+              where: { profileId: profile.id, targetChannelId: { in: targetIds } },
+              select: { targetChannelId: true, accountId: true, probeGroup: true },
+            });
+            let matches = profile.probeGroup === window.group;
+            for (const override of overrides) {
+              if (matches) break;
+              if (override.probeGroup !== window.group) continue;
+              matches = await permitted("quyan:relay:GetProbeTargetConfig", [
+                platformRelayChannelArn(channel.id),
+                platformRelayChannelArn(override.targetChannelId),
+                platformRelayProbeProfileArn(channel.id, profile.id),
+                ...(override.accountId ? [platformRelayProbeAccountArn(override.accountId)] : []),
+              ]);
+            }
+            if (!matches) continue;
+          }
+        }
+        if (
+          window &&
+          ((window.runStatus && window.runStatus !== "all") || (window.suggestion && window.suggestion !== "all"))
+        ) {
+          const run =
+            channel.channelType === "pooled"
+              ? null
+              : await tx.relayChannelProbeRun.findFirst({
+                  where: { relayChannelId: channel.id, probeMemberChannelId: null },
+                  orderBy: [{ createTime: "desc" }, { id: "desc" }],
+                  select: {
+                    id: true,
+                    status: true,
+                    suggestedMultiplier: true,
+                    appliedAt: true,
+                    calibrationStatus: true,
+                  },
+                });
+          const admitted =
+            run &&
+            (await permitted("quyan:relay:ListLatestProbeRuns", [
+              platformRelayChannelArn(channel.id),
+              platformRelayProbeRunArn(channel.id, run.id),
+            ]));
+          const status = admitted ? run?.status : undefined;
+          if (
+            window.runStatus &&
+            window.runStatus !== "all" &&
+            (window.runStatus === "none" ? Boolean(status) : status !== window.runStatus)
+          )
+            continue;
+          const applicable = Boolean(
+            admitted &&
+              run?.status === "succeeded" &&
+              run.calibrationStatus === "verified" &&
+              run.suggestedMultiplier !== null &&
+              !run.appliedAt,
+          );
+          if (window.suggestion && window.suggestion !== "all" && applicable !== (window.suggestion === "applicable"))
+            continue;
+        }
+        eligible.push(channel);
+      }
+      eligible.sort((a, b) => b.createTime.getTime() - a.createTime.getTime() || b.id.localeCompare(a.id));
+      window?.onTotal(eligible.length);
+      const selected = window
+        ? eligible.slice((window.page - 1) * window.pageSize, window.page * window.pageSize)
+        : eligible;
+      const output: RelayProbeOverviewRecord[] = [];
+      for (const channel of selected) {
         if (channel.channelType !== "standalone" && channel.channelType !== "pooled") continue;
         const channelArn = platformRelayChannelArn(channel.id),
           members: RelayProbeOverviewTarget[] = [];
         if (channel.channelType === "pooled") {
           // Presence is tested before visibility or authorization filtering. Denying a strict child must never enable legacy fallback.
-          const strict = await tx.relayChannel.count({ where: { pooledParentId: channel.id } });
-          const edges = strict
-            ? await tx.relayChannel
-                .findMany({ where: { pooledParentId: channel.id }, select: { id: true } })
-                .then((rows) => rows.map((row) => ({ memberChannelId: row.id, enabled: true })))
-            : await tx.relayChannelMember.findMany({
-                where: { relayChannelId: channel.id },
-                select: { memberChannelId: true, enabled: true },
-              });
+          const allEdges = (edgesByParent.get(channel.id) ?? []).filter(
+            (edge) => !window?.memberChannelId || edge.memberChannelId === window.memberChannelId,
+          );
+          window?.members?.onTotal(allEdges.length);
+          const edges = window?.summary
+            ? []
+            : window?.members
+              ? allEdges.slice(
+                  (window.members.page - 1) * window.members.pageSize,
+                  window.members.page * window.members.pageSize,
+                )
+              : allEdges;
           const included = new Set<string>();
           for (const edge of edges) {
             const member = channels.get(edge.memberChannelId);
@@ -167,10 +339,35 @@ export class RelayProbeOverviewReadRepository {
             platformRelayProbeProfileArn(channel.id, metadata.id),
           ]))
         ) {
-          const record = await tx.relayChannelProbeProfile.findUnique({
-            where: { id: metadata.id },
-            select: relayProbeProfileReadSelect,
-          });
+          const record = window?.summary
+            ? await tx.relayChannelProbeProfile
+                .findUnique({
+                  where: { id: metadata.id },
+                  select: {
+                    ...relayProbeProfileReadSelect,
+                    workflow: false,
+                    probePayload: false,
+                    encryptedCredentials: false,
+                    credentialIv: false,
+                    credentialAuthTag: false,
+                  },
+                })
+                .then((row) =>
+                  row
+                    ? {
+                        ...row,
+                        workflow: [],
+                        probePayload: {},
+                        encryptedCredentials: null,
+                        credentialIv: null,
+                        credentialAuthTag: null,
+                      }
+                    : null,
+                )
+            : await tx.relayChannelProbeProfile.findUnique({
+                where: { id: metadata.id },
+                select: relayProbeProfileReadSelect,
+              });
           if (
             !record ||
             record.relayChannelId !== channel.id ||
@@ -192,6 +389,14 @@ export class RelayProbeOverviewReadRepository {
           upstreamConfigured: false,
           profile,
           profileMembers,
+          memberCount: edgesByParent.get(channel.id)?.length ?? 0,
+          hasCredentials: Boolean(
+            profile &&
+              (await tx.relayChannelProbeProfile.count({
+                where: { id: profile.id, encryptedCredentials: { not: null } },
+              })),
+          ),
+          customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
           ...(channel.channelType === "pooled" ? { members } : {}),
         };
         const targets = channel.channelType === "pooled" ? members : [row];
@@ -220,7 +425,7 @@ export class RelayProbeOverviewReadRepository {
             continue;
           const config = await tx.relayChannelProbeTargetConfig.findUnique({
             where: { id: identity.id },
-            select: targetConfigSelect,
+            select: { ...targetConfigSelect, probePayload: !window?.summary },
           });
           if (
             !config ||
@@ -230,7 +435,10 @@ export class RelayProbeOverviewReadRepository {
             config.updateTime.getTime() !== identity.updateTime.getTime()
           )
             throw iamAccountDenied();
-          target.targetConfig = config;
+          target.targetConfig = {
+            ...config,
+            probePayload: window?.summary ? null : (config as TargetConfig).probePayload,
+          };
         }
         for (const target of targets) {
           const resources = [channelArn, platformRelayChannelArn(target.channel.id)];
@@ -249,7 +457,17 @@ export class RelayProbeOverviewReadRepository {
             ) {
               const run = await tx.relayChannelProbeRun.findUnique({
                 where: { id: latest.id },
-                select: relayProbeRunPublicSelect,
+                select: window
+                  ? {
+                      ...relayProbeRunPublicSelect,
+                      warmupUsage: false,
+                      samples: false,
+                      pricingSnapshot: false,
+                      balanceSnapshots: false,
+                      upstreamUsage: false,
+                      costBreakdown: false,
+                    }
+                  : relayProbeRunPublicSelect,
               });
               if (
                 !run ||
@@ -258,7 +476,19 @@ export class RelayProbeOverviewReadRepository {
                 run.updateTime.getTime() !== latest.updateTime.getTime()
               )
                 throw iamAccountDenied();
-              target.latestRun = run;
+              target.latestRun = {
+                ...run,
+                ...(window
+                  ? {
+                      warmupUsage: null,
+                      samples: null,
+                      pricingSnapshot: null,
+                      balanceSnapshots: null,
+                      upstreamUsage: null,
+                      costBreakdown: null,
+                    }
+                  : {}),
+              };
             }
           }
           if (profile) {
@@ -274,6 +504,16 @@ export class RelayProbeOverviewReadRepository {
           right.channel.id.localeCompare(left.channel.id),
       );
       return map(output);
-    });
+    };
+    if (principal) return readIamPersonalCollection(principal, decide, stable, read);
+    // This branch is called exclusively by the service's legacy permission adapter.
+    return prisma.$transaction(
+      async (tx) => {
+        const result = await read(tx, decide);
+        await recheck();
+        return result;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 },
+    );
   }
 }

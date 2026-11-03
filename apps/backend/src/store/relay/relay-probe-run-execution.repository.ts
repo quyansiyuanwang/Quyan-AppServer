@@ -3,12 +3,24 @@ import { prisma } from "@/config/database";
 import { RELAY_CHANNEL_STATUS, VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { RelayProbeRunAdmission } from "@/services/relay/relay-probe-run-admission";
 import { iamAccountDenied } from "../users/iam-account-principal";
+export type ProbeRunExecutionTarget = Pick<
+  RelayProbeRunAdmission,
+  | "runId"
+  | "channelId"
+  | "memberChannelId"
+  | "profileId"
+  | "profileUpdatedAt"
+  | "targetConfigId"
+  | "targetConfigUpdatedAt"
+  | "accountId"
+  | "principal"
+>;
 export class RelayProbeRunExecutionRepository {
   private static instance: RelayProbeRunExecutionRepository;
   static getInstance() {
     return (this.instance ??= new RelayProbeRunExecutionRepository());
   }
-  async inspect(runId: string, owner: string, expected?: RelayProbeRunAdmission) {
+  async inspect(runId: string, owner: string, expected?: ProbeRunExecutionTarget) {
     const run = await prisma.relayChannelProbeRun.findUnique({
       where: { id: runId },
       select: {
@@ -60,6 +72,8 @@ export class RelayProbeRunExecutionRepository {
     if (
       !parent ||
       !target ||
+      parent.status !== RELAY_CHANNEL_STATUS.ENABLED ||
+      parent.providerServiceEnabled === false ||
       target.status !== RELAY_CHANNEL_STATUS.ENABLED ||
       target.providerServiceEnabled === false ||
       target.pooledMemberEnabled === false
@@ -100,9 +114,9 @@ export class RelayProbeRunExecutionRepository {
       (config?.updateTime.toISOString() ?? null) !== expected.targetConfigUpdatedAt
     )
       throw iamAccountDenied();
-    return parent satisfies Pick<
+    return { ...parent, physicalTarget: target } satisfies Pick<
       Prisma.RelayChannelGetPayload<Record<string, never>>,
       "visibilityMode" | "visibilityConfig"
-    >;
+    > & { physicalTarget: typeof target };
   }
 }

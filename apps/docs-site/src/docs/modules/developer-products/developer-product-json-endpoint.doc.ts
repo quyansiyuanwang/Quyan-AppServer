@@ -4,11 +4,12 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'developer-product-json-endpoint',
+  updatedAt: '2026-10-30',
   category: { en: 'Developer Products', 'zh-CN': '开发者产品' },
   title: { en: 'JSON Endpoints', 'zh-CN': 'JSON 端点' },
   summary: {
-    en: 'Publish and access editable JSON documents with product keys.',
-    'zh-CN': '通过产品 API Key 发布和访问可编辑的 JSON 文档。',
+    en: 'Edit JSON, choose shared or product-key access, and handle signing, usage and withdrawal.',
+    'zh-CN': '编辑 JSON，选择分享或产品 Key 访问，并了解签名、用量与撤回方式。',
   },
   tags: ['json', 'endpoint', 'api-key'],
   content: { en: contentEn, 'zh-CN': contentZh },

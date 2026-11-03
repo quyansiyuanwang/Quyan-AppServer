@@ -104,6 +104,73 @@ export class NotificationService {
     await Promise.allSettled(deliveries);
   }
 
+  /** Durable round delivery: per-round IDs replace event-wide cooldown; all delivery records remain in the notification center. */
+  async dispatchProbeRound(
+    userId: string,
+    deliveryId: string,
+    input: NotificationInputFor<NotificationEvent.RELAY_PROBE_ROUND_COMPLETED>,
+    recheck: () => Promise<void>,
+  ): Promise<"delivered" | "unsubscribed"> {
+    const document = NotificationTemplateRegistry.build(NotificationEvent.RELAY_PROBE_ROUND_COMPLETED, input);
+    const preference = await this.preferenceInitializer.getOrInitialize(userId);
+    await recheck();
+    await this.repository.ensureRoundInbox(deliveryId, {
+      userId,
+      eventType: document.event,
+      title: document.subject,
+      content: document.summary,
+      metadata: { ...(document.metadata ?? {}), document },
+    });
+    if (!Array.isArray(preference.subscribedEvents) || !preference.subscribedEvents.includes(document.event))
+      return "unsubscribed";
+    const user = await this.repository.activeAccountEmail(userId);
+    const email = preference.notificationEmail?.trim() || user?.email?.trim();
+    const deliver = async (channel: "email" | "webhook", targetId: string, send: () => Promise<void>) => {
+      const id = `${deliveryId}-${targetId}`;
+      const log = await this.repository.ensureRoundLog(id, {
+        userId,
+        eventType: document.event,
+        title: document.subject,
+        content: document.summary,
+        channel,
+        webhookId: channel === "webhook" ? targetId : null,
+        deliveryStatus: "pending",
+        metadata: { ...(document.metadata ?? {}), document },
+      });
+      if (log.deliveryStatus === "success") return;
+      try {
+        await recheck();
+        await send();
+        await this.repository.finishRoundLog(id, "success", null);
+      } catch {
+        await this.repository.finishRoundLog(id, "failed", "notification-delivery-failed");
+        throw new Error("Round notification delivery failed");
+      }
+    };
+    if (!email) {
+      const id = `${deliveryId}-email`;
+      await this.repository.ensureRoundLog(id, {
+        userId,
+        eventType: document.event,
+        title: document.subject,
+        content: document.summary,
+        channel: "email",
+        deliveryStatus: "failed",
+        errorMessage: "notification-email-unavailable",
+      });
+      throw new Error("Round notification email unavailable");
+    }
+    await deliver("email", "email", async () => {
+      const sendEmail = await this.emailSender();
+      await recheck();
+      await sendEmail(email, document, deliveryId);
+    });
+    const webhooks = await this.repository.findWebhooksByUserId(userId);
+    for (const webhook of webhooks.filter((row) => row.enabled))
+      await deliver("webhook", webhook.id, () => this.sendWebhook(webhook, document));
+    return "delivered";
+  }
+
   /**
    * Creates an inbox item and sends the email synchronously, rethrowing delivery errors.
    * Used by the "test email" flow so failures can be reported back to the caller,
@@ -214,6 +281,7 @@ export class NotificationService {
         subject: document.subject,
         html: rendered.html,
         text: rendered.text,
+        messageId: `<${inboxItemId}@${smtpConfig.senderEmail.split("@").at(-1)}>`,
       });
     };
   }

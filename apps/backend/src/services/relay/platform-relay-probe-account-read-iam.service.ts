@@ -10,6 +10,7 @@ import {
   PlatformRelayProbeAccountReadRepository,
   type PlatformRelayProbeAccountReadStore,
   type RelayProbeAccountPublicRecord,
+  type ProbeAccountReadWindow,
 } from "@/store/relay/platform-relay-probe-account-read.repository";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "@/services/users/permission.service";
@@ -35,6 +36,7 @@ export class PlatformRelayProbeAccountReadIamService {
     request: TypedRequest | undefined,
     map: (account: RelayProbeAccountPublicRecord) => Promise<T>,
     legacy: () => Promise<T[]>,
+    window?: ProbeAccountReadWindow,
   ) {
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
@@ -68,6 +70,7 @@ export class PlatformRelayProbeAccountReadIamService {
         (resources) => platformCollectionDecisions(this.iam, { principal, action, request, resources }),
         recheck,
         map,
+        ...(window ? ([window] as const) : ([] as const)),
       );
       await recheck();
       return result;

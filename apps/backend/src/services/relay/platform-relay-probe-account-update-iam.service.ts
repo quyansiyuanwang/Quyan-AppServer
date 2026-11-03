@@ -55,7 +55,10 @@ export class PlatformRelayProbeAccountUpdateIamService {
     const parsed = saveRelayChannelProbeAccountBodySchema.safeParse(input);
     if (!parsed.success)
       throw new BadRequestError("Invalid probe account configuration", undefined, { messageKey: "errors.badRequest" });
-    if (parsed.data.credentials && Object.prototype.hasOwnProperty.call(parsed.data.credentials, "accountToken"))
+    if (
+      Object.hasOwn(parsed.data.credentials ?? {}, "accountToken") ||
+      Object.hasOwn(parsed.data.credentialUpdates ?? {}, "accountToken")
+    )
       throw new BadRequestError("Reserved probe account variable", undefined, {
         messageKey: "relayChannelProbe.accountReservedVariable",
       });

@@ -300,6 +300,38 @@ export interface RelayChannelProbeMemberDto {
   latestRun?: RelayChannelProbeRunDto;
 }
 
+/** List projection: request templates, credentials and member details are loaded on demand. */
+export interface RelayProbeOverviewSummaryDto
+  extends Omit<RelayChannelProbeOverviewItemDto, "profile" | "members" | "targetConfig"> {
+  profile?: Omit<RelayChannelProbeProfileDto, "workflow" | "probePayload" | "credentialNames">;
+  targetConfig?: Omit<RelayChannelProbeTargetConfigDto, "probePayload">;
+  memberCount: number;
+  hasCredentials: boolean;
+}
+export interface RelayProbeOverviewPageDto {
+  items: RelayProbeOverviewSummaryDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+export interface RelayProbeMemberPageDto {
+  items: RelayChannelProbeMemberDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+export interface RelayProbeOverviewQueryDto {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  channelId?: string;
+  profile?: "all" | "configured" | "unconfigured";
+  enabled?: "all" | "enabled" | "disabled";
+  runStatus?: "all" | "none" | RelayChannelProbeRunStatus;
+  suggestion?: "all" | "applicable" | "not_applicable";
+  group?: string;
+}
+
 export interface ApplyRelayChannelProbeRunsRequest {
   runIds: string[];
   /** Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment. */
@@ -321,22 +353,63 @@ export interface RelayChannelProbeLoginDto {
   query?: Record<string, string>;
   body?: Record<string, unknown>;
 }
+export type RelayProbeAccountExpiryMode = "seconds" | "iso" | "unixSeconds" | "unixMillis";
+export interface RelayProbeAccountSessionFieldDto {
+  name: string;
+  source: "json" | "header" | "cookie";
+  selector: string;
+  required: boolean;
+}
 export interface SaveRelayChannelProbeAccountRequest {
   name: string;
   loginWorkflow: RelayChannelProbeLoginDto;
   tokenPath: string;
   expiresPath?: string;
-  expiresMode?: "seconds" | "iso";
+  expiresMode?: RelayProbeAccountExpiryMode;
   fallbackTtlSeconds: number;
   minLoginIntervalSeconds: number;
   credentials?: Record<string, string>;
+  /** Safe editor revision. Rejects writes after the encrypted configuration changes. */
+  expectedRevision?: string;
+  /** Paths in loginWorkflow whose saved values should be retained without disclosing them. */
+  retainedFields?: string[][];
+  /** Replaces only the named credentials; omitted credentials remain unchanged. */
+  credentialUpdates?: Record<string, string>;
+  sessionFields?: RelayProbeAccountSessionFieldDto[];
+  /** Named session field used as the legacy accountToken alias. */
+  tokenField?: string | null;
+  refreshWorkflow?: RelayChannelProbeLoginDto | null;
+  retainedRefreshFields?: string[][];
+  refreshTtlSeconds?: number;
+  /** Additional explicit HTTPS origins permitted to receive panel session values. */
+  sessionAllowedOrigins?: string[];
+}
+export interface RelayChannelProbeAccountEditorDto {
+  account: RelayChannelProbeAccountDto;
+  revision: string;
+  loginWorkflow: RelayChannelProbeLoginDto;
+  retainedFields: string[][];
+  credentialNames: string[];
+  requiredCredentialNames: string[];
+  sessionFields?: RelayProbeAccountSessionFieldDto[];
+  tokenField?: string;
+  refreshWorkflow?: RelayChannelProbeLoginDto;
+  retainedRefreshFields?: string[][];
+  refreshTtlSeconds?: number;
+  sessionAllowedOrigins?: string[];
+}
+export interface RelayChannelProbeAccountPageDto {
+  items: RelayChannelProbeAccountDto[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 export interface RelayChannelProbeAccountDto {
   id: string;
   name: string;
   tokenPath: string;
   expiresPath?: string;
-  expiresMode?: "seconds" | "iso";
+  expiresMode?: RelayProbeAccountExpiryMode;
   fallbackTtlSeconds: number;
   minLoginIntervalSeconds: number;
   lastLoginAttemptAt?: Date;
@@ -352,6 +425,20 @@ export interface RelayChannelProbeTargetConfigDto {
   probePayload?: Record<string, unknown>;
   probeGroup?: string;
   accountId?: string;
+  updateTime?: Date;
+}
+export interface SaveRelayProbeConfigurationRequest {
+  profile: UpsertRelayChannelProbeProfileRequest;
+  memberChannelId?: string;
+  target?: Pick<RelayChannelProbeTargetConfigDto, "probeFormat" | "probeModel" | "probePayload" | "probeGroup">;
+  /** Omit to retain the existing binding; null unbinds it. */
+  accountId?: string | null;
+  expectedProfileUpdatedAt: string | null;
+  expectedTargetUpdatedAt: string | null;
+}
+export interface SaveRelayProbeConfigurationResponse {
+  profile: RelayChannelProbeProfileDto;
+  targetConfig?: RelayChannelProbeTargetConfigDto;
 }
 export interface ConfigureRelayChannelProbeTargetsRequest {
   sourceChannelId?: string;

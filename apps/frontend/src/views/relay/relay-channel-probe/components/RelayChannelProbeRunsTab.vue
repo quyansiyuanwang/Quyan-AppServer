@@ -218,6 +218,13 @@
       class="mt-2"
     />
   </section>
+  <el-pagination
+    v-model:current-page="runsPage"
+    v-model:page-size="runsPageSize"
+    :total="runsTotal"
+    :page-sizes="[20, 50, 100]"
+    layout="total, prev, pager, next, sizes"
+  />
 </template>
 
 <script setup lang="ts">
@@ -247,6 +254,9 @@ const {
   run,
   runs,
   runsLoading,
+  runsPage,
+  runsPageSize,
+  runsTotal,
   runningId,
   sampleStatusLabel,
   selected,

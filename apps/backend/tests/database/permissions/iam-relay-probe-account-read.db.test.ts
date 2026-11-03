@@ -22,10 +22,10 @@ const request = () =>
     secure: true,
   }) as unknown as TypedRequest;
 const list = () => service.list(request());
-async function policy(effect: "Allow" | "Deny", resource: string) {
+async function policy(effect: "Allow" | "Deny", resource: string, action = "quyan:relay:ListProbeAccounts") {
   const parsed = parseIamPolicy({
     Version: "1",
-    Statement: { Effect: effect, Action: "quyan:relay:ListProbeAccounts", Resource: resource },
+    Statement: { Effect: effect, Action: action, Resource: resource },
   });
   const created = await RamPolicyRepository.getInstance().createPolicy({
     accountOwnerId: owner,
@@ -105,6 +105,21 @@ afterEach(async () => {
   await prisma.group.deleteMany({ where: { id: groupId } });
 });
 describe("probe account metadata authorization", () => {
+  it("paginates after authorization and does not include denied accounts in the total", async () => {
+    await policy("Deny", platformRelayProbeAccountArn(accounts[0]!));
+    const first = await service.page(1, 1, prefix, request());
+    expect(first.total).toBe(1);
+    expect(first.items.map((row) => row.id)).toEqual([accounts[1]]);
+    const second = await service.page(2, 1, prefix, request());
+    expect(second.total).toBe(1);
+    expect(second.items).toEqual([]);
+    expect(JSON.stringify(first)).not.toContain("fixture-encrypted-secret");
+  });
+  it("honors an editor denial while retaining list access", async () => {
+    await policy("Allow", "*");
+    await policy("Deny", platformRelayProbeAccountArn(accounts[0]!), "quyan:relay:UpdateProbeAccount");
+    await expect(service.getEditor(accounts[0]!, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
   it("retains name ordering and public configuration without exposing credential material", async () => {
     const result = await list();
     expect(result.map((row) => row.id)).toEqual([accounts[1], accounts[0]]);

@@ -61,11 +61,15 @@ export function isLegacyCredential(value: string | null | undefined, type?: Cred
 }
 
 /** Validates a credential value while allowing the legacy format during migration. */
-export function isValidCredential(value: string | null | undefined, type: CredentialType, minSuffixLength = 1): boolean {
-  if (!value || !isCredentialOfType(value, type)) return false
+export function isValidCredential(
+  value: unknown,
+  type: CredentialType,
+  minSuffixLength = 1,
+): boolean {
+  if (typeof value !== 'string' || !isCredentialOfType(value, type)) return false
   const prefix = isCanonicalCredential(value, type)
     ? CREDENTIAL_PREFIXES[type].canonical
     : CREDENTIAL_PREFIXES[type].legacy
   const suffix = value.slice(prefix.length)
-  return suffix.length >= minSuffixLength && /^[A-Za-z0-9-]+$/.test(suffix)
+  return suffix.length > 0 && suffix.length >= minSuffixLength && !/[^A-Za-z0-9-]/.test(suffix)
 }

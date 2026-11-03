@@ -1,231 +1,102 @@
-# Auth Center client management
+# Auth Center app management
 
-Use this page to maintain Auth Center application records inside the admin console. It is for platform operators or app owners who need to create, edit, submit, rotate secrets, and delete apps.
+Manage your own Auth Center applications: create configurations, submit for review, read comments, rotate secrets, and delete apps. For token acquisition and JWT verification, see [Auth Center integration](/en/auth-center-app-management).
 
-## Page positioning
+## Before you begin
 
-This page is different from `auth-center-app-management`:
+- Page access requires `auth_center:client:read`. Creation, editing, and deletion require `auth_center:client:create`, `auth_center:client:update`, and `auth_center:client:delete`. Review submission and secret rotation are update operations.
+- Creation, editing, submission, rotation, and owner deletion require the corresponding two-factor verification and replay protection. Follow console prompts; page access does not grant every operation.
+- Scopes come from a dynamic catalog grantable by your current account. Retry in the dialog if loading fails; submission is blocked until the catalog is ready. Role sessions use the role's permissions.
+- This page maintains only the current user's own applications. Approval and rejection take place on the separate [Auth Center app review](/en/auth-center-client-review-management) page.
 
-- [`auth-center-client-management`](/en/auth-center-client-management): admin-page manual for the internal management screen.
-- [`auth-center-app-management`](/en/auth-center-app-management): external integration guide for third-party developers.
+## Create and submit an application
 
-If you are working inside the admin UI, use this page. If you are integrating an outside system, use `auth-center-app-management`.
+1. Select create and enter the name, purpose, and client type. Choose confidential when a trusted backend can store secrets; choose public for SPAs, mobile apps, desktop apps, and other clients that cannot.
+2. Select grants for the actual use case. New confidential applications start with all three grant types selected; clear those you do not need.
+3. For user authorization, register at least one complete callback. Configure PKCE, lifetimes, and minimum scopes.
+4. Optionally enter homepage, logo, privacy policy, and terms URLs, then save.
+5. Save the full Client Secret from the creation dialog immediately for a confidential application. Public applications have no secret. Do not wait until approval to look for it.
+6. Check the listed configuration and submit the draft for review. It becomes `pending`; approval is required before authorization and token exchange.
 
-## Page purpose
+### Grants and PKCE
 
-- Create Auth Center apps.
-- Configure client type, grant types, redirect URIs, and scopes.
-- Adjust access-token and refresh-token lifetimes.
-- Review current status and reviewer comments.
-- Submit for review, rotate client secrets, and delete apps.
+| Setting                              | Requirements and outcome                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `authorization_code`                 | User authorization, at least one callback, user JWT                                                           |
+| `refresh_token`                      | Also requires `authorization_code`; code exchange issues a refresh token, which rotates on successful refresh |
+| `client_credentials`                 | Confidential only; application JWT without a refresh token                                                    |
+| Public with authorization code       | PKCE is forced on; switching to public automatically removes the machine grant                                |
+| Confidential with authorization code | PKCE is configurable; keep it enabled with S256. A secret cannot replace a required verifier                  |
 
-## What you will see
+Select at least one grant and one scope in the form. Authorization-code callbacks must match the requested scheme, host, port, path, and trailing slash exactly. Machine-only applications can omit callbacks.
 
-### Reference section
+### Fields and lifetimes
 
-The top of the page includes a grant-type reference table that helps explain:
+| Field                                          | Limits and defaults                                                                          |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Name and description                           | Name required, 1–100 characters; description optional, up to 2,000 characters                |
+| Callback URIs                                  | Up to 20 complete URLs, 500 characters each; at least one when authorization code is enabled |
+| Access token lifetime                          | Seconds, 60–86,400; default for new apps: 3,600                                              |
+| Refresh token lifetime                         | Seconds, 300–31,536,000; default: 2,592,000 (30 days)                                        |
+| Homepage, logo, privacy policy, and terms URLs | Optional, up to 500 characters each; clearing and saving removes the previous value          |
 
-- `authorization_code` for user login or delegated authorization
-- `refresh_token` for renewing expired access tokens
-- `client_credentials` for service-to-service access
+Refresh lifetime cannot be shorter than access lifetime, even for machine-only configuration. This validation does not mean a machine grant issues refresh tokens. New tokens use the configuration at issuance; changing lifetimes does not rewrite the expiry claim of JWTs already issued.
 
-This area works as a quick decision aid before editing the form.
+## View and edit configuration
 
-### App list
+The desktop list shows review status and comments, Client ID, client type, grants, callback summary, secret preview, PKCE, and last-used time. Mobile cards include callback and scope counts and both lifetimes. Check full callbacks and lifetimes in the edit dialog. The page has no keyword search or pagination.
 
-Desktop and mobile layouts both show an app list with fields such as:
+| Status     | Meaning                                               | Next step                                           |
+| ---------- | ----------------------------------------------------- | --------------------------------------------------- |
+| `draft`    | Created or edited, awaiting submission                | Check details and submit                            |
+| `pending`  | Awaiting review                                       | Wait; notify the reviewer if editing further        |
+| `approved` | Integration available when other requirements are met | Allow time for another review before making changes |
+| `rejected` | Review failed                                         | Revise according to comments and resubmit           |
 
-- app name
-- review status and reviewer comment
-- `clientId`
-- `clientType`
-- `grantTypes`
-- access-token and refresh-token lifetime
-- redirect URI summary
-- secret preview
-- PKCE requirement
-- last-used time
+**Saving an approved or rejected app returns it to `draft`, even when fields are unchanged.** The previous comment, submission time, and review information are cleared. Code exchange, refresh, and machine grants remain unavailable until approval again. Editing a pending application keeps it `pending`; reviewers must check the latest details.
 
-### Main actions
+### Change client type
 
-Each app can usually expose these actions:
+Unlike ordinary OAuth management, this page allows client-type changes. Switching to public clears the existing secret and rechecks grants and PKCE. The old confidential integration configuration cannot simply continue unchanged.
 
-- Edit
-- Submit review
-- Regenerate secret
-- Delete
+Switching from public to confidential does not generate a Client Secret on save. If no rotation button is available, an authorized integrator can create a new secret using `POST /v1/auth-center/clients/{id}/regenerate-secret`, or create a new confidential application. The path's `{id}` is the application record ID, not the public Client ID. The API still requires permissions, two-factor verification, and replay protection. Saving successfully does not mean a secret is ready.
 
-`Submit review` only appears for `draft` or `rejected`. Secret rotation only appears when the app actually has a client secret.
+## Rotate a secret
 
-### Create / edit dialog
+1. Confirm affected integrations, select rotation, and complete confirmation and verification. The button appears only when a secret is already configured.
+2. Save the new secret from the dialog and update every server configuration immediately. The old secret becomes invalid immediately, without an overlap period.
+3. Verify subsequent code exchange, refresh, or machine authorization. Rotate a lost secret; the list and detail responses cannot recover its plaintext.
 
-The form is split into several sections:
+Rotation does not change review status or revoke issued access or refresh tokens. The full secret is provided only at creation or rotation; subsequent desktop listings show a preview. Never put secrets in browser code, user devices, or version control.
 
-- basic information
-- grant types
-- redirect URIs
-- token settings
-- scopes
-- integration metadata
+## Delete and retire an integration
 
-That means a single app record is expected to satisfy business, authorization, security, and callback requirements together.
+Coordinate business retirement and token revocation before deletion. Confirm the app name and Client ID, then delete and complete verification. The application disappears from management and review lists and can no longer authorize, exchange, or refresh tokens. There is no restore option; recreating it issues a new Client ID.
 
-## Key fields and rules
+**Deletion does not immediately invalidate JWTs verified locally by an integration.** Existing signatures and expiry claims do not change when the record disappears. Ending existing access also requires the integration's session, authorization, and revocation policies. Pure local signature verification cannot immediately observe server-side token revocation either.
 
-### `clientType`
+## IAM actions and resources
 
-Choose between `confidential` and `public`:
+With IAM enforcement, listing filters your own apps by `quyan:auth_center:ListClients`; individual reads require `quyan:auth_center:GetClient`. Resources use `acs:auth-center:*:<accountId>:client/<userId>/<recordId>`. The final segment is the record ID, not the public Client ID. Account and user come from the current identity; policies cannot make this page read another user's apps.
 
-- `confidential`: for systems with a trusted backend that can keep secrets safe
-- `public`: for SPAs, mobile apps, desktop apps, or browser extensions that cannot safely store secrets
+Creation uses `quyan:auth_center:CreateClient` on the current user's parent resource, `acs:quyan:*:<accountId>:user/<userId>`. Editing, submission, rotation, and deletion check `quyan:auth_center:UpdateClient`, `quyan:auth_center:SubmitClientReview`, `quyan:auth_center:RotateClientSecret`, and `quyan:auth_center:DeleteClient`, respectively, on the application resource. Creation does not automatically grant subsequent reads or maintenance.
 
-If the code runs on user-controlled devices, it should not be treated as a secret-keeping client.
+Scope changes also check that the current identity can grant the requested scopes. OAuth access tokens calling management APIs require `auth_center_client` or a supported equivalent scope, which still does not replace IAM grants. Explicit denies, role restrictions, or identity and application changes during an operation can cause rejection. Refresh and check again.
 
-### `grantTypes`
+## Troubleshooting
 
-This page centers around these grant types:
-
-- `authorization_code`
-- `refresh_token`
-- `client_credentials`
-
-Important constraints:
-
-- `refresh_token` must be used together with `authorization_code`
-- `public` clients cannot enable `client_credentials`
-- `public + authorization_code` forces PKCE on
-- if `authorization_code` is enabled, at least one redirect URI is required
-
-### `redirectUris`
-
-Redirect URIs are one of the easiest parts of a user-facing auth flow to misconfigure.
-
-- They mainly support `authorization_code`.
-- Development, staging, and production should be registered separately.
-- Scheme, host, port, path, and trailing slash should be exact.
-- Old values should be removed quickly after decommissioning.
-
-### `scopes`
-
-The page shows selectable scopes such as `profile`. They describe:
-
-- what the app is allowed to request later
-- which capabilities the integrator may ask for during authorization
-
-Scope selection should still follow least privilege.
-
-### `isPkceRequired`
-
-This switch controls whether the authorization-code flow must use PKCE.
-
-- For `public + authorization_code`, the system locks it on.
-- For clients that can safely keep secrets, the requirement depends on your security policy.
-
-If you are unsure, stricter is usually better.
-
-### `accessTokenLifetime` and `refreshTokenLifetime`
-
-These fields control:
-
-- `accessTokenLifetime`: how long the JWT is valid for local verification
-- `refreshTokenLifetime`: how long the app may return to the auth center for renewal
-
-Current page rule:
-
-- `refreshTokenLifetime` cannot be shorter than `accessTokenLifetime`
-
-In practice, access tokens should usually be shorter-lived than refresh tokens.
-
-## Review status flow
-
-Auth Center apps usually move through these states:
-
-- `draft`: not submitted yet
-- `pending`: submitted and waiting for review
-- `approved`: accepted for formal integration use
-- `rejected`: rejected and needs revision
-
-Important behavior:
-
-- `draft` and `rejected` can normally be edited and submitted again
-- editing a previously approved or rejected app usually sends it back to draft-like review preparation
-- reviewer comments directly affect the next remediation step for the owner
-
-## Sensitive actions
-
-### Submit review
-
-Submitting means the record is ready for platform review. Before doing so, re-check:
-
-- whether `clientType` matches the real architecture
-- whether `grantTypes` are minimal
-- whether `redirectUris` are complete and exact
-- whether token lifetimes match the risk level
-
-### Regenerate secret
-
-Secret rotation is a sensitive action.
-
-- The old secret should no longer be trusted after rotation.
-- The new secret is usually shown in full only once.
-- If you suspect exposure, rotate immediately instead of trying to recover the old value.
-
-### Delete app
-
-Deletion is commonly used when:
-
-- the integration plan is abandoned
-- the app record was created incorrectly
-- the app no longer needs to exist
-
-If the app is already in use by an external system, confirm the retirement plan first.
-
-## Common actions
-
-1. Read the grant-type reference table and confirm the integration model.
-2. Create the app and fill in basics, grant types, redirect URIs, and scopes.
-3. Set PKCE and token lifetimes according to client type and risk.
-4. Re-check list values such as status, redirect URI summary, and secret preview.
-5. Submit for review when the record is ready.
-6. Rotate the secret if needed and store the new value immediately.
-
-## Permission requirements
-
-This page usually involves:
-
-- `auth_center:client:read`
-- `auth_center:client:create`
-- `auth_center:client:update`
-- `auth_center:client:delete`
-
-Submitting for review belongs to the app maintenance flow. The final approve/reject action is handled separately in `auth-center-client-review-management`.
-
-## Notes
-
-- `client_credentials` does not issue refresh tokens.
-- `public` clients should not enable `client_credentials`.
-- When using `authorization_code`, redirect URI precision and PKCE requirements should be checked carefully.
-- If an app is rejected, fix the reviewer feedback before submitting again.
+| Symptom                                           | What to check                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Form cannot be submitted                          | Check the scope catalog, at least one scope and grant, callbacks, and lifetime relationship                               |
+| An approved app stops exchanging tokens           | Check whether saving returned it to draft; resubmit for review                                                            |
+| Confidential app has no secret or rotation button | Check whether it was converted from public; saving does not issue a secret. Use the API process above or create a new app |
+| An old JWT works after a lifetime change          | Issued tokens retain their expiry claim; apply integration access controls                                                |
+| Old rows remain after refreshing or editing       | A load error may leave previous results; resolve it and refresh before relying on them                                    |
+| Page opens but one app cannot be maintained       | Check action, resource, scope, role, and two-factor requirements separately                                               |
 
 ## Related pages
 
-- [`auth-center-app-management`](/en/auth-center-app-management)
-- [`auth-center-client-review-management`](/en/auth-center-client-review-management)
-- [`oauth-app-management`](/en/oauth-app-management)
-- [`api-documentation`](/en/api-documentation)
-
-## IAM resource scope
-
-When IAM enforcement is enabled, the application list includes only your own applications allowed by `quyan:auth_center:ListClients`. Opening an application also requires `quyan:auth_center:GetClient`; list access does not automatically grant detail access.
-
-The application ARN is `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`. Here, `clientId` is the application record ID, not the public identifier used for login integration. The account and user identifiers come from the authenticated identity. A policy cannot grant access to another user's or another account's applications. You can add your own applications to a resource group and grant access within that group.
-
-Applications with no matching Allow or a matching Deny are excluded from the list, and detail requests are denied. List and detail responses expose only the secret preview and whether a secret is configured, never the raw secret or its hash. Creation, secret rotation, and review still require their respective permissions and retain the existing step-up verification requirements.
-
-With IAM enforcement enabled, review submission, secret rotation, and deletion require `quyan:auth_center:SubmitClientReview`, `quyan:auth_center:RotateClientSecret`, and `quyan:auth_center:DeleteClient`, respectively, on the application ARN above. Read permissions do not automatically grant these operations. Successful rotation returns the new secret only in that response; store it securely immediately. Subsequent list and detail responses show only its preview. If permission is revoked or the application version changes during an operation, the write is denied or rolled back.
-
-Editing an application requires `quyan:auth_center:UpdateClient` on its resource. Scope changes also require the current identity to be allowed to grant each requested scope; an assumed-role session uses the role's permissions. Editing cannot directly approve a review or write a client secret. Configuration changes to approved or rejected applications reset review to draft. Switching to a public client clears its existing secret and retains PKCE and grant-type validation.
-
-Calling application management APIs with an OAuth bearer token requires the grantable `auth_center_client` scope, or its equivalent Auth Center client read-permission scope. This scope permits entry to the management APIs and does not replace IAM authorization. Reads, edits, deletion, review submission, and secret rotation each check their operation permission and resource scope. A role session cannot use the signed-in user's permissions outside that role to grant a scope.
-
-Creating an application requires `quyan:auth_center:CreateClient` on the authenticated user's parent resource, `acs:quyan:*:<accountId>:user/<userId>`. Read or edit access to an existing application does not grant creation. The server generates the record ID and public client identifier, with an initial draft review state. A confidential client's new secret is returned only in the successful creation response. Creation does not automatically grant subsequent reads, edits, or deletion; configure those permissions on the application ARN separately.
+- [Auth Center integration](/en/auth-center-app-management)
+- [Auth Center app review](/en/auth-center-client-review-management)
+- [OAuth app management](/en/oauth-app-management)
+- [API documentation](/en/api-documentation)

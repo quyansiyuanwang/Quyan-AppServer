@@ -201,6 +201,28 @@ export class NotificationPreferenceRepository {
     });
   }
 
+  /** Stable IDs supplied by the durable round outbox, shared across worker restarts. */
+  async ensureRoundInbox(id: string, data: NotificationInboxCreateInput) {
+    return prisma.notificationInboxItem.upsert({
+      where: { id },
+      update: {},
+      create: { id, ...data, metadata: data.metadata as Prisma.InputJsonValue },
+    });
+  }
+  async ensureRoundLog(id: string, data: NotificationLogCreateInput) {
+    return prisma.notificationLog.upsert({
+      where: { id },
+      update: {},
+      create: { id, ...data, metadata: data.metadata as Prisma.InputJsonValue },
+    });
+  }
+  async finishRoundLog(id: string, deliveryStatus: string, errorMessage: string | null) {
+    await prisma.notificationLog.update({ where: { id }, data: { deliveryStatus, errorMessage } });
+  }
+  async activeAccountEmail(userId: string) {
+    return prisma.user.findFirst({ where: { id: userId, status: 1 }, select: { email: true } });
+  }
+
   async findInboxByUserId(
     userId: string,
     page: number,

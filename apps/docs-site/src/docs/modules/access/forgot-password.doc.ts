@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'forgot-password',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Access',
     'zh-CN': '访问',
