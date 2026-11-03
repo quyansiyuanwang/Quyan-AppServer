@@ -5,7 +5,7 @@ import { relayTokenReadSelect, type RelayTokenReadRecord } from "./relay-token-r
 import type { RelayTokenAuthorityIdentity } from "./relay-token-authority";
 import { relayTokenArn, platformRelayTokenArn } from "@/iam/resources/relay-token-resources";
 const targetSelect = { id: true, userId: true, status: true, updateTime: true } as const;
-type Target = Prisma.RelayTokenGetPayload<{ select: typeof targetSelect }>;
+export type RelayTokenMutationResponseTarget = Prisma.RelayTokenGetPayload<{ select: typeof targetSelect }>;
 /** Response projection consumes separate read/reveal proofs; it never falls back to rich legacy reads. */
 export class RelayTokenMutationResponseRepository {
   private static instance: RelayTokenMutationResponseRepository;
@@ -23,7 +23,9 @@ export class RelayTokenMutationResponseRepository {
     const where = { userId, status: { in: [0, 1] } };
     const row = await tx.relayToken.findFirst({ where: { ...where, id }, select: relayTokenReadSelect });
     if (!row || row.id !== id || row.userId !== userId) throw iamAccountDenied();
-    const targets: Target[] = [{ id: row.id, userId, status: row.status, updateTime: row.updateTime }];
+    const targets: RelayTokenMutationResponseTarget[] = [
+      { id: row.id, userId, status: row.status, updateTime: row.updateTime },
+    ];
     const members = row.memberTokenConfigs;
     if (members.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) throw iamAccountDenied();
     const outcomes = members.length
@@ -71,24 +73,38 @@ export class RelayTokenMutationResponseRepository {
     }
     return { record, targets };
   }
-  async verify(tx: Prisma.TransactionClient, identity: RelayTokenAuthorityIdentity, targets: readonly Target[]) {
-    const rows = await tx.relayToken.findMany({
-      where: { userId: identity.userId, id: { in: targets.map((target) => target.id) }, status: { in: [0, 1] } },
-      select: targetSelect,
-    });
-    if (
-      rows.length !== targets.length ||
-      rows.some(
-        (row) =>
-          !targets.some(
-            (target) =>
-              row.id === target.id &&
-              row.userId === target.userId &&
-              row.status === target.status &&
-              row.updateTime.getTime() === target.updateTime.getTime(),
-          ),
+  async verify(
+    tx: Prisma.TransactionClient,
+    identity: RelayTokenAuthorityIdentity,
+    targets: readonly RelayTokenMutationResponseTarget[],
+  ) {
+    // One target may occur in several composite responses. Never let a later
+    // projection replace an earlier proof if its owner, status or revision differs.
+    const expected = new Map<string, RelayTokenMutationResponseTarget>();
+    const matches = (left: RelayTokenMutationResponseTarget, right: RelayTokenMutationResponseTarget) =>
+      left.id === right.id &&
+      left.userId === right.userId &&
+      left.status === right.status &&
+      left.updateTime.getTime() === right.updateTime.getTime();
+    for (const target of targets) {
+      const previous = expected.get(target.id);
+      if (target.userId !== identity.userId || (previous && !matches(previous, target))) throw iamAccountDenied();
+      expected.set(target.id, target);
+    }
+    const unique = [...expected.values()];
+    for (let offset = 0; offset < unique.length; offset += IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) {
+      const batch = unique.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest);
+      const rows = await tx.relayToken.findMany({
+        where: { userId: identity.userId, id: { in: batch.map((target) => target.id) }, status: { in: [0, 1] } },
+        select: targetSelect,
+      });
+      const actual = new Map(rows.map((row) => [row.id, row]));
+      if (
+        rows.length !== batch.length ||
+        actual.size !== batch.length ||
+        batch.some((target) => !actual.has(target.id) || !matches(actual.get(target.id)!, target))
       )
-    )
-      throw iamAccountDenied();
+        throw iamAccountDenied();
+    }
   }
 }
