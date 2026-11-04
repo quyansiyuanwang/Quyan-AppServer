@@ -748,10 +748,18 @@ describe("atomic resource-authorized token duplication", () => {
   });
   it("supports the full 200-item copy without weakening the atomicity or authorization bounds", async () => {
     for (let index = sources.length; index < 200; index++) sources.push(await member());
+    const verify = vi.spyOn(RelayTokenMutationResponseRepository.getInstance(), "verify");
     const result = await copied();
     expect(result).toHaveLength(200);
     expect(new Set(result.map((row) => row.id)).size).toBe(200);
     expect(await prisma.relayToken.count({ where: { userId: actor } })).toBe(400);
+    // Recheck every destination at each final boundary, not one SQL round trip
+    // per response at every boundary. No proof is cached across these checks.
+    expect(verify).toHaveBeenCalledTimes(3);
+    for (const [, , targets] of verify.mock.calls) {
+      expect(targets).toHaveLength(200);
+      expect(new Set(targets.map((target) => target.id))).toEqual(new Set(result.map((row) => row.id)));
+    }
   }, 60000);
   it("records one safe batch audit without source names, credentials or upstream configuration", async () => {
     const audit = vi.spyOn(BusinessLogService.getInstance(), "logOperation");

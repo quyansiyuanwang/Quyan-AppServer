@@ -290,6 +290,7 @@ const createService = (
     resolveAutomaticPoolUsageDisplayChannel: vi.fn().mockImplementation(async (channel: any) => channel),
   };
   const configService = {
+    getRelayRequestHeaderPolicy: vi.fn().mockResolvedValue({ mode: "whitelist", allowlist: [], blocklist: [] }),
     getAutoProxyPoolConfig: vi.fn().mockResolvedValue({
       cacheHitRateMinSamples: 10,
       cacheHitRateWindowHours: 168,
@@ -1339,10 +1340,11 @@ describe("RelayProxyService failover", () => {
     "uses each physical channel's header policy on failover (forward all: %s)",
     async (forwardAllRequestHeaders) => {
       const relayToken = createRelayToken();
-      relayToken.channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-primary"] };
+      relayToken.channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-primary", "x-system-denied"] };
       relayToken.channelConfigs[1].channel.routingConfig = {
         forwardAllRequestHeaders,
         forwardedRequestHeaders: ["x-sdk-secondary"],
+        blockedRequestHeaders: ["x-channel-denied"],
       };
       const req = createRequest({
         headers: {
@@ -1356,9 +1358,17 @@ describe("RelayProxyService failover", () => {
           "x-sdk-primary": "primary-fixture",
           "x-sdk-secondary": "secondary-fixture",
           "x-sdk-unlisted": "unlisted-fixture",
+          "x-system-denied": "drop",
+          "x-channel-denied": "drop",
+          "x-system-allowed": "system-fixture",
         },
       });
-      const { service, relayTokenRepo, usageChargeService, businessLogService } = createService();
+      const { service, relayTokenRepo, usageChargeService, businessLogService, configService } = createService();
+      configService.getRelayRequestHeaderPolicy.mockResolvedValue({
+        mode: "whitelist",
+        allowlist: ["x-system-allowed"],
+        blocklist: ["x-system-denied"],
+      });
 
       axiosMock
         .mockResolvedValueOnce({
@@ -1380,6 +1390,9 @@ describe("RelayProxyService failover", () => {
 
       expect(result.status).toBe(200);
       for (const [index, key] of ["channel-primary-key", "channel-secondary-key"].entries()) {
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).toHaveProperty("x-system-allowed", "system-fixture");
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("x-system-denied");
+        expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("x-channel-denied");
         expect((axiosMock.mock.calls[index]?.[0] as any).headers).toMatchObject({
           "openai-beta": "responses=fixture",
           "openai-project": "proj-fixture",

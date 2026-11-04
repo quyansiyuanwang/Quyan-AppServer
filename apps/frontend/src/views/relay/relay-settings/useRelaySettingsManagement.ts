@@ -1,4 +1,7 @@
-import { normalizeRelayForwardedHeaderNames } from '@quyan/shared'
+import {
+  normalizeRelayForwardedHeaderNames,
+  type RelayChannelRequestHeaderMode,
+} from '@quyan/shared'
 import { useRelayGlobalConfiguration } from './useRelayGlobalConfiguration'
 import {
   resolveModelId,
@@ -98,7 +101,8 @@ const toSupportedFormatsArray = (formats: string[] | string | undefined): string
 }
 
 const recommendedRoutingConfigForm = () => ({
-  forwardAllRequestHeaders: false,
+  requestHeaderMode: 'inherit' as RelayChannelRequestHeaderMode,
+  blockedRequestHeaders: [] as string[],
   forwardedRequestHeaders: [] as string[],
   maxRetries: 2,
   failoverThreshold: 0,
@@ -156,7 +160,15 @@ const normalizeOptionalThreshold = (value?: number | null): number | null => {
 }
 
 const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | null) => ({
-  forwardAllRequestHeaders: config?.forwardAllRequestHeaders === true,
+  requestHeaderMode:
+    config?.requestHeaderMode ??
+    ((typeof config?.forwardAllRequestHeaders === 'boolean'
+      ? config.forwardAllRequestHeaders
+        ? 'blacklist'
+        : 'whitelist'
+      : 'inherit') as RelayChannelRequestHeaderMode),
+  blockedRequestHeaders:
+    normalizeRelayForwardedHeaderNames(config?.blockedRequestHeaders ?? []) ?? [],
   forwardedRequestHeaders:
     normalizeRelayForwardedHeaderNames(config?.forwardedRequestHeaders ?? []) ?? [],
   maxRetries:
@@ -2257,7 +2269,10 @@ export const useRelaySettingsManagement = () => {
       const forwardedRequestHeaders = normalizeRelayForwardedHeaderNames(
         channelForm.value.routingConfig.forwardedRequestHeaders ?? [],
       )
-      if (isUpstreamChannel && !forwardedRequestHeaders) {
+      const blockedRequestHeaders = normalizeRelayForwardedHeaderNames(
+        channelForm.value.routingConfig.blockedRequestHeaders ?? [],
+      )
+      if (isUpstreamChannel && (!forwardedRequestHeaders || !blockedRequestHeaders)) {
         ElMessage.error(i18ns.t('relay.forwardedRequestHeadersInvalid'))
         return
       }
@@ -2265,7 +2280,9 @@ export const useRelaySettingsManagement = () => {
         ? buildRoutingConfigPayload()
         : {
             ...buildStandaloneHealthTrackingPayload(),
-            forwardAllRequestHeaders: channelForm.value.routingConfig.forwardAllRequestHeaders,
+            requestHeaderMode: normalizeRoutingConfigForm(channelForm.value.routingConfig)
+              .requestHeaderMode,
+            blockedRequestHeaders: blockedRequestHeaders!,
             forwardedRequestHeaders: forwardedRequestHeaders!,
           }
       const visibilityConfig =

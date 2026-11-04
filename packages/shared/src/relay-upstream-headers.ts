@@ -25,6 +25,19 @@ export function getRelayDefaultForwardedHeaderNames(format: RelayRequestFormat):
 /** Limits and reserved names for administrator-configured request-header forwarding. */
 export const RELAY_FORWARDED_HEADER_LIMITS = { maxNames: 64, maxNameLength: 128 } as const
 
+export type RelayRequestHeaderMode = 'whitelist' | 'blacklist'
+export type RelayChannelRequestHeaderMode = 'inherit' | RelayRequestHeaderMode
+export interface RelayRequestHeaderPolicy {
+  mode: RelayRequestHeaderMode
+  allowlist: string[]
+  blocklist: string[]
+}
+export const RELAY_DEFAULT_REQUEST_HEADER_POLICY: Readonly<RelayRequestHeaderPolicy> = {
+  mode: 'whitelist',
+  allowlist: [],
+  blocklist: [],
+}
+
 const RESERVED_NAMES = new Set([
   'authorization',
   'proxy-authorization',
@@ -97,4 +110,51 @@ export function normalizeRelayForwardedHeaderNames(value: unknown): string[] | u
     if (!names.includes(name)) names.push(name)
   }
   return names
+}
+
+export function normalizeRelayRequestHeaderPolicy(
+  value: unknown,
+): RelayRequestHeaderPolicy | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const policy = value as Record<string, unknown>
+  if (policy.mode !== 'whitelist' && policy.mode !== 'blacklist') return undefined
+  const allowlist = normalizeRelayForwardedHeaderNames(policy.allowlist)
+  const blocklist = normalizeRelayForwardedHeaderNames(policy.blocklist)
+  if (!allowlist || !blocklist) return undefined
+  return { mode: policy.mode, allowlist, blocklist }
+}
+
+/** Explicit channel modes win over legacy flags; system denials always remain effective. */
+export function resolveRelayRequestHeaderPolicy(
+  systemValue: unknown = RELAY_DEFAULT_REQUEST_HEADER_POLICY,
+  channel: {
+    requestHeaderMode?: unknown
+    forwardAllRequestHeaders?: unknown
+    forwardedRequestHeaders?: unknown
+    blockedRequestHeaders?: unknown
+  } = {},
+): RelayRequestHeaderPolicy | undefined {
+  const system = normalizeRelayRequestHeaderPolicy(systemValue)
+  if (!system) return undefined
+  const allowlist = normalizeRelayForwardedHeaderNames(
+    channel.forwardedRequestHeaders === undefined ? [] : channel.forwardedRequestHeaders,
+  )
+  const blocklist = normalizeRelayForwardedHeaderNames(
+    channel.blockedRequestHeaders === undefined ? [] : channel.blockedRequestHeaders,
+  )
+  if (!allowlist || !blocklist) return undefined
+  let mode = system.mode
+  if (channel.requestHeaderMode !== undefined) {
+    if (channel.requestHeaderMode === 'whitelist' || channel.requestHeaderMode === 'blacklist')
+      mode = channel.requestHeaderMode
+    else if (channel.requestHeaderMode !== 'inherit') return undefined
+  } else if (channel.forwardAllRequestHeaders !== undefined) {
+    if (typeof channel.forwardAllRequestHeaders !== 'boolean') return undefined
+    mode = channel.forwardAllRequestHeaders ? 'blacklist' : 'whitelist'
+  }
+  return {
+    mode,
+    allowlist: [...new Set([...system.allowlist, ...allowlist])],
+    blocklist: [...new Set([...system.blocklist, ...blocklist])],
+  }
 }

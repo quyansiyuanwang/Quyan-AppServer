@@ -1647,6 +1647,22 @@ export class RelayChannelService {
     if (routingConfig === null) return null;
 
     const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+    if (normalized.requestHeaderMode !== undefined) {
+      if (!["inherit", "whitelist", "blacklist"].includes(normalized.requestHeaderMode))
+        throw new BadRequestError("Invalid request-header mode", undefined, {
+          messageKey: "relayChannel.requestHeaderModeInvalid",
+        });
+      if (isPoolType(channelType)) delete normalized.requestHeaderMode;
+    }
+    if (normalized.blockedRequestHeaders !== undefined) {
+      const names = normalizeRelayForwardedHeaderNames(normalized.blockedRequestHeaders);
+      if (!names)
+        throw new BadRequestError("Invalid blocked request-header names", undefined, {
+          messageKey: "relayChannel.forwardedRequestHeadersInvalid",
+        });
+      if (isPoolType(channelType)) delete normalized.blockedRequestHeaders;
+      else normalized.blockedRequestHeaders = names;
+    }
     if (normalized.forwardAllRequestHeaders !== undefined) {
       if (typeof normalized.forwardAllRequestHeaders !== "boolean")
         throw new BadRequestError("forwardAllRequestHeaders must be a boolean", undefined, {

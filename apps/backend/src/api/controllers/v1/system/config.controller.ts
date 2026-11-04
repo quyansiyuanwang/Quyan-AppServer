@@ -374,6 +374,11 @@ export class ConfigController extends Controller {
     const currentUserId = request.user!.userId;
     await this.configService.setManagedConfiguration(
       {
+        ...(body.requestHeaderPolicy === undefined
+          ? {}
+          : {
+              [CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY]: JSON.stringify(body.requestHeaderPolicy),
+            }),
         [CONFIG_KEYS.RELAY.UPSTREAM_URL]: body.upstreamUrl,
         [CONFIG_KEYS.RELAY.UPSTREAM_API_KEY]: body.upstreamApiKey,
         [CONFIG_KEYS.RELAY.ALLOWED_MODELS]: body.allowedModels,

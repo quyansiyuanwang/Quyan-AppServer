@@ -792,7 +792,9 @@
       >
         <RelayForwardedHeadersEditor
           v-model:extra-headers="channelForm.routingConfig.forwardedRequestHeaders"
-          v-model:forward-all="channelForm.routingConfig.forwardAllRequestHeaders"
+          v-model:blocked-headers="channelForm.routingConfig.blockedRequestHeaders"
+          v-model:mode="channelForm.routingConfig.requestHeaderMode"
+          allow-inherit
         />
       </el-form-item>
 

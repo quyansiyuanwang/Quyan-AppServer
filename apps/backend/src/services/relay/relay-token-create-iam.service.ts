@@ -14,7 +14,10 @@ import { platformUserArn } from "@/iam/resources/platform-user-resources";
 import { platformCollectionDecisions } from "@/services/system/platform-collection-decisions";
 import { RelayTokenUpdateAdmissionRepository } from "@/store/relay/relay-token-update-admission.repository";
 import { RelayTokenCreateMutationRepository } from "@/store/relay/relay-token-create-mutation.repository";
-import { RelayTokenMutationResponseRepository } from "@/store/relay/relay-token-mutation-response.repository";
+import {
+  RelayTokenMutationResponseRepository,
+  type RelayTokenMutationResponseTarget,
+} from "@/store/relay/relay-token-mutation-response.repository";
 import {
   captureRelayTokenAuthority,
   RELAY_TOKEN_AUTHORITY_REQUIREMENTS,
@@ -240,7 +243,7 @@ export class RelayTokenCreateIamService {
         )
           throw iamAccountDenied();
       };
-      const verifyResponses: ((tx: Prisma.TransactionClient) => Promise<void>)[] = [];
+      const responseTargets: RelayTokenMutationResponseTarget[] = [];
       const recheck = async (tx?: Prisma.TransactionClient) => {
         assertRequest();
         if (
@@ -252,7 +255,7 @@ export class RelayTokenCreateIamService {
           (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
         )
           throw iamAccountDenied();
-        if (tx) for (const verifyResponse of verifyResponses) await verifyResponse(tx);
+        if (tx && responseTargets.length) await this.responses.verify(tx, identity, responseTargets);
         assertRequest();
       };
       const resource = (id: string) =>
@@ -436,7 +439,7 @@ export class RelayTokenCreateIamService {
                 responseDecision,
                 canReveal[index] === "Allow",
               );
-              verifyResponses.push((tx) => this.responses.verify(tx, identity, response.targets));
+              responseTargets.push(...response.targets);
               results.push(await project(response.record));
             }
             // Recheck the complete batch after projection, including every earlier response target.

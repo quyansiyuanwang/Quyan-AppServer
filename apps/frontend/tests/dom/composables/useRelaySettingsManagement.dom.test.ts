@@ -209,7 +209,7 @@ const mountComposable = async () => {
 }
 
 describe('useRelaySettingsManagement', () => {
-  it('hydrates the forwarding mode and preserves extra headers when toggling all headers', async () => {
+  it('hydrates legacy mode and preserves both lists when changing modes or inheritance', async () => {
     const { api, wrapper } = await mountComposable()
     api.openEditChannelDialog(
       createChannelRow({
@@ -246,53 +246,52 @@ describe('useRelaySettingsManagement', () => {
     })
     const field = editor.find('[data-testid="forwarded-request-headers"]')
     expect(field.exists()).toBe(true)
-    const select = field.findComponent({ name: 'ElSelect' })
-    expect(select.props()).toMatchObject({
+    const [mode, select, blocked] = field.findAllComponents({ name: 'ElSelect' })
+    expect(mode!.props('modelValue')).toBe('blacklist')
+    expect(select!.props()).toMatchObject({
       modelValue: ['x-sdk-custom'],
       multiple: '',
       filterable: '',
       allowCreate: '',
-      disabled: true,
     })
     expect(field.find('details').attributes()).toHaveProperty('open')
     expect(field.findAll('tbody tr')).toHaveLength(4)
     expect(field.text()).toContain('anthropic-version')
     expect(field.text()).toContain('x-opencode-session')
-    const toggle = field.findComponent({ name: 'ElSwitch' })
-    expect(toggle.props('modelValue')).toBe(true)
-    toggle.vm.$emit('update:modelValue', false)
+    mode!.vm.$emit('update:modelValue', 'whitelist')
     await flushPromises()
-    expect(api.channelForm.value.routingConfig.forwardAllRequestHeaders).toBe(false)
-    expect(select.props('disabled')).toBe(false)
-    expect(select.props('modelValue')).toEqual(['x-sdk-custom'])
-    select.vm.$emit('update:modelValue', ['x-opencode-session', 'x-stainless-retry-count'])
+    expect(api.channelForm.value.routingConfig.requestHeaderMode).toBe('whitelist')
+    expect(select!.props('modelValue')).toEqual(['x-sdk-custom'])
+    select!.vm.$emit('update:modelValue', ['x-opencode-session', 'x-stainless-retry-count'])
+    blocked!.vm.$emit('update:modelValue', ['x-debug'])
     await flushPromises()
     expect(api.channelForm.value.routingConfig.forwardedRequestHeaders).toEqual([
       'x-opencode-session',
       'x-stainless-retry-count',
     ])
-    toggle.vm.$emit('update:modelValue', true)
+    mode!.vm.$emit('update:modelValue', 'blacklist')
     await flushPromises()
-    expect(select.props('disabled')).toBe(true)
-    expect(select.props('modelValue')).toEqual(['x-opencode-session', 'x-stainless-retry-count'])
+    expect(select!.props('modelValue')).toEqual(['x-opencode-session', 'x-stainless-retry-count'])
     await api.handleSaveChannel()
     expect(updateChannelMock).toHaveBeenLastCalledWith(
       'channel-1',
       expect.objectContaining({
         routingConfig: expect.objectContaining({
-          forwardAllRequestHeaders: true,
+          requestHeaderMode: 'blacklist',
+          blockedRequestHeaders: ['x-debug'],
           forwardedRequestHeaders: ['x-opencode-session', 'x-stainless-retry-count'],
         }),
       }),
     )
-    toggle.vm.$emit('update:modelValue', false)
+    mode!.vm.$emit('update:modelValue', 'inherit')
     await flushPromises()
     await api.handleSaveChannel()
     expect(updateChannelMock).toHaveBeenLastCalledWith(
       'channel-1',
       expect.objectContaining({
         routingConfig: expect.objectContaining({
-          forwardAllRequestHeaders: false,
+          requestHeaderMode: 'inherit',
+          blockedRequestHeaders: ['x-debug'],
           forwardedRequestHeaders: ['x-opencode-session', 'x-stainless-retry-count'],
         }),
       }),
@@ -1029,7 +1028,8 @@ describe('useRelaySettingsManagement', () => {
         channelType: 'standalone',
         routingConfig: {
           healthTrackingMode: 'automatic',
-          forwardAllRequestHeaders: false,
+          requestHeaderMode: 'whitelist',
+          blockedRequestHeaders: [],
           forwardedRequestHeaders: ['x-stainless-retry-count'],
         },
         poolMembers: [],

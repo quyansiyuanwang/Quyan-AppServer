@@ -2723,6 +2723,21 @@ const zhCN = {
     channelMultiplier: '渠道倍率',
     channelMultiplierHelp: '该渠道的价格倍率，与全局倍率叠加',
     requestHeaderForwarding: '请求头透传',
+    systemRequestHeaderPolicy: '系统请求头透传策略',
+    systemRequestHeaderPolicyHelp:
+      '作为所有渠道的默认策略。保存本页后生效，需要系统配置权限。未单独设置模式的渠道默认继承；旧版显式开关保留原模式，系统黑名单始终生效。',
+    requestHeaderMode: '透传模式',
+    requestHeaderInherit: '继承系统',
+    requestHeaderWhitelist: '白名单模式',
+    requestHeaderBlacklist: '黑名单模式',
+    requestHeaderModeHelp:
+      '白名单：仅转发默认协议头与额外白名单。黑名单：转发所有可透传头，再排除黑名单。额外白名单在黑名单模式下保留但不额外放行。认证凭据、Cookie、内部及连接级字段始终排除。',
+    requestHeaderInheritanceHelp:
+      '渠道只作特殊化：白名单在系统名单基础上补充；黑名单与系统名单合并且优先于白名单，不能放行系统禁止的头。逻辑混池使用实际选中的物理成员策略。',
+    blockedRequestHeaders: '额外黑名单',
+    blockedRequestHeadersPlaceholder: '输入要拦截的头名后按回车，例如 x-debug',
+    blockedRequestHeadersHelp:
+      '精确匹配，不区分大小写；不支持通配符。对两种模式都生效，可屏蔽默认协议头。这里只过滤传入的头，不移除平台生成的上游认证和必需协议头。',
     forwardAllRequestHeaders: '放行所有可透传请求头',
     forwardAllRequestHeadersHelp:
       '默认关闭。开启后转发所有可透传请求头，认证头、Cookie、内部路由头及连接级头始终排除；关闭后恢复默认白名单和额外名单。',
@@ -2733,7 +2748,7 @@ const zhCN = {
     forwardedRequestHeaders: '额外白名单',
     forwardedRequestHeadersPlaceholder: '输入头名后按回车，例如 x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      '只填写精确头名，不填写头值或通配符。开启全部放行时保留此名单但不以它限制转发；关闭后重新生效。池渠道使用实际物理成员的配置。',
+      '只填写精确头名，不填写头值或通配符。白名单模式下与协议默认头一并放行，但黑名单始终优先；黑名单模式下保留此名单。池渠道使用实际物理成员的配置。',
     forwardedRequestHeadersInvalid:
       '请填写最多 64 个安全精确头名（每个最多 128 字符），禁止凭据、Cookie、内部/连接级头和通配符。',
     channelSettings: '渠道参数',

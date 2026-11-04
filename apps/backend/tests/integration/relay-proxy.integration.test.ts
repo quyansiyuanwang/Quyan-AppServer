@@ -2,6 +2,7 @@ import http from "node:http";
 import { once } from "node:events";
 import { env } from "@/config/env";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
+import { CONFIG_KEYS } from "@/constant/config-keys";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
@@ -449,6 +450,73 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       await prisma.relayChannel.update({
         where: { id: openaiRelayChannelId },
         data: { routingConfig: { forwardedRequestHeaders: ["x-stainless-retry-count"] } },
+      });
+    }
+  });
+
+  it("applies system and channel header policies at the physical upstream without restart", async () => {
+    const key = CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY;
+    const previous = await prisma.serverConfig.findUnique({ where: { key } });
+    const original = await prisma.relayChannel.findUniqueOrThrow({ where: { id: openaiRelayChannelId } });
+    try {
+      for (const [systemMode, channelMode] of [
+        ["whitelist", "inherit"],
+        ["blacklist", "inherit"],
+        ["blacklist", "whitelist"],
+        ["whitelist", "blacklist"],
+      ] as const) {
+        const policy = JSON.stringify({
+          mode: systemMode,
+          allowlist: ["x-system-allowed"],
+          blocklist: ["x-system-denied", "openai-beta"],
+        });
+        await prisma.serverConfig.upsert({ where: { key }, create: { key, value: policy }, update: { value: policy } });
+        await prisma.relayChannel.update({
+          where: { id: openaiRelayChannelId },
+          data: {
+            routingConfig: {
+              requestHeaderMode: channelMode,
+              forwardedRequestHeaders: ["x-channel-allowed", "x-system-denied"],
+              blockedRequestHeaders: ["x-channel-denied"],
+            },
+          },
+        });
+        const clientId = `layered-headers-${systemMode}-${channelMode}`;
+        const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+        const response = await request(app)
+          .post("/relay/proxy/v1/chat/completions")
+          .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+          .set("X-Client-Request-Id", clientId)
+          .set("X-System-Allowed", "system-fixture")
+          .set("X-Channel-Allowed", "channel-fixture")
+          .set("X-System-Denied", "drop")
+          .set("X-Channel-Denied", "drop")
+          .set("X-Unlisted", "extra-fixture")
+          .set("OpenAI-Beta", "drop")
+          .set("Cookie", "session=drop")
+          .set("X-Internal-Control", "drop")
+          .send({ model: openaiRelayModelId, messages: [{ role: "user", content: "layered header fixture" }] });
+        expect(response.status).toBe(200);
+        const upstream = [...observedUpstreamRequests]
+          .reverse()
+          .find((ctx) => ctx.headers["x-client-request-id"] === clientId);
+        expect(upstream?.headers).toMatchObject({
+          "x-system-allowed": "system-fixture",
+          "x-channel-allowed": "channel-fixture",
+          authorization: "Bearer test-openai-key",
+        });
+        for (const denied of ["x-system-denied", "x-channel-denied", "openai-beta", "cookie", "x-internal-control"])
+          expect(upstream?.headers).not.toHaveProperty(denied);
+        const effectiveMode = channelMode === "inherit" ? systemMode : channelMode;
+        expect(upstream?.headers["x-unlisted"]).toBe(effectiveMode === "blacklist" ? "extra-fixture" : undefined);
+        await getLatestUsage(openaiRelayTokenId, beforeUsageCount + 1);
+      }
+    } finally {
+      if (previous) await prisma.serverConfig.update({ where: { key }, data: { value: previous.value } });
+      else await prisma.serverConfig.deleteMany({ where: { key } });
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: { routingConfig: original.routingConfig ?? Prisma.DbNull },
       });
     }
   });
