@@ -36,6 +36,64 @@ const incoming = {
 };
 
 describe("relay upstream request headers", () => {
+  it.each(["whitelist", "blacklist"])("enforces global and physical channel denials in %s mode", (mode) => {
+    const result = buildRelayUpstreamHeaders(
+      {
+        Accept: "application/json",
+        "X-Global": "keep",
+        "X-Channel": "keep",
+        "X-Denied": "drop",
+        "X-Local-Denied": "drop",
+        "X-Unlisted": "maybe",
+        Cookie: "drop",
+      },
+      "openai",
+      "provider-fixture",
+      ["x-channel", "x-denied"],
+      undefined,
+      {
+        systemPolicy: { mode, allowlist: ["x-global"], blocklist: ["x-denied", "accept"] },
+        blockedHeaders: ["x-local-denied"],
+      },
+    );
+    expect(result).toMatchObject({ "x-global": "keep", "x-channel": "keep", Authorization: "Bearer provider-fixture" });
+    for (const name of ["x-denied", "x-local-denied", "accept", "cookie"]) expect(result).not.toHaveProperty(name);
+    expect(result["x-unlisted"]).toBe(mode === "blacklist" ? "maybe" : undefined);
+  });
+  it("does not allow a channel whitelist to undo system denials", () => {
+    const result = buildRelayUpstreamHeaders(
+      { "X-Unlisted": "drop", "X-Allowed": "keep", "X-Denied": "drop" },
+      "openai",
+      "fixture",
+      ["x-allowed", "x-denied"],
+      undefined,
+      {
+        systemPolicy: { mode: "blacklist", allowlist: [], blocklist: ["x-denied"] },
+        channelMode: "whitelist",
+      },
+    );
+    expect(result).toEqual({ "x-allowed": "keep", Authorization: "Bearer fixture" });
+  });
+  it("keeps caller connection-nominated headers filtered and generates mandatory upstream headers", () => {
+    const result = buildRelayUpstreamHeaders(
+      { Connection: "x-custom", "X-Custom": "drop", "Anthropic-Version": "drop" },
+      "anthropic",
+      "fixture",
+      [],
+      undefined,
+      {
+        systemPolicy: { mode: "blacklist", allowlist: [], blocklist: ["anthropic-version"] },
+      },
+    );
+    expect(result).toEqual({ "x-api-key": "fixture", "anthropic-version": "2023-06-01" });
+  });
+  it("fails closed for corrupted stored blacklists", () => {
+    expect(() =>
+      buildRelayUpstreamHeaders({ "X-Custom": "drop" }, "openai", "fixture", [], true, {
+        systemPolicy: { mode: "blacklist", allowlist: [], blocklist: "bad" },
+      }),
+    ).toThrow("Invalid relay request-header policy");
+  });
   it.each<RelayRequestFormat>(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"])(
     "forwards arbitrary eligible headers only when explicitly enabled for %s",
     (format) => {

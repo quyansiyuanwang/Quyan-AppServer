@@ -1,4 +1,9 @@
 import { ref } from 'vue'
+import {
+  RELAY_DEFAULT_REQUEST_HEADER_POLICY,
+  normalizeRelayRequestHeaderPolicy,
+  type RelayRequestHeaderPolicy,
+} from '@quyan/shared'
 import { i18ns } from '@/locales'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
@@ -47,6 +52,9 @@ export function useRelayGlobalConfiguration(afterRelaySave: () => Promise<void>)
   const channelTopologyMode = ref<RelayChannelTopologyMode>('legacy')
   const relayCustomKeyEnabled = ref(true),
     relayCustomKeyMaxTokensPerUser = ref(3)
+  const requestHeaderPolicy = ref<RelayRequestHeaderPolicy>(
+    structuredClone(RELAY_DEFAULT_REQUEST_HEADER_POLICY),
+  )
   const relayCustomKeyCreateLimitWindowMinutes = ref(10),
     relayCustomKeyCreateLimitMaxCount = ref(5)
   const relayUpstreamUrl = ref(''),
@@ -92,6 +100,11 @@ export function useRelayGlobalConfiguration(afterRelaySave: () => Promise<void>)
     }
   }
   const currentSystem = (): SetRelayConfigDto => ({
+    requestHeaderPolicy: structuredClone({
+      ...requestHeaderPolicy.value,
+      allowlist: [...requestHeaderPolicy.value.allowlist],
+      blocklist: [...requestHeaderPolicy.value.blocklist],
+    }),
     upstreamUrl: relayUpstreamUrl.value,
     upstreamApiKey: relayUpstreamApiKey.value,
     allowedModels: relayAllowedModels.value,
@@ -152,6 +165,12 @@ export function useRelayGlobalConfiguration(afterRelaySave: () => Promise<void>)
         (async () => {
           try {
             const config = await configService.getRelayConfig()
+            const policy =
+              config.requestHeaderPolicy === undefined
+                ? structuredClone(RELAY_DEFAULT_REQUEST_HEADER_POLICY)
+                : normalizeRelayRequestHeaderPolicy(config.requestHeaderPolicy)
+            if (!policy) throw new Error(i18ns.t('relay.forwardedRequestHeadersInvalid'))
+            requestHeaderPolicy.value = policy
             relayUpstreamUrl.value = config.upstreamUrl || ''
             relayUpstreamApiKey.value = config.upstreamApiKey || ''
             relayAllowedModels.value = config.allowedModels || ''
@@ -211,7 +230,13 @@ export function useRelayGlobalConfiguration(afterRelaySave: () => Promise<void>)
           return
         }
       }
+      if (systemSnapshot && !normalizeRelayRequestHeaderPolicy(requestHeaderPolicy.value)) {
+        ElMessage.error(i18ns.t('relay.forwardedRequestHeadersInvalid'))
+        return
+      }
       const system = systemSnapshot ? clone(currentSystem()) : null
+      if (system?.requestHeaderPolicy)
+        system.requestHeaderPolicy = normalizeRelayRequestHeaderPolicy(system.requestHeaderPolicy)!
       const tasks: { scope: 'relay' | 'system'; run: () => Promise<unknown> }[] = []
       if (current && patch && Object.keys(patch).length)
         tasks.push({
@@ -278,6 +303,7 @@ export function useRelayGlobalConfiguration(afterRelaySave: () => Promise<void>)
     apiCatalogPoolVisibility,
     channelTopologyMode,
     relayCustomKeyEnabled,
+    requestHeaderPolicy,
     relayCustomKeyMaxTokensPerUser,
     relayCustomKeyCreateLimitWindowMinutes,
     relayCustomKeyCreateLimitMaxCount,

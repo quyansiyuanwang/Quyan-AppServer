@@ -2652,6 +2652,21 @@ const emoji = {
     channelMultiplier: '📡 🔁',
     channelMultiplierHelp: '💰 🔁 🎁 👇 📡 🛋️ 🤝 ⬇️ 🔁',
     requestHeaderForwarding: '📨 请求头透传',
+    systemRequestHeaderPolicy: '🌐 系统请求头透传策略',
+    systemRequestHeaderPolicyHelp:
+      '🌐 所有渠道的默认策略，保存本页生效，需要系统配置权限。未单独设置模式的渠道继承，旧版显式开关保留原模式；系统黑名单始终生效。',
+    requestHeaderMode: '📨 透传模式',
+    requestHeaderInherit: '🌐 继承系统',
+    requestHeaderWhitelist: '✅ 白名单模式',
+    requestHeaderBlacklist: '⛔ 黑名单模式',
+    requestHeaderModeHelp:
+      '✅ 白名单只放行默认协议头和额外名单；⛔ 黑名单模式转发所有可透传头再排除黑名单。凭据、Cookie、内部及连接级头始终排除。',
+    requestHeaderInheritanceHelp:
+      '🌐 渠道名单与系统名单合并，黑名单优先；渠道不能放行系统禁止的头。逻辑池使用选中的物理成员策略。',
+    blockedRequestHeaders: '⛔ 额外黑名单',
+    blockedRequestHeadersPlaceholder: '⌨️ 输入头名后回车，例如 x-debug',
+    blockedRequestHeadersHelp:
+      '⛔ 精确匹配、忽略大小写、无通配符；两种模式均生效，可屏蔽默认协议头。平台生成的上游认证及必需协议头不受影响。',
     forwardAllRequestHeaders: '📨 放行所有可透传请求头',
     forwardAllRequestHeadersHelp:
       '🔘 默认关闭；开启后放行所有可透传头，凭据、Cookie、内部及连接级头仍排除；关闭后恢复默认及额外白名单。',
@@ -2662,7 +2677,7 @@ const emoji = {
     forwardedRequestHeaders: '📨 额外白名单',
     forwardedRequestHeadersPlaceholder: '⌨️ 输入头名后回车，例如 x-stainless-retry-count',
     forwardedRequestHeadersHelp:
-      '📨 仅填写精确头名，不填写值或通配符。全部放行时保留名单，关闭后重新生效；池使用实际物理成员的配置。',
+      '📨 仅填写精确头名，不填写值或通配符。白名单模式下与协议默认头一起放行，黑名单始终优先；黑名单模式保留名单。池使用实际物理成员的配置。',
     forwardedRequestHeadersInvalid:
       '⚠️ 最多 64 个安全精确头名，每个最多 128 字符；禁止敏感头及通配符。',
     channelSettings: '📡 🧰',

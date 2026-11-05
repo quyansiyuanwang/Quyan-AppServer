@@ -38,15 +38,7 @@ export interface BillingConfigDto {
   giftCodeCancelFeeRefundPercent: number
 }
 
-export interface RelayConfigDto {
-  upstreamUrl: string
-  upstreamApiKey: string
-  allowedModels: string
-  customKeyEnabled: boolean
-  customKeyMaxTokensPerUser: number
-  customKeyCreateLimitWindowMinutes: number
-  customKeyCreateLimitMaxCount: number
-}
+export type RelayConfigDto = SetRelayConfigDto
 
 export interface SetBillingConfigDto {
   rechargeRatio: number

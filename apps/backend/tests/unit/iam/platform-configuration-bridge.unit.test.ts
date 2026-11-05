@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/services/system/platform-configuration-iam.service", () => ({
   PlatformConfigurationIamService: { getInstance: vi.fn() },
 }));
-import { setSocialAuthConfigBodySchema } from "@/api/schema/system/config.schema";
+import { setRelayConfigBodySchema, setSocialAuthConfigBodySchema } from "@/api/schema/system/config.schema";
 import { ConfigService } from "@/services/system/config.service";
 import { env } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
@@ -49,6 +49,65 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("managed configuration mode bridge", () => {
+  it("validates system header policy before any generic configuration write", async () => {
+    const invalid = {
+      [CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY]: JSON.stringify({ mode: "blacklist", allowlist: [], blocklist: ["*"] }),
+    };
+    await expect(service.setManagedConfigs(invalid, "actor", request)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.setMultiple({ [CONFIG_KEYS.SMTP.HOST]: "fixture", ...invalid })).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(iam.update).not.toHaveBeenCalled();
+    expect(repo.upsert).not.toHaveBeenCalled();
+    const valid = {
+      [CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY]: JSON.stringify({
+        mode: "blacklist",
+        allowlist: [],
+        blocklist: ["x-debug"],
+      }),
+    };
+    await service.setManagedConfigs(valid, "actor", request);
+    expect(iam.prepareUpdate).toHaveBeenCalledWith([CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY], "actor", request);
+    expect(iam.update).toHaveBeenCalledWith(valid, expect.anything());
+  });
+  it("defaults missing system policy without writing, and fails closed for corrupted stored data", async () => {
+    repo.findByKey = vi.fn().mockResolvedValue(null);
+    expect(await service.getRelayRequestHeaderPolicy()).toEqual({ mode: "whitelist", allowlist: [], blocklist: [] });
+    repo.findByKey.mockResolvedValue({
+      value: JSON.stringify({ mode: "blacklist", allowlist: [], blocklist: [" X-Debug "] }),
+    });
+    expect(await service.getRelayRequestHeaderPolicy()).toEqual({
+      mode: "blacklist",
+      allowlist: [],
+      blocklist: ["x-debug"],
+    });
+    repo.findByKey.mockResolvedValue({ value: "invalid-json" });
+    await expect(service.getRelayRequestHeaderPolicy()).rejects.toMatchObject({ statusCode: 400 });
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+  it("normalizes system policy and preserves legacy clients that omit it", () => {
+    const base = {
+      upstreamUrl: "",
+      upstreamApiKey: "",
+      allowedModels: "",
+      customKeyEnabled: true,
+      customKeyMaxTokensPerUser: 3,
+      customKeyCreateLimitWindowMinutes: 10,
+      customKeyCreateLimitMaxCount: 5,
+    };
+    expect(setRelayConfigBodySchema.parse(base)).not.toHaveProperty("requestHeaderPolicy");
+    expect(
+      setRelayConfigBodySchema.parse({
+        ...base,
+        requestHeaderPolicy: { mode: "blacklist", allowlist: ["X-Sdk"], blocklist: [" X-Debug ", "x-debug"] },
+      }).requestHeaderPolicy,
+    ).toEqual({ mode: "blacklist", allowlist: ["x-sdk"], blocklist: ["x-debug"] });
+    for (const mode of ["inherit", "all", true, null])
+      expect(
+        setRelayConfigBodySchema.safeParse({ ...base, requestHeaderPolicy: { mode, allowlist: [], blocklist: [] } })
+          .success,
+      ).toBe(false);
+  });
   it("uses the authorized list and never reads the legacy raw config table", async () => {
     expect(await service.getManagedConfigs(request)).toMatchObject({
       configs: { [CONFIG_KEYS.SMTP.HOST]: "mail" },

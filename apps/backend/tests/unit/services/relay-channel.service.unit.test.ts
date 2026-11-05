@@ -2469,6 +2469,23 @@ describe("RelayChannelService", () => {
     ).toBe(true);
   });
   it("validates configured headers for service callers and ignores pool-level overrides", () => {
+    const policy = { requestHeaderMode: "blacklist", blockedRequestHeaders: [" X-Debug ", "x-debug"] };
+    for (const type of ["standalone", "pooled-member"])
+      expect((service as any).normalizeRoutingConfig(policy, type)).toMatchObject({
+        requestHeaderMode: "blacklist",
+        blockedRequestHeaders: ["x-debug"],
+      });
+    for (const type of ["pooled", "automatic-proxy-pool"]) {
+      const normalized = (service as any).normalizeRoutingConfig(policy, type);
+      expect(normalized).not.toHaveProperty("requestHeaderMode");
+      expect(normalized).not.toHaveProperty("blockedRequestHeaders");
+    }
+    expect(() => (service as any).normalizeRoutingConfig({ blockedRequestHeaders: ["*"] }, "standalone")).toThrow(
+      BadRequestError,
+    );
+    expect(() => (service as any).normalizeRoutingConfig({ requestHeaderMode: "all" }, "standalone")).toThrow(
+      BadRequestError,
+    );
     const normalize = (headers: unknown, type = "standalone") =>
       (service as any).normalizeRoutingConfig({ forwardedRequestHeaders: headers }, type);
     expect(normalize([" X-Sdk-Custom ", "x-sdk-custom"]).forwardedRequestHeaders).toEqual(["x-sdk-custom"]);

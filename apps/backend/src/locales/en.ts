@@ -609,6 +609,8 @@ const en = {
     targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
+    requestHeaderModeInvalid: "Request-header mode must be inherit, whitelist or blacklist",
+    requestHeaderPolicyInvalid: "Invalid request-header policy; check its mode and allow/block lists",
     forwardAllRequestHeadersInvalid: "Forward all request headers must be a boolean",
     forwardedRequestHeadersInvalid:
       "Extra forwarded headers must be exact safe header names (up to 64 names, 128 characters each); credentials, cookies, internal and connection headers are prohibited.",

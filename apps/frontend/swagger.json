@@ -14450,7 +14450,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/RelayConfig"
+									"$ref": "#/components/schemas/SetRelayConfigDto"
 								}
 							}
 						}
@@ -49029,8 +49029,45 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RelayConfig": {
+			"RelayRequestHeaderMode": {
+				"type": "string",
+				"enum": [
+					"whitelist",
+					"blacklist"
+				]
+			},
+			"RelayRequestHeaderPolicy": {
 				"properties": {
+					"mode": {
+						"$ref": "#/components/schemas/RelayRequestHeaderMode"
+					},
+					"allowlist": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"blocklist": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"mode",
+					"allowlist",
+					"blocklist"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetRelayConfigDto": {
+				"properties": {
+					"requestHeaderPolicy": {
+						"$ref": "#/components/schemas/RelayRequestHeaderPolicy",
+						"description": "System-wide forwarding policy; omitted by legacy clients to preserve the saved policy."
+					},
 					"upstreamUrl": {
 						"type": "string"
 					},
@@ -49489,45 +49526,6 @@
 					"maxAccountsPerEmail",
 					"defaultGroupUsername",
 					"verificationCodeExpiry"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SetRelayConfigDto": {
-				"properties": {
-					"upstreamUrl": {
-						"type": "string"
-					},
-					"upstreamApiKey": {
-						"type": "string"
-					},
-					"allowedModels": {
-						"type": "string"
-					},
-					"customKeyEnabled": {
-						"type": "boolean"
-					},
-					"customKeyMaxTokensPerUser": {
-						"type": "number",
-						"format": "double"
-					},
-					"customKeyCreateLimitWindowMinutes": {
-						"type": "number",
-						"format": "double"
-					},
-					"customKeyCreateLimitMaxCount": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"upstreamUrl",
-					"upstreamApiKey",
-					"allowedModels",
-					"customKeyEnabled",
-					"customKeyMaxTokensPerUser",
-					"customKeyCreateLimitWindowMinutes",
-					"customKeyCreateLimitMaxCount"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -55476,6 +55474,19 @@
 					"latency-priority"
 				]
 			},
+			"RelayChannelRequestHeaderMode": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/RelayRequestHeaderMode"
+					},
+					{
+						"type": "string",
+						"enum": [
+							"inherit"
+						]
+					}
+				]
+			},
 			"RelayChannelAllowedModelsMode": {
 				"type": "string",
 				"enum": [
@@ -55502,9 +55513,20 @@
 			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
+					"requestHeaderMode": {
+						"$ref": "#/components/schemas/RelayChannelRequestHeaderMode",
+						"description": "Inherit the system mode unless this physical channel explicitly specializes it."
+					},
+					"blockedRequestHeaders": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Additional denials; system denials cannot be overridden by the channel."
+					},
 					"forwardAllRequestHeaders": {
 						"type": "boolean",
-						"description": "Forward all eligible request headers on this physical channel. Defaults to false; reserved fields stay excluded."
+						"description": "Legacy mode flag: true maps to blacklist, false to whitelist; ignored when requestHeaderMode is set."
 					},
 					"forwardedRequestHeaders": {
 						"items": {

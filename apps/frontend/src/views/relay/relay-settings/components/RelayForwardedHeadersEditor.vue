@@ -1,14 +1,29 @@
 <template>
   <div class="header-forwarding">
     <div class="header-forwarding-mode">
-      <span>{{ i18ns.t('relay.forwardAllRequestHeaders') }}</span>
-      <el-switch
-        v-model="forwardAll"
-        :aria-label="i18ns.t('relay.forwardAllRequestHeaders')"
-        data-testid="forward-all-request-headers"
-      />
+      <span>{{ i18ns.t('relay.requestHeaderMode') }}</span>
+      <el-select
+        v-model="mode"
+        :aria-label="i18ns.t('relay.requestHeaderMode')"
+        data-testid="request-header-mode"
+        style="width: 220px"
+      >
+        <el-option
+          v-if="allowInherit"
+          value="inherit"
+          :label="i18ns.t('relay.requestHeaderInherit')"
+        />
+        <el-option value="whitelist" :label="i18ns.t('relay.requestHeaderWhitelist')" />
+        <el-option value="blacklist" :label="i18ns.t('relay.requestHeaderBlacklist')" />
+      </el-select>
     </div>
-    <p class="header-forwarding-help">{{ i18ns.t('relay.forwardAllRequestHeadersHelp') }}</p>
+    <p class="header-forwarding-help">{{ i18ns.t('relay.requestHeaderModeHelp') }}</p>
+    <el-alert
+      v-if="allowInherit"
+      type="info"
+      :closable="false"
+      :title="i18ns.t('relay.requestHeaderInheritanceHelp')"
+    />
 
     <div>
       <div class="header-forwarding-label">{{ i18ns.t('relay.forwardedRequestHeaders') }}</div>
@@ -18,7 +33,6 @@
         filterable
         allow-create
         default-first-option
-        :disabled="forwardAll"
         :multiple-limit="RELAY_FORWARDED_HEADER_LIMITS.maxNames"
         :reserve-keyword="false"
         :aria-label="i18ns.t('relay.forwardedRequestHeaders')"
@@ -26,6 +40,23 @@
         class="w-full"
       />
       <p class="header-forwarding-help">{{ i18ns.t('relay.forwardedRequestHeadersHelp') }}</p>
+    </div>
+
+    <div>
+      <div class="header-forwarding-label">{{ i18ns.t('relay.blockedRequestHeaders') }}</div>
+      <el-select
+        v-model="blockedHeaders"
+        multiple
+        filterable
+        allow-create
+        default-first-option
+        :multiple-limit="RELAY_FORWARDED_HEADER_LIMITS.maxNames"
+        :reserve-keyword="false"
+        :aria-label="i18ns.t('relay.blockedRequestHeaders')"
+        :placeholder="i18ns.t('relay.blockedRequestHeadersPlaceholder')"
+        class="w-full"
+      />
+      <p class="header-forwarding-help">{{ i18ns.t('relay.blockedRequestHeadersHelp') }}</p>
     </div>
 
     <details open class="header-forwarding-defaults">
@@ -52,11 +83,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RELAY_DEFAULT_FORWARDED_HEADERS, RELAY_FORWARDED_HEADER_LIMITS } from '@quyan/shared'
+import {
+  RELAY_DEFAULT_FORWARDED_HEADERS,
+  RELAY_FORWARDED_HEADER_LIMITS,
+  type RelayChannelRequestHeaderMode,
+} from '@quyan/shared'
 import { i18ns } from '@/locales'
 
 const extraHeaders = defineModel<string[]>('extraHeaders', { required: true })
-const forwardAll = defineModel<boolean>('forwardAll', { required: true })
+const blockedHeaders = defineModel<string[]>('blockedHeaders', { required: true })
+const mode = defineModel<RelayChannelRequestHeaderMode>('mode', { required: true })
+defineProps<{ allowInherit?: boolean }>()
 const defaultHeaderGroups = computed(() => [
   {
     scope: i18ns.t('relay.defaultForwardedHeadersCommon'),
@@ -83,7 +120,7 @@ const defaultHeaderGroups = computed(() => [
   gap: 12px;
 }
 
-.header-forwarding-mode :deep(.el-switch) {
+.header-forwarding-mode :deep(.el-select) {
   flex-shrink: 0;
 }
 

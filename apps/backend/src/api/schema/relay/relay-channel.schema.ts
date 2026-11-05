@@ -105,6 +105,22 @@ const relayChannelMemberSchema = z.object({
 
 const routingConfigSchema = z
   .object({
+    requestHeaderMode: z.enum(["inherit", "whitelist", "blacklist"]).optional(),
+    blockedRequestHeaders: z
+      .array(z.string())
+      .transform((value, ctx) => {
+        const names = normalizeRelayForwardedHeaderNames(value);
+        if (!names) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Invalid blocked request-header names",
+            params: { messageKey: "relayChannel.forwardedRequestHeadersInvalid" },
+          });
+          return z.NEVER;
+        }
+        return names;
+      })
+      .optional(),
     forwardAllRequestHeaders: z.boolean().optional(),
     forwardedRequestHeaders: z
       .array(z.string())
