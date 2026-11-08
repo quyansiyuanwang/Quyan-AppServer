@@ -35713,8 +35713,8 @@
 			"post": {
 				"operationId": "AlipayPaymentControllerNotify",
 				"responses": {
-					"204": {
-						"description": "No content"
+					"200": {
+						"description": "Plain-text notification acknowledgement"
 					}
 				},
 				"tags": [

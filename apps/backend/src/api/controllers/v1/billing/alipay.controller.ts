@@ -5,11 +5,13 @@ import {
   Middlewares,
   Path,
   Post,
+  Produces,
   Put,
   Query,
   Request,
   Route,
   Security,
+  SuccessResponse,
   Tags,
 } from "@tsoa/runtime";
 import type { Request as ExpressRequest } from "express";
@@ -231,6 +233,8 @@ export class AlipayPaymentController extends Controller {
   }
 
   @Post("notify")
+  @SuccessResponse("200", "Plain-text notification acknowledgement")
+  @Produces("text/plain")
   public async notify(@Request() request: ExpressRequest): Promise<void> {
     const res = request.res!;
     res.locals.skipResponseWrapper = true;

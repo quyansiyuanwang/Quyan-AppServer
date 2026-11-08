@@ -137,6 +137,18 @@ describe("generated Alipay HTTP boundary", () => {
       .expect(200);
     expect(failure.text).toBe("failure");
   });
+  it("documents the actual notification status and rejects malformed callbacks with plain text", async () => {
+    const operation = document.paths[path + "/notify"].post;
+    expect(operation.responses["200"]).toBeDefined();
+    expect(operation.responses["204"]).toBeUndefined();
+    const response = await request(app)
+      .post(path + "/notify")
+      .type("form")
+      .send({})
+      .expect(200);
+    expect(response.text).toBe("failure");
+    expect(response.headers["content-type"]).toContain("text/plain");
+  });
   it("requires JWT for user reads and administrative operations", async () => {
     await request(app)
       .get(path + "/orders")
