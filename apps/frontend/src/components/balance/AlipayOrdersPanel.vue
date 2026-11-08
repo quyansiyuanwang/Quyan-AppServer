@@ -11,8 +11,10 @@ import { ElMessage } from '@/utils/elementPlusRuntime'
 import {
   ALIPAY_POLL_POLICY,
   estimatedAlipayCredit,
+  isAlipayAmountInRange,
   isAlipayCheckoutUrl,
   isAlipayPending,
+  normalizeAlipayAmount,
 } from '@/utils/alipay-payment'
 
 const props = defineProps<{ management?: boolean }>()
@@ -27,6 +29,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const userId = ref('')
 const amount = ref('')
+const checkoutAttempted = ref(false)
 const loading = ref(false)
 const submitting = ref(false)
 const selectedOrder = ref<AlipayOrderDto>()
@@ -52,6 +55,19 @@ const canRefund = computed(
 const preview = computed(() =>
   estimatedAlipayCredit(amount.value, config.value?.rechargeRatio ?? '0'),
 )
+const amountError = computed(() => {
+  if (!amount.value.trim()) return i18ns.t('alipay.amountRequired')
+  if (!normalizeAlipayAmount(amount.value)) return i18ns.t('alipay.amountInvalid')
+  if (
+    config.value &&
+    !isAlipayAmountInRange(amount.value, config.value.minAmount, config.value.maxAmount)
+  )
+    return i18ns.t('alipay.amountOutOfRange', {
+      min: config.value.minAmount,
+      max: config.value.maxAmount,
+    })
+  return ''
+})
 const states = [
   'pending',
   'paid',
@@ -99,10 +115,13 @@ async function selectResult(order: AlipayOrderDto) {
 }
 async function checkout() {
   if (submitting.value) return
+  checkoutAttempted.value = true
+  const paymentAmount = normalizeAlipayAmount(amount.value)
+  if (!config.value?.enabled || amountError.value || !paymentAmount) return
   submitting.value = true
   try {
-    if (!checkoutRequest.value || checkoutRequest.value.amount !== amount.value)
-      checkoutRequest.value = { amount: amount.value, requestId: crypto.randomUUID() }
+    if (!checkoutRequest.value || checkoutRequest.value.amount !== paymentAmount)
+      checkoutRequest.value = { amount: paymentAmount, requestId: crypto.randomUUID() }
     const data = await alipayService.create(checkoutRequest.value)
     if (data.paymentUrl && isAlipayCheckoutUrl(data.paymentUrl))
       window.location.assign(data.paymentUrl)
@@ -228,7 +247,9 @@ onBeforeUnmount(() => {
       :closable="false"
     />
     <el-form v-if="!management && config?.enabled" inline @submit.prevent="checkout">
-      <el-form-item :label="i18ns.t('alipay.amount')"
+      <el-form-item
+        :label="i18ns.t('alipay.amount')"
+        :error="checkoutAttempted || amount ? amountError : ''"
         ><el-input
           v-model="amount"
           inputmode="decimal"

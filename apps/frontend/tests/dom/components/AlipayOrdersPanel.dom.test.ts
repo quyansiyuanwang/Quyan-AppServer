@@ -50,6 +50,10 @@ const row = (state = 'paid') => ({
   refunds: [],
 })
 const stubs = {
+  'el-form-item': defineComponent({
+    props: ['error'],
+    template: '<div><slot /><span role="alert" v-if="error">{{ error }}</span></div>',
+  }),
   'el-button': defineComponent({
     props: ['disabled'],
     template: '<button :disabled="disabled"><slot /></button>',
@@ -152,12 +156,16 @@ describe('Alipay order interactions', () => {
         }),
     )
     const wrapper = await panel()
-    await wrapper.find('input').setValue('0.29')
+    await wrapper.find('input').setValue(' 0.29 ')
     expect(wrapper.text()).toContain('29.0000')
     await button(wrapper, 'alipay.pay').trigger('click')
     await button(wrapper, 'alipay.pay').trigger('click')
     expect(mocks.create).toHaveBeenCalledTimes(1)
     const first = mocks.create.mock.calls[0][0]
+    expect(first).toEqual({
+      amount: '0.29',
+      requestId: expect.stringMatching(/^[A-Za-z0-9_-]{16,64}$/),
+    })
     reject(new Error('fixture timeout'))
     await flushPromises()
     mocks.create.mockRejectedValueOnce(new Error('fixture retry'))
@@ -166,6 +174,57 @@ describe('Alipay order interactions', () => {
     expect(mocks.create.mock.calls[1][0]).toEqual(first)
     expect(mocks.notice).toHaveBeenCalledTimes(2)
   })
+  it('shows an inline required error without creating an order when amount is empty', async () => {
+    const wrapper = await panel()
+    await button(wrapper, 'alipay.pay').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain(i18ns.t('alipay.amountRequired'))
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.notice).not.toHaveBeenCalled()
+  })
+  it('clears the required error and submits once after a valid amount is entered', async () => {
+    const wrapper = await panel()
+    await button(wrapper, 'alipay.pay').trigger('click')
+    await wrapper.find('input').setValue('0.01')
+    expect(wrapper.text()).not.toContain(i18ns.t('alipay.amountRequired'))
+    mocks.create.mockResolvedValueOnce({ order: row('pending'), paymentUrl: '' })
+    await button(wrapper, 'alipay.pay').trigger('click')
+    await flushPromises()
+    expect(mocks.create).toHaveBeenCalledExactlyOnceWith({
+      amount: '0.01',
+      requestId: expect.stringMatching(/^[A-Za-z0-9_-]{16,64}$/),
+    })
+    expect(mocks.notice).not.toHaveBeenCalled()
+  })
+  it.each(['0', '-1', '1e2', '0.001', '01', '1.'])(
+    'rejects invalid amount %s before contacting the backend',
+    async (value) => {
+      const wrapper = await panel()
+      await wrapper.find('input').setValue(value)
+      await button(wrapper, 'alipay.pay').trigger('click')
+      expect(wrapper.text()).toContain(i18ns.t('alipay.amountInvalid'))
+      expect(mocks.create).not.toHaveBeenCalled()
+    },
+  )
+  it.each(['0.99', '10.01'])(
+    'rejects out-of-range amount %s using the loaded configuration',
+    async (value) => {
+      mocks.publicConfig.mockResolvedValueOnce({
+        enabled: true,
+        sandbox: true,
+        minAmount: '1.00',
+        maxAmount: '10.00',
+        rechargeRatio: '100',
+      })
+      const wrapper = await panel()
+      await wrapper.find('input').setValue(value)
+      await button(wrapper, 'alipay.pay').trigger('click')
+      expect(wrapper.text()).toContain(
+        i18ns.t('alipay.amountOutOfRange', { min: '1.00', max: '10.00' }),
+      )
+      expect(mocks.create).not.toHaveBeenCalled()
+    },
+  )
   it('never treats return query parameters as payment proof and stops polling when paid', async () => {
     vi.useFakeTimers()
     mocks.query = {

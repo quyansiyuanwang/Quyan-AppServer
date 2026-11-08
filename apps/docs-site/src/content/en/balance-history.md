@@ -14,6 +14,8 @@ In IAM enforcement mode, balance reads, transaction reads, redemption, gift-code
 
 When enabled by an administrator, the account balance page shows Alipay recharge. Enter an amount in CNY, check the estimated credit, then select **Pay with Alipay** and complete payment at the Alipay checkout.
 
+The amount is required, must be positive with at most two decimal places, and must fall within the currently configured minimum and maximum. The range shown in the input is a hint, not an entered amount. Invalid input displays a validation message without creating an order.
+
 - Credit uses the recharge ratio saved when ordering. At a ratio of 100, paying CNY 1 credits 100 account units. Later configuration changes do not change existing orders.
 - A Sandbox badge identifies test payments without real transfers. Use a sandbox buyer account.
 - Returning from checkout starts a status query. Return URL parameters do not prove payment; credit is added after server confirmation.
