@@ -26,6 +26,11 @@ export function createAlipayClient(credentials: AlipayCredentials) {
   const { sandbox, sellerId: _seller, ...options } = credentials;
   return new AlipaySdk({
     ...options,
+    // The SDK removes PEM footers only when they are on the final line.
+    // Standard PEM exports end with a newline, which Bun's crypto rejects
+    // after the SDK otherwise wraps a duplicate footer around the key.
+    privateKey: options.privateKey.trim(),
+    alipayPublicKey: options.alipayPublicKey.trim(),
     gateway: sandbox ? ALIPAY_POLICY.sandboxGateway : ALIPAY_POLICY.productionGateway,
     signType: "RSA2",
     timeout: ALIPAY_POLICY.requestTimeoutMs,
