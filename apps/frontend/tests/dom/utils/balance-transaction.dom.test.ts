@@ -25,6 +25,15 @@ const createTransaction = (
   }) as BalanceTransactionResponse
 
 describe('balance-transaction utils', () => {
+  it.each(['alipay_recharge', 'alipay_refund_hold', 'alipay_refund_reversal'] as const)(
+    'keeps %s separate from consumption and manual adjustments',
+    (type) => {
+      const record = createTransaction({ type, category: type, model: undefined })
+      expect(getTransactionCategory(record)).toBe(type)
+      expect(isChargeableApiUsageRecord(record)).toBe(false)
+      expect(getTransactionCategory({ ...record, category: undefined })).toBe(type)
+    },
+  )
   it('classifies chat usage from recharge-style legacy records', () => {
     const record = createTransaction({
       description: 'API调用: /chat/conversations/123/messages',

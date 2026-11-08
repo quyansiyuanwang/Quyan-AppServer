@@ -113,6 +113,8 @@ export class BalanceController extends Controller {
   }
 
   private resolveTransactionCategory(r: BalanceTransaction): BalanceTransactionCategory {
+    if (r.type === "alipay_recharge" || r.type === "alipay_refund_hold" || r.type === "alipay_refund_reversal")
+      return r.type;
     if (r.type === "monthly_pass_coverage" || this.isMonthlyPassCoverageDescription(r.description))
       return "monthly_pass_coverage";
 

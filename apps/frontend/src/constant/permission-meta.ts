@@ -794,6 +794,20 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing account balance information',
     category: 'balance',
   },
+  [Permission.PAYMENT_READ]: {
+    label: '查看支付订单',
+    labelEn: 'View Payment Orders',
+    tooltip: '允许查看支付宝充值订单及退款记录',
+    tooltipEn: 'Allows viewing Alipay recharge orders and refunds',
+    category: 'balance',
+  },
+  [Permission.PAYMENT_REFUND]: {
+    label: '原路退款',
+    labelEn: 'Refund Payments',
+    tooltip: '允许对支付宝充值订单发起原路退款',
+    tooltipEn: 'Allows refunding Alipay recharge payments',
+    category: 'balance',
+  },
   [Permission.BALANCE_RECHARGE]: {
     label: '充值余额',
     labelEn: 'Recharge Balance',

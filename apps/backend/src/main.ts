@@ -14,6 +14,7 @@ import { RelayProbeRoundSchedulerService } from "./services/relay/relay-probe-ro
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
+import { AlipayRecoverySchedulerService } from "./services/billing/alipay-recovery-scheduler.service";
 import { getLogger, LogCategory } from "./util/logger";
 import { AgentRuntimeGateway } from "./services/agent/agent-runtime.gateway";
 
@@ -89,6 +90,7 @@ async function startBackend() {
       RelayChannelProviderSettlementSchedulerService.getInstance().stop();
       DataLifecycleSchedulerService.getInstance().stop();
       CarpoolExpirationSchedulerService.getInstance().stop();
+      AlipayRecoverySchedulerService.getInstance().stop();
       await ChinaHolidayCalendarService.getInstance().stop();
       await remoteTerminalGatewayBootstrap.close();
       agentRuntimeGateway.close();

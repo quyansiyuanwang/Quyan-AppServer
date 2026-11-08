@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'balance-management',
-  updatedAt: '2026-10-30',
+  updatedAt: '2026-11-08',
   category: {
     en: 'Admin',
     'zh-CN': '管理',

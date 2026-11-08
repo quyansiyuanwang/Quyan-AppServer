@@ -10,6 +10,18 @@ Gift-code creation and direct transfers must be enabled by the server. Your bala
 
 In IAM enforcement mode, balance reads, transaction reads, redemption, gift-code creation and cancellation, and direct transfers have separate authorization checks. An explicit Deny can restrict an individual operation. The gift-code list and total include only your authorized codes; an empty list does not necessarily mean you have never created one.
 
+## Recharge with Alipay
+
+When enabled by an administrator, the account balance page shows Alipay recharge. Enter an amount in CNY, check the estimated credit, then select **Pay with Alipay** and complete payment at the Alipay checkout.
+
+- Credit uses the recharge ratio saved when ordering. At a ratio of 100, paying CNY 1 credits 100 account units. Later configuration changes do not change existing orders.
+- A Sandbox badge identifies test payments without real transfers. Use a sandbox buyer account.
+- Returning from checkout starts a status query. Return URL parameters do not prove payment; credit is added after server confirmation.
+- If you already paid and the order still awaits confirmation, refresh its status. The server also checks pending orders. Avoid immediately creating another order and paying twice.
+- Orders use server pagination. Refund history shows administrator initiated refunds and their outcomes.
+
+Administrators can issue full or partial refunds. The original order ratio determines the credit deducted, and sufficient available balance is required. Credit already spent, transferred, or reserved for carpool orders is unavailable for refund. Processing refunds hold the credit; a confirmed failure releases it. Unknown Alipay results remain processing. Cumulative partial refunds cannot exceed the original payment.
+
 ## Redeem a code
 
 1. Paste the complete code into the redemption field at the top of the page.

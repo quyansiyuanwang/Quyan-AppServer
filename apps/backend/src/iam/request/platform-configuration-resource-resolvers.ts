@@ -42,6 +42,7 @@ export const notificationConfigurationResources = registeredConfigurationResourc
   Object.values(CONFIG_KEYS.NOTIFICATION),
 );
 export const billingConfigurationResources = registeredConfigurationResources(Object.values(CONFIG_KEYS.BILLING));
+export const alipayConfigurationResources = registeredConfigurationResources(Object.values(CONFIG_KEYS.ALIPAY));
 export const heartbeatConfigurationResources = registeredConfigurationResources(Object.values(CONFIG_KEYS.HEARTBEAT));
 export const remoteTerminalUnbindConfigurationResources = registeredConfigurationResources(
   Object.values(CONFIG_KEYS.REMOTE_TERMINAL),

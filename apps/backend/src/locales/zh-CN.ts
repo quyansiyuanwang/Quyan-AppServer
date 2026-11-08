@@ -11,6 +11,15 @@ import type { DeepStringify } from "./types";
  *   占位符一致性将无法在类型层校验（该断言会直接失败）。
  */
 const zhCN = {
+  payment: {
+    invalidOperation: "当前无法执行此支付或退款操作，请检查金额和订单状态。",
+    notFound: "支付订单或退款记录不存在。",
+    insufficientBalance: "当前可用余额不足，无法退还此金额。",
+    requestConflict: "此请求已提交，且请求信息不一致。",
+    disabled: "支付宝支付或退款暂未启用。",
+    credentialsInvalid: "支付宝凭据无效，请检查密钥格式和签名配置。",
+    callbackUrlRequired: "启用支付宝前请配置可公开访问的 HTTPS 后端地址。",
+  },
   common: {
     success: "操作成功",
   },

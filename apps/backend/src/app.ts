@@ -24,6 +24,7 @@ import { RelayProbeRoundSchedulerService } from "./services/relay/relay-probe-ro
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
+import { AlipayRecoverySchedulerService } from "./services/billing/alipay-recovery-scheduler.service";
 import { RegisterRoutes } from "@/build/routes";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "./constant/custom-code";
@@ -272,5 +273,6 @@ export function setupService() {
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
   DataLifecycleSchedulerService.getInstance().start();
   CarpoolExpirationSchedulerService.getInstance().start();
+  AlipayRecoverySchedulerService.getInstance().start();
   ChinaHolidayCalendarService.getInstance().start();
 }

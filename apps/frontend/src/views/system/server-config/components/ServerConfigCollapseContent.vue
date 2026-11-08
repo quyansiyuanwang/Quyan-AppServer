@@ -1,6 +1,7 @@
 <template>
   <el-collapse v-model="activeNames">
     <AIResourceConfigPanel />
+    <AlipayConfigPanel />
     <el-collapse-item name="registration">
       <template #title>
         <span class="collapse-title">{{ i18ns.t('ServerConfigView.registrationTitle') }}</span>
@@ -697,6 +698,7 @@
 
 <script setup lang="ts">
 import AIResourceConfigPanel from './AIResourceConfigPanel.vue'
+import AlipayConfigPanel from './AlipayConfigPanel.vue'
 import { computed, inject } from 'vue'
 import { i18ns } from '@/locales'
 import { serverConfigContextKey } from '../context'

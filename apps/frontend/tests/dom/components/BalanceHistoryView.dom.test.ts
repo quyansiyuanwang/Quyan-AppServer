@@ -3,6 +3,10 @@ import { defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/components/balance/AlipayOrdersPanel.vue', () => ({
+  default: defineComponent({ template: '<div class="alipay-orders-stub" />' }),
+}))
+
 const {
   getUsageStatisticsMock,
   getMyBalanceMock,

@@ -286,8 +286,11 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('balance.transactionType')" min-width="25">
           <template #default="{ row }">
+            <el-tag v-if="getTransactionCategory(row).startsWith('alipay_')" type="primary">{{
+              alipayTypeLabels[getTransactionCategory(row)]
+            }}</el-tag>
             <el-tag
-              v-if="getTransactionCategory(row) === 'redemption'"
+              v-else-if="getTransactionCategory(row) === 'redemption'"
               type="success"
               size="small"
               >{{ i18ns.t('balance.redemption') }}</el-tag
@@ -461,8 +464,11 @@
       <div v-if="!isDesktop" class="mobile-card-list">
         <el-card v-for="row in paginatedTransactions" :key="row.id" class="tx-card">
           <div class="tx-card-header">
+            <el-tag v-if="getTransactionCategory(row).startsWith('alipay_')" type="primary">{{
+              alipayTypeLabels[getTransactionCategory(row)]
+            }}</el-tag>
             <el-tag
-              v-if="getTransactionCategory(row) === 'redemption'"
+              v-else-if="getTransactionCategory(row) === 'redemption'"
               type="success"
               size="small"
               >{{ i18ns.t('balance.redemption') }}</el-tag
@@ -1251,6 +1257,12 @@ const spendingChartOption = computed(() => {
   }
 })
 
+const alipayTypeLabels = computed<Record<string, string>>(() => ({
+  alipay_recharge: i18ns.t('alipay.title'),
+  alipay_refund_hold: i18ns.t('alipay.refundHold'),
+  alipay_refund_reversal: i18ns.t('alipay.refundReversal'),
+}))
+
 const typeChartOption = computed(() => {
   const typeCount: Record<string, number> = {}
   filteredTransactions.value.forEach((t) => {
@@ -1258,6 +1270,7 @@ const typeChartOption = computed(() => {
     typeCount[category] = (typeCount[category] || 0) + 1
   })
   const typeNameMap: Record<string, string> = {
+    ...alipayTypeLabels.value,
     redemption: i18ns.t('balance.redemption'),
     chat_usage: i18ns.t('nav.chat'),
     api_usage: i18ns.t('balance.apiUsage'),

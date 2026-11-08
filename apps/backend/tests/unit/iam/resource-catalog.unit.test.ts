@@ -90,6 +90,12 @@ describe("IAM service and resource catalog", () => {
       "quyan:oauth:DecideAuthorization",
       "quyan:auth_center:GetAuthorizationPreview",
       "quyan:auth_center:DecideAuthorization",
+      "quyan:payment:GetConfig",
+      "quyan:payment:CreateOrder",
+      "quyan:payment:GetOrder",
+      "quyan:payment:ListOrders",
+      "quyan:payment:RefreshOrder",
+      "quyan:payment:ListRefunds",
       "quyan:balance:RedeemCode",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
@@ -104,6 +110,22 @@ describe("IAM service and resource catalog", () => {
       actionForPermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE),
     );
     expect(IAM_AUTHENTICATED_SELF_ACTIONS.every((action) => !action.includes("*"))).toBe(true);
+  });
+  it.each([
+    ["ListManagedOrders", Permission.PAYMENT_READ],
+    ["ListManagedRefunds", Permission.PAYMENT_READ],
+    ["RefundOrder", Permission.PAYMENT_REFUND],
+    ["RefreshRefund", Permission.PAYMENT_REFUND],
+  ] as const)("keeps payment management action %s outside the self-service baseline", (operation, permission) => {
+    const action = "quyan:payment:" + operation;
+    expect(getIamActionDefinition(action)).toMatchObject({
+      resourceTypes: ["platform/system"],
+      authorizationBoundary: "platform",
+      legacyPermission: permission,
+      sensitive: true,
+    });
+    expect(getIamActionDefinition(action)?.defaultAuthorizationScope).toBeUndefined();
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(action);
   });
   it("registers every relay channel operation with a channel resource target", () => {
     const relayPermissions = [
