@@ -144,6 +144,8 @@ export enum Permission {
   // 余额管理权限
   BALANCE_READ = 'balance:read',
   BALANCE_RECHARGE = 'balance:recharge',
+  PAYMENT_READ = 'payment:read',
+  PAYMENT_REFUND = 'payment:refund',
 
   // 开发者服务管理权限
   DEVELOPER_QUOTA_MANAGE = 'developer:quota:manage',

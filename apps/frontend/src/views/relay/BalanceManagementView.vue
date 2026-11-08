@@ -123,6 +123,7 @@
           @range-action="handleHistoryRangeAction"
         />
       </el-dialog>
+      <AlipayOrdersPanel management />
     </div>
   </div>
   <div v-else class="mobile-page">
@@ -239,11 +240,13 @@
           @range-action="handleHistoryRangeAction"
         />
       </el-dialog>
+      <AlipayOrdersPanel management />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import AlipayOrdersPanel from '@/components/balance/AlipayOrdersPanel.vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { getErrorMessage } from '@/utils/error-utils'
 import { ref, reactive, onMounted, watch, computed } from 'vue'

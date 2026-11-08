@@ -322,6 +322,8 @@ function finalizeCapturedResponse(res: Response): void {
 }
 
 export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
+  // The payment adapter has business audits; never capture credentials, signed checkout URLs or notify bodies.
+  if (getRequestPath(req).startsWith(ApiRoutePathPrefix.V1PaymentsAlipay)) return next();
   if (res.locals.requestLogInstalled) return next();
   res.locals.requestLogInstalled = true;
   const auditReader = getRequestPath(req).startsWith(ApiRoutePathPrefix.V1RelayAiRequestLogs);

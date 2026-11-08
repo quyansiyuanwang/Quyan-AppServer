@@ -2,6 +2,10 @@
  * Business operation types for audit logging
  */
 export enum OperationType {
+  PAYMENT_CREATE = "PAYMENT_CREATE",
+  PAYMENT_CREDIT = "PAYMENT_CREDIT",
+  PAYMENT_REFUND = "PAYMENT_REFUND",
+  PAYMENT_CONFIG_UPDATE = "PAYMENT_CONFIG_UPDATE",
   // Authentication
   LOGIN_SUCCESS = "LOGIN_SUCCESS",
   LOGIN_FAILED = "LOGIN_FAILED",

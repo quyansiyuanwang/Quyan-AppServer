@@ -3,6 +3,10 @@ import { computed, defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/components/balance/AlipayOrdersPanel.vue', () => ({
+  default: defineComponent({ template: '<div class="alipay-orders-stub" />' }),
+}))
+
 const {
   getAllTransactionsMock,
   getBatchBalancesMock,
@@ -82,14 +86,33 @@ const ElTableStub = defineComponent({
   name: 'ElTable',
   props: { data: { type: Array, default: () => [] } },
   setup(props, { slots }) {
-    return () => h('div', { class: 'el-table-stub' }, slots.default ? slots.default({ row: props.data[0] }) : [])
+    return () =>
+      h(
+        'div',
+        { class: 'el-table-stub' },
+        slots.default ? slots.default({ row: props.data[0] }) : [],
+      )
   },
 })
 
 const ElTableColumnStub = defineComponent({
   name: 'ElTableColumn',
   setup(_props, { slots }) {
-    return () => h('div', { class: 'el-table-column-stub' }, slots.default ? slots.default({ row: { userId: 'user-1', username: 'alice', balance: 50, updateTime: '2026-04-26T00:00:00.000Z' } }) : [])
+    return () =>
+      h(
+        'div',
+        { class: 'el-table-column-stub' },
+        slots.default
+          ? slots.default({
+              row: {
+                userId: 'user-1',
+                username: 'alice',
+                balance: 50,
+                updateTime: '2026-04-26T00:00:00.000Z',
+              },
+            })
+          : [],
+      )
   },
 })
 

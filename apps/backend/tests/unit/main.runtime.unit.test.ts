@@ -90,6 +90,9 @@ describe("main runtime bootstrap", () => {
     vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
       DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
+    vi.doMock("../../src/services/billing/alipay-recovery-scheduler.service", () => ({
+      AlipayRecoverySchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
     vi.doMock("../../src/services/billing/carpool-expiration-scheduler.service", () => ({
       CarpoolExpirationSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
@@ -202,6 +205,9 @@ describe("main runtime bootstrap", () => {
     }));
     vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
       DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/billing/alipay-recovery-scheduler.service", () => ({
+      AlipayRecoverySchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
     vi.doMock("../../src/services/billing/carpool-expiration-scheduler.service", () => ({
       CarpoolExpirationSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },

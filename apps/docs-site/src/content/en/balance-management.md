@@ -2,6 +2,16 @@
 
 Use balance management to query user balances, add or deduct balance manually, and verify transactions. Adjustments directly change site balance; confirm the user ID, amount, and reason first.
 
+## Alipay orders and original payment refunds
+
+The **Alipay orders and refunds** panel requires separate `PAYMENT_READ` permission; the containing page still requires its existing balance management permissions. Filter by user ID and review CNY amounts, credited units, Alipay transaction numbers, status, and refund history. Both lists use server pagination.
+
+Refunds additionally require `PAYMENT_REFUND` and any configured two-factor challenge. Select **Original payment refund** on a paid order and enter the amount in CNY and a reason. The initial amount is the remaining refundable amount. Multiple partial refunds are allowed up to the original payment, with one processing refund per order.
+
+Credit is deducted using the original recharge ratio. The server checks available balance after carpool reservations. Insufficient balance rejects the refund without creating debt. Processing holds the credit; success retains the deduction, while a definite Alipay rejection releases it. Timeouts and unknown results remain processing. Refresh the refund record or wait for automatic recovery. Do not use manual balance adjustments as a substitute for refund confirmation.
+
+Successful refunds reduce cumulative recharge and do not count as user spending. Fees and eligibility depend on the Alipay agreement and transaction state. Finished, expired, or partial-refund-restricted transactions may not be refundable.
+
 ## Prerequisites
 
 Opening the page requires `BALANCE_READ`. The page also reads the user directory, so corresponding user read access is needed. Adjustments require separate `BALANCE_RECHARGE` permission. Accounts with two-factor authentication may need verification when submitting a change.

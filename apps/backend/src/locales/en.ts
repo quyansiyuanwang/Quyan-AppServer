@@ -1,4 +1,13 @@
 const en = {
+  payment: {
+    invalidOperation: "This payment or refund operation is not available. Check the amount and order state.",
+    notFound: "Payment order or refund not found.",
+    insufficientBalance: "The available balance is insufficient to refund this amount.",
+    requestConflict: "This request was already submitted with different details.",
+    disabled: "Alipay payments or refunds are currently disabled.",
+    credentialsInvalid: "Invalid Alipay credentials. Check the key format and signing configuration.",
+    callbackUrlRequired: "Configure a public HTTPS backend URL before enabling Alipay.",
+  },
   common: {
     success: "Success",
   },

@@ -3,6 +3,10 @@
  */
 
 export const CONFIG_KEYS = {
+  ALIPAY: {
+    SETTINGS: "alipay.settings",
+    ACTIVE_PROFILE: "alipay.activeProfile",
+  },
   AI_RESOURCES: "ai.resources",
   HEARTBEAT: {
     INTERVAL_SECONDS: "heartbeat.intervalSeconds",
