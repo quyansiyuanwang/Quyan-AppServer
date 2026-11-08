@@ -4,7 +4,7 @@ Deployment administrators use this page to maintain registration, billing, mail,
 
 ## Configure Alipay recharge and refunds
 
-Use **Alipay payments** to configure recharge and refund switches, CNY limits, order expiry, and the complete account balance return URL. Both switches default off; credentials are required before enabling recharge. First configure a public HTTPS backend URL in site settings. Alipay notifications reach the backend directly without a frontend redirect or login.
+Use **Alipay payments** to configure recharge and refund switches, CNY limits, order expiry, and the complete account balance return URL. Both switches default off; credentials are required before enabling recharge. To receive asynchronous notifications, configure a public HTTPS backend URL in site settings. Alipay notifications reach the backend directly without a frontend redirect or login. When the backend URL is blank, checkout omits the notification URL and the server confirms payments through background queries. Keep background recovery running, including for unresolved orders after users close the page. A configured URL must still be valid HTTPS; an invalid address does not silently fall back to query-only mode.
 
 Start with Sandbox and enter AppID, seller PID, application private key, and Alipay public key. Use PEM keys and select the matching PKCS1/PKCS8 format. Certificate mode instead accepts the application certificate, Alipay public certificate, and root certificate. The Alipay public key must come from Alipay; do not substitute your application public key.
 

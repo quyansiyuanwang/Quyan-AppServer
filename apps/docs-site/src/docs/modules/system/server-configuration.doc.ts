@@ -3,7 +3,7 @@ import contentZh from '@/content/zh-CN/server-configuration.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
-  updatedAt: '2026-11-08',
+  updatedAt: '2026-11-09',
   slug: 'server-configuration',
   category: {
     en: 'System',
