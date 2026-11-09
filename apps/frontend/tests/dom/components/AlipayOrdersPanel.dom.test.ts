@@ -123,6 +123,67 @@ afterEach(() => {
 })
 
 describe('Alipay order interactions', () => {
+  it('hides the entire user panel and skips order listing when payments are disabled', async () => {
+    mocks.publicConfig.mockResolvedValueOnce({ enabled: false, sandbox: true })
+    const wrapper = await panel()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(false)
+    expect(wrapper.findAll('input')).toHaveLength(0)
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+  it('does not flash the user panel while payment configuration is loading', async () => {
+    let resolve!: (value: { enabled: boolean }) => void
+    mocks.publicConfig.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const wrapper = await panel()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(false)
+    expect(mocks.list).not.toHaveBeenCalled()
+    resolve({ enabled: false })
+    await flushPromises()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(false)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+  it('keeps the user panel hidden when payment configuration cannot be loaded', async () => {
+    mocks.publicConfig.mockRejectedValueOnce(new Error('fixture configuration failure'))
+    const wrapper = await panel()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(false)
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.notice).toHaveBeenCalledTimes(1)
+  })
+  it('shows the recharge form when payments are enabled', async () => {
+    const wrapper = await panel()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(true)
+    expect(wrapper.find('input').exists()).toBe(true)
+    expect(button(wrapper, 'alipay.pay').exists()).toBe(true)
+    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(1, 10, false, undefined)
+  })
+  it('keeps permitted management history available independently of the payment switch', async () => {
+    mocks.publicConfig.mockResolvedValue({ enabled: false })
+    const wrapper = await panel(true)
+    expect(wrapper.find('.alipay-orders').exists()).toBe(true)
+    expect(mocks.publicConfig).not.toHaveBeenCalled()
+    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(1, 10, true, undefined)
+    expect(wrapper.findAll('button').some((item) => item.text() === i18ns.t('alipay.pay'))).toBe(
+      false,
+    )
+  })
+  it('still confirms a returning order without exposing payment UI after payments are disabled', async () => {
+    mocks.publicConfig.mockResolvedValueOnce({ enabled: false })
+    mocks.query = { paymentOrder: 'order-fixture' }
+    mocks.order.mockResolvedValueOnce(row('pending'))
+    mocks.refresh.mockResolvedValueOnce(row('paid'))
+    const wrapper = await panel()
+    expect(wrapper.find('.alipay-orders').exists()).toBe(false)
+    expect(mocks.refresh).toHaveBeenCalledExactlyOnceWith('order-fixture')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
   it('does not load management data without payment read permission', async () => {
     mocks.hasPermission.mockReturnValue(false)
     const wrapper = await panel(true)

@@ -49,6 +49,9 @@ let pollAttempts = 0
 const canRead = computed(
   () => !props.management || permissions.hasPermission(Permission.PAYMENT_READ),
 )
+const showPanel = computed(
+  () => canRead.value && (props.management || config.value?.enabled === true),
+)
 const canRefund = computed(
   () => props.management && permissions.hasPermission(Permission.PAYMENT_REFUND),
 )
@@ -85,7 +88,7 @@ const label = (state: string) => {
 }
 
 async function load() {
-  if (!canRead.value) return
+  if (!showPanel.value) return
   loading.value = true
   try {
     const data = await alipayService.list(
@@ -238,7 +241,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <el-card v-if="canRead" class="page-card alipay-orders" v-loading="loading">
+  <el-card v-if="showPanel" class="page-card alipay-orders" v-loading="loading">
     <template #header>{{ i18ns.t(management ? 'alipay.management' : 'alipay.title') }}</template>
     <el-alert
       v-if="config?.sandbox"
@@ -264,12 +267,6 @@ onBeforeUnmount(() => {
         }}</el-button></el-form-item
       >
     </el-form>
-    <el-alert
-      v-if="!management && config && !config.enabled"
-      :title="i18ns.t('alipay.disabled')"
-      type="info"
-      :closable="false"
-    />
     <el-alert
       v-if="result"
       :title="`${i18ns.t('alipay.result')}: ${label(result.state)}`"
