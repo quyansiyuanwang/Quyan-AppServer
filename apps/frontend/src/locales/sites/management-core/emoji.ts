@@ -1200,7 +1200,7 @@ const emoji = {
     filterByFormat: '🗃️ ↙️ 🎨',
     filterByChannel: '🗃️ ↙️ 📡 ☑️',
     filterByPricingType: '🗃️ ↙️ 📙 🏷️',
-    filterByModelKeyword: '🗃️ ↙️ 🤖 📛/🆔',
+    filterByModelKeyword: '🔍 🤖 📛/🆔 · 🏷️ · 🔗',
     onlyModelsWithChannels: '🙈 🙊 📡 🤖',
     showingModels: '🚫 {count} 🤖',
     channelMatchMode: '📡 ✅ 📏',

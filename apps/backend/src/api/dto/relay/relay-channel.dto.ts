@@ -229,6 +229,16 @@ export interface RelayCatalogModelPriceRangeDto {
   maxMultiplier: number;
 }
 
+/** Public billing mapping on one effective route, without route or member identity. */
+export interface RelayCatalogModelMappingDto {
+  requestModelPattern: string;
+  catalogModelName: string;
+  billingModelId: string;
+  supportedRequestFormats: RelayConfiguredRequestFormat[];
+  /** Higher-precedence rules on the same route, including rules with unavailable targets. */
+  excludedRequestModelPatterns?: string[];
+}
+
 /**
  * Consumer-facing API documentation channel projection.
  *
@@ -243,6 +253,7 @@ export interface RelayCatalogOptionDto {
   isAutomaticProxyPool: boolean;
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
+  modelMappings?: RelayCatalogModelMappingDto[];
   pricingMode: "fixed" | "range";
   multiplier?: number;
   contextLengthMultipliers?: ContextLengthMultiplierRule[];

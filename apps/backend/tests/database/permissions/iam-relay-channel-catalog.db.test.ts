@@ -194,7 +194,7 @@ describe("native consumer channel catalog", () => {
     });
     const text = JSON.stringify(result);
     expect(text).not.toMatch(
-      /fixture-only-secret|fixture.invalid|poolMembers|routingConfig|modelMapping|visibilityConfig|pooledParent/,
+      /fixture-only-secret|fixture.invalid|poolMembers|routingConfig|"modelMapping"|visibilityConfig|pooledParent/,
     );
     for (const spy of [rich, broad, prices, preload]) expect(spy).not.toHaveBeenCalled();
     expect(reads.length).toBeGreaterThan(2);
@@ -220,6 +220,100 @@ describe("native consumer channel catalog", () => {
       },
     ]);
   });
+  it("publishes only runtime-valid billing mappings with same-path exclusions and formats", async () => {
+    await prisma.relayChannel.update({
+      where: { id: root },
+      data: {
+        modelMapping: { "alias-*": prefix + "request", "alias-4*": "unavailable", "alias-exact": prefix + "model" },
+      },
+    });
+    await prisma.relayChannel.update({
+      where: { id: leaf },
+      data: {
+        modelMapping: { [prefix + "request"]: prefix + "request" },
+      },
+    });
+    await prisma.relayChannel.update({
+      where: { id: second },
+      data: {
+        modelMapping: { "alias-*": " " + prefix + "other-request ", "other-exact": prefix + "other-request" },
+      },
+    });
+    const [row] = await invoke();
+    expect(row.modelMappings).toEqual(
+      [
+        {
+          requestModelPattern: "alias-*",
+          catalogModelName: prefix + "model",
+          billingModelId: prefix + "request",
+          supportedRequestFormats: ["openai-chat-completions"],
+          excludedRequestModelPatterns: ["alias-4*", "alias-exact", prefix + "request"].sort((a, b) =>
+            a.localeCompare(b),
+          ),
+        },
+        {
+          requestModelPattern: "alias-*",
+          catalogModelName: prefix + "other",
+          billingModelId: prefix + "other-request",
+          supportedRequestFormats: ["anthropic"],
+          excludedRequestModelPatterns: ["alias-4*", "alias-exact", "other-exact"],
+        },
+        {
+          requestModelPattern: "other-exact",
+          catalogModelName: prefix + "other",
+          billingModelId: prefix + "other-request",
+          supportedRequestFormats: ["anthropic"],
+        },
+        {
+          requestModelPattern: prefix + "request",
+          catalogModelName: prefix + "model",
+          billingModelId: prefix + "request",
+          supportedRequestFormats: ["openai-chat-completions"],
+        },
+      ].sort(
+        (a, b) =>
+          a.requestModelPattern.localeCompare(b.requestModelPattern) ||
+          a.catalogModelName.localeCompare(b.catalogModelName),
+      ),
+    );
+    const serialized = JSON.stringify(row);
+    for (const privateId of [leaf, second]) expect(serialized).not.toContain(privateId);
+    expect(serialized).not.toMatch(
+      /fixture-only-secret|fixture.invalid|poolMembers|routingConfig|"modelMapping"|leafChannelId|pooledParent/,
+    );
+  });
+  it.each(["deny", "hidden", "whitelist"])(
+    "withholds %s member mappings and exclusions before projection",
+    async (restriction) => {
+      await prisma.relayChannel.update({
+        where: { id: leaf },
+        data: { modelMapping: { "visible-*": prefix + "request" } },
+      });
+      await prisma.relayChannel.update({
+        where: { id: second },
+        data: {
+          modelMapping: { "private-*": prefix + "other-request", "private-exact": "unavailable" },
+          ...(restriction === "deny" ? {} : { visibilityMode: restriction, visibilityConfig: {} }),
+        },
+      });
+      if (restriction === "deny") await policy(arn(second));
+      const reads = intercept();
+      const [row] = await invoke();
+      expect(row.modelMappings).toEqual([
+        {
+          requestModelPattern: "visible-*",
+          catalogModelName: prefix + "model",
+          billingModelId: prefix + "request",
+          supportedRequestFormats: ["openai-chat-completions"],
+        },
+      ]);
+      expect(JSON.stringify(row)).not.toMatch(/private-\*|private-exact/);
+      expect(JSON.stringify(row)).not.toContain(prefix + "other");
+      expect(JSON.stringify(row)).not.toContain(second);
+      for (const read of reads.filter((read) => read.select?.name))
+        expect(JSON.stringify(read.where)).not.toContain(second);
+    },
+  );
   it("removes an explicitly denied member from capability and price computation", async () => {
     await policy(arn(second));
     const rows = intercept(),

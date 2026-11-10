@@ -1,5 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { matchesModelPattern, resolveMappedModel } from "../../src/util/model-mapping.util";
+import {
+  getHigherPriorityModelPatterns,
+  matchesModelPattern,
+  resolveMappedModel,
+} from "../../src/util/model-mapping.util";
+import * as shared from "@quyan/shared";
+
+describe("shared mapping exports", () => {
+  it("re-exports the same implementation from the backend", () => {
+    expect(matchesModelPattern).toBe(shared.matchesModelPattern);
+    expect(resolveMappedModel).toBe(shared.resolveMappedModel);
+    expect(getHigherPriorityModelPatterns).toBe(shared.getHigherPriorityModelPatterns);
+  });
+
+  it("preserves case, whitespace and literal regex characters", () => {
+    expect(matchesModelPattern("GPT-4", "gpt-*")).toBe(false);
+    expect(matchesModelPattern("alias", " alias ")).toBe(false);
+    const literal = "a.+^${}()|[]\\";
+    expect(matchesModelPattern(literal + "tail", literal + "*")).toBe(true);
+    expect(resolveMappedModel("alias", { alias: " target " })).toBe(" target ");
+    expect(resolveMappedModel("alias", { alias: "" })).toBe("");
+  });
+});
+
+describe("getHigherPriorityModelPatterns", () => {
+  it("keeps all exact rules and more specific wildcards in original order", () => {
+    const patterns = ["z*", "exact", "z?*", "za*", "unrelated", "*", "zab*"];
+    expect(getHigherPriorityModelPatterns("z*", patterns)).toEqual(["exact", "za*", "unrelated", "zab*"]);
+    expect(getHigherPriorityModelPatterns("z?*", patterns)).toEqual(["z*", "exact", "za*", "unrelated", "zab*"]);
+    expect(getHigherPriorityModelPatterns("exact", patterns)).toEqual([]);
+  });
+
+  it("follows insertion order for overlapping ties without mutating input", () => {
+    const patterns = Object.freeze(["a*", "*b", "??", "*"]);
+    expect(getHigherPriorityModelPatterns("a*", patterns)).toEqual([]);
+    expect(getHigherPriorityModelPatterns("*b", patterns)).toEqual(["a*"]);
+    expect(resolveMappedModel("ab", { "a*": "first", "*b": "second" })).toBe("first");
+    expect(resolveMappedModel("ab", { "*b": "second", "a*": "first" })).toBe("second");
+    expect(patterns).toEqual(["a*", "*b", "??", "*"]);
+  });
+});
 
 describe("matchesModelPattern", () => {
   it("matches exact pattern without wildcards", () => {

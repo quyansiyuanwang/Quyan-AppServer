@@ -57067,6 +57067,41 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayCatalogModelMappingDto": {
+				"description": "Public billing mapping on one effective route, without route or member identity.",
+				"properties": {
+					"requestModelPattern": {
+						"type": "string"
+					},
+					"catalogModelName": {
+						"type": "string"
+					},
+					"billingModelId": {
+						"type": "string"
+					},
+					"supportedRequestFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+						},
+						"type": "array"
+					},
+					"excludedRequestModelPatterns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Higher-precedence rules on the same route, including rules with unavailable targets."
+					}
+				},
+				"required": [
+					"requestModelPattern",
+					"catalogModelName",
+					"billingModelId",
+					"supportedRequestFormats"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayCatalogModelPriceRangeDto": {
 				"description": "Model-specific multiplier range for a logical channel with variable upstream pricing.",
 				"properties": {
@@ -57116,6 +57151,12 @@
 					"modelCapabilities": {
 						"items": {
 							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array"
+					},
+					"modelMappings": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCatalogModelMappingDto"
 						},
 						"type": "array"
 					},

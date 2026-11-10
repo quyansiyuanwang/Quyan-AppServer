@@ -137,3 +137,8 @@ export * from './relay-upstream-headers'
 
 export * from './support-knowledge'
 export * from './relay-probe'
+export {
+  matchesModelPattern,
+  resolveMappedModel,
+  getHigherPriorityModelPatterns,
+} from './model-mapping'

@@ -1732,6 +1732,18 @@ const en = {
     customerSupportComingSoon: 'Live support is coming soon.',
   },
   relay: {
+    catalogMappingMarker: 'Has model mapping',
+    catalogMappingTitle: 'Model mappings',
+    catalogMappingSource: 'Request model or pattern',
+    catalogMappingBillingModel: 'Billing model and ID',
+    catalogMappingFormats: 'Request formats',
+    catalogMappingExclusions: 'Does not apply to',
+    catalogMappingCopySource: 'Copy request model {model}',
+    catalogMappingPatternHint: 'Wildcard pattern; enter a matching model name to call it.',
+    catalogMappingBillingHint:
+      'This mapping selects the billing model. The original request model is retained when forwarded.',
+    catalogMappingTokenHint:
+      'Token model mappings take priority. Token model restrictions and access permissions still apply.',
     useProxy: 'Use proxy',
     useProxyHelp: 'When enabled, upstream requests for this channel use the system proxy.',
     providerChannelTitle: 'My Channel Supply',
