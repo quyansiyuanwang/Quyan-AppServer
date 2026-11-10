@@ -7,6 +7,7 @@ import {
   type RelayCapabilityGraphNode,
 } from "../../../src/services/relay/relay-pool-resolver.service";
 import { BadRequestError } from "../../../src/util/errors";
+import { resolveMappedModel } from "../../../src/util/model-mapping.util";
 
 const createChannel = (id: string, overrides: Record<string, unknown> = {}) =>
   ({
@@ -182,6 +183,54 @@ describe("RelayPoolResolverService", () => {
     const filtered = filterBlockedAutomaticPoolCandidates(candidates, [blocked.id]);
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.routingChannelIds).toContain(keep.id);
+  });
+
+  it("retains reversed wildcard precedence through candidate filtering and active leaf deduplication", async () => {
+    const leaf = createChannel("leaf");
+    const edge = (memberChannelId: string) => ({ memberChannelId, enabled: true, priority: 0, weight: 1 });
+    const first = createChannel("first", {
+      channelType: "pooled",
+      poolMembers: [edge(leaf.id)],
+      modelMapping: { "z*": "missing", "*a": "model-a" },
+    });
+    const second = createChannel("second", {
+      channelType: "pooled",
+      poolMembers: [edge(leaf.id)],
+      modelMapping: { "*a": "model-a", "z*": "missing" },
+    });
+    const duplicate = createChannel("duplicate", {
+      channelType: "pooled",
+      poolMembers: [edge(leaf.id)],
+      modelMapping: { "*a": "model-a", "z*": "missing" },
+    });
+    const root = createChannel("root", {
+      channelType: "automatic-proxy-pool",
+      poolMembers: [edge(first.id), edge(second.id), edge(duplicate.id)].map((member, priority) => ({
+        ...member,
+        priority,
+      })),
+    });
+    const { resolver } = createResolver([root, first, second, duplicate, leaf]);
+    const candidates = await resolver.resolveActiveLeafCandidates([root]);
+    expect(candidates).toHaveLength(3);
+    expect(candidates[0].routingKey).not.toBe(candidates[1].routingKey);
+    expect(candidates[1].routingKey).toBe(candidates[2].routingKey);
+    const retained = filterBlockedAutomaticPoolCandidates(candidates, []);
+    expect(retained).toHaveLength(2);
+    expect(
+      retained.map(({ resolvedChannel }) =>
+        resolveMappedModel("za", resolvedChannel.modelMapping as Record<string, string>),
+      ),
+    ).toEqual(["missing", "model-a"]);
+    const unblocked = filterBlockedAutomaticPoolCandidates(candidates, [second.id]);
+    expect(unblocked).toHaveLength(2);
+    expect(unblocked[1].routingChannelIds).toContain(duplicate.id);
+    const leaves = await resolver.resolveActiveLeaves([root]);
+    expect(leaves).toHaveLength(2);
+    expect(leaves.map((channel) => resolveMappedModel("za", channel.modelMapping as Record<string, string>))).toEqual([
+      "missing",
+      "model-a",
+    ]);
   });
 
   it("recursively resolves enabled nested pools into standalone leaves", async () => {

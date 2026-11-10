@@ -71,6 +71,12 @@
               </div>
 
               <template v-if="getChannelPriceCellValue(row, channel).available">
+                <ChannelModelMappings
+                  :mappings="getRowModelMappings(row, channel)"
+                  :channel-name="channel.name"
+                  :get-highlight-parts="getHighlightParts"
+                  :on-copy="props.onCopyModelId"
+                />
                 <div v-if="row.pricingType === 'per-request'" class="comparison-price-row">
                   <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
                   <el-text type="danger" tag="b">
@@ -594,110 +600,116 @@
       >
         <template #default="{ row }">
           <div class="channels-cell">
-            <el-tooltip
+            <div
               v-for="channel in getAvailableChannels(row)"
               :key="channel.id"
-              placement="top"
-              effect="light"
-              :show-after="300"
+              class="channel-with-mappings"
             >
-              <template #content>
-                <div class="channel-price-tooltip">
-                  <div class="channel-price-header">
-                    {{ channel.name }}
-                    <el-tag size="small" type="info" effect="plain">
-                      {{ getTooltipMultiplierLabel(row, channel) }}
-                    </el-tag>
+              <el-tooltip placement="top" effect="light" :show-after="300">
+                <template #content>
+                  <div class="channel-price-tooltip">
+                    <div class="channel-price-header">
+                      {{ channel.name }}
+                      <el-tag size="small" type="info" effect="plain">
+                        {{ getTooltipMultiplierLabel(row, channel) }}
+                      </el-tag>
+                    </div>
+                    <template v-if="row.pricingType !== 'per-request'">
+                      <div
+                        v-if="(channel.contextLengthMultipliers || []).length"
+                        class="channel-price-row channel-price-row--stacked"
+                      >
+                        <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
+                        <el-text size="small">{{
+                          formatContextTiers(channel.contextLengthMultipliers || [])
+                        }}</el-text>
+                      </div>
+                      <div class="channel-price-row">
+                        <span class="channel-price-label">{{ t('apiDoc.inputPrice') }}:</span>
+                        <div class="token-price-tooltip-value">
+                          <el-text type="success" tag="b">
+                            {{
+                              formatChannelTokenPrice(
+                                row.inputPrice,
+                                getTooltipMultiplier(row, channel),
+                              )
+                            }}
+                          </el-text>
+                        </div>
+                      </div>
+                      <div class="channel-price-row">
+                        <span class="channel-price-label">{{ t('apiDoc.outputPrice') }}:</span>
+                        <div class="token-price-tooltip-value">
+                          <el-text type="warning" tag="b">
+                            {{
+                              formatChannelTokenPrice(
+                                row.outputPrice,
+                                getTooltipMultiplier(row, channel),
+                              )
+                            }}
+                          </el-text>
+                        </div>
+                      </div>
+                      <div
+                        v-if="props.showCacheMultipliers"
+                        class="channel-price-row channel-price-row--stacked"
+                      >
+                        <span class="channel-price-label">{{ t('apiDoc.cacheMultipliers') }}:</span>
+                        <el-text size="small" type="warning">
+                          {{
+                            formatCacheMultiplier(
+                              row.cacheCreationMultiplier,
+                              row.cacheReadMultiplier,
+                            )
+                          }}
+                        </el-text>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div
+                        v-if="(channel.contextLengthMultipliers || []).length"
+                        class="channel-price-row channel-price-row--stacked"
+                      >
+                        <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
+                        <el-text size="small">{{
+                          formatContextTiers(channel.contextLengthMultipliers || [])
+                        }}</el-text>
+                      </div>
+                      <div class="channel-price-row">
+                        <span class="channel-price-label">{{ t('apiDoc.fixedPrice') }}:</span>
+                        <el-text type="danger" tag="b">
+                          {{
+                            formatChannelFixedPrice(
+                              row.fixedPrice,
+                              getTooltipMultiplier(row, channel),
+                            )
+                          }}
+                        </el-text>
+                      </div>
+                    </template>
+                    <div class="channel-price-hint">{{ t('apiDoc.channelEffectivePrice') }}</div>
                   </div>
-                  <template v-if="row.pricingType !== 'per-request'">
-                    <div
-                      v-if="(channel.contextLengthMultipliers || []).length"
-                      class="channel-price-row channel-price-row--stacked"
-                    >
-                      <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
-                      <el-text size="small">{{
-                        formatContextTiers(channel.contextLengthMultipliers || [])
-                      }}</el-text>
-                    </div>
-                    <div class="channel-price-row">
-                      <span class="channel-price-label">{{ t('apiDoc.inputPrice') }}:</span>
-                      <div class="token-price-tooltip-value">
-                        <el-text type="success" tag="b">
-                          {{
-                            formatChannelTokenPrice(
-                              row.inputPrice,
-                              getTooltipMultiplier(row, channel),
-                            )
-                          }}
-                        </el-text>
-                      </div>
-                    </div>
-                    <div class="channel-price-row">
-                      <span class="channel-price-label">{{ t('apiDoc.outputPrice') }}:</span>
-                      <div class="token-price-tooltip-value">
-                        <el-text type="warning" tag="b">
-                          {{
-                            formatChannelTokenPrice(
-                              row.outputPrice,
-                              getTooltipMultiplier(row, channel),
-                            )
-                          }}
-                        </el-text>
-                      </div>
-                    </div>
-                    <div
-                      v-if="props.showCacheMultipliers"
-                      class="channel-price-row channel-price-row--stacked"
-                    >
-                      <span class="channel-price-label">{{ t('apiDoc.cacheMultipliers') }}:</span>
-                      <el-text size="small" type="warning">
-                        {{
-                          formatCacheMultiplier(
-                            row.cacheCreationMultiplier,
-                            row.cacheReadMultiplier,
-                          )
-                        }}
-                      </el-text>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div
-                      v-if="(channel.contextLengthMultipliers || []).length"
-                      class="channel-price-row channel-price-row--stacked"
-                    >
-                      <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
-                      <el-text size="small">{{
-                        formatContextTiers(channel.contextLengthMultipliers || [])
-                      }}</el-text>
-                    </div>
-                    <div class="channel-price-row">
-                      <span class="channel-price-label">{{ t('apiDoc.fixedPrice') }}:</span>
-                      <el-text type="danger" tag="b">
-                        {{
-                          formatChannelFixedPrice(
-                            row.fixedPrice,
-                            getTooltipMultiplier(row, channel),
-                          )
-                        }}
-                      </el-text>
-                    </div>
-                  </template>
-                  <div class="channel-price-hint">{{ t('apiDoc.channelEffectivePrice') }}</div>
-                </div>
-              </template>
-              <el-tag
-                size="small"
-                :type="isSelectedChannel(channel.id) ? 'success' : 'primary'"
-                :effect="isSelectedChannel(channel.id) ? 'dark' : 'plain'"
-                style="margin: 2px; cursor: default"
-                class="channel-tag"
-              >
-                {{ channel.name }}
-                <span v-if="channel.multiplier !== 1" class="channel-multiplier-badge">
-                  ×{{ formatMultiplier(channel.multiplier) }}
-                </span>
-              </el-tag>
-            </el-tooltip>
+                </template>
+                <el-tag
+                  size="small"
+                  :type="isSelectedChannel(channel.id) ? 'success' : 'primary'"
+                  :effect="isSelectedChannel(channel.id) ? 'dark' : 'plain'"
+                  style="margin: 2px; cursor: default"
+                  class="channel-tag"
+                >
+                  {{ channel.name }}
+                  <span v-if="channel.multiplier !== 1" class="channel-multiplier-badge">
+                    ×{{ formatMultiplier(channel.multiplier) }}
+                  </span>
+                </el-tag>
+              </el-tooltip>
+              <ChannelModelMappings
+                :mappings="getRowModelMappings(row, channel)"
+                :channel-name="channel.name"
+                :get-highlight-parts="getHighlightParts"
+                :on-copy="props.onCopyModelId"
+              />
+            </div>
             <el-text v-if="getAvailableChannels(row).length === 0" type="info" size="small">
               {{ t('apiDoc.noChannels') }}
             </el-text>
@@ -735,6 +747,12 @@
           <template #default="{ row }">
             <div class="comparison-cell">
               <template v-if="getChannelPriceCellValue(row, channel).available">
+                <ChannelModelMappings
+                  :mappings="getRowModelMappings(row, channel)"
+                  :channel-name="channel.name"
+                  :get-highlight-parts="getHighlightParts"
+                  :on-copy="props.onCopyModelId"
+                />
                 <div class="comparison-multiplier-row">
                   <el-tag size="small" type="info" effect="plain">
                     {{
@@ -806,7 +824,13 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelPricingDto, RelayCatalogOptionDto } from '@/client/types.gen'
+import type {
+  ModelPricingDto,
+  RelayCatalogModelMappingDto,
+  RelayCatalogOptionDto,
+} from '@/client/types.gen'
+import ChannelModelMappings from '@/components/relay/ChannelModelMappings.vue'
+import { getCatalogModelMappings } from '@/utils/relay-catalog-mappings'
 import type {
   ChannelPriceCell,
   PriceRangeField,
@@ -843,6 +867,10 @@ const props = defineProps<{
   getChannelsForModel: (modelName: string, modelFormat?: string) => RelayCatalogOptionDto[]
   getDisplayedPriceMultiplier: (item: PricingModelRow) => number
   getChannelPriceCell: (item: PricingModelRow, channel: RelayCatalogOptionDto) => ChannelPriceCell
+  getModelMappings?: (
+    item: PricingModelRow,
+    channel: RelayCatalogOptionDto,
+  ) => RelayCatalogModelMappingDto[]
   customPriceMultiplier?: number | null
   customMultiplierActive?: boolean
   showCacheMultipliers?: boolean
@@ -1032,6 +1060,12 @@ const formatCacheMultiplier = (creation?: number, read?: number): string => {
 const getAvailableChannels = (item: PricingModelRow): RelayCatalogOptionDto[] =>
   props.getChannelsForModel((item.model || '').trim(), item.supportedFormats)
 
+const getRowModelMappings = (
+  item: PricingModelRow,
+  channel: RelayCatalogOptionDto,
+): RelayCatalogModelMappingDto[] =>
+  props.getModelMappings?.(item, channel) ?? getCatalogModelMappings(channel, item)
+
 const getChannelPriceCellValue = (
   item: PricingModelRow,
   channel: RelayCatalogOptionDto,
@@ -1195,6 +1229,14 @@ const getChannelPriceCellValue = (
 
 .channel-tag {
   transition: opacity 0.15s;
+}
+
+.channel-with-mappings {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
 }
 
 .channel-tag:hover {

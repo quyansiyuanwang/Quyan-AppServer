@@ -1261,7 +1261,7 @@ const en = {
     filterByFormat: 'Filter by Format',
     filterByChannel: 'Filter by Channel (Multi-select)',
     filterByPricingType: 'Filter by Pricing Type',
-    filterByModelKeyword: 'Filter by Model Name/ID',
+    filterByModelKeyword: 'Search model name/ID, aliases or mappings',
     onlyModelsWithChannels: 'Only Models With Available Channels',
     showingModels: 'Showing {count} models',
     channelMatchMode: 'Channel match mode',
