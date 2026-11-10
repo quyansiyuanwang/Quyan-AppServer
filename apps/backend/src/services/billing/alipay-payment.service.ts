@@ -63,6 +63,8 @@ export class AlipayPaymentService {
     return createAlipayClient(decryptAlipayCredentials(profile.encryptedCredentials));
   }
   private notifyUrl(backendPublicUrl: string) {
+    // No callback is a supported mode: persisted orders are still reconciled by the scheduler.
+    if (!backendPublicUrl.trim()) return "";
     try {
       const url = new URL(ApiRoutePath.V1PaymentsAlipayNotify, backendPublicUrl);
       if (url.protocol !== "https:" || url.username || url.password) throw invalid();
@@ -229,7 +231,7 @@ export class AlipayPaymentService {
       const returnUrl = new URL(order.returnUrl);
       returnUrl.searchParams.set("paymentOrder", order.id);
       paymentUrl = this.client(order.profile).pageExecute("alipay.trade.page.pay", "GET", {
-        notifyUrl: order.notifyUrl,
+        ...(order.notifyUrl ? { notifyUrl: order.notifyUrl } : {}),
         returnUrl: returnUrl.toString(),
         bizContent: {
           out_trade_no: order.outTradeNo,
@@ -292,7 +294,7 @@ export class AlipayPaymentService {
       const order = typeof data.out_trade_no === "string" ? await this.repository.byTradeNo(data.out_trade_no) : null;
       if (!order || !this.client(order.profile).checkNotifySignV2(data)) return false;
       this.verifyTrade(order, data, true);
-      if (data.gmt_refund || data.out_biz_no) {
+      if (data.gmt_refund || data.out_biz_no || data.refund_fee) {
         const refund = data.out_biz_no ? await this.repository.refundByRequest(data.out_biz_no) : null;
         if (refund && refund.orderId === order.id) await this.queryRefund(refund.id);
       } else await this.applyTrade(order, data);

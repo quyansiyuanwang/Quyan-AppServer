@@ -143,6 +143,81 @@ describe("Alipay settlement and refunds", () => {
     expect(await prisma.balanceTransaction.count({ where: { relatedId: row.id } })).toBe(1);
     expect((await repo.get(row.id))!.state).toBe("paid");
   });
+  it("omits an absent callback and reconciles an unknown payment without a browser return", async () => {
+    const configs = ConfigService.getInstance();
+    const config = vi.spyOn(configs, "getMultiple").mockResolvedValue({
+      [CONFIG_KEYS.ALIPAY.SETTINGS]: JSON.stringify({ enabled: true, returnUrl: "https://fixture.invalid/balance" }),
+      [CONFIG_KEYS.ALIPAY.ACTIVE_PROFILE]: profileId,
+    });
+    const ratio = vi.spyOn(configs, "getRechargeRatio").mockResolvedValue(100);
+    const site = vi.spyOn(configs, "getSiteConfig").mockResolvedValue({ backendPublicUrl: "" });
+    const exec = vi.spyOn(AlipaySdk.prototype, "exec");
+    const dueOrders = vi.spyOn(repo, "dueOrders");
+    const dueRefunds = vi.spyOn(repo, "dueRefunds").mockResolvedValue([]);
+    try {
+      const body = { amount: "0.29", requestId: randomUUID() };
+      const request = { user: { userId }, headers: {}, ip: "127.0.0.1" } as unknown as TypedRequest;
+      const checkout = await service.create(body, request);
+      expect(new URL(checkout.paymentUrl).searchParams.has("notify_url")).toBe(false);
+      expect((await repo.get(checkout.order.id))!.notifyUrl).toBe("");
+      // A later settings change must not silently change a signed order's callback snapshot.
+      site.mockResolvedValue({ backendPublicUrl: "https://fixture.invalid" });
+      const retry = await service.create(body, request);
+      expect(retry.order.id).toBe(checkout.order.id);
+      expect(new URL(retry.paymentUrl).searchParams.has("notify_url")).toBe(false);
+      dueOrders.mockResolvedValue([(await repo.get(checkout.order.id))!]);
+      exec.mockResolvedValueOnce({ code: "20000", msg: "Service Currently Unavailable" });
+      await service.recover();
+      expect((await repo.get(checkout.order.id))!.state).toBe("pending");
+      expect(await prisma.balanceTransaction.count({ where: { relatedId: checkout.order.id } })).toBe(0);
+      exec.mockResolvedValue({
+        code: "10000",
+        msg: "Success",
+        out_trade_no: checkout.order.outTradeNo,
+        trade_no: randomUUID().replaceAll("-", ""),
+        total_amount: "0.29",
+        trade_status: "TRADE_SUCCESS",
+      });
+      await service.recover();
+      await service.recover();
+      expect((await repo.get(checkout.order.id))!.state).toBe("paid");
+      expect(await prisma.balanceTransaction.count({ where: { relatedId: checkout.order.id } })).toBe(1);
+      expect(exec).toHaveBeenCalledWith(
+        "alipay.trade.query",
+        { bizContent: { out_trade_no: checkout.order.outTradeNo } },
+        { validateSign: true },
+      );
+    } finally {
+      config.mockRestore();
+      ratio.mockRestore();
+      site.mockRestore();
+      exec.mockRestore();
+      dueOrders.mockRestore();
+      dueRefunds.mockRestore();
+    }
+  });
+  it.each(["http://fixture.invalid", "not-a-url", "https://user:password@fixture.invalid"])(
+    "rejects a configured invalid callback base before order persistence: %s",
+    async (backendPublicUrl) => {
+      const configs = ConfigService.getInstance();
+      const config = vi.spyOn(configs, "getMultiple").mockResolvedValue({
+        [CONFIG_KEYS.ALIPAY.SETTINGS]: JSON.stringify({ enabled: true, returnUrl: "https://fixture.invalid/balance" }),
+        [CONFIG_KEYS.ALIPAY.ACTIVE_PROFILE]: profileId,
+      });
+      const ratio = vi.spyOn(configs, "getRechargeRatio").mockResolvedValue(100);
+      const site = vi.spyOn(configs, "getSiteConfig").mockResolvedValue({ backendPublicUrl });
+      try {
+        const body = { amount: "0.29", requestId: randomUUID() };
+        const request = { user: { userId }, headers: {}, ip: "127.0.0.1" } as unknown as TypedRequest;
+        await expect(service.create(body, request)).rejects.toThrow();
+        expect(await prisma.paymentOrder.count({ where: { userId, requestId: body.requestId } })).toBe(0);
+      } finally {
+        config.mockRestore();
+        ratio.mockRestore();
+        site.mockRestore();
+      }
+    },
+  );
   it("validates real RSA signatures, app, seller and amount; duplicate notifications do not credit again", async () => {
     const row = await order();
     expect(await service.notify(notification(row, { total_amount: "9" }))).toBe(false);
@@ -164,6 +239,18 @@ describe("Alipay settlement and refunds", () => {
     } finally {
       env.runtime.isProduction = original;
     }
+  });
+  it.each([
+    ["refund_fee", "1.00"],
+    ["gmt_refund", "2026-11-09 00:00:00"],
+    ["out_biz_no", "fixture-refund-event"],
+  ])("acknowledges refund events without treating them as payment success: %s", async (field, value) => {
+    const row = await order();
+    const body = notification(row, { [field]: value });
+    expect(await service.notify(body)).toBe(true);
+    expect(await service.notify(body)).toBe(true);
+    expect((await repo.get(row.id))!.state).toBe("pending");
+    expect(await prisma.balanceTransaction.count({ where: { relatedId: row.id } })).toBe(0);
   });
   it("rejects cross-user reads", async () => {
     const row = await order();
