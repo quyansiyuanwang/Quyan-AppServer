@@ -1787,7 +1787,7 @@ const emoji = {
     apiCatalogPoolVisibility: '📚 🏊 📡',
     apiCatalogPoolVisibilityHidden: '🙈 🏊 📡',
     apiCatalogPoolVisibilityAnonymousRange: '🕶️ 💰 ↔️',
-    apiCatalogPoolVisibilityHelp: '🕶️ 📚 👁️ 🤖 ⚙️ ➕ 💰 ↔️；🚫 👁️ 👤 ➕ 🔀',
+    apiCatalogPoolVisibilityHelp: '🕶️ 📚 👁️ 🏊 📡 ➕ 🧍 📡；🏊 🔗 🧍 📡 ✅ 👁️；🚫 👁️ 🔧 👤 ➕ 🔀',
     channelFailoverSettings: '📡 🔁 ⚙️',
     quotaSettings: '🪙 📏 ⚙️',
     requestFormatTransforms: '🔄 📦 🔁',

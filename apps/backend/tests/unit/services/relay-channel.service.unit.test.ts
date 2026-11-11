@@ -662,7 +662,7 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 
-  it("publishes pooled channels with their logical fixed price without topology", async () => {
+  it("publishes pools alongside their independently visible standalone and logical members without topology", async () => {
     relayChannelRepository.listActive.mockResolvedValue([
       { ...sampleChannel, id: "standalone-channel", channelType: "standalone", visibilityMode: "public" },
       { ...sampleChannel, id: "pool-member-a", name: "Member A", multiplier: 1.2, channelType: "standalone" },
@@ -683,6 +683,10 @@ describe("RelayChannelService", () => {
         id: "automatic-pool-channel",
         channelType: "automatic-proxy-pool",
         visibilityMode: "public",
+        poolMembers: [
+          { memberChannelId: "pooled-channel", enabled: true },
+          { memberChannelId: "pool-member-a", enabled: true },
+        ],
       },
       {
         ...sampleChannel,
@@ -709,9 +713,19 @@ describe("RelayChannelService", () => {
     const result = await service.listCatalogOptions("actor-user");
 
     expect(result.map((channel) => channel.id)).toEqual(
-      expect.arrayContaining(["automatic-pool-channel", "pooled-channel", "standalone-channel"]),
+      expect.arrayContaining([
+        "automatic-pool-channel",
+        "pooled-channel",
+        "standalone-channel",
+        "pool-member-a",
+        "pool-member-b",
+      ]),
     );
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(5);
+    expect(result.find((channel) => channel.id === "pool-member-a")).toMatchObject({
+      pricingMode: "fixed",
+      multiplier: 1.2,
+    });
     expect(result.find((channel) => channel.id === "pooled-channel")).toMatchObject({
       id: "pooled-channel",
       name: "GPT Route",

@@ -376,12 +376,12 @@ describe("native consumer channel catalog", () => {
     });
     expect((await invoke())[0]!.modelCapabilities).toHaveLength(2);
   });
-  it("bounds cyclic pools without publishing partial data", async () => {
+  it("rejects cyclic pools without publishing partial data", async () => {
     await prisma.relayChannel.update({ where: { id: leaf }, data: { channelType: "pooled" } });
     await prisma.relayChannelMember.create({
       data: { relayChannelId: leaf, memberChannelId: root, enabled: true, weight: 1, priority: 1 },
     });
-    expect(await invoke()).toEqual([]);
+    await expect(invoke()).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("pool cycle") });
   });
   it("does not read a denied root's label or topology", async () => {
     await policy(arn(root));
@@ -569,6 +569,35 @@ describe("native consumer channel catalog", () => {
       minMultiplier: 7,
       maxMultiplier: 7,
     });
+  });
+  it.each([
+    { channelType: "pooled", apiCatalogPoolVisibility: "anonymous-range" },
+    { channelType: "pooled", apiCatalogPoolVisibility: "hidden" },
+    { channelType: "automatic-proxy-pool", apiCatalogPoolVisibility: "anonymous-range" },
+    { channelType: "automatic-proxy-pool", apiCatalogPoolVisibility: "hidden" },
+  ])("keeps standalone members independently visible for %j", async ({ channelType, apiCatalogPoolVisibility }) => {
+    await prisma.relayConfig.create({ data: { apiCatalogPoolVisibility } });
+    await prisma.relayChannel.update({ where: { id: root }, data: { channelType } });
+    await prisma.relayChannel.update({
+      where: { id: leaf },
+      data: { channelType: "standalone", pooledParentId: null },
+    });
+    const poolVisible = channelType === "automatic-proxy-pool" || apiCatalogPoolVisibility === "anonymous-range";
+    const result = await invoke();
+    expect(result.map((row) => row.id).sort()).toEqual((poolVisible ? [root, leaf] : [leaf]).sort());
+    expect(result.find((row) => row.id === leaf)).toMatchObject({
+      pricingMode: "fixed",
+      multiplier: 2,
+      modelCapabilities: [{ catalogModelName: prefix + "model", requestModelId: prefix + "request" }],
+    });
+    expect(JSON.stringify(result)).not.toMatch(/fixture-only-secret|fixture.invalid|poolMembers|pooledParent/);
+
+    await policy(arn(leaf));
+    const denied = await invoke();
+    expect(denied.map((row) => row.id)).toEqual(poolVisible ? [root] : []);
+    expect(
+      denied.flatMap((row) => row.modelCapabilities).some((row) => row.catalogModelName === prefix + "model"),
+    ).toBe(false);
   });
   it("honors account-local group policies and Deny without global management membership", async () => {
     await prisma.user.update({ where: { id: actor }, data: { permissionAdds: [] } });

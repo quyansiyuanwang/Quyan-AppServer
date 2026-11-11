@@ -219,7 +219,7 @@ describe("catalog mappings from intact graph paths", () => {
       context,
       poolVisibility: "anonymous-range",
     } as unknown as RelayCatalogSnapshot;
-    const [row] = await projectRelayChannelCatalog(snapshot);
+    const row = (await projectRelayChannelCatalog(snapshot)).find((entry) => entry.id === "root")!;
     expect(row.modelMappings).toEqual(catalogModelMappings(intact));
     expect(JSON.stringify(row)).not.toMatch(/path-a|path-b|leaf|poolMembers|modelMapping"/);
   });
@@ -259,4 +259,37 @@ describe("catalog mappings from intact graph paths", () => {
     expect(rows[0].excludedRequestModelPatterns).toEqual(["alias-blocked", "denied", "deniedLeaf", "override"]);
     expect(rows[1].excludedRequestModelPatterns).toBeUndefined();
   });
+});
+
+describe("catalog pool publication", () => {
+  it.each(["hidden", "anonymous-range"] as const)(
+    "keeps independently visible pool members in the %s catalog",
+    async (poolVisibility) => {
+      const nodes = [
+        node("automatic", { channelType: "automatic-proxy-pool", poolMembers: members("pooled", "standalone") }),
+        node("pooled", { channelType: "pooled", poolMembers: members("standalone", "physical") }),
+        node("standalone"),
+        node("physical", { channelType: "pooled-member" }),
+      ];
+      const snapshot = {
+        sources: nodes.map((row) => ({ ...row, multiplier: row.id === "standalone" ? 2 : 1 })),
+        context: {
+          graph: new Map(nodes.map((row) => [row.id, row])),
+          modelCatalog: [{ model: "Model A", provider: "model-a", supportedFormats: "openai" }],
+        },
+        poolVisibility,
+      } as unknown as RelayCatalogSnapshot;
+      const result = await projectRelayChannelCatalog(snapshot);
+      expect(result.map((row) => row.id)).toEqual(
+        poolVisibility === "anonymous-range" ? ["automatic", "pooled", "standalone"] : ["automatic", "standalone"],
+      );
+      expect(result.find((row) => row.id === "standalone")).toMatchObject({
+        pricingMode: "fixed",
+        multiplier: 2,
+        modelCapabilities: [{ catalogModelName: "Model A", requestModelId: "model-a" }],
+      });
+      expect(result.find((row) => row.id === "automatic")).toMatchObject({ pricingMode: "range" });
+      expect(JSON.stringify(result)).not.toMatch(/physical|poolMembers|routingConfig|leafChannelId/);
+    },
+  );
 });
