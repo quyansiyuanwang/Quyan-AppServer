@@ -686,39 +686,15 @@ export class RelayChannelService {
     const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
     const now = new Date();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
-    const publishedPoolMemberIds = new Set<string>();
-    if (relayConfig.apiCatalogPoolVisibility === "anonymous-range") {
-      const publishedPoolRoots = accessibleChannels.filter((channel) => {
-        const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
-        return isPoolType(type) && (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden";
-      });
-
-      const visitPool = (channelId: string) => {
-        const channel = activeChannelsById.get(channelId) as RelayChannelWithMembers | undefined;
-        if (!channel) return;
-
-        for (const member of channel.poolMembers ?? []) {
-          if (publishedPoolMemberIds.has(member.memberChannelId)) continue;
-          publishedPoolMemberIds.add(member.memberChannelId);
-          const memberType =
-            (activeChannelsById.get(member.memberChannelId)?.channelType as RelayChannelType | undefined) ??
-            DEFAULT_CHANNEL_TYPE;
-          if (isPoolType(memberType)) visitPool(member.memberChannelId);
-        }
-      };
-
-      for (const root of publishedPoolRoots) visitPool(root.id);
-    }
-
     const channels = accessibleChannels.filter((channel) => {
       const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
       return (
         (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
         // Automatic proxy pools are controlled by the API documentation page's local display
         // preference. The relay setting only governs logical pooled channels.
+        // Independently visible standalone and logical channels remain listed when used by a pool.
         type !== "pooled-member" &&
-        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || type !== "pooled") &&
-        !publishedPoolMemberIds.has(channel.id)
+        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || type !== "pooled")
       );
     });
 

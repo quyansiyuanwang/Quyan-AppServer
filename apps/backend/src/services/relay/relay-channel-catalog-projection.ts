@@ -11,8 +11,6 @@ import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { isChannelServiceEnabled } from "./relay-channel-management-projection";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { formatRelayRequestFormats, getHigherPriorityModelPatterns, RELAY_REQUEST_FORMAT_ORDER } from "@quyan/shared";
-import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "@/constant/relay-capability";
-import { iamAccountDenied } from "@/store/users/iam-account-principal";
 type CatalogPricingSource = Pick<
   RelayChannel,
   "status" | "providerServiceEnabled" | "multiplier" | "timePeriodMultipliers" | "contextLengthMultipliers"
@@ -154,27 +152,11 @@ export async function projectRelayChannelCatalog(
   const { sources, context, poolVisibility } = snapshot,
     byId = new Map(sources.map((row) => [row.id, row]));
   const isPool = (type: string) => type === "pooled" || type === "automatic-proxy-pool";
-  const suppressed = new Set<string>();
-  if (poolVisibility === "anonymous-range") {
-    const queue = sources.filter((row) => isPool(row.channelType)).map((row) => row.id),
-      visited = new Set<string>();
-    for (let index = 0; index < queue.length; index++) {
-      const id = queue[index]!;
-      if (visited.has(id)) continue;
-      visited.add(id);
-      if (visited.size > RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits) throw iamAccountDenied();
-      for (const member of context.graph.get(id)?.poolMembers ?? []) {
-        if (!member.enabled || !byId.has(member.memberChannelId)) continue;
-        suppressed.add(member.memberChannelId);
-        if (isPool(byId.get(member.memberChannelId)!.channelType)) queue.push(member.memberChannelId);
-      }
-    }
-  }
   const result: RelayCatalogOptionDto[] = [];
   for (const source of sources) {
+    // Pool membership does not revoke a channel's independent catalog visibility.
     if (
       source.channelType === "pooled-member" ||
-      suppressed.has(source.id) ||
       (source.channelType === "pooled" && poolVisibility !== "anonymous-range")
     )
       continue;

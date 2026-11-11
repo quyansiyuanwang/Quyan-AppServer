@@ -21,6 +21,8 @@ Open Relay settings and wait for the relevant global configuration and channel l
 
 Global configuration, pricing drafts and channel editors save separately. Channel edits, batch actions and channel imports send requests immediately; they do not require the global Save button afterward.
 
+After selecting **Publish anonymous price ranges** under **API catalog pooled routes** and saving, API documentation lists enabled pooled and standalone channels visible to the current user together. Standalone channels remain separate entries even when used by a regular pool or an automatic proxy pool; physical members, membership relationships and routing details stay private. **Do not publish pooled routes** hides only regular pooled entries. Standalone channels remain eligible, while automatic proxy pools use the API documentation page's separate display preference. Channel visibility and access permissions always apply.
+
 ## Save global settings and model prices
 
 1. Wait for the relevant configuration group to load before changing multipliers, queues or monitor mappings.

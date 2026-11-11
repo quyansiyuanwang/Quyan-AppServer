@@ -1902,7 +1902,7 @@ const en = {
     apiCatalogPoolVisibilityHidden: 'Do not publish pooled routes',
     apiCatalogPoolVisibilityAnonymousRange: 'Publish anonymous price ranges',
     apiCatalogPoolVisibilityHelp:
-      'Anonymous publication exposes model capabilities and price ranges only, never members or routing.',
+      'Publication lists visible pooled and standalone channels together. Standalone channels remain listed when used by a pool. Physical members and routing details stay private.',
     channelFailoverSettings: 'Channels & Failover',
     quotaSettings: 'Quota Settings',
     requestFormatTransforms: 'Request Format Conversion',

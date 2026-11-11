@@ -1821,7 +1821,8 @@ const zhCN = {
     apiCatalogPoolVisibility: 'API 文档混池目录',
     apiCatalogPoolVisibilityHidden: '不发布混池渠道',
     apiCatalogPoolVisibilityAnonymousRange: '发布匿名价格区间',
-    apiCatalogPoolVisibilityHelp: '匿名发布仅展示模型能力与价格区间，不展示渠道成员或路由信息。',
+    apiCatalogPoolVisibilityHelp:
+      '发布后同时展示可见的混池渠道与独立渠道；独立渠道即使被混池引用也会单独展示。物理成员和路由信息不会公开。',
     channelFailoverSettings: '有序渠道与自动切换',
     quotaSettings: '额度设置',
     requestFormatTransforms: '请求格式转换',
