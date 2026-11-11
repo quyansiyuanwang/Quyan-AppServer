@@ -35162,6 +35162,568 @@
 				]
 			}
 		},
+		"/v1/payments/alipay/public-config": {
+			"get": {
+				"operationId": "AlipayPaymentControllerGetPublicConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublicAlipayConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/payments/alipay/config": {
+			"get": {
+				"operationId": "AlipayPaymentControllerGetConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "AlipayPaymentControllerSetConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetAlipayConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/payments/alipay/orders": {
+			"post": {
+				"operationId": "AlipayPaymentControllerCreateOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayCheckoutDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAlipayOrderDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"get": {
+				"operationId": "AlipayPaymentControllerListOrders",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayOrderListDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/payments/alipay/orders/{id}": {
+			"get": {
+				"operationId": "AlipayPaymentControllerGetOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/payments/alipay/orders/{id}/refresh": {
+			"post": {
+				"operationId": "AlipayPaymentControllerRefreshOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/payments/alipay/orders/{id}/refunds": {
+			"get": {
+				"operationId": "AlipayPaymentControllerListRefunds",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"pageSize": {
+											"type": "number",
+											"format": "double"
+										},
+										"page": {
+											"type": "number",
+											"format": "double"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"records": {
+											"items": {
+												"$ref": "#/components/schemas/AlipayRefundDto"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"pageSize",
+										"page",
+										"total",
+										"records"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/payments/alipay/management/orders": {
+			"get": {
+				"operationId": "AlipayPaymentControllerListManagedOrders",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayOrderListDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/payments/alipay/management/orders/{id}/refunds": {
+			"get": {
+				"operationId": "AlipayPaymentControllerListManagedRefunds",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"pageSize": {
+											"type": "number",
+											"format": "double"
+										},
+										"page": {
+											"type": "number",
+											"format": "double"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"records": {
+											"items": {
+												"$ref": "#/components/schemas/AlipayRefundDto"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"pageSize",
+										"page",
+										"total",
+										"records"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "AlipayPaymentControllerRefundOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayRefundDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAlipayRefundDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/payments/alipay/management/refunds/{id}/refresh": {
+			"post": {
+				"operationId": "AlipayPaymentControllerRefreshRefund",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AlipayRefundDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/payments/alipay/notify": {
+			"post": {
+				"operationId": "AlipayPaymentControllerNotify",
+				"responses": {
+					"200": {
+						"description": "Plain-text notification acknowledgement"
+					}
+				},
+				"tags": [
+					"AlipayPayment"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
 		"/v1/auth-center/authorize": {
 			"get": {
 				"operationId": "AuthCenterControllerAuthorize",
@@ -40731,6 +41293,8 @@
 					"redemption:code:read",
 					"balance:read",
 					"balance:recharge",
+					"payment:read",
+					"payment:refund",
 					"developer:quota:manage",
 					"developer:product:catalog:manage",
 					"developer:product:entitlement:manage",
@@ -49828,6 +50392,10 @@
 			"OperationType": {
 				"description": "Business operation types for audit logging",
 				"enum": [
+					"PAYMENT_CREATE",
+					"PAYMENT_CREDIT",
+					"PAYMENT_REFUND",
+					"PAYMENT_CONFIG_UPDATE",
 					"LOGIN_SUCCESS",
 					"LOGIN_FAILED",
 					"LOGOUT",
@@ -56499,6 +57067,41 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayCatalogModelMappingDto": {
+				"description": "Public billing mapping on one effective route, without route or member identity.",
+				"properties": {
+					"requestModelPattern": {
+						"type": "string"
+					},
+					"catalogModelName": {
+						"type": "string"
+					},
+					"billingModelId": {
+						"type": "string"
+					},
+					"supportedRequestFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+						},
+						"type": "array"
+					},
+					"excludedRequestModelPatterns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Higher-precedence rules on the same route, including rules with unavailable targets."
+					}
+				},
+				"required": [
+					"requestModelPattern",
+					"catalogModelName",
+					"billingModelId",
+					"supportedRequestFormats"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayCatalogModelPriceRangeDto": {
 				"description": "Model-specific multiplier range for a logical channel with variable upstream pricing.",
 				"properties": {
@@ -56548,6 +57151,12 @@
 					"modelCapabilities": {
 						"items": {
 							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array"
+					},
+					"modelMappings": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCatalogModelMappingDto"
 						},
 						"type": "array"
 					},
@@ -68092,6 +68701,9 @@
 			"BalanceTransactionCategory": {
 				"type": "string",
 				"enum": [
+					"alipay_recharge",
+					"alipay_refund_hold",
+					"alipay_refund_reversal",
 					"redemption",
 					"gift_code_create",
 					"gift_code_redeem",
@@ -68283,6 +68895,370 @@
 					"records",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PublicAlipayConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"sandbox": {
+						"type": "boolean"
+					},
+					"minAmount": {
+						"type": "string"
+					},
+					"maxAmount": {
+						"type": "string"
+					},
+					"rechargeRatio": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"sandbox",
+					"minAmount",
+					"maxAmount",
+					"rechargeRatio"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipaySettingsDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"refundEnabled": {
+						"type": "boolean"
+					},
+					"minAmount": {
+						"type": "string"
+					},
+					"maxAmount": {
+						"type": "string"
+					},
+					"orderTimeoutMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"returnUrl": {
+						"type": "string",
+						"description": "Full account balance URL; never taken from a payment request."
+					}
+				},
+				"required": [
+					"enabled",
+					"refundEnabled",
+					"minAmount",
+					"maxAmount",
+					"orderTimeoutMinutes",
+					"returnUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayConfigDto": {
+				"properties": {
+					"settings": {
+						"$ref": "#/components/schemas/AlipaySettingsDto"
+					},
+					"profile": {
+						"properties": {
+							"hasCredentials": {
+								"type": "boolean"
+							},
+							"keyType": {
+								"type": "string",
+								"enum": [
+									"PKCS1",
+									"PKCS8"
+								]
+							},
+							"sandbox": {
+								"type": "boolean"
+							},
+							"sellerId": {
+								"type": "string"
+							},
+							"appId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"hasCredentials",
+							"keyType",
+							"sandbox",
+							"sellerId",
+							"appId"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"settings"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayCredentialsDto": {
+				"properties": {
+					"appId": {
+						"type": "string"
+					},
+					"sellerId": {
+						"type": "string"
+					},
+					"sandbox": {
+						"type": "boolean"
+					},
+					"privateKey": {
+						"type": "string"
+					},
+					"alipayPublicKey": {
+						"type": "string"
+					},
+					"keyType": {
+						"type": "string",
+						"enum": [
+							"PKCS1",
+							"PKCS8"
+						]
+					},
+					"appCertContent": {
+						"type": "string"
+					},
+					"alipayPublicCertContent": {
+						"type": "string"
+					},
+					"alipayRootCertContent": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"appId",
+					"sellerId",
+					"sandbox",
+					"privateKey",
+					"alipayPublicKey",
+					"keyType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetAlipayConfigDto": {
+				"properties": {
+					"settings": {
+						"$ref": "#/components/schemas/AlipaySettingsDto"
+					},
+					"credentials": {
+						"$ref": "#/components/schemas/AlipayCredentialsDto",
+						"description": "Omit to retain the current encrypted credentials."
+					}
+				},
+				"required": [
+					"settings"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayRefundDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"outRequestNo": {
+						"type": "string"
+					},
+					"amount": {
+						"type": "string"
+					},
+					"creditAmount": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					},
+					"failureCode": {
+						"type": "string",
+						"nullable": true
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"completedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"outRequestNo",
+					"amount",
+					"creditAmount",
+					"state",
+					"failureCode",
+					"createTime",
+					"completedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayOrderDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"outTradeNo": {
+						"type": "string"
+					},
+					"tradeNo": {
+						"type": "string",
+						"nullable": true
+					},
+					"amount": {
+						"type": "string"
+					},
+					"creditAmount": {
+						"type": "string"
+					},
+					"rechargeRatio": {
+						"type": "string"
+					},
+					"refundedAmount": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					},
+					"sandbox": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"paidAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"refunds": {
+						"items": {
+							"$ref": "#/components/schemas/AlipayRefundDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"outTradeNo",
+					"tradeNo",
+					"amount",
+					"creditAmount",
+					"rechargeRatio",
+					"refundedAmount",
+					"state",
+					"sandbox",
+					"createTime",
+					"expiresAt",
+					"paidAt",
+					"refunds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayCheckoutDto": {
+				"properties": {
+					"order": {
+						"$ref": "#/components/schemas/AlipayOrderDto"
+					},
+					"paymentUrl": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"order",
+					"paymentUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAlipayOrderDto": {
+				"properties": {
+					"amount": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"amount",
+					"requestId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AlipayOrderListDto": {
+				"properties": {
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/AlipayOrderDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"records",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAlipayRefundDto": {
+				"properties": {
+					"amount": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"amount",
+					"requestId",
+					"reason"
 				],
 				"type": "object",
 				"additionalProperties": false

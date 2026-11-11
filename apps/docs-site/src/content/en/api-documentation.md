@@ -42,10 +42,10 @@ Replace `{model}` with a model ID. Clients may append paths themselves; avoid ad
 ## Compare model prices
 
 1. Open **Model pricing** and wait for prices and channels to load. Select Refresh for updated data.
-2. Filter by model name or ID, request format, pricing type, and channels.
+2. Search by model name, ID, or mapping source, and filter by request format, pricing type, and channels.
 3. Choose base price, selected-channel minimum, or all-channel minimum. With multiple channels, choose match-any or match-all.
 4. For separate channel columns, choose **Comparison mode**, select at least one channel, and set the primary comparison channel.
-5. Check units, ranges, and any custom multiplier before copying a model ID into your client.
+5. Check units, ranges, and any custom multiplier. When a channel shows **Has model mapping**, select it to review the request-to-billing model relationship before copying an applicable exact source model into your client.
 
 | Control or state                    | Meaning and limits                                                                                                         |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -58,7 +58,13 @@ Replace `{model}` with a model ID. Clients may append paths themselves; avoid ad
 | Custom multiplier                   | Local price simulation; does not change server prices, tokens, or billing rules                                            |
 | M / K units                         | Per million / per thousand tokens; switching also converts input/output range filters, without changing per-request prices |
 
-Model name or ID matching is case-insensitive substring search. Channels match the model and its supported formats. A displayed row or channel tag does not establish that the current token can execute the selected format. Requests still check authorization, state, format, quotas, and routing conditions.
+Model search supports case-insensitive substring matching on model names, IDs, and mapping sources. You can also enter a concrete request model to find its billing model through wildcard mapping rules. For concrete model matching, exact rules take priority over wildcard rules. Matching wildcard rules are evaluated from most to least specific, preserving configuration order for ties. `*` matches any number of characters; `?` matches one character.
+
+Select **Has model mapping** on a channel in the price table to see **Request model pattern → Billing model** and the supported request formats for that billing model. Exact source models without wildcards have a copy button for use in your client. Sources containing `*` or `?` are labeled as patterns and cannot be used directly as callable model IDs; use a concrete model that matches the pattern.
+
+Mapping search and details respect the current channel, request-format, and **Show automatic proxy pools** filters. Rows continue to show billing models and their prices; request aliases and patterns do not become separate price quotes. Channel mappings describe which billing model applies to a request model and do not imply that the model ID sent upstream is rewritten. A Token's own model mapping may override the channel mapping.
+
+Channels match the model and its supported formats. A displayed row, channel tag, or mapping rule does not establish that the current token can execute the selected format. Requests still check authorization, state, format, quotas, and routing conditions.
 
 Context tiers and variable-priced channels can show ranges. Their minimum is not a fixed price for every request. Actual prices, channels, and settlement records determine charges; cache, monthly passes, and other rules can also affect cost. Text or image generation can incur charges. Check settlement details in [Consumption records]({{DOCS_BASE_URL}}/en/consumption-records) after calling.
 

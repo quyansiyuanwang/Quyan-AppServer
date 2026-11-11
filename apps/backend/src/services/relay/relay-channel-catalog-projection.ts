@@ -2,6 +2,7 @@ import type { RelayChannel } from "@prisma/client";
 import type {
   RelayCatalogOptionDto,
   RelayCatalogModelPriceRangeDto,
+  RelayCatalogModelMappingDto,
   TimePeriodMultiplierRule,
   ContextLengthMultiplierRule,
 } from "@/api/dto/relay/relay-channel.dto";
@@ -9,9 +10,7 @@ import type { RelayCatalogSnapshot } from "@/store/relay/relay-channel-catalog-r
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { isChannelServiceEnabled } from "./relay-channel-management-projection";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
-import { formatRelayRequestFormats } from "@quyan/shared";
-import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "@/constant/relay-capability";
-import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { formatRelayRequestFormats, getHigherPriorityModelPatterns, RELAY_REQUEST_FORMAT_ORDER } from "@quyan/shared";
 type CatalogPricingSource = Pick<
   RelayChannel,
   "status" | "providerServiceEnabled" | "multiplier" | "timePeriodMultipliers" | "contextLengthMultipliers"
@@ -39,6 +38,58 @@ export function catalogModelCapabilities(
     (left, right) =>
       left.catalogModelName.localeCompare(right.catalogModelName) ||
       left.requestModelId.localeCompare(right.requestModelId),
+  );
+}
+
+/** Project aliases before aggregating capabilities, keeping exclusions and formats on the same route. */
+export function catalogModelMappings(
+  resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+): RelayCatalogModelMappingDto[] {
+  const mappings = new Map<string, RelayCatalogModelMappingDto>();
+  for (const capability of resolvedCapabilities) {
+    const patterns = Object.keys(capability.modelMapping);
+    for (const [requestModelPattern, target] of Object.entries(capability.modelMapping)) {
+      // Pricing resolution trims the selected target; patterns retain the resolver's byte semantics.
+      if (typeof target !== "string" || target.trim() !== capability.requestModelId) continue;
+      if (capability.supportedRequestFormats.length === 0) continue;
+      // Determine priority before canonicalizing the exclusion set for deduplication.
+      const exclusions = getHigherPriorityModelPatterns(requestModelPattern, patterns).sort((a, b) =>
+        a.localeCompare(b),
+      );
+      const key = JSON.stringify([
+        requestModelPattern,
+        capability.catalogModelName,
+        capability.requestModelId,
+        exclusions,
+      ]);
+      const existing = mappings.get(key);
+      if (existing) {
+        existing.supportedRequestFormats = [
+          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+        ];
+      } else {
+        mappings.set(key, {
+          requestModelPattern,
+          catalogModelName: capability.catalogModelName,
+          billingModelId: capability.requestModelId,
+          supportedRequestFormats: [...new Set(capability.supportedRequestFormats)],
+          ...(exclusions.length ? { excludedRequestModelPatterns: exclusions } : {}),
+        });
+      }
+    }
+  }
+  for (const mapping of mappings.values())
+    mapping.supportedRequestFormats.sort(
+      (a, b) => RELAY_REQUEST_FORMAT_ORDER.indexOf(a) - RELAY_REQUEST_FORMAT_ORDER.indexOf(b),
+    );
+  return [...mappings.values()].sort(
+    (a, b) =>
+      a.requestModelPattern.localeCompare(b.requestModelPattern) ||
+      a.catalogModelName.localeCompare(b.catalogModelName) ||
+      a.billingModelId.localeCompare(b.billingModelId) ||
+      JSON.stringify(a.excludedRequestModelPatterns ?? []).localeCompare(
+        JSON.stringify(b.excludedRequestModelPatterns ?? []),
+      ),
   );
 }
 
@@ -101,31 +152,17 @@ export async function projectRelayChannelCatalog(
   const { sources, context, poolVisibility } = snapshot,
     byId = new Map(sources.map((row) => [row.id, row]));
   const isPool = (type: string) => type === "pooled" || type === "automatic-proxy-pool";
-  const suppressed = new Set<string>();
-  if (poolVisibility === "anonymous-range") {
-    const queue = sources.filter((row) => isPool(row.channelType)).map((row) => row.id),
-      visited = new Set<string>();
-    for (let index = 0; index < queue.length; index++) {
-      const id = queue[index]!;
-      if (visited.has(id)) continue;
-      visited.add(id);
-      if (visited.size > RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits) throw iamAccountDenied();
-      for (const member of context.graph.get(id)?.poolMembers ?? []) {
-        if (!member.enabled || !byId.has(member.memberChannelId)) continue;
-        suppressed.add(member.memberChannelId);
-        if (isPool(byId.get(member.memberChannelId)!.channelType)) queue.push(member.memberChannelId);
-      }
-    }
-  }
   const result: RelayCatalogOptionDto[] = [];
   for (const source of sources) {
+    // Pool membership does not revoke a channel's independent catalog visibility.
     if (
       source.channelType === "pooled-member" ||
-      suppressed.has(source.id) ||
       (source.channelType === "pooled" && poolVisibility !== "anonymous-range")
     )
       continue;
-    const capabilities = await RelayPoolResolverService.getInstance().resolveChannelCapabilities(source.id, context),
+    const capabilities = await RelayPoolResolverService.getInstance().resolveChannelCapabilities(source.id, context, {
+        preserveModelMappingPaths: true,
+      }),
       modelCapabilities = catalogModelCapabilities(capabilities),
       variable = source.channelType === "automatic-proxy-pool";
     result.push({
@@ -137,6 +174,7 @@ export async function projectRelayChannelCatalog(
         ? formatRelayRequestFormats([...new Set(modelCapabilities.flatMap((row) => row.supportedRequestFormats))])
         : (source.allowedFormats ?? "openai-chat-completions,anthropic,gemini"),
       modelCapabilities,
+      modelMappings: catalogModelMappings(capabilities),
       pricingEffectiveAt: now,
       priceMayVary: variable,
       ...(variable

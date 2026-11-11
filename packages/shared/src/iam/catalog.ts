@@ -5630,6 +5630,42 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       defaultAuthorizationScope: 'self',
     }),
   ),
+  ...['GetConfig', 'CreateOrder', 'GetOrder', 'ListOrders', 'RefreshOrder', 'ListRefunds'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:payment:' + operation,
+      service: 'payment',
+      operation,
+      accessLevel: operation === 'CreateOrder' || operation === 'RefreshOrder' ? 'Write' : 'Read',
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...(
+    [
+      ['ListManagedOrders', Permission.PAYMENT_READ, 'Read'],
+      ['ListManagedRefunds', Permission.PAYMENT_READ, 'Read'],
+      ['RefundOrder', Permission.PAYMENT_REFUND, 'Write'],
+      ['RefreshRefund', Permission.PAYMENT_REFUND, 'Write'],
+    ] as const
+  ).map(
+    ([operation, permission, accessLevel]): IamActionDefinition => ({
+      action: 'quyan:payment:' + operation,
+      service: 'payment',
+      operation,
+      accessLevel: accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['platform/system'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: permission as Permission,
+    }),
+  ),
   {
     action: 'quyan:balance:RedeemCode',
     service: 'balance',

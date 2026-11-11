@@ -57,6 +57,7 @@ model User {
   oauthConsents                OAuthConsent[]
   authCenterConsents           AuthCenterConsent[]
   balanceAccount               BalanceAccount?
+  paymentOrders                PaymentOrder[]
   submittedRelayChannels       RelayChannel[]                  @relation("RelayChannelSubmittedBy")
   reviewedRelayChannels        RelayChannel[]                  @relation("RelayChannelReviewedBy")
   submittedRelayChannelChanges RelayChannelChangeRequest[]     @relation("RelayChannelChangeSubmittedBy")
@@ -2281,6 +2282,76 @@ model RedemptionCode {
   @@index([usedBy])
   @@index([createdBy])
   @@map("redemption_codes")
+}
+
+// Immutable credentials/settings revisions keep old orders queryable after configuration changes.
+model AlipayProfile {
+  id                   String         @id @default(cuid())
+  status               Int            @default(1)
+  createTime           DateTime       @default(now())
+  updateTime           DateTime       @updatedAt
+  appId                String         @db.VarChar(32)
+  sellerId             String         @db.VarChar(32)
+  sandbox              Boolean        @default(true)
+  encryptedCredentials String         @db.Text
+  orders               PaymentOrder[]
+
+  @@map("alipay_profiles")
+}
+
+model PaymentOrder {
+  id             String          @id @default(cuid())
+  status         Int             @default(1)
+  createTime     DateTime        @default(now())
+  updateTime     DateTime        @updatedAt
+  userId         String
+  profileId      String
+  requestId      String          @db.VarChar(64)
+  outTradeNo     String          @unique @db.VarChar(64)
+  tradeNo        String?         @unique @db.VarChar(64)
+  amount         Decimal         @db.Decimal(12, 2)
+  rechargeRatio  Decimal         @db.Decimal(14, 4)
+  creditAmount   Decimal         @db.Decimal(10, 4)
+  refundedAmount Decimal         @default(0) @db.Decimal(12, 2)
+  state          String          @default("pending") @db.VarChar(24)
+  providerState  String?         @db.VarChar(32)
+  paidAt         DateTime?
+  expiresAt      DateTime
+  nextQueryAt    DateTime        @default(now())
+  queryAttempts  Int             @default(0)
+  notifyUrl      String          @db.Text
+  returnUrl      String          @db.Text
+  user           User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  profile        AlipayProfile   @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  refunds        PaymentRefund[]
+
+  @@unique([userId, requestId])
+  @@index([state, nextQueryAt])
+  @@index([userId, createTime])
+  @@map("payment_orders")
+}
+
+model PaymentRefund {
+  id            String       @id @default(cuid())
+  status        Int          @default(1)
+  createTime    DateTime     @default(now())
+  updateTime    DateTime     @updatedAt
+  orderId       String
+  outRequestNo  String       @unique @db.VarChar(64)
+  amount        Decimal      @db.Decimal(12, 2)
+  creditAmount  Decimal      @db.Decimal(10, 4)
+  state         String       @default("processing") @db.VarChar(24)
+  reason        String       @db.VarChar(200)
+  createdBy     String
+  failureCode   String?      @db.VarChar(80)
+  completedAt   DateTime?
+  nextQueryAt   DateTime     @default(now())
+  queryAttempts Int          @default(0)
+  order         PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([state, nextQueryAt])
+  @@index([orderId, createTime])
+  @@map("payment_refunds")
 }
 
 model BalanceAccount {

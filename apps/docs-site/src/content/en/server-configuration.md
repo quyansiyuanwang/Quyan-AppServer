@@ -2,6 +2,18 @@
 
 Deployment administrators use this page to maintain registration, billing, mail, security checks, and resource capacity. Changes can affect all users. Read current values before saving each section, then verify the affected workflow.
 
+## Configure Alipay recharge and refunds
+
+After disabling Alipay recharge and saving, users who reopen or refresh the account balance page no longer see the entire Alipay section, including its recharge form, payment button, order list, and related actions. The section also stays hidden while configuration is loading or cannot be read. Authorized administrators retain access to historical orders; disabling recharge does not stop payment confirmation or background recovery for existing orders.
+
+Use **Alipay payments** to configure recharge and refund switches, CNY limits, order expiry, and the complete account balance return URL. Both switches default off; credentials are required before enabling recharge. To receive asynchronous notifications, configure a public HTTPS backend URL in site settings. Alipay notifications reach the backend directly without a frontend redirect or login. When the backend URL is blank, checkout omits the notification URL and the server confirms payments through background queries. Keep background recovery running, including for unresolved orders after users close the page. A configured URL must still be valid HTTPS; an invalid address does not silently fall back to query-only mode.
+
+Start with Sandbox and enter AppID, seller PID, application private key, and Alipay public key. Use PEM keys and select the matching PKCS1/PKCS8 format. Certificate mode instead accepts the application certificate, Alipay public certificate, and root certificate. The Alipay public key must come from Alipay; do not substitute your application public key.
+
+Credentials are encrypted. Reads expose only application identifiers and presence. Saving without **Replace credentials** retains existing credentials. Replacement creates a separate version so historical orders retain their original configuration. A dedicated encryption key is derived from the server master secret: back up and retain `REPLAY_SIGNING_MASTER_SECRET`. Changing it directly prevents decryption of historical payment credentials.
+
+Sandbox uses the same balance workflow, so validate it in a separate test deployment and database, never alongside real account funds. Production runtime blocks sandbox recharge and settlement of historical sandbox orders. Validate payment, notification settlement, partial refunds, and full refunds before configuring a signed production application in the production deployment and enabling real collection. Gateways are fixed per environment. Recovery runs every minute; unresolved refunds remain processing and can be refreshed by an administrator. Avoid independently refunding in the Alipay console and submitting another refund in this system.
+
 ## Before you start
 
 - Use an account eligible for `SYSTEM_CONFIG` management. IAM-enforced deployments also require read and update grants for the relevant configuration keys, as described below.

@@ -724,6 +724,7 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
         :error-message="loadErrorMessage"
         :normalize-formats="normalizeFormats"
         :get-request-model-id="getRequestModelId"
+        :get-model-mappings="state.getModelMappings"
         :get-highlight-parts="getHighlightParts"
         :get-channels-for-model="getChannelsForModel"
         :get-displayed-price-multiplier="getDisplayedPriceMultiplier"

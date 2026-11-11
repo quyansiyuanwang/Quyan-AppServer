@@ -1232,7 +1232,7 @@ const zhCN = {
     filterByFormat: '按格式筛选',
     filterByChannel: '按渠道筛选（支持多选）',
     filterByPricingType: '按计费类型筛选',
-    filterByModelKeyword: '按模型名称/模型ID筛选',
+    filterByModelKeyword: '搜索模型名称/ID、别名或映射',
     onlyModelsWithChannels: '仅显示有可用渠道模型',
     showingModels: '显示 {count} 个模型',
     channelMatchMode: '渠道匹配规则',

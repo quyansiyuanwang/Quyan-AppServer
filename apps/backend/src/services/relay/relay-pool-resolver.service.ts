@@ -128,6 +128,7 @@ export class RelayPoolResolverService {
   async resolveChannelCapabilities<TModel extends RelayModelCatalogEntry>(
     channelId: string,
     context: RelayPoolResolverContext<TModel>,
+    options: { preserveModelMappingPaths?: boolean } = {},
   ): Promise<RelayChannelModelCapability[]> {
     const channel = context.graph.get(channelId);
     if (!channel) return [];
@@ -160,7 +161,12 @@ export class RelayPoolResolverService {
         );
         if (supportedRequestFormats.length === 0) continue;
 
-        const key = `${path.channel.id}\u0000${catalogModelName}\u0000${requestModelId}`;
+        // Catalog aliases must retain the complete ordered mapping on each path.
+        // The default aggregation remains unchanged for existing capability consumers.
+        const mappingSignature = options.preserveModelMappingPaths
+          ? JSON.stringify(Object.entries(path.constraints.modelMapping))
+          : "";
+        const key = JSON.stringify([path.channel.id, catalogModelName, requestModelId, mappingSignature]);
         const existing = capabilities.get(key);
         if (existing) {
           existing.supportedRequestFormats = this.sortFormats([
@@ -448,9 +454,9 @@ export class RelayPoolResolverService {
   private getLeafConstraintSignature(channel: RelayChannel): string {
     const formats = this.sortFormats(parseRelayRequestFormats(channel.allowedFormats));
     const models = this.getManualAllowedModelNames(channel);
-    const mapping = Object.entries((channel.modelMapping as Record<string, string> | null) ?? {}).sort(
-      ([left], [right]) => left.localeCompare(right),
-    );
+    // Equal-specificity wildcard rules use insertion order, so reversed entries
+    // represent different routing attempts even when every key/value is identical.
+    const mapping = Object.entries((channel.modelMapping as Record<string, string> | null) ?? {});
     return JSON.stringify([channel.id, formats, models, mapping]);
   }
 

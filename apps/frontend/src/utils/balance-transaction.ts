@@ -1,6 +1,9 @@
 import type { BalanceTransactionResponse } from '@/client/types.gen'
 
 export type TransactionCategory =
+  | 'alipay_recharge'
+  | 'alipay_refund_hold'
+  | 'alipay_refund_reversal'
   | 'redemption'
   | 'gift_code_create'
   | 'gift_code_redeem'
@@ -25,6 +28,9 @@ export const getBackendCategory = (tx: BalanceTransactionResponse): TransactionC
   const category = (tx as BalanceTransactionResponse & { category?: string }).category
 
   if (
+    category === 'alipay_recharge' ||
+    category === 'alipay_refund_hold' ||
+    category === 'alipay_refund_reversal' ||
     category === 'redemption' ||
     category === 'gift_code_create' ||
     category === 'gift_code_redeem' ||
@@ -72,6 +78,12 @@ export const isApiUsageRecord = (tx: BalanceTransactionResponse) => {
 }
 
 export const getTransactionCategory = (tx: BalanceTransactionResponse): TransactionCategory => {
+  if (
+    tx.type === 'alipay_recharge' ||
+    tx.type === 'alipay_refund_hold' ||
+    tx.type === 'alipay_refund_reversal'
+  )
+    return tx.type
   const backendCategory = getBackendCategory(tx)
   if (backendCategory) return backendCategory
 

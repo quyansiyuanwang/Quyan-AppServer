@@ -79,6 +79,148 @@ describe('useApiDocumentationPricing', () => {
     listCatalogOptionsMock.mockResolvedValue([])
   })
 
+  it('finds exact aliases without creating alias price rows and respects channel selection', async () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow()
+    getModelPricingMock.mockResolvedValue([row])
+    const mapped = createChannel({
+      modelMappings: [
+        {
+          requestModelPattern: 'custom-alias',
+          catalogModelName: row.model!,
+          billingModelId: 'openai/gpt-4o-mini',
+          supportedRequestFormats: ['openai-chat-completions'],
+        },
+      ],
+    })
+    listCatalogOptionsMock.mockResolvedValue([mapped, createChannel({ id: 'other' })])
+    await composable.refreshData()
+    composable.filterModelKeyword.value = 'CUSTOM-ALIAS'
+    expect(composable.filteredPricingData.value).toEqual([row])
+    expect(composable.getModelMappings(row, mapped)).toHaveLength(1)
+    expect(composable.getChannelPriceCell(row, mapped).inputPrice).toBe(1)
+    composable.filterChannelIds.value = ['other']
+    expect(composable.filteredPricingData.value).toEqual([])
+    composable.filterChannelIds.value = [mapped.id]
+    expect(composable.filteredPricingData.value).toEqual([row])
+    composable.filterModelKeyword.value = ''
+    composable.filterChannelIds.value = ['other']
+    expect(composable.getModelMappings(row, mapped)).toEqual([])
+    composable.filterModelKeyword.value = row.model!
+    expect(composable.getModelMappings(row, mapped)).toEqual([])
+    dispose()
+  })
+
+  it('resolves concrete wildcard searches with exact and more specific exclusions', async () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow()
+    const premium = createPricingRow({
+      id: 'premium-price',
+      model: 'premium',
+      provider: 'premium-id',
+      modelId: 'premium-id',
+    })
+    getModelPricingMock.mockResolvedValue([row, premium])
+    listCatalogOptionsMock.mockResolvedValue([
+      createChannel({
+        modelCapabilities: [
+          {
+            catalogModelName: row.model!,
+            requestModelId: row.modelId!,
+            supportedRequestFormats: ['openai-chat-completions'],
+          },
+          {
+            catalogModelName: premium.model!,
+            requestModelId: premium.modelId!,
+            supportedRequestFormats: ['openai-chat-completions'],
+          },
+        ],
+        modelMappings: [
+          {
+            requestModelPattern: 'client-*',
+            catalogModelName: row.model!,
+            billingModelId: row.modelId!,
+            supportedRequestFormats: ['openai-chat-completions'],
+            excludedRequestModelPatterns: ['client-pro-*', 'client-missing'],
+          },
+          {
+            requestModelPattern: 'client-pro-*',
+            catalogModelName: premium.model!,
+            billingModelId: premium.modelId!,
+            supportedRequestFormats: ['openai-chat-completions'],
+          },
+        ],
+      }),
+    ])
+    await composable.refreshData()
+    composable.filterModelKeyword.value = 'client-basic'
+    expect(composable.filteredPricingData.value).toEqual([row])
+    composable.filterModelKeyword.value = 'client-pro-42'
+    expect(composable.filteredPricingData.value).toEqual([premium])
+    composable.filterModelKeyword.value = 'client-missing'
+    expect(composable.filteredPricingData.value).toEqual([])
+    composable.filterModelKeyword.value = 'client-'
+    expect(composable.filteredPricingData.value).toHaveLength(2)
+    dispose()
+  })
+
+  it('scopes alias searches and mapping details to the selected request format', async () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow({ supportedFormats: 'openai,anthropic' })
+    const channel = createChannel({
+      modelCapabilities: [
+        {
+          catalogModelName: row.model!,
+          requestModelId: row.modelId!,
+          supportedRequestFormats: ['openai-chat-completions', 'anthropic'],
+        },
+      ],
+      modelMappings: [
+        {
+          requestModelPattern: 'chat-alias',
+          catalogModelName: row.model!,
+          billingModelId: row.modelId!,
+          supportedRequestFormats: ['openai-chat-completions'],
+        },
+      ],
+    })
+    getModelPricingMock.mockResolvedValue([row])
+    listCatalogOptionsMock.mockResolvedValue([channel])
+    await composable.refreshData()
+    composable.filterModelKeyword.value = 'chat-alias'
+    composable.filterFormat.value = 'anthropic'
+    expect(composable.filteredPricingData.value).toEqual([])
+    expect(composable.getModelMappings(row, channel)).toEqual([])
+    composable.filterFormat.value = 'openai'
+    expect(composable.filteredPricingData.value).toEqual([row])
+    dispose()
+  })
+
+  it('does not discover aliases from automatic pools until the pool view is enabled', async () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow()
+    getModelPricingMock.mockResolvedValue([row])
+    listCatalogOptionsMock.mockResolvedValue([
+      createChannel({
+        isAutomaticProxyPool: true,
+        modelMappings: [
+          {
+            requestModelPattern: 'pool-alias',
+            catalogModelName: row.model!,
+            billingModelId: row.modelId!,
+            supportedRequestFormats: ['openai-chat-completions'],
+          },
+        ],
+      }),
+    ])
+    await composable.refreshData()
+    composable.filterModelKeyword.value = 'pool-alias'
+    expect(composable.filteredPricingData.value).toEqual([])
+    composable.showAutomaticProxyPools.value = true
+    expect(composable.filteredPricingData.value).toEqual([row])
+    dispose()
+  })
+
   it('loads the dedicated anonymous catalog endpoint', async () => {
     const { composable, dispose } = createComposable()
     const channel = createChannel()

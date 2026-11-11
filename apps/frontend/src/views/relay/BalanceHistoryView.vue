@@ -12,6 +12,7 @@
         :show-statistics="false"
       />
       <BalanceTransferPanel @changed="handleBalanceChanged" />
+      <AlipayOrdersPanel @changed="handleBalanceChanged" />
       <BalanceHistoryTransactions
         :card-class="isDesktop ? 'page-card' : 'mobile-card'"
         scope="account"
@@ -26,6 +27,7 @@ import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import BalanceHistorySummary from './balance-history/components/BalanceHistorySummary.vue'
 import BalanceHistoryTransactions from './balance-history/components/BalanceHistoryTransactions.vue'
 import BalanceTransferPanel from './balance-history/components/BalanceTransferPanel.vue'
+import AlipayOrdersPanel from '@/components/balance/AlipayOrdersPanel.vue'
 import { balanceHistoryContextKey } from './balance-history/context'
 import { useBalanceHistory } from './balance-history/useBalanceHistory'
 

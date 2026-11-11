@@ -8,6 +8,10 @@ import { relayChannelService } from '@/service/relayChannelService'
 import { LruCache } from '@/utils/lru-cache'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { normalizeRelayFormatArray, normalizeRelayFormats } from '../utils/relay-formats'
+import {
+  catalogMappingMatchesKeyword,
+  getCatalogModelMappings,
+} from '@/utils/relay-catalog-mappings'
 
 export type HighlightPart = {
   text: string
@@ -149,11 +153,29 @@ export const useApiDocumentationPricing = () => {
       return channel.modelCapabilities.some(
         (capability) =>
           capability.catalogModelName === normalizedModelName &&
-          normalizeRelayFormatArray(capability.supportedRequestFormats).some((format) =>
-            modelFormats.includes(format),
+          normalizeRelayFormatArray(capability.supportedRequestFormats).some(
+            (format) =>
+              modelFormats.includes(format) &&
+              (!filterFormat.value || normalizeFormats(filterFormat.value).includes(format)),
           ),
       )
     })
+  }
+
+  const matchesPricingIdentity = (item: PricingModelRow, keyword: string): boolean => {
+    const query = keyword.trim().toLowerCase()
+    return (
+      (item.model || '').toLowerCase().includes(query) ||
+      getRequestModelId(item).toLowerCase().includes(query)
+    )
+  }
+
+  const getModelMappings = (item: PricingModelRow, channel: RelayCatalogOptionDto) => {
+    if (selectedChannelIdsSet.value.size && !selectedChannelIdsSet.value.has(channel.id)) return []
+    const mappings = getCatalogModelMappings(channel, item, filterFormat.value)
+    const keyword = filterModelKeyword.value.trim()
+    if (!keyword || matchesPricingIdentity(item, keyword)) return mappings
+    return mappings.filter((mapping) => catalogMappingMatchesKeyword(mapping, keyword))
   }
 
   const getSelectedChannelsForModel = (item: PricingModelRow): RelayCatalogOptionDto[] => {
@@ -388,11 +410,12 @@ export const useApiDocumentationPricing = () => {
     let result = [...pricingData.value]
 
     if (filterModelKeyword.value.trim()) {
-      const keyword = filterModelKeyword.value.trim().toLowerCase()
+      const keyword = filterModelKeyword.value.trim()
       result = result.filter((item) => {
-        const modelName = (item.model || '').toLowerCase()
-        const modelId = getRequestModelId(item).toLowerCase()
-        return modelName.includes(keyword) || modelId.includes(keyword)
+        if (matchesPricingIdentity(item, keyword)) return true
+        return getChannelsForModel(item.model || '', item.supportedFormats).some(
+          (channel) => getModelMappings(item, channel).length > 0,
+        )
       })
     }
 
@@ -402,7 +425,9 @@ export const useApiDocumentationPricing = () => {
 
     if (filterFormat.value) {
       result = result.filter((item) =>
-        normalizeFormats(item.supportedFormats).includes(filterFormat.value),
+        normalizeFormats(item.supportedFormats).some((format) =>
+          normalizeFormats(filterFormat.value).includes(format),
+        ),
       )
     }
 
@@ -666,6 +691,7 @@ export const useApiDocumentationPricing = () => {
     primaryComparisonChannel,
     normalizeFormats,
     getRequestModelId,
+    getModelMappings,
     getChannelsForModel,
     getSelectedChannelsForModel,
     getLowestMultiplierForModel,

@@ -1,5 +1,6 @@
 import { buildAcsResource, IAM_PLATFORM_ACCOUNT_ID } from "@quyan/shared";
 const resources = [
+  "payment-orders",
   "build-info",
   "stats",
   "consumption-stats",

@@ -17,6 +17,7 @@ import { getLogger, LogCategory } from "@/util/logger";
 import { BadRequestError } from "@/util/errors";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { AI_RESOURCE_CONFIG_KEY } from "@/config/ai-resource-policy";
+import { alipaySettingsSchema } from "@/services/billing/alipay-policy";
 import BusinessLogService from "./businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { CONFIG_KEYS } from "@/constant/config-keys";
@@ -803,6 +804,15 @@ export class ConfigService {
   }
 
   private validateRequestHeaderPolicySetting(key: string, value: string): void {
+    if (key === CONFIG_KEYS.ALIPAY.SETTINGS) {
+      try {
+        alipaySettingsSchema.parse(JSON.parse(value));
+      } catch {
+        throw new BadRequestError("Invalid payment configuration", undefined, {
+          messageKey: "payment.invalidOperation",
+        });
+      }
+    }
     if (key === CONFIG_KEYS.RELAY.REQUEST_HEADER_POLICY) this.parseRequestHeaderPolicy(value);
   }
 

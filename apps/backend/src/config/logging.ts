@@ -77,6 +77,7 @@ export const INTERNAL_LOG_METADATA_KEY = "__appServerLogMeta";
  * 适用于“确定永远不需要记录”的接口
  */
 export const ALWAYS_SKIP_LOGGING_PATHS = [
+  ApiRoutePathPrefix.V1PaymentsAlipay, // Credentials, signed cashier URLs and notifications use dedicated business audit only.
   ApiRoutePath.V1SystemLogs, // 系统日志查询
   ApiRoutePath.V1UsersMeHeartbeat, // 心跳接口（高频在线状态上报，始终不记录）
   ApiRoutePath.V1TrackBatch, // 批量埋点接口（高频请求，始终不记录）
