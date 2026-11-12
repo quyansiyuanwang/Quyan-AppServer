@@ -49,7 +49,7 @@ function resolveLimit(
   opts: { maxJsonBytes: number; maxMultipartBytes: number; maxArchiveBytes?: number; maxOtherBytes: number },
 ): number {
   const ct = (req.headers["content-type"] || "").toLowerCase();
-  if (ct.startsWith("application/json")) return opts.maxJsonBytes;
+  if (/^application\/(?:json|[^;\s]+\+json)(?:\s*;|$)/.test(ct)) return opts.maxJsonBytes;
   if (ct.startsWith("multipart/form-data")) return opts.maxMultipartBytes;
   if (
     req.path.startsWith("/v1/data-maintenance/imports/") &&

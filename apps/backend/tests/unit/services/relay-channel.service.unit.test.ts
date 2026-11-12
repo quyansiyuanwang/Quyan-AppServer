@@ -5,8 +5,8 @@ vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../src/util/developer-outbound-url")>()),
   assertSafeOutboundUrl: vi.fn(async (rawUrl: string) => ({
     url: new URL(rawUrl),
-    httpAgent: { destroy: vi.fn() } as any,
-    httpsAgent: { destroy: vi.fn() } as any,
+    httpAgent: { options: {}, destroy: vi.fn() } as any,
+    httpsAgent: { options: {}, destroy: vi.fn() } as any,
   })),
 }));
 

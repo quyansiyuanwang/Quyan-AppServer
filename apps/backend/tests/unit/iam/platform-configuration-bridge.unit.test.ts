@@ -147,6 +147,21 @@ describe("managed configuration mode bridge", () => {
     await service.setManagedConfigs({ [CONFIG_KEYS.AI_RESOURCES]: JSON.stringify(settings) }, "actor", request);
     expect(apply).toHaveBeenCalledWith(settings, new Date(0).toISOString());
   });
+  it("rejects invalid forwarding settings before persistence and enforces key-scoped authorization", async () => {
+    const settings = structuredClone(AI_RESOURCE_DEFAULTS);
+    settings.relay.resourceGuard.downstreamIdleTimeoutMs = 0;
+    await expect(
+      service.setManagedConfigs({ [CONFIG_KEYS.AI_RESOURCES]: JSON.stringify(settings) }, "actor", request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(iam.update).not.toHaveBeenCalled();
+    settings.relay.resourceGuard.downstreamIdleTimeoutMs = 900000;
+    iam.prepareUpdate.mockRejectedValueOnce(new Error("fixture denied ai.resources"));
+    await expect(
+      service.setManagedConfigs({ [CONFIG_KEYS.AI_RESOURCES]: JSON.stringify(settings) }, "actor", request),
+    ).rejects.toThrow("fixture denied ai.resources");
+    expect(iam.update).not.toHaveBeenCalled();
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
   it("shadow preserves current-role legacy checks and executes one old write", async () => {
     env.security.iamAuthorizationMode = "shadow";
     iam.prepareUpdate.mockRejectedValue(new Error("fixture shadow deny"));

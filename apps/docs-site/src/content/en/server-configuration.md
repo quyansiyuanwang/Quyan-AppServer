@@ -104,11 +104,31 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 
 ## AI resource protection (advanced)
 
-Groups cover admission and memory, stream parsing and conversion, chat and support, audit, connection pools, images and probes, and compiled rules. Suggested values, units and valid ranges come from the server. Saving the complete configuration retains system-config permissions, step-up verification and replay protection; no restart is needed.
+Groups cover admission and memory, stream parsing and conversion, chat and support, audit, connection pools, forwarding and probes, and compiled rules. Suggested values, units and valid ranges come from the server. Saving the complete configuration retains system-config permissions, step-up verification and replay protection; no restart is needed.
+
+1. Expand “AI resource protection (advanced)” and select Reload to read current effective values.
+2. Change the relevant group and check its units. Counts and concurrency are integers; capacities use the displayed KB/MB units and durations use milliseconds.
+3. Select Save resource settings and complete any required step-up verification. The panel then reloads current values.
+
+| Group                         | Dynamically configurable settings                                                                                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission and memory          | Total AI concurrency, waiting requests, total queue timeout, memory sampling interval, RSS high and resume watermarks                                                                           |
+| Stream parsing and conversion | Frame capacity, retained conversion capacity, conversion block count, accumulated text capacity                                                                                                 |
+| Chat and support              | Input/output capacity, context message count and context content capacity                                                                                                                       |
+| Audit                         | Request/response audit capacity, write concurrency, queued records and queued capacity                                                                                                          |
+| Connection pools              | Per-upstream sockets, total sockets, idle sockets, TCP keep-alive initial delay and upstream socket inactivity timeout                                                                          |
+| Forwarding and probes         | Relay JSON request capacity, downstream response inactivity timeout, image uploads, image concurrency and queue timeout, non-stream upstream timeout, response capacities and probe concurrency |
+| Compiled rule cache           | Entry count and estimated capacity                                                                                                                                                              |
+
+Relay JSON request capacity affects model forwarding endpoints, including ordinary JSON and `+json` requests, without changing upload limits on other management endpoints. Downstream response inactivity timeout measures connection inactivity rather than a fixed total generation duration. TCP keep-alive initial delay controls connection probes, not the retention lifetime of idle connections. Upstream socket inactivity timeout and channel stream/non-stream timeouts apply separately.
+
+Per-user concurrency, queue enablement and timeout, upstream stream timeout, preflight buffering, pricing and channel retry rules remain in Relay settings or channel configuration. Global and per-user concurrency limits both apply; increasing one does not remove the other. Reverse proxies and upstream services can enforce lower limits of their own.
 
 Restore defaults replaces the complete draft with server suggestions; saving is still required. Reload replaces the draft with current effective values. Saving submits all AI resource groups and then reloads automatically. If the subsequent read fails, check server state before saving again.
 
 Running requests keep their content budgets; lowering concurrency does not terminate them. Other processes normally attempt to refresh every five seconds and retain old values on read failure; this is not a guarantee that all processes update within five seconds. A context count of 0 disables only the count limit; byte and database limits remain. When legacy environment values are detected, management configuration takes precedence after the first save.
+
+New settings fill missing values in existing configurations while preserving saved concurrency, capacity and other settings. Changing connection pool settings retires old pools only after their active requests release them. Administrator automation can read all groups, units and effective values using `GET /v1/config/ai-resources` and submit the full configuration object using `PUT /v1/config/ai-resources`. These endpoints retain the same authorization, step-up verification and replay protection. Existing server configuration endpoints remain compatible.
 
 Oversized request bodies receive 413 before an upstream call and are not charged. Capacity failures do not retry another channel. Non-stream text and image responses are size-checked before success is sent, so an image may start arriving later than the upstream first byte.
 

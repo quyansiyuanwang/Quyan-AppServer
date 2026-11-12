@@ -13,6 +13,7 @@ import {
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
+import type { AIResourceConfigurationDto, AIResourceSettingsDto } from "@/api/dto/system/ai-resources.dto";
 import { ConfigService } from "@/services/system/config.service";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
@@ -46,6 +47,7 @@ import type {
 } from "@/api/dto/system/config.dto";
 import {
   platformConfigurationBatchResolver,
+  aiResourceConfigurationResources,
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
@@ -104,6 +106,42 @@ const logger = getLogger("ConfigController", LogCategory.SYSTEM);
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class ConfigController extends Controller {
   private configService = ConfigService.getInstance();
+
+  @Get("ai-resources")
+  @Security("jwt")
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: aiResourceConfigurationResources,
+  })
+  public async getAIResourceConfiguration(@Request() request: TypedRequest): Promise<AIResourceConfigurationDto> {
+    return this.configService.getManagedConfiguration([CONFIG_KEYS.AI_RESOURCES], request, async () => {
+      await AIResourceConfigService.getInstance().refresh();
+      return AIResourceConfigService.getInstance().describe();
+    });
+  }
+
+  @Put("ai-resources")
+  @Security("jwt")
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: aiResourceConfigurationResources,
+  })
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
+  public async setAIResourceConfiguration(
+    @Body() body: AIResourceSettingsDto,
+    @Request() request: TypedRequest,
+  ): Promise<{ message: string }> {
+    await this.configService.setManagedConfigs(
+      { [CONFIG_KEYS.AI_RESOURCES]: JSON.stringify(body) },
+      request.user!.userId,
+      request,
+    );
+    setResponseMessageKey(request, "system.configUpdated");
+    return { message: "配置更新成功" };
+  }
 
   @Get("")
   @Security("jwt")

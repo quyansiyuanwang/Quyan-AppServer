@@ -230,7 +230,7 @@ const en = {
       chat: 'Chat and support',
       audit: 'Audit',
       http: 'Connection pools',
-      relay: 'Images and probes',
+      relay: 'Forwarding and probes',
       rules: 'Compiled rule cache',
       default: 'Suggested',
       save: 'Save resource settings',

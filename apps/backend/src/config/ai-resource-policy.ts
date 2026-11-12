@@ -9,6 +9,17 @@ const capacity = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const nonnegative = z.number().int().min(0).max(2147483647);
 export const AI_RESOURCE_CONFIG_KEY = CONFIG_KEYS.AI_RESOURCES;
 export const AI_RESOURCE_REFRESH_MS = 5000;
+export const AI_RESOURCE_DEFAULTS: AIResourceSettingsDto = deepFreeze({
+  version: 1,
+  aiResources: buildAiResourcesConfig({}),
+  chat: buildChatResourceConfig({}),
+  aiRequestLog: buildAiRequestLogConfig({}),
+  relay: {
+    resourceGuard: buildRelayConfig({}).resourceGuard,
+    channelProbe: { maxConcurrency: buildRelayConfig({}).channelProbe.maxConcurrency },
+  },
+  ruleCache: { maxItems: 512, maxEstimatedBytes: 8 * 1024 * 1024 },
+});
 export const aiResourceSettingsSchema = z
   .object({
     version: z.literal(1),
@@ -32,7 +43,15 @@ export const aiResourceSettingsSchema = z
             outputLimitBytes: capacity,
           })
           .strict(),
-        http: z.object({ maxSockets: positive, maxTotalSockets: positive, maxFreeSockets: positive }).strict(),
+        http: z
+          .object({
+            maxSockets: positive,
+            maxTotalSockets: positive,
+            maxFreeSockets: positive,
+            keepAliveMsecs: positive.default(AI_RESOURCE_DEFAULTS.aiResources.http.keepAliveMsecs),
+            socketTimeoutMs: positive.default(AI_RESOURCE_DEFAULTS.aiResources.http.socketTimeoutMs),
+          })
+          .strict(),
       })
       .strict(),
     chat: z
@@ -60,6 +79,8 @@ export const aiResourceSettingsSchema = z
       .object({
         resourceGuard: z
           .object({
+            jsonBodyLimitMb: positive.default(AI_RESOURCE_DEFAULTS.relay.resourceGuard.jsonBodyLimitMb),
+            downstreamIdleTimeoutMs: positive.default(AI_RESOURCE_DEFAULTS.relay.resourceGuard.downstreamIdleTimeoutMs),
             multipartBodyLimitMb: positive,
             imageMaxConcurrency: positive,
             imageQueueTimeoutMs: nonnegative,
@@ -81,17 +102,6 @@ export const aiResourceSettingsSchema = z
     if (http.maxFreeSockets > http.maxSockets || http.maxSockets > http.maxTotalSockets)
       ctx.addIssue({ code: "custom", message: "Sockets require free <= per-host <= total" });
   });
-export const AI_RESOURCE_DEFAULTS: AIResourceSettingsDto = deepFreeze({
-  version: 1,
-  aiResources: buildAiResourcesConfig({}),
-  chat: buildChatResourceConfig({}),
-  aiRequestLog: buildAiRequestLogConfig({}),
-  relay: {
-    resourceGuard: buildRelayConfig({}).resourceGuard,
-    channelProbe: { maxConcurrency: buildRelayConfig({}).channelProbe.maxConcurrency },
-  },
-  ruleCache: { maxItems: 512, maxEstimatedBytes: 8 * 1024 * 1024 },
-});
 const field = (
   path: string,
   group: string,
@@ -156,6 +166,16 @@ export const AI_RESOURCE_FIELDS: AIResourceFieldDto[] = [
   field("aiResources.http.maxSockets", "http", "单上游连接数", "Sockets per upstream"),
   field("aiResources.http.maxTotalSockets", "http", "总连接数", "Total sockets"),
   field("aiResources.http.maxFreeSockets", "http", "单上游空闲连接数", "Idle sockets per upstream"),
+  field("aiResources.http.keepAliveMsecs", "http", "TCP 保活初始延迟", "TCP keep-alive initial delay", "ms"),
+  field("aiResources.http.socketTimeoutMs", "http", "上游连接空闲超时", "Upstream socket inactivity timeout", "ms"),
+  field("relay.resourceGuard.jsonBodyLimitMb", "relay", "转发 JSON 请求容量", "Relay JSON request capacity", "MB"),
+  field(
+    "relay.resourceGuard.downstreamIdleTimeoutMs",
+    "relay",
+    "客户端响应空闲超时",
+    "Downstream response inactivity timeout",
+    "ms",
+  ),
   field("relay.resourceGuard.multipartBodyLimitMb", "relay", "图片上传容量", "Multipart upload capacity", "MB"),
   field("relay.resourceGuard.imageMaxConcurrency", "relay", "图片并发", "Image concurrency"),
   field("relay.resourceGuard.imageQueueTimeoutMs", "relay", "图片排队时间", "Image queue timeout", "ms", 1, 0),
