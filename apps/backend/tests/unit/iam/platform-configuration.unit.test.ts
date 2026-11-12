@@ -16,6 +16,7 @@ import { PlatformConfigurationIamService } from "@/services/system/platform-conf
 import { platformConfigurationArn } from "@/iam/resources/platform-configuration-resources";
 import {
   platformConfigurationBatchResolver,
+  aiResourceConfigurationResources,
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
@@ -178,6 +179,7 @@ describe("platform configuration IAM", () => {
       subjectType: "sub_user" as const,
     };
     for (const [path, keys, resolver] of [
+      ["ai-resources", [CONFIG_KEYS.AI_RESOURCES], aiResourceConfigurationResources],
       ["registration", Object.values(CONFIG_KEYS.REGISTRATION), registrationConfigurationResources],
       ["smtp", Object.values(CONFIG_KEYS.SMTP), smtpConfigurationResources],
       ["site", Object.values(CONFIG_KEYS.SITE), siteConfigurationResources],

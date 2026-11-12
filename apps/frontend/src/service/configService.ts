@@ -3,6 +3,7 @@ import { useRequestStore } from '@/stores/request'
 import { CustomCode } from '@/constant/custom-code'
 import { toServiceError } from '@/utils/error-utils'
 import type {
+  AiResourceSettingsDto,
   CaptchaConfigDto,
   HeartbeatConfigDto,
   NotificationConfigDto,
@@ -62,8 +63,14 @@ export class ConfigService {
   }
 
   async getAIResourceConfiguration() {
-    const result = await configApi.getAllConfigs({})
-    if (result?.code === CustomCode.OK && result.data?.aiResources) return result.data.aiResources
+    const result = await configApi.getAiResourceConfiguration({})
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async setAIResourceConfiguration(settings: AiResourceSettingsDto) {
+    const result = await configApi.setAiResourceConfiguration({ body: settings })
+    if (result?.code === CustomCode.OK) return true
     throw toServiceError(result)
   }
 

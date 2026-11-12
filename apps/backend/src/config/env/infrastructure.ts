@@ -1,5 +1,6 @@
 import { resourceInteger } from "./ai-resources";
 import { sanitizeInt } from "./common";
+import { buildRequestSizeLimitsConfig } from "./request-size";
 import type { EnvSnapshot } from "./source";
 
 export interface ObjectStorageBucketConfig {
@@ -101,6 +102,8 @@ export function buildRateLimitConfig(source: EnvSnapshot) {
 export function buildRelayConfig(source: EnvSnapshot) {
   return {
     resourceGuard: {
+      jsonBodyLimitMb: buildRequestSizeLimitsConfig(source).jsonBodyLimitMb,
+      downstreamIdleTimeoutMs: resourceInteger(source, "RELAY_DOWNSTREAM_IDLE_TIMEOUT_MS", 600000),
       multipartBodyLimitMb: resourceInteger(source, "RELAY_MULTIPART_BODY_LIMIT_MB", 4, 1, 20),
       imageMaxConcurrency: resourceInteger(source, "RELAY_IMAGE_MAX_CONCURRENCY", 1, 1, 10),
       imageQueueTimeoutMs: resourceInteger(source, "RELAY_IMAGE_QUEUE_TIMEOUT_MS", 10000, 0, 300000),

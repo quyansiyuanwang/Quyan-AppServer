@@ -7,7 +7,15 @@ export interface AIResourceSettingsDto {
     queueTimeoutMs: number;
     memory: { sampleIntervalMs: number; highWatermarkBytes: number; resumeWatermarkBytes: number };
     streaming: { frameLimitBytes: number; retainedLimitBytes: number; maxBlocks: number; outputLimitBytes: number };
-    http: { maxSockets: number; maxTotalSockets: number; maxFreeSockets: number };
+    http: {
+      maxSockets: number;
+      maxTotalSockets: number;
+      maxFreeSockets: number;
+      /** TCP keep-alive initial delay in milliseconds. */
+      keepAliveMsecs: number;
+      /** Upstream socket inactivity timeout in milliseconds. */
+      socketTimeoutMs: number;
+    };
   };
   chat: {
     resourceLimits: {
@@ -26,6 +34,10 @@ export interface AIResourceSettingsDto {
   };
   relay: {
     resourceGuard: {
+      /** Relay JSON request capacity in MiB; does not change non-relay routes. */
+      jsonBodyLimitMb: number;
+      /** Downstream response inactivity timeout in milliseconds. */
+      downstreamIdleTimeoutMs: number;
       multipartBodyLimitMb: number;
       imageMaxConcurrency: number;
       imageQueueTimeoutMs: number;

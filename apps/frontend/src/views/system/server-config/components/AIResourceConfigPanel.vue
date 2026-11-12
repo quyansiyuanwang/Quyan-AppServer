@@ -123,7 +123,7 @@ async function save() {
   if (!draft.value || !configuration.value) return
   saving.value = true
   try {
-    await configService.setConfigs({ [configuration.value.configKey]: JSON.stringify(draft.value) })
+    await configService.setAIResourceConfiguration(toRaw(draft.value))
     ElMessage.success(i18ns.t('ServerConfigView.aiResources.saved'))
     await load()
   } catch (error) {

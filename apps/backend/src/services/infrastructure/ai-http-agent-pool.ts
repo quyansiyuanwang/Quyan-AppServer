@@ -23,12 +23,12 @@ export class AIHttpAgentPool {
     const key = this.key(limits);
     let pool = this.pools.get(key);
     if (!pool) {
+      const { socketTimeoutMs, ...agentLimits } = limits;
       const options = {
         keepAlive: true,
-        keepAliveMsecs: 30000,
-        timeout: 60000,
+        timeout: socketTimeoutMs,
         scheduling: "lifo" as const,
-        ...limits,
+        ...agentLimits,
       };
       pool = {
         key,
@@ -102,6 +102,10 @@ export function configureAIOutboundAgents<T extends { httpAgent: http.Agent; htt
     agent.maxSockets = limits.maxSockets;
     agent.maxTotalSockets = limits.maxTotalSockets;
     agent.maxFreeSockets = limits.maxFreeSockets;
+    // Node exposes these Agent properties at runtime, but omits them from its public type.
+    Reflect.set(agent, "keepAliveMsecs", limits.keepAliveMsecs);
+    const options = Reflect.get(agent, "options") as http.AgentOptions;
+    options.timeout = limits.socketTimeoutMs;
   }
   return agents;
 }

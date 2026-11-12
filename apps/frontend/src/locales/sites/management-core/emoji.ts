@@ -229,7 +229,7 @@ const emoji = {
       chat: '聊天与客服',
       audit: '审计',
       http: '连接池',
-      relay: '图片与探针',
+      relay: '转发与探针',
       rules: '编译规则缓存',
       default: '建议值',
       save: '保存资源配置',
