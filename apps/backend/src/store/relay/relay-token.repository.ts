@@ -19,6 +19,13 @@ import type {
 import type { RelayTokenWithRelations } from "./relay-token.store";
 import { MANAGED_STATUS } from "@/constant/status";
 import type { ContentSafetyPolicyOverride } from "@quyan/shared";
+import {
+  findUniquePlaintextCredential,
+  plaintextCredentialValues,
+  relayCredentialWhere,
+} from "../plaintext-credential";
+import { relayCredentialOccupied } from "./relay-credential-admission";
+import { ConflictError } from "@/util/errors";
 
 export type { RelayTokenWithRelations } from "./relay-token.store";
 export type RelayTokenWithChannel = RelayTokenWithRelations;
@@ -99,7 +106,9 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations> {
-    if (!tx) return this.withTransaction((client) => this.create(data, client));
+    if (!tx) return this.withSerializableTransaction((client) => this.create(data, client));
+    if (await relayCredentialOccupied(tx, data.token))
+      throw new ConflictError("Relay token unavailable", undefined, { messageKey: "errors.conflict" });
     const id = await RelayTokenCreateRepository.getInstance().apply(tx, data);
     // Preserve the legacy rich response inside the caller's rollback boundary.
     // Native IAM callers use the writer directly and separately authorize their response projection.
@@ -136,14 +145,21 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async findByToken(token: string): Promise<RelayTokenWithRelations | null> {
-    return prisma.relayToken.findFirst({
-      where: { OR: [{ token }, { legacyToken: token }] },
+    const values = plaintextCredentialValues(token, "relayToken");
+    if (!values.length) return null;
+    const rows = await prisma.relayToken.findMany({
+      where: relayCredentialWhere(values),
       include: relayTokenInclude,
     });
+    return findUniquePlaintextCredential(rows, values, (row) => [row.token, row.legacyToken]);
   }
 
   async findById(id: string): Promise<RelayToken | null> {
     return prisma.relayToken.findUnique({ where: { id } });
+  }
+
+  async isCredentialOccupied(value: string, tx?: RelayTokenTransactionClient): Promise<boolean> {
+    return relayCredentialOccupied(tx ?? prisma, value);
   }
 
   async findByIdWithRelations(id: string): Promise<RelayTokenWithRelations | null> {
@@ -291,10 +307,13 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
-    return prisma.$transaction(async (tx) => {
+    const apply = async (tx: RelayTokenTransactionClient) => {
+      if (data.token && (await relayCredentialOccupied(tx, data.token)))
+        throw new ConflictError("Relay token unavailable", undefined, { messageKey: "errors.conflict" });
       await RelayTokenUpdateRepository.getInstance().apply(tx, id, data);
       return tx.relayToken.findUniqueOrThrow({ where: { id } });
-    });
+    };
+    return data.token ? this.withSerializableTransaction(apply) : this.withTransaction(apply);
   }
 
   async updateStatus(id: string, status: number): Promise<RelayToken> {

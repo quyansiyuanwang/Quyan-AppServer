@@ -116,6 +116,7 @@
     "archive:fixture": "bun ./scripts/create-archive-fixture.ts",
     "archive:fixture:apply": "bun ./scripts/create-archive-fixture.ts --apply",
     "generate-operation-ids": "bun ./scripts/generate-operation-ids.ts",
+    "credential-prefix:check": "bun ./scripts/check-credential-prefix-conflicts.ts",
     "credential-prefix:migrate": "bun ./scripts/migrate-credential-prefixes.ts",
     "credential-prefix:migrate:apply": "bun ./scripts/migrate-credential-prefixes.ts --apply"
   },

@@ -77,6 +77,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { Request } from "express";
 import { isValidCredential, toCanonicalCredential } from "@quyan/shared";
+import { plaintextCredentialValues } from "@/store/plaintext-credential";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -703,7 +704,7 @@ export class RelayTokenService {
       userId,
       body.tokens.some((item) => item.routingMode === "composite"),
       () =>
-        this.relayTokenRepo.withTransaction(async (tx) => {
+        this.relayTokenRepo.withSerializableTransaction(async (tx) => {
           const reservedNames = await this.getVisibleNameSet(userId);
           const reservedTokens = new Set<string>();
           const items: RelayTokenDto[] = [];
@@ -805,6 +806,7 @@ export class RelayTokenService {
     const refreshedTokenValue = this.generateRelayTokenValue();
     await this.relayTokenRepo.update(tokenId, {
       token: refreshedTokenValue,
+      legacyToken: null,
     });
     const refreshedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
@@ -1157,6 +1159,11 @@ export class RelayTokenService {
       normalizerConfig: normalizeRelayTokenNormalizerConfig,
       compositeFailover: (count) => this.compositeFailover(count),
     });
+    if (
+      prepared.update.legacyToken &&
+      toCanonicalCredential(prepared.update.legacyToken, "relayToken") !== prepared.update.token
+    )
+      prepared.update.legacyToken = null;
     await this.withGraphWrite(token.userId, prepared.requiresGraphLock, () =>
       this.relayTokenRepo.update(tokenId, prepared.update),
     );
@@ -1300,7 +1307,7 @@ export class RelayTokenService {
     const reservedNames = await this.getVisibleNameSet(managedUserId);
     const duplicatedName = data.name?.trim() || this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
     const duplicatedToken = await this.withGraphWrite(managedUserId, sourceToken.routingMode === "composite", () =>
-      this.relayTokenRepo.withTransaction((tx) =>
+      this.relayTokenRepo.withSerializableTransaction((tx) =>
         this.createTokenFromImportData(
           actorUserId,
           managedUserId,
@@ -1417,7 +1424,7 @@ export class RelayTokenService {
       managedUserId,
       sourceTokens.some((item) => item.routingMode === "composite"),
       () =>
-        this.relayTokenRepo.withTransaction(async (tx) => {
+        this.relayTokenRepo.withSerializableTransaction(async (tx) => {
           const reservedNames = await this.getVisibleNameSet(managedUserId);
           const reservedTokens = new Set<string>();
           const items: RelayTokenDto[] = [];
@@ -2611,19 +2618,22 @@ export class RelayTokenService {
   private async resolveImportedTokenValue(
     preferredToken?: string | null,
     reservedTokens: Set<string> = new Set<string>(),
+    tx?: RelayTokenTransactionClient,
   ): Promise<string> {
     const normalizedToken = String(preferredToken || "").trim();
-
-    if (normalizedToken && !reservedTokens.has(normalizedToken)) {
-      const existing = await this.relayTokenRepo.findByToken(normalizedToken);
-      if (!existing) {
-        reservedTokens.add(normalizedToken);
-        return normalizedToken;
-      }
+    const reserved = (value: string) =>
+      plaintextCredentialValues(value, "relayToken").some((candidate) => reservedTokens.has(candidate));
+    if (
+      normalizedToken &&
+      !reserved(normalizedToken) &&
+      !(await this.relayTokenRepo.isCredentialOccupied(normalizedToken, tx))
+    ) {
+      reservedTokens.add(normalizedToken);
+      return normalizedToken;
     }
 
     let generatedToken = this.generateRelayTokenValue();
-    while (reservedTokens.has(generatedToken) || (await this.relayTokenRepo.findByToken(generatedToken)))
+    while (reserved(generatedToken) || (await this.relayTokenRepo.isCredentialOccupied(generatedToken, tx)))
       generatedToken = this.generateRelayTokenValue();
 
     reservedTokens.add(generatedToken);
@@ -2658,7 +2668,7 @@ export class RelayTokenService {
       }
     }
 
-    const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens);
+    const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens, tx);
     const isCustomKey = hasCustomToken;
     const canonicalTokenValue = toCanonicalCredential(tokenValue, "relayToken");
 
