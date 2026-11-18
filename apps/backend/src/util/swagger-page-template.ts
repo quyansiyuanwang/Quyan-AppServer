@@ -2,6 +2,7 @@ import fs from "fs-extra";
 import { SWAGGER_CUSTOM_HTML_PATH, SWAGGER_HTML_TEMPLATE_PATH } from "@/constant/file-path";
 import { getLogger, LogCategory } from "@/util/logger";
 import { loadSwaggerDocument } from "./swagger-spec-loader";
+import { CREDENTIAL_PREFIXES } from "@quyan/shared";
 
 interface SwaggerPageAssets {
   customCss: string;
@@ -47,12 +48,24 @@ export function buildSwaggerPageHtml(title: string): string {
   }
 
   const template = fs.readFileSync(SWAGGER_HTML_TEMPLATE_PATH, "utf8");
-  const swaggerSpecJson = escapeTemplateValue(JSON.stringify(loadSwaggerDocument()));
+  const spec = loadSwaggerDocument();
+  const swaggerSpecJson = escapeTemplateValue(JSON.stringify(spec));
+  const quotaPath = Object.entries(spec.paths ?? {}).find(
+    ([, methods]) => methods.get?.operationId === "RelayV2ControllerGetCurrentTokenQuotaSummary",
+  )?.[0];
+  const relayQuotaConfig = escapeTemplateValue(
+    JSON.stringify({
+      path: quotaPath ?? null,
+      prefixes: CREDENTIAL_PREFIXES.relayToken,
+    }),
+  );
   const customAssets = getSwaggerCustomAsset();
 
   return template
     .replaceAll("__SWAGGER_TITLE__", title)
     .replace("__SWAGGER_SPEC_JSON__", swaggerSpecJson)
     .replace("__SWAGGER_CUSTOM_CSS__", customAssets.customCss.trim())
-    .replace("__SWAGGER_CUSTOM_JS__", customAssets.customJsStr.trim());
+    .replace("__SWAGGER_CUSTOM_JS__", () =>
+      customAssets.customJsStr.trim().replace("__SWAGGER_RELAY_QUOTA_CONFIG__", () => relayQuotaConfig),
+    );
 }

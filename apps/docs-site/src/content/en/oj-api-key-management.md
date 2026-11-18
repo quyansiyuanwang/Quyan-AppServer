@@ -22,6 +22,8 @@ Without a channel selection, requests use the deployment's default upstream conf
 
 ## Use the key in a submitter
 
+Use `sk-ojqa-` for new configurations. The same key also works with the legacy `ojqa_` prefix; keep the rest of the key unchanged, including letter case.
+
 Configure the submitter with the API base address and new key. Use the service address for the OJ API; do not substitute the management-site address or Relay Base URL. Set the variables below to actual values and replace the model with one priced and available in your deployment.
 
 ```bash

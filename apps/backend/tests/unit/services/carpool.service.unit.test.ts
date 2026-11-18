@@ -238,7 +238,7 @@ describe("CarpoolService lifecycle guards", () => {
       relayChannel: { findFirst: vi.fn().mockResolvedValue({ id: "channel-1" }) },
       monthlyPassTemplate: { findUnique: vi.fn().mockResolvedValue({ id: "pass-template-1", status: 0 }) },
       userMonthlyPass: { create: vi.fn().mockResolvedValue({ id: "pass-1" }) },
-      relayToken: { create: vi.fn().mockResolvedValue({ id: "token-1" }) },
+      relayToken: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({ id: "token-1" }) },
       carpoolMember: { update: vi.fn() },
       carpoolOrderEvent: { create: vi.fn() },
     };

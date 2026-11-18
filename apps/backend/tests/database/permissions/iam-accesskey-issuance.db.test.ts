@@ -165,8 +165,8 @@ describe("resource-scoped access-key issuance and security-state transactions", 
     const state = await repo.captureIssuance(principal());
     const verification = await code();
     const outcomes = await Promise.allSettled([
-      repo.issue(state, { userId: actor, key: "fixture-one" }, "123456"),
-      repo.issue(state, { userId: actor, key: "fixture-two" }, "123456"),
+      repo.issue(state, { userId: actor, key: `sk-ak-fixture-${randomUUID()}` }, "123456"),
+      repo.issue(state, { userId: actor, key: `sk-ak-fixture-${randomUUID()}` }, "123456"),
     ]);
     expect(outcomes.filter((x) => x.status === "fulfilled")).toHaveLength(1);
     expect(await prisma.accessKey.count({ where: { userId: actor } })).toBe(1);

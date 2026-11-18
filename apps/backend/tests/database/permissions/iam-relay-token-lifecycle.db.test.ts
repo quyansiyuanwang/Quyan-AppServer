@@ -228,6 +228,10 @@ describe("atomic token toggle and credential refresh", () => {
     expect(result.token).toMatch(/^sk-rlt-[a-f0-9]{64}$/);
     expect(result.token).not.toBe(before.token);
     expect(await credential()).toBe(result.token);
+    await expect(service().validateToken(before.token)).rejects.toMatchObject({ messageKey: "relayToken.invalid" });
+    await expect(service().validateToken(before.legacyToken!)).rejects.toMatchObject({
+      messageKey: "relayToken.invalid",
+    });
     expect(
       await prisma.relayToken.count({ where: { OR: [{ token: before.token }, { legacyToken: before.legacyToken! }] } }),
     ).toBe(0);
