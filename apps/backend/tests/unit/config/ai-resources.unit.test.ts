@@ -50,6 +50,19 @@ describe("AI deployment budgets", () => {
     expect(buildAiRequestLogConfig({}).responseBodyBytes).toBe(256 * 1024);
     expect(buildRelayConfig({}).resourceGuard.maxUpstreamResponseBodyMb).toBe(16);
   });
+  it("bootstraps forwarding body and socket timeouts from deployment configuration", () => {
+    const source = {
+      REQUEST_JSON_BODY_LIMIT_MB: "12",
+      RELAY_DOWNSTREAM_IDLE_TIMEOUT_MS: "900000",
+      AI_HTTP_KEEP_ALIVE_MS: "45000",
+      AI_HTTP_SOCKET_TIMEOUT_MS: "120000",
+    };
+    expect(buildRelayConfig(source).resourceGuard).toMatchObject({
+      jsonBodyLimitMb: 12,
+      downstreamIdleTimeoutMs: 900000,
+    });
+    expect(buildAiResourcesConfig(source).http).toMatchObject({ keepAliveMsecs: 45000, socketTimeoutMs: 120000 });
+  });
   it("honors larger explicit budgets without hidden clamps and supports no queue", () => {
     const config = buildAiResourcesConfig({
       AI_MAX_ACTIVE_REQUESTS: "20",

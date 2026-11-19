@@ -14147,6 +14147,100 @@
 				]
 			}
 		},
+		"/v1/config/ai-resources": {
+			"get": {
+				"operationId": "ConfigControllerGetAIResourceConfiguration",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIResourceConfigurationDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetAIResourceConfiguration",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AIResourceSettingsDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/config": {
 			"get": {
 				"operationId": "ConfigControllerGetAllConfigs",
@@ -49121,14 +49215,6 @@
 			"Decimal": {
 				"type": "string"
 			},
-			"Record_string.string_": {
-				"properties": {},
-				"additionalProperties": {
-					"type": "string"
-				},
-				"type": "object",
-				"description": "Construct a type with a set of properties K of type T"
-			},
 			"AIResourceSettingsDto": {
 				"description": "Versioned per-process AI memory budgets. Byte capacities use 1024-based units.",
 				"properties": {
@@ -49143,6 +49229,16 @@
 						"properties": {
 							"http": {
 								"properties": {
+									"socketTimeoutMs": {
+										"type": "number",
+										"format": "double",
+										"description": "Upstream socket inactivity timeout in milliseconds."
+									},
+									"keepAliveMsecs": {
+										"type": "number",
+										"format": "double",
+										"description": "TCP keep-alive initial delay in milliseconds."
+									},
 									"maxFreeSockets": {
 										"type": "number",
 										"format": "double"
@@ -49157,6 +49253,8 @@
 									}
 								},
 								"required": [
+									"socketTimeoutMs",
+									"keepAliveMsecs",
 									"maxFreeSockets",
 									"maxTotalSockets",
 									"maxSockets"
@@ -49341,6 +49439,16 @@
 									"multipartBodyLimitMb": {
 										"type": "number",
 										"format": "double"
+									},
+									"downstreamIdleTimeoutMs": {
+										"type": "number",
+										"format": "double",
+										"description": "Downstream response inactivity timeout in milliseconds."
+									},
+									"jsonBodyLimitMb": {
+										"type": "number",
+										"format": "double",
+										"description": "Relay JSON request capacity in MiB; does not change non-relay routes."
 									}
 								},
 								"required": [
@@ -49349,7 +49457,9 @@
 									"nonStreamUpstreamTimeoutMs",
 									"imageQueueTimeoutMs",
 									"imageMaxConcurrency",
-									"multipartBodyLimitMb"
+									"multipartBodyLimitMb",
+									"downstreamIdleTimeoutMs",
+									"jsonBodyLimitMb"
 								],
 								"type": "object"
 							}
@@ -49475,6 +49585,14 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"Record_string.string_": {
+				"properties": {},
+				"additionalProperties": {
+					"type": "string"
+				},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
 			},
 			"GetConfigResponse": {
 				"properties": {

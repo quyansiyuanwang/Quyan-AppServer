@@ -39,6 +39,45 @@ describe("dynamic AI resources", () => {
     expect(() => service.parse(JSON.stringify(next))).toThrow("Invalid AI resource");
     expect(() => service.parse('{"version":1}')).toThrow();
   });
+  it("fills new fields in persisted version 1 settings without resetting existing capacity", () => {
+    const service = new AIResourceConfigService(repository() as any);
+    const previous = structuredClone(AI_RESOURCE_DEFAULTS) as any;
+    previous.aiResources.maxActiveRequests = 12;
+    delete previous.aiResources.http.keepAliveMsecs;
+    delete previous.aiResources.http.socketTimeoutMs;
+    delete previous.relay.resourceGuard.jsonBodyLimitMb;
+    delete previous.relay.resourceGuard.downstreamIdleTimeoutMs;
+    const parsed = service.parse(JSON.stringify(previous));
+    expect(parsed.aiResources.maxActiveRequests).toBe(12);
+    expect(parsed.aiResources.http.keepAliveMsecs).toBe(env.aiResources.http.keepAliveMsecs);
+    expect(parsed.aiResources.http.socketTimeoutMs).toBe(env.aiResources.http.socketTimeoutMs);
+    expect(parsed.relay.resourceGuard.jsonBodyLimitMb).toBe(env.relay.resourceGuard.jsonBodyLimitMb);
+    expect(parsed.relay.resourceGuard.downstreamIdleTimeoutMs).toBe(env.relay.resourceGuard.downstreamIdleTimeoutMs);
+  });
+  it.each([0, -1, 0.5, null, 2147483648])("rejects invalid new timeout value %s", (value) => {
+    const service = new AIResourceConfigService(repository() as any);
+    const next = structuredClone(AI_RESOURCE_DEFAULTS) as any;
+    next.aiResources.http.socketTimeoutMs = value;
+    expect(() => service.parse(JSON.stringify(next))).toThrow();
+    next.aiResources.http.socketTimeoutMs = AI_RESOURCE_DEFAULTS.aiResources.http.socketTimeoutMs;
+    next.relay.resourceGuard.downstreamIdleTimeoutMs = value;
+    expect(() => service.parse(JSON.stringify(next))).toThrow();
+  });
+  it("rotates connection timers without destroying in-flight sockets", () => {
+    const pool = new AIHttpAgentPool();
+    const original = pool.acquire(AI_RESOURCE_DEFAULTS.aiResources.http);
+    const oldDestroy = vi.spyOn(original.agents.httpAgent, "destroy");
+    const limits = { ...AI_RESOURCE_DEFAULTS.aiResources.http, keepAliveMsecs: 12345, socketTimeoutMs: 67890 };
+    pool.rotate(limits);
+    const current = pool.acquire(limits);
+    expect(current.agents.httpAgent).not.toBe(original.agents.httpAgent);
+    expect(Reflect.get(current.agents.httpAgent, "options")).toMatchObject({ keepAliveMsecs: 12345, timeout: 67890 });
+    expect(oldDestroy).not.toHaveBeenCalled();
+    original.release();
+    expect(oldDestroy).toHaveBeenCalledOnce();
+    current.release();
+    pool.rotate(AI_RESOURCE_DEFAULTS.aiResources.http);
+  });
   it("refreshes other processes every five seconds and keeps the last snapshot on failures", async () => {
     vi.useFakeTimers();
     const repo = repository(JSON.stringify(AI_RESOURCE_DEFAULTS));

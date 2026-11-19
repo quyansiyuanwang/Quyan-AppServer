@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
-  set: vi.fn(async (_value: Record<string, string>) => true),
+  set: vi.fn(async (_value: unknown) => true),
   error: vi.fn(),
   success: vi.fn(),
 }))
 vi.mock('@/service/configService', () => ({
-  configService: { getAIResourceConfiguration: mocks.get, setConfigs: mocks.set },
+  configService: {
+    getAIResourceConfiguration: mocks.get,
+    setAIResourceConfiguration: mocks.set,
+  },
 }))
 vi.mock('@/locales', () => ({ i18ns: { locale: 'en', t: (key: string) => key } }))
 vi.mock('@/utils/requestErrorNotice', () => ({ showRequestErrorNotice: mocks.error }))
@@ -51,24 +54,31 @@ describe('AI resource configuration panel', () => {
     expect((wrapper.vm as any).configuration.effective.aiResources.maxActiveRequests).toBe(7)
     wrapper.unmount()
   })
-  it('saves the complete versioned document through the existing protected API', async () => {
+  it('saves the complete versioned document through the typed protected API', async () => {
     const wrapper = mount(Panel)
     await flushPromises()
     ;(wrapper.vm as any).draft.aiResources.maxActiveRequests = 11
     await (wrapper.vm as any).save()
-    expect(
-      JSON.parse(mocks.set.mock.calls[0]![0]['ai.resources']).aiResources.maxActiveRequests,
-    ).toBe(11)
+    expect(mocks.set).toHaveBeenCalledExactlyOnceWith({
+      version: 1,
+      aiResources: { maxActiveRequests: 11 },
+    })
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(mocks.success).toHaveBeenCalledOnce()
     expect(mocks.get).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
   it('shows save failures without discarding the edited values', async () => {
     const wrapper = mount(Panel)
     await flushPromises()
-    mocks.set.mockRejectedValueOnce(new Error('offline'))
+    ;(wrapper.vm as any).draft.aiResources.maxActiveRequests = 11
+    const error = new Error('offline')
+    mocks.set.mockRejectedValueOnce(error)
     await (wrapper.vm as any).save()
-    expect(mocks.error).toHaveBeenCalled()
-    expect((wrapper.vm as any).draft.aiResources.maxActiveRequests).toBe(7)
+    expect(mocks.error).toHaveBeenCalledExactlyOnceWith(error)
+    expect(mocks.success).not.toHaveBeenCalled()
+    expect(mocks.get).toHaveBeenCalledOnce()
+    expect((wrapper.vm as any).draft.aiResources.maxActiveRequests).toBe(11)
     wrapper.unmount()
   })
 })

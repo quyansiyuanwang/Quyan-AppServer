@@ -7,8 +7,8 @@ vi.mock("@/util/developer-outbound-url", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/util/developer-outbound-url")>()),
   assertSafeOutboundUrl: vi.fn(async (url: string) => ({
     url: new URL(url),
-    httpAgent: { destroy: vi.fn() },
-    httpsAgent: { destroy: vi.fn() },
+    httpAgent: { options: {}, destroy: vi.fn() },
+    httpsAgent: { options: {}, destroy: vi.fn() },
   })),
 }));
 import { Permission, RELAY_CHANNEL_STATUS, type IamCondition, type RelayUpstreamFormat } from "@quyan/shared";
