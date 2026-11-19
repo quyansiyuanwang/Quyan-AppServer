@@ -352,7 +352,22 @@ pub async fn credentials_with_token(
             false,
         )
         .await?;
-    credentials_from_token(&api.credentials, &token)
+    let mut credentials = credentials_from_token(&api.credentials, &token)?;
+    credentials.relay_token_id = Some(id.into());
+    Ok(credentials)
+}
+
+pub async fn selected_catalog(api: &ApiClient) -> Result<crate::router::config::RouterModels> {
+    let id =
+        api.credentials.relay_token_id.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("Select a token in AI Relay to load its model catalog")
+        })?;
+    let details = crate::router::models::token_details(api, id).await?;
+    anyhow::ensure!(
+        details["token"].as_str() == api.credentials.relay_token.as_deref(),
+        "Token changed; select it again"
+    );
+    crate::router::models::fetch(api, id, &details).await
 }
 
 fn credentials_from_token(

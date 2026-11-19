@@ -10,10 +10,7 @@ use tokio::{
 use url::Url;
 use uuid::Uuid;
 
-use crate::core::{
-    branding,
-    credentials::{self, Credentials},
-};
+use crate::core::credentials::{self, Credentials};
 
 const CLI_CLIENT_ID: &str = "quyan-cli";
 const OAUTH_CALLBACK_HOST: &str = "127.0.0.1";
@@ -28,9 +25,6 @@ pub async fn handle_login(
     auth_base: &str,
     json_output: bool,
 ) -> Result<()> {
-    if !json_output {
-        branding::print();
-    }
     let creds = if login_args.browser {
         browser_login(api_base, auth_base).await?
     } else if login_args.qrcode {
@@ -45,24 +39,21 @@ pub async fn handle_login(
 }
 
 pub fn handle_logout(json_output: bool) -> Result<()> {
-    if !json_output {
-        branding::print();
-    }
     crate::core::config::reset()?;
     super::common::print_value(json!({"loggedOut":true}), json_output)
 }
 
 pub fn handle_credential_import(json_output: bool) -> Result<()> {
-    if !json_output {
-        branding::print();
-    }
     let mut value = String::new();
     std::io::stdin().read_to_string(&mut value)?;
     let value = value.trim();
     let mut creds = credentials::load().unwrap_or_default();
     match credentials::classify(value) {
         "access-key" => creds.access_key = Some(value.into()),
-        "relay-token" => creds.relay_token = Some(value.into()),
+        "relay-token" => {
+            creds.relay_token = Some(value.into());
+            creds.relay_token_id = None;
+        }
         "product-key" => creds.product_key = Some(value.into()),
         _ => anyhow::bail!("unsupported credential prefix"),
     }
@@ -470,10 +461,28 @@ mod tests {
         };
         let exchange = tokio::spawn(async move {
             let (mut socket, _) = api.accept().await.unwrap();
-            let mut buffer = [0u8; 8192];
-            let size = socket.read(&mut buffer).await.unwrap();
-            let request = String::from_utf8_lossy(&buffer[..size]);
-            assert!(request.starts_with("POST /v1/oauth/token "));
+            // Consume the complete POST before replying. Closing a Windows socket
+            // with unread form bytes can reset the connection and make this fixture flaky.
+            let mut request = Vec::new();
+            loop {
+                let mut buffer = [0u8; 8192];
+                let size = socket.read(&mut buffer).await.unwrap();
+                assert!(size > 0);
+                request.extend_from_slice(&buffer[..size]);
+                if let Some(end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&request[..end]);
+                    let length = headers
+                        .lines()
+                        .filter_map(|line| line.split_once(':'))
+                        .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                        .map(|(_, value)| value.trim().parse::<usize>().unwrap())
+                        .unwrap_or(0);
+                    if request.len() >= end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            assert!(String::from_utf8_lossy(&request).starts_with("POST /v1/oauth/token "));
             let status = if fail_exchange {
                 "400 Bad Request"
             } else {

@@ -1,12 +1,5 @@
-use std::io::{self, Write};
-
-/// Shared ASCII-only identity shown by the human-facing CLI and TUI.
+/// Shared ASCII-only identity displayed on demand in the TUI help.
 pub const QUYAN_BANNER: &str = include_str!("../../assets/quyan-banner.txt");
-
-pub fn print() {
-    let mut stdout = io::stdout();
-    let _ = writeln!(stdout, "{QUYAN_BANNER}");
-}
 
 #[cfg(test)]
 mod tests {

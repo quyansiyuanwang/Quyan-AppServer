@@ -374,9 +374,11 @@ async fn browser_dns_rebinding_bad_auth_and_control_are_rejected() {
 
 #[tokio::test]
 async fn connection_failure_can_failover_without_restarting_the_router() {
-    let unused = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let unreachable = format!("http://{}", unused.local_addr().unwrap());
-    drop(unused);
+    // Reserve a port without listening. Releasing an ephemeral listener lets a
+    // concurrent mock reuse its port and receive this test's authenticated traffic.
+    let unavailable = tokio::net::TcpSocket::new_v4().unwrap();
+    unavailable.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let unreachable = format!("http://{}", unavailable.local_addr().unwrap());
     let (working, state, task) = mock(0).await;
     let router = router(
         vec![profile("a", &unreachable, 0), profile("b", &working, 1)],
@@ -390,6 +392,7 @@ async fn connection_failure_can_failover_without_restarting_the_router() {
         200
     );
     assert_eq!(state.requests.lock().unwrap().len(), 1);
+    drop(unavailable);
     task.abort();
 }
 

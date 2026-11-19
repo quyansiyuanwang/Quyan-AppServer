@@ -65,15 +65,21 @@ quyan relay token list
 
 ## 使用交互控制台
 
-不带子命令执行 `quyan` 打开 TUI。使用 `Up`/`Down` 或 `j`/`k` 选择，`Enter` 进入，`?`/`h` 查看帮助，`b`/`Esc` 返回，主页按 `q` 或 `Esc` 退出。可进入浏览器登录、账户概览、AI 中转、AI 客户端配置、JSON Endpoints、配置与诊断。
+不带子命令执行 `quyan` 打开客户控制台。主页按 `1`–`7` 直接进入登录、账户、AI 中转、AI 客户端、JSON Endpoints、诊断和本地路由。方向键或 `j`/`k` 选择，`Enter` 打开，`Esc` 返回，`q` 退出。字符画和完整快捷键收在 `?` 帮助中；服务地址、配置路径和日志位于诊断页。
 
-AI 中转页中，`r` 刷新、`Left`/`Right` 翻页、`Enter` 查看选中令牌用量。`c` 创建、`d` 删除和 `u` 选择本地令牌均需核对目标并按 `y` 确认。删除影响服务端令牌；选择本地令牌不改变其渠道、额度或权限。命令行的明确创建、删除等命令直接提交，不提供同样的确认界面；超时后先在网页或列表核对结果再重试。
+宽终端并排显示列表与详情；窄终端按 `Enter` 打开详情、`Esc` 回到列表。长内容支持方向键、`PageUp`/`PageDown`、`Home`/`End` 滚动。账户页独立加载资料、余额和用量，单项失败不影响其余结果。
+
+AI 中转页中，`/` 按名称或 ID 搜索全部令牌。搜索通过现有分页接口逐页读取，会显示进度；中途失败保留已读结果并标记“不完整”。未进入搜索时，`Left`/`Right` 翻页；`r` 刷新，`Enter` 查看用量，`c` 输入名称创建，`e` 重命名，`d` 删除，`u` 选作本地凭据。写操作均先显示目标，按 `y` 确认，`n` 或 `Esc` 取消。删除不可撤回；选用令牌不改变其服务端渠道、额度或权限。
+
+输入名称或搜索词时，`q`、`j`、`k` 等字符正常作为文字输入。已确认的写操作在后台执行，不能重复提交；退出会等待操作完成。明确的命令行创建、删除等命令仍直接提交，超时后先核对结果再重试。
+
+默认命令输出使用简洁字段或表格，`--json` 保留机器可读 JSON；单独运行 `quyan --json` 返回本地状态。`--lang zh-CN` / `--lang en-US` 临时覆盖已保存语言，`--no-color` 或 `NO_COLOR` 关闭颜色。重定向输出时使用子命令或 `--json`，不会打开 TUI。
 
 ## 为本地 AI 工具配置中转
 
 1. 在 TUI 的「AI 中转」中选择已有 Token，按 `u`，核对名称后按 `y`，将其保存为本地工具使用的 Relay 凭证。也可执行 `quyan relay token use <token-id>`。令牌须启用、未过期，账户须能读取详情及明文；启用 IAM 强制授权时，仅有列表或详情读取权限并不足够，还需该令牌的 `quyan:relay:RevealToken`。如只能查看元数据，向管理员申请所需范围授权，或从有权限的来源安全导入 Relay Token。
-2. 打开「配置 AI 客户端」，用 `Tab` 或方向键选择 Claude Code、Codex 或 pi，输入模型 ID，然后按 `Enter` 预览。确认目标路径、服务地址和模型后按 `y` 写入并备份；`n` 取消。pi 必须指定模型，其他工具可保留已有模型。模型以中转实际可用列表为准，不预设模型名称。
-3. 使用 `quyan launch --client <client>` 启动工具。凭证从系统密钥链读取，仅注入启动的子进程环境，不写入普通配置或命令行参数。
+2. 打开「AI 客户端」，用 `Tab` / `Shift+Tab` 切换字段，左右键选择 Claude Code、Codex 或 pi，以及直连或 Router。按 `m` 选择并搜索协议兼容的模型，或按 `i` 手动输入。按 `a` 预览目标路径、地址和模型，`y` 写入并备份，`n` / `Esc` 取消。若配置文件或 Router 配置在预览后变化，需要重新预览。
+3. 按 `l` 启动客户端，或执行 `quyan launch --client <client>`。工具退出后回到原 TUI。直连凭据仅注入子进程环境；Router 使用本地兼容占位值。直接导入的 Relay Token 不带令牌 ID，模型目录不可用时可手动输入，或在 AI 中转页重新选用令牌。
 
 ```bash
 # 无 client 参数时只列出支持的适配器，不修改文件
@@ -118,6 +124,31 @@ quyan launch --client anthropic -- <program> <arguments>
 
 内置文件适配器仅支持上表三种工具。使用 Cursor、Windsurf、Cline、Continue、Aider 等其他工具时，先查其文档，按实际支持的协议与配置方式接入。
 
+## 本地模型路由
+
+主页第 `7` 项管理本机 Router，不修改平台渠道。配置档保存你有权读取并选用的 Relay Token，支持各协议的模型目录、模型绑定、别名、优先级和 Stack 模型。实际渠道选择和计费继续由服务端处理。
+
+```bash
+quyan router profile add --token-id <token-id> --yes
+quyan router models
+quyan router start --yes
+quyan router apply --client codex --model <responses-model-id> --dry-run
+quyan router apply --client codex --model <responses-model-id> --yes
+quyan launch --router --client codex --model <responses-model-id>
+quyan router status
+quyan router stop --yes
+```
+
+默认入口是 `http://127.0.0.1:15721`，仅监听本机回环地址。Router 是独立进程，退出 TUI 不会停止它，也不会自动开机启动。停止会中断使用它的工具；更改监听地址需要停止后重新启动。配置或凭据无效时保留上一个有效运行快照。
+
+TUI 用 `Tab` / `Shift+Tab` 切换配置档、令牌、模型、路由、客户端和状态页，`/` 筛选当前列表，`s` 启动，`x` 停止，`f` 刷新模型目录。配置档页 `a` 添加、空格启停、`+`/`-` 调整优先级、`d` 移除；令牌页 `Enter` 添加配置档，左右键翻页。模型页 `p` 切协议、`t` 切目标、`Enter` 绑定、`a` 创建别名、空格选作客户端模型。客户端页 `Enter` 转到统一的配置表单。所有写操作需确认。
+
+pi 的 Router 配置按所选模型确定协议，并同步该协议的可用模型。跨协议切换模型时先重新预览并保存配置，再启动；其他 provider 不受影响。
+
+`quyan router stack enable --yes` 开启按配置档限定的模型 ID，`disable --yes` 关闭，`status` 查看状态；TUI 对应快捷键为 `v`。带配置档前缀的模型固定使用对应配置档，不回落到其他配置档；普通模型继续使用兼容配置档的自动路由。
+
+本轮支持 Claude Code、Codex、pi；没有桌面客户端接管入口。每个配置档的真实令牌独立存于系统密钥链，`router.json` 和工具配置不保存真实令牌。移除配置档会移除其本地凭据和关联路由，不删除服务端 Token。`logout` / `config reset` 不清除 Router 配置档；切换部署前应单独停止并移除不再使用的配置档。
+
 ## 访问 JSON 端点产品
 
 浏览器登录不会提供产品 Key。先在 [开发者产品]({{DOCS_BASE_URL}}/zh-CN/developer-products-overview)中为目标实例创建产品 API Key，通过标准输入导入，再执行：
@@ -144,7 +175,7 @@ quyan product json-endpoints clear
 | 配置写入成功但调用失败           | 核对所启动工具、模型、协议、额度和 IP 白名单；写入成功不是连通性测试。           |
 | 写请求超时或返回权限、2FA 错误   | 先核对服务端状态；按网页流程完成所需操作，不要反复提交相同写请求。               |
 
-`quyan config set locale en-US` 或 `zh-CN` 设置保存的语言。需要诊断时可加 `--debug`，错误输出会提示日志位置；分享前检查输出中是否含个人信息、产品内容或旧配置中的敏感值。
+`quyan config set locale en-US` 或 `zh-CN` 设置保存的语言。需要诊断时可加 `--debug`，默认错误只显示简短原因，`--debug` 错误输出会提示日志位置；分享前检查输出中是否含个人信息、产品内容或旧配置中的敏感值。
 
 ## 相关页面
 
