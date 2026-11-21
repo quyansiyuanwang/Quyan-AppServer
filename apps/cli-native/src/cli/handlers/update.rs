@@ -20,10 +20,10 @@ pub async fn handle_update(check_only: bool, json_output: bool) -> Result<()> {
                         json_output,
                     )
                 } else {
-                    println!("{}", updater::format_update_notification(&info));
-                    if !info.release_notes.is_empty() {
-                        println!("\nRelease notes:\n{}", info.release_notes);
-                    }
+                    println!(
+                        "{} → {}  ·  quyan update",
+                        info.current_version, info.latest_version
+                    );
                     Ok(())
                 }
             }

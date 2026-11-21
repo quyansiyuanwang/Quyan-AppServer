@@ -1,165 +1,135 @@
 <script setup lang="ts">
-import { Refresh, Wallet } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import { Refresh, Switch } from '@element-plus/icons-vue'
 import { AsyncVChart as VChart } from '@/utils/asyncChart'
 import { useBalanceHistoryContext } from '../context'
+import { useConsumptionQuota } from '../useConsumptionQuota'
 
-withDefaults(
-  defineProps<{
-    cardClass: string
-    showBalance?: boolean
-    showStatistics?: boolean
-  }>(),
-  {
-    showBalance: true,
-    showStatistics: true,
-  },
+defineProps<{ mode: 'balance' | 'consumption' }>()
+
+const {
+  i18ns,
+  userInfoStore,
+  loadingStats,
+  refreshingBalance,
+  refreshBalanceAndStats,
+  redeemCode,
+  handleRedeem,
+  redeeming,
+  usageStats,
+  loadingAllData,
+  requestCount,
+  showCharts,
+  requestsChartOption,
+  avgTPM,
+  tpmChartOption,
+  avgRPM,
+  rpmChartOption,
+} = useBalanceHistoryContext()
+
+const {
+  label: quotaLabel,
+  switchLabel: switchQuotaLabel,
+  amount: consumedQuota,
+  loading: loadingQuota,
+  cycleRange: cycleQuotaRange,
+} = useConsumptionQuota(usageStats)
+
+const usedPercent = computed(() =>
+  usageStats.value.total > 0
+    ? Math.round(((consumedQuota.value ?? 0) / usageStats.value.total) * 100)
+    : 0,
 )
-
-const state = useBalanceHistoryContext()
-const i18ns = state.i18ns
-const userInfoStore = state.userInfoStore
-const loadingStats = state.loadingStats
-const refreshingBalance = state.refreshingBalance
-const refreshBalanceAndStats = state.refreshBalanceAndStats
-const redeemCode = state.redeemCode
-const handleRedeem = state.handleRedeem
-const redeeming = state.redeeming
-const usageStats = state.usageStats
-const loadingAllData = state.loadingAllData
-const requestCount = state.requestCount
-const showCharts = state.showCharts
-const requestsChartOption = state.requestsChartOption
-const avgTPM = state.avgTPM
-const tpmChartOption = state.tpmChartOption
-const avgRPM = state.avgRPM
-const rpmChartOption = state.rpmChartOption
+const trends = computed(
+  () =>
+    [
+      {
+        label: 'balance.totalRequests',
+        value: requestCount.value,
+        option: requestsChartOption.value,
+      },
+      { label: 'balance.avgTPM', value: avgTPM.value.toFixed(2), option: tpmChartOption.value },
+      { label: 'balance.avgRPM', value: avgRPM.value.toFixed(2), option: rpmChartOption.value },
+    ] as const,
+)
 </script>
 
 <template>
-  <el-card
-    :class="['info-card', cardClass]"
+  <header
+    class="billing-summary"
     v-loading="loadingStats"
-    :element-loading-text="loadingStats ? i18ns.t('relay.firstLoadTip') : ''"
+    :element-loading-text="i18ns.t('relay.firstLoadTip')"
   >
-    <div v-if="showBalance" class="card-header-section">
-      <el-row :gutter="20" align="middle">
-        <el-col :xs="24" :sm="12" :md="10">
-          <div class="balance-info">
-            <span class="balance-label">
-              <el-icon><Wallet /></el-icon>
-              {{ i18ns.t('relay.accountBalance') }}
-              <el-button
-                :icon="Refresh"
-                :loading="refreshingBalance"
-                @click="refreshBalanceAndStats"
-                size="small"
-                class="balance-refresh-btn"
-              >
-                {{ i18ns.t('refresh') }}
-              </el-button>
-            </span>
-            <span class="balance-amount">{{ userInfoStore.userInfo.balance ?? 0 }}</span>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="14">
-          <el-form inline class="redeem-form toolbar-row">
-            <el-form-item :label="i18ns.t('redemption.code')" style="margin-bottom: 0">
-              <el-input
-                v-model="redeemCode"
-                :placeholder="i18ns.t('redemption.enterCode')"
-                style="width: 100%; max-width: 240px"
-                clearable
-              />
-            </el-form-item>
-            <el-form-item style="margin-bottom: 0">
-              <el-button type="primary" @click="handleRedeem" :loading="redeeming">
-                {{ i18ns.t('redemption.redeem') }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </el-col>
-      </el-row>
+    <h1>{{ i18ns.t(mode === 'balance' ? 'nav.balanceHistory' : 'nav.consumptionRecords') }}</h1>
+    <div v-if="mode === 'balance'" class="balance-overview">
+      <div class="balance-figure">
+        <div class="balance-figure__label">
+          {{ i18ns.t('relay.accountBalance') }}
+          <el-button
+            :icon="Refresh"
+            :loading="refreshingBalance"
+            :aria-label="i18ns.t('refresh')"
+            :title="i18ns.t('refresh')"
+            link
+            @click="refreshBalanceAndStats"
+          />
+        </div>
+        <div class="balance-figure__value">
+          {{ userInfoStore.userInfo.balance ?? 0 }} <small>{{ i18ns.t('balance.yuan') }}</small>
+        </div>
+      </div>
+      <form class="balance-redeem" @submit.prevent="handleRedeem">
+        <label for="balance-redeem-code">{{ i18ns.t('redemption.code') }}</label>
+        <div class="balance-redeem__controls">
+          <el-input
+            id="balance-redeem-code"
+            v-model="redeemCode"
+            :placeholder="i18ns.t('redemption.enterCode')"
+            clearable
+          />
+          <el-button type="primary" native-type="submit" :loading="redeeming">{{
+            i18ns.t('redemption.redeem')
+          }}</el-button>
+        </div>
+      </form>
     </div>
-
-    <el-divider v-if="showBalance && showStatistics" />
-
-    <div v-if="showStatistics" class="statistics-section">
-      <el-row :gutter="16" class="stats-row">
-        <el-col :xs="24" :sm="12" :md="6">
-          <div class="stat-item">
-            <div class="stat-content">
-              <div class="stat-info">
-                <span class="stat-label">{{ i18ns.t('balance.usedQuota') }}</span>
-                <span class="stat-value">{{ usageStats.used }}</span>
-                <span class="stat-total">/ {{ usageStats.total }}</span>
-              </div>
-              <div class="stat-chart">
-                <el-progress
-                  type="circle"
-                  :percentage="
-                    Math.round(
-                      usageStats.total > 0 ? (usageStats.used / usageStats.total) * 100 : 0,
-                    )
-                  "
-                  :width="60"
-                  :stroke-width="6"
-                />
-              </div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <div class="stat-item" v-loading="loadingAllData">
-            <div class="stat-content">
-              <div class="stat-info">
-                <span class="stat-label">{{ i18ns.t('balance.totalRequests') }}</span>
-                <span class="stat-value">{{ requestCount }}</span>
-              </div>
-              <div class="stat-chart">
-                <v-chart
-                  v-if="showCharts"
-                  :option="requestsChartOption"
-                  style="height: 60px; width: 100%"
-                />
-              </div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <div class="stat-item" v-loading="loadingAllData">
-            <div class="stat-content">
-              <div class="stat-info">
-                <span class="stat-label">{{ i18ns.t('balance.avgTPM') }}</span>
-                <span class="stat-value">{{ avgTPM.toFixed(2) }}</span>
-              </div>
-              <div class="stat-chart">
-                <v-chart
-                  v-if="showCharts"
-                  :option="tpmChartOption"
-                  style="height: 60px; width: 100%"
-                />
-              </div>
-            </div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <div class="stat-item" v-loading="loadingAllData">
-            <div class="stat-content">
-              <div class="stat-info">
-                <span class="stat-label">{{ i18ns.t('balance.avgRPM') }}</span>
-                <span class="stat-value">{{ avgRPM.toFixed(2) }}</span>
-              </div>
-              <div class="stat-chart">
-                <v-chart
-                  v-if="showCharts"
-                  :option="rpmChartOption"
-                  style="height: 60px; width: 100%"
-                />
-              </div>
-            </div>
-          </div>
-        </el-col>
-      </el-row>
-    </div>
-  </el-card>
+    <dl v-else class="usage-metrics">
+      <div class="usage-metric" v-loading="loadingQuota">
+        <dt class="usage-metric__heading">
+          <span>{{ quotaLabel }}</span>
+          <el-button
+            class="usage-metric__switch"
+            :icon="Switch"
+            :aria-label="switchQuotaLabel"
+            :title="switchQuotaLabel"
+            link
+            @click="cycleQuotaRange"
+          />
+        </dt>
+        <dd aria-live="polite" :aria-busy="loadingQuota">
+          {{ consumedQuota ?? '—' }} <small>/ {{ usageStats.total }}</small>
+        </dd>
+        <dd class="usage-metric__visual">
+          <el-progress
+            v-if="consumedQuota !== null"
+            :percentage="Math.min(100, Math.max(0, usedPercent))"
+            :format="() => usedPercent + '%'"
+            :stroke-width="4"
+          />
+        </dd>
+      </div>
+      <div
+        v-for="trend in trends"
+        :key="trend.label"
+        class="usage-metric"
+        v-loading="loadingAllData"
+      >
+        <dt>{{ i18ns.t(trend.label) }}</dt>
+        <dd>{{ trend.value }}</dd>
+        <dd class="usage-metric__visual" aria-hidden="true">
+          <v-chart v-if="showCharts" :option="trend.option" autoresize />
+        </dd>
+      </div>
+    </dl>
+  </header>
 </template>

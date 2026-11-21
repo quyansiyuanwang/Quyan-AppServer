@@ -22,7 +22,7 @@ Confirm you can read your tokens and perform the required operation. Creation, u
 4. Save and complete step-up verification when prompted. The drawer closes and the list refreshes after success. Copy the new row's credential. If only metadata is returned, request disclosure permission; never substitute the Token ID.
 5. Find the deployment endpoint in API documentation, then verify an actual request and its usage with the credential.
 
-Relay credentials use `sk-rlt-`, with the legacy `rlt_` prefix still accepted. The suffix must be nonempty and contain only English letters, digits, or hyphens. Custom credentials must be 12–200 characters in total, including the prefix. AccessKeys, product keys, project keys, and OJ API Keys cannot replace a relay credential.
+Use `sk-rlt-` for new configurations. Either `sk-rlt-` or `rlt_` reaches the same token for both chat and `/v2/usage`, including for newly issued tokens. Keep the suffix unchanged, including letter case. It must be nonempty and contain only English letters, digits, or hyphens. Custom credentials must be 12–200 characters in total, including the prefix. AccessKeys, product keys, project keys, and OJ API Keys cannot replace a relay credential.
 
 Send the credential through `Authorization: Bearer <token>`, `x-api-key`, or a `token` query parameter where supported. The first supplied source in that order is selected; an empty or malformed value rejects the request without falling back to another source. A query token must be a single string, not an array or object. A well-formed credential must still pass validity, enabled-status, expiry, and IP-allowlist checks.
 

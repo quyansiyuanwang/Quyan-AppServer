@@ -561,6 +561,8 @@ Before reading saved keys, before sending and before disclosing results, the ser
 
 Server Configuration includes an advanced AI Resource Protection panel for live admission, queues, RSS, uploads, responses, audit and connection-pool budgets. Saving applies locally at once; other processes normally attempt refresh every five seconds and keep previous values if refresh fails. Running requests retain their starting content budgets. Per-user and image-scope concurrency protections still apply.
 
+The Forwarding and probes group also controls relay JSON request capacity and downstream response inactivity timeout. Connection pools includes TCP keep-alive initial delay and upstream socket inactivity timeout. New requests use the new settings; rotating pools does not actively interrupt existing requests. See [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration) for steps and the full settings list.
+
 Legacy resource environment values are used only before management settings are saved. Audit bodies remain sanitized and available; backlog may omit bodies or drop records with warnings. Audit logs do not replace billing records.
 
 #### Consumer channel catalog permissions

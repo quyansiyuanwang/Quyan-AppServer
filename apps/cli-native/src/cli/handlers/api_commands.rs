@@ -93,6 +93,12 @@ pub async fn handle_product_command(
     api: &ApiClient,
     json_output: bool,
 ) -> Result<()> {
+    let content_output = matches!(
+        &command,
+        super::super::ProductCommand::JsonEndpoints {
+            command: super::super::ProductJsonCommand::Get
+        }
+    );
     let value = match command {
         super::super::ProductCommand::JsonEndpoints { command } => match command {
             super::super::ProductJsonCommand::Get => product::get(api).await?,
@@ -103,7 +109,12 @@ pub async fn handle_product_command(
             super::super::ProductJsonCommand::Usage => product::usage(api).await?,
         },
     };
-    super::common::print_value(value, json_output)
+    if content_output && !json_output {
+        println!("{}", serde_json::to_string_pretty(&value)?);
+        Ok(())
+    } else {
+        super::common::print_value(value, json_output)
+    }
 }
 
 fn read_json_stdin() -> Result<Value> {

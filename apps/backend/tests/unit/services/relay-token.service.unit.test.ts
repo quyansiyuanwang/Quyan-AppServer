@@ -14,6 +14,7 @@ describe("RelayTokenService", () => {
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
     findByToken: vi.fn(),
+    isCredentialOccupied: vi.fn(),
     update: vi.fn(),
     updateStatus: vi.fn(),
     withTransaction: vi.fn(),

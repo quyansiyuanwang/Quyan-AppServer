@@ -1,6 +1,9 @@
 import { useRequestStore } from '@/stores/request'
 import { cacheObject } from '@/utils/common'
 import { createBalanceControllerApi } from '@/client/services/balance-controller.gen'
+import { isApiUsageRecord } from '@/utils/balance-transaction'
+
+const CONSUMPTION_SUMMARY_PAGE_SIZE = 100
 
 const balanceApi = cacheObject(() => createBalanceControllerApi(useRequestStore().getAxios()))
 
@@ -66,6 +69,33 @@ class BalanceTransactionService {
 
   async getUsageStatistics() {
     return await balanceApi.getUsage({})
+  }
+
+  async getConsumptionAmount(startTime: string, endTime: string): Promise<number> {
+    let offset = 0
+    let amount = 0
+
+    while (true) {
+      const result = await this.getMyTransactions({
+        startTime,
+        endTime,
+        limit: CONSUMPTION_SUMMARY_PAGE_SIZE,
+        offset,
+      })
+      if (!result.data) throw new Error('Consumption summary response is missing')
+
+      const { records, total } = result.data
+      for (const record of records) {
+        if (isApiUsageRecord(record) && Number(record.amount) < 0) {
+          amount -= Number(record.amount)
+        }
+      }
+      offset += records.length
+      if (offset >= total) return Number(amount.toFixed(8))
+      if (records.length < CONSUMPTION_SUMMARY_PAGE_SIZE) {
+        throw new Error('Consumption summary is incomplete')
+      }
+    }
   }
 }
 

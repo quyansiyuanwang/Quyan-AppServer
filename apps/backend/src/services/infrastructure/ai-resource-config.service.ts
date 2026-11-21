@@ -55,7 +55,18 @@ export class AIResourceConfigService {
   }
   parse(raw: string): AIResourceSettingsDto {
     try {
-      return deepFreeze(aiResourceSettingsSchema.parse(JSON.parse(raw)));
+      const value = JSON.parse(raw);
+      // Version 1 documents predating these fields retain deployment bootstrap values.
+      const settings = aiResourceSettingsSchema.parse(value);
+      settings.aiResources.http.keepAliveMsecs =
+        value.aiResources.http.keepAliveMsecs ?? env.aiResources.http.keepAliveMsecs;
+      settings.aiResources.http.socketTimeoutMs =
+        value.aiResources.http.socketTimeoutMs ?? env.aiResources.http.socketTimeoutMs;
+      settings.relay.resourceGuard.jsonBodyLimitMb =
+        value.relay.resourceGuard.jsonBodyLimitMb ?? env.relay.resourceGuard.jsonBodyLimitMb;
+      settings.relay.resourceGuard.downstreamIdleTimeoutMs =
+        value.relay.resourceGuard.downstreamIdleTimeoutMs ?? env.relay.resourceGuard.downstreamIdleTimeoutMs;
+      return deepFreeze(settings);
     } catch {
       throw new BadRequestError("Invalid AI resource configuration", undefined, {
         messageKey: "system.invalidAiResources",

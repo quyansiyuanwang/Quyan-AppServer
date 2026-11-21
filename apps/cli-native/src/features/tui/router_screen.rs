@@ -1,153 +1,103 @@
-//! Interactive routing workspace. Every mutation is previewed before confirmation.
+//! Customer-owned local profiles and routing. Platform channels are never edited here.
+use super::ui::{self, Theme};
 use crate::{
     core::api::ApiClient,
     features::integrations::ClientKind,
     router::{
-        commands::{ProfileCommand, RouteCommand, RouterCommand},
+        commands::{ProfileCommand, RouteCommand, RouterCommand, StackCommand},
         config::{self, RouterConfig},
         routing::{self, Protocol},
     },
-    utils::logging,
 };
 use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Constraint, Layout},
-    style::{Color, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs, Wrap},
+    widgets::{Paragraph, Tabs},
 };
-use serde_json::Value;
+use serde_json::{json, Value};
+use std::time::Instant;
+use tokio::task::JoinHandle;
 
-const STATUS_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3);
-const TABS: [&str; 6] = [
-    "Profiles 配置档",
-    "Relay Tokens 令牌",
-    "Models 模型",
-    "Routes 路由",
-    "Clients 客户端",
-    "Status 状态",
-];
-const CLIENTS: [ClientKind; 5] = [
-    ClientKind::ClaudeCode,
-    ClientKind::Codex,
-    ClientKind::Pi,
-    ClientKind::ClaudeDesktop,
-    ClientKind::ChatgptDesktop,
-];
-struct SafeToken {
-    id: String,
-    name: String,
-}
-struct Preview {
+const STATUS_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3);
+struct Pending {
     command: RouterCommand,
-    description: String,
+    summary: String,
 }
-struct AliasEditor {
-    input: String,
-    upstream: String,
+struct Alias {
+    text: String,
+    model: String,
     profile: String,
 }
 pub(super) struct RouterView {
+    theme: Theme,
     tab: usize,
-    selected: usize,
-    target: usize,
+    selected: [usize; 6],
     protocol: usize,
+    target: usize,
+    query: String,
+    search: bool,
+    detail: bool,
+    scroll: u16,
     config: RouterConfig,
-    tokens: Vec<SafeToken>,
+    status: Value,
+    tokens: Vec<(String, String)>,
     page: u64,
     total: u64,
-    status: Value,
-    notice: String,
-    preview: Option<Preview>,
-    alias: Option<AliasEditor>,
     client_model: Option<String>,
-    last_poll: std::time::Instant,
-    poll_task: Option<tokio::task::JoinHandle<Value>>,
-    work: Option<tokio::task::JoinHandle<anyhow::Result<Option<Value>>>>,
-    token_work: Option<tokio::task::JoinHandle<anyhow::Result<Value>>>,
-}
-impl Default for RouterView {
-    fn default() -> Self {
-        Self {
-            tab: 0,
-            selected: 0,
-            target: 0,
-            protocol: 0,
-            config: RouterConfig::default(),
-            tokens: Vec::new(),
-            page: 1,
-            total: 0,
-            status: Value::Null,
-            notice: String::new(),
-            preview: None,
-            alias: None,
-            client_model: None,
-            last_poll: std::time::Instant::now(),
-            poll_task: None,
-            work: None,
-            token_work: None,
-        }
-    }
+    pub client_request: Option<(ClientKind, Option<String>)>,
+    alias: Option<Alias>,
+    pending: Option<Pending>,
+    notice: String,
+    snapshot: Option<JoinHandle<anyhow::Result<(RouterConfig, Value)>>>,
+    token_task: Option<JoinHandle<anyhow::Result<Value>>>,
+    write: Option<JoinHandle<anyhow::Result<Option<Value>>>>,
+    active: bool,
+    last_poll: Instant,
 }
 impl RouterView {
-    pub async fn new() -> Self {
-        let mut view = Self::default();
-        view.refresh().await;
-        view
-    }
-    pub async fn poll(&mut self) {
-        if self.token_work.as_ref().is_some_and(|t| t.is_finished()) {
-            if let Some(task) = self.token_work.take() {
-                match task.await {
-                    Ok(Ok(value))=>{
-                        self.total=value["total"].as_u64().unwrap_or(0);
-                        self.tokens=value["items"].as_array().into_iter().flatten().filter_map(|t|Some(SafeToken {id:t["id"].as_str()?.into(),name:t["name"].as_str().unwrap_or("Relay Token").into()})).collect();
-                        self.notice=format!("Loaded {} Relay Tokens / 令牌已加载",self.tokens.len());
-                        if self.tab==1 {self.selected=0;}
-                    },_=>self.notice="Cannot read Relay Tokens; sign in with account credentials. 请先登录账户。".into()
-                }
-            }
-        }
-        if self.work.as_ref().is_some_and(|t| t.is_finished()) {
-            if let Some(task) = self.work.take() {
-                self.notice = match task.await {
-                    Ok(Ok(Some(value))) => logging::redact(&value.to_string()),
-                    Ok(Ok(None)) => "Done / 完成".into(),
-                    Ok(Err(error)) => {
-                        logging::redact(&format!("Operation failed / 操作失败: {error:#}"))
-                    }
-                    Err(_) => {
-                        "Operation could not finish; refresh to inspect its state / 请刷新检查状态"
-                            .into()
-                    }
-                };
-                self.refresh().await;
-            }
-        }
-
-        if self.poll_task.as_ref().is_some_and(|t| t.is_finished()) {
-            if let Some(task) = self.token_work.take() {
-                task.abort();
-            }
-            if let Some(task) = self.poll_task.take() {
-                if let Ok(value) = task.await {
-                    self.status = value;
-                }
-            }
-        }
-        if self.poll_task.is_none() && self.last_poll.elapsed() >= STATUS_REFRESH_INTERVAL {
-            self.last_poll = std::time::Instant::now();
-            self.poll_task = Some(tokio::spawn(async {
-                crate::router::process::status()
-                    .await
-                    .unwrap_or_else(|_| serde_json::json!({"running":false}))
-            }));
-            if let Ok(config) = config::load() {
-                self.config = config;
-            }
+    pub fn new(theme: Theme) -> Self {
+        Self {
+            theme,
+            tab: 0,
+            selected: [0; 6],
+            protocol: 0,
+            target: 0,
+            query: String::new(),
+            search: false,
+            detail: false,
+            scroll: 0,
+            config: RouterConfig::default(),
+            status: Value::Null,
+            tokens: vec![],
+            page: 1,
+            total: 0,
+            client_model: None,
+            client_request: None,
+            alias: None,
+            pending: None,
+            notice: String::new(),
+            snapshot: None,
+            token_task: None,
+            write: None,
+            active: false,
+            last_poll: Instant::now(),
         }
     }
-    pub fn modal(&self) -> bool {
-        self.preview.is_some() || self.alias.is_some() || self.work.is_some()
+    pub fn busy(&self) -> bool {
+        self.write.is_some()
+    }
+    pub fn captures(&self) -> bool {
+        self.search || self.alias.is_some() || self.pending.is_some()
+    }
+    fn tabs(&self) -> [&str; 6] {
+        [
+            self.theme.t("配置档", "Profiles"),
+            self.theme.t("令牌", "Tokens"),
+            self.theme.t("模型", "Models"),
+            self.theme.t("路由", "Routes"),
+            self.theme.t("客户端", "Clients"),
+            self.theme.t("状态", "Status"),
+        ]
     }
     fn protocol(&self) -> Protocol {
         Protocol::ALL[self.protocol]
@@ -155,7 +105,7 @@ impl RouterView {
     fn models(&self) -> Vec<String> {
         routing::aggregate_models(&self.config, self.protocol())
     }
-    fn rows(&self) -> Vec<String> {
+    fn all_rows(&self) -> Vec<String> {
         match self.tab {
             0 => self
                 .config
@@ -163,18 +113,14 @@ impl RouterView {
                 .iter()
                 .map(|p| {
                     format!(
-                        "{}  P{}  {}",
+                        "{} {}  {}",
                         if p.enabled { "●" } else { "○" },
-                        p.priority,
-                        p.name
+                        p.name,
+                        p.priority
                     )
                 })
                 .collect(),
-            1 => self
-                .tokens
-                .iter()
-                .map(|t| format!("{}  {}", t.name, t.id))
-                .collect(),
+            1 => self.tokens.iter().map(|(_, name)| name.clone()).collect(),
             2 => self.models(),
             3 => self
                 .config
@@ -182,460 +128,747 @@ impl RouterView {
                 .iter()
                 .map(|r| {
                     format!(
-                        "{} {} → {} P{}",
+                        "{}  {} → {}",
                         r.protocol.as_str(),
                         r.model,
-                        r.profile_id,
-                        r.priority
+                        self.config
+                            .profiles
+                            .iter()
+                            .find(|p| p.id == r.profile_id)
+                            .map(|p| p.name.as_str())
+                            .unwrap_or(&r.profile_id)
                     )
                 })
                 .collect(),
-            4 => CLIENTS
+            4 => ClientKind::configurable()
                 .iter()
-                .map(|c| {
-                    format!(
-                        "{}  {}",
-                        if crate::router::clients::binding_status(*c)["bound"] == true {
-                            "●"
-                        } else {
-                            "○"
-                        },
-                        c.id()
-                    )
-                })
+                .map(|client| client.id())
                 .collect(),
             _ => vec![
-                "Overview / 总览".into(),
-                "Recent requests / 最近请求".into(),
-                "Route health / 路由健康".into(),
+                format!(
+                    "{}  {}",
+                    self.theme.t("运行", "Running"),
+                    self.status["running"] == true
+                ),
+                format!("Stack  {}", self.config.stack_enabled),
             ],
         }
     }
-    async fn refresh(&mut self) {
-        match config::load() {Ok(config)=>self.config=config,Err(_)=>self.notice="Router configuration is invalid; repair it before making changes. 配置无效，不会覆盖原文件。".into()}
-        self.status=crate::router::process::status().await.unwrap_or_else(|_|serde_json::json!({"running":false,"notice":"Router record is stale or unreachable; use foreground serve to diagnose"}));
-        self.selected = self.selected.min(self.rows().len().saturating_sub(1));
+    fn indices(&self) -> Vec<usize> {
+        let query = self.query.to_lowercase();
+        self.all_rows()
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| row.to_lowercase().contains(&query))
+            .map(|(i, _)| i)
+            .collect()
     }
-    async fn tokens(&mut self, api: &ApiClient) {
-        if let Some(task) = self.token_work.take() {
+    fn index(&self) -> Option<usize> {
+        self.indices().get(self.selected[self.tab]).copied()
+    }
+    fn selected_model(&self) -> Option<String> {
+        self.index().and_then(|i| self.models().get(i).cloned())
+    }
+    fn target_candidate(&self, model: &str) -> Option<routing::Candidate> {
+        let choices = routing::candidates(&self.config, self.protocol(), model);
+        choices.get(self.target % choices.len().max(1)).cloned()
+    }
+    fn target_profile(&self, model: &str) -> Option<String> {
+        self.target_candidate(model).map(|c| c.profile_id)
+    }
+    fn switch_tab(&mut self, tab: usize) {
+        self.tab = tab;
+        self.query.clear();
+        self.detail = false;
+        self.scroll = 0;
+    }
+    pub fn refresh(&mut self) {
+        if let Some(task) = self.snapshot.take() {
+            task.abort();
+        }
+        self.active = true;
+        self.last_poll = Instant::now();
+        self.notice = self.theme.t("加载中…", "Loading…").into();
+        self.snapshot = Some(tokio::spawn(async {
+            let config = tokio::task::spawn_blocking(config::load).await??;
+            let status = crate::router::process::status().await?;
+            Ok((config, status))
+        }));
+    }
+    fn load_tokens(&mut self, api: &ApiClient) {
+        if let Some(task) = self.token_task.take() {
             task.abort();
         }
         let api = api.clone();
         let page = self.page;
-        self.notice = "Loading Relay Tokens… / 正在加载令牌，可继续切换页面".into();
-        self.token_work = Some(tokio::spawn(async move {
+        self.notice = self.theme.t("加载令牌…", "Loading tokens…").into();
+        self.token_task = Some(tokio::spawn(async move {
             crate::services::relay::tokens_page(&api, page).await
         }));
     }
-    fn preview(&mut self, command: RouterCommand, description: String) {
-        self.preview = Some(Preview {
-            command,
-            description,
-        });
-    }
-    fn target_profile(&self, model: &str) -> Option<String> {
-        let candidates = routing::candidates(&self.config, self.protocol(), model);
-        candidates
-            .get(self.target % candidates.len().max(1))
-            .map(|c| c.profile_id.clone())
-    }
-    pub async fn key(&mut self, key: KeyCode, api: &ApiClient) {
-        if self.work.is_some() {
-            return;
+    pub async fn poll(&mut self) {
+        if self.snapshot.as_ref().is_some_and(JoinHandle::is_finished) {
+            match self.snapshot.take().unwrap().await {
+                Ok(Ok((config, status))) => {
+                    self.config = config;
+                    self.status = status;
+                    if self.notice == self.theme.t("加载中…", "Loading…") {
+                        self.notice.clear();
+                    }
+                }
+                Ok(Err(error)) => self.notice = ui::error(&error),
+                Err(_) => self.notice = self.theme.t("状态读取失败", "Status unavailable").into(),
+            }
         }
-        if let Some(editor) = &mut self.alias {
+        if self
+            .token_task
+            .as_ref()
+            .is_some_and(JoinHandle::is_finished)
+        {
+            match self.token_task.take().unwrap().await {
+                Ok(Ok(value)) => {
+                    self.total = value["total"].as_u64().unwrap_or(0);
+                    self.tokens = value["items"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|v| {
+                            Some((
+                                v["id"].as_str()?.to_string(),
+                                ui::safe(v["name"].as_str().unwrap_or("—")),
+                            ))
+                        })
+                        .collect();
+                    self.notice.clear();
+                }
+                Ok(Err(error)) => self.notice = ui::error(&error),
+                Err(_) => self.notice = self.theme.t("令牌读取失败", "Token load failed").into(),
+            }
+        }
+        if self.write.as_ref().is_some_and(JoinHandle::is_finished) {
+            match self.write.take().unwrap().await {
+                Ok(Ok(_)) => {
+                    self.refresh();
+                    self.notice = self.theme.t("已完成", "Done").into();
+                }
+                Ok(Err(error)) => self.notice = ui::error(&error),
+                Err(_) => {
+                    self.notice = self
+                        .theme
+                        .t("操作失败，请刷新", "Operation failed; refresh")
+                        .into()
+                }
+            }
+        }
+        for tab in 0..6 {
+            if tab == self.tab {
+                self.selected[tab] = self.selected[tab].min(self.indices().len().saturating_sub(1));
+            }
+        }
+        if self.active
+            && self.snapshot.is_none()
+            && self.write.is_none()
+            && self.last_poll.elapsed() >= STATUS_INTERVAL
+        {
+            self.last_poll = Instant::now();
+            self.snapshot = Some(tokio::spawn(async {
+                Ok((
+                    tokio::task::spawn_blocking(config::load).await??,
+                    crate::router::process::status().await?,
+                ))
+            }));
+        }
+    }
+    fn preview(&mut self, command: RouterCommand, summary: String) {
+        if !self.busy() {
+            self.pending = Some(Pending { command, summary });
+            self.scroll = 0;
+        }
+    }
+    pub fn key(&mut self, key: KeyCode, api: &ApiClient, width: u16, height: u16) -> bool {
+        if self.search {
+            match key {
+                KeyCode::Esc | KeyCode::Enter => self.search = false,
+                KeyCode::Backspace => {
+                    self.query.pop();
+                    self.selected[self.tab] = 0;
+                }
+                KeyCode::Char(ch) if !ch.is_control() => {
+                    self.query.push(ch);
+                    self.selected[self.tab] = 0;
+                }
+                _ => {}
+            }
+            return false;
+        }
+        if let Some(alias) = &mut self.alias {
             match key {
                 KeyCode::Esc => self.alias = None,
                 KeyCode::Backspace => {
-                    editor.input.pop();
+                    alias.text.pop();
                 }
-                KeyCode::Char(c) if !c.is_control() => editor.input.push(c),
-                KeyCode::Enter => {
-                    let editor = self.alias.take().unwrap();
+                KeyCode::Char(ch) if !ch.is_control() && alias.text.len() < 256 => {
+                    alias.text.push(ch)
+                }
+                KeyCode::Enter if !alias.text.trim().is_empty() => {
+                    let alias = self.alias.take().unwrap();
                     self.preview(
                         RouterCommand::Route {
                             command: RouteCommand::Set {
                                 protocol: self.protocol(),
-                                model: editor.input.clone(),
-                                profile: editor.profile.clone(),
-                                upstream_model: Some(editor.upstream.clone()),
+                                model: alias.text.trim().into(),
+                                profile: alias.profile.clone(),
+                                upstream_model: Some(alias.model.clone()),
                                 priority: 0,
                             },
                         },
-                        format!(
-                            "Alias {} → {} via {} / 别名路由",
-                            editor.input, editor.upstream, editor.profile
-                        ),
+                        format!("{} → {}\n{}", alias.text.trim(), alias.model, alias.profile),
                     );
                 }
                 _ => {}
             }
-            return;
+            return false;
         }
-        if self.preview.is_some() {
+        if self.pending.is_some() {
             match key {
-                KeyCode::Esc | KeyCode::Char('n') => {
-                    self.preview = None;
-                    self.notice = "Cancelled; no changes made / 已取消".into();
+                KeyCode::Char('y') if !self.busy() => {
+                    let pending = self.pending.take().unwrap();
+                    let locale = self.theme.locale.clone();
+                    self.notice = self.theme.t("执行中…", "Applying…").into();
+                    self.write = Some(tokio::spawn(async move {
+                        let mut config =
+                            tokio::task::spawn_blocking(crate::core::config::load).await??;
+                        config.locale = locale;
+                        crate::router::commands::run(pending.command, true, &config).await
+                    }));
                 }
-                KeyCode::Char('y') => {
-                    let pending = self.preview.take().unwrap();
-                    match crate::core::config::load() {
-                        Ok(cfg) => {
-                            self.notice =
-                                "Applying confirmed operation… / 正在执行已确认操作；完成后可返回"
-                                    .into();
-                            self.work = Some(tokio::spawn(async move {
-                                crate::router::commands::run(pending.command, true, &cfg).await
-                            }));
-                        }
-                        Err(error) => {
-                            self.notice =
-                                logging::redact(&format!("Cannot load configuration: {error:#}"))
-                        }
-                    }
-                }
+                KeyCode::Char('n') | KeyCode::Esc | KeyCode::Enter => self.pending = None,
                 _ => {}
             }
-            return;
+            return false;
+        }
+        if self.detail {
+            if key == KeyCode::Esc {
+                self.detail = false;
+                self.scroll = 0;
+                return false;
+            }
+            let details = self.details();
+            if ui::text_scroll(
+                key,
+                &mut self.scroll,
+                &details,
+                if width >= 92 { width * 58 / 100 } else { width },
+                height.saturating_sub(2),
+            ) {
+                return false;
+            }
+        }
+        if key == KeyCode::Esc {
+            return true;
+        }
+        if key == KeyCode::Tab {
+            self.switch_tab((self.tab + 1) % 6);
+            if self.tab == 1 {
+                self.load_tokens(api);
+            }
+            return false;
+        }
+        if key == KeyCode::BackTab {
+            self.switch_tab((self.tab + 5) % 6);
+            return false;
+        }
+        if key == KeyCode::Char('/') {
+            self.search = true;
+            return false;
+        }
+        let len = self.indices().len();
+        if ui::navigate(key, &mut self.selected[self.tab], len, height) {
+            self.scroll = 0;
+            return false;
+        }
+        if key == KeyCode::Char('r') {
+            self.refresh();
+            if self.tab == 1 {
+                self.load_tokens(api);
+            }
+            return false;
+        }
+        if self.busy() {
+            return false;
         }
         match key {
-            KeyCode::Tab => {
-                self.tab = (self.tab + 1) % TABS.len();
-                self.selected = 0;
-                if self.tab == 1 {
-                    self.tokens(api).await;
-                }
-            }
-            KeyCode::BackTab => {
-                self.tab = (self.tab + TABS.len() - 1) % TABS.len();
-                self.selected = 0;
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let n = self.rows().len();
-                if n > 0 {
-                    self.selected = (self.selected + n - 1) % n;
-                }
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                let n = self.rows().len();
-                if n > 0 {
-                    self.selected = (self.selected + 1) % n;
-                }
-            }
-            KeyCode::Char('r') => {
-                self.refresh().await;
-                if self.tab == 1 {
-                    self.tokens(api).await;
-                }
-            }
             KeyCode::Char('s') => self.preview(
                 RouterCommand::Start,
-                "Start loopback Router / 启动本地路由".into(),
+                self.theme.t("启动本地路由", "Start local Router").into(),
             ),
             KeyCode::Char('x') => self.preview(
                 RouterCommand::Stop,
-                "Stop Router; active agents will lose the local API / 停止后客户端暂时无法请求"
+                self.theme
+                    .t(
+                        "停止本地路由 · 中断客户端连接",
+                        "Stop local Router · clients will disconnect",
+                    )
                     .into(),
             ),
             KeyCode::Char('f') => self.preview(
                 RouterCommand::Models { refresh: true },
-                "Refresh all saved model catalogs using account API / 刷新全部配置档模型".into(),
+                self.theme
+                    .t("刷新配置档模型目录", "Refresh profile model catalogs")
+                    .into(),
             ),
-            KeyCode::Char('a') if self.tab == 0 => {
-                self.tab = 1;
-                self.tokens(api).await;
-            }
-            KeyCode::Char('n') if self.tab == 1 => {
-                if self.page * crate::services::relay::TOKEN_PAGE_SIZE < self.total {
-                    self.page += 1;
-                    self.tokens(api).await;
-                }
-            }
-            KeyCode::Char('b') if self.tab == 1 => {
-                self.page = self.page.saturating_sub(1).max(1);
-                self.tokens(api).await;
-            }
-            KeyCode::Char('v') if self.tab == 2 => {
-                let enabled = self.config.stack_enabled;
-                self.preview(
-                    RouterCommand::Stack {
-                        command: if enabled {
-                            crate::router::commands::StackCommand::Disable
-                        } else {
-                            crate::router::commands::StackCommand::Enable
-                        },
+            KeyCode::Char('v') => self.preview(
+                RouterCommand::Stack {
+                    command: if self.config.stack_enabled {
+                        StackCommand::Disable
+                    } else {
+                        StackCommand::Enable
                     },
-                    format!(
-                        "{} provider-scoped Stack model IDs / {}配置档模型 ID",
-                        if enabled { "Disable" } else { "Enable" },
-                        if enabled { "关闭" } else { "开启" }
+                },
+                format!("Stack → {}", !self.config.stack_enabled),
+            ),
+            _ => self.tab_key(key, api),
+        }
+        false
+    }
+    fn tab_key(&mut self, key: KeyCode, api: &ApiClient) {
+        let index = self.index();
+        match self.tab {
+            0 => {
+                if key == KeyCode::Char('a') {
+                    self.switch_tab(1);
+                    self.load_tokens(api);
+                    return;
+                }
+                let Some(profile) = index.and_then(|i| self.config.profiles.get(i)).cloned() else {
+                    return;
+                };
+                match key {
+                    KeyCode::Char('d') => self.preview(
+                        RouterCommand::Profile {
+                            command: ProfileCommand::Remove {
+                                id: profile.id.clone(),
+                            },
+                        },
+                        format!(
+                            "{} {}\n{}",
+                            self.theme.t("移除", "Remove"),
+                            profile.name,
+                            profile.id
+                        ),
                     ),
-                );
-            }
-            KeyCode::Char('p') if self.tab == 2 => {
-                self.protocol = (self.protocol + 1) % Protocol::ALL.len();
-                self.selected = 0;
-                self.target = 0;
-            }
-            KeyCode::Char('t') if self.tab == 2 => self.target += 1,
-            KeyCode::Char(' ') if self.tab == 2 => {
-                self.client_model = self.models().get(self.selected).cloned();
-                self.notice = format!(
-                    "Selected client model / 已选客户端模型: {}",
-                    self.client_model.as_deref().unwrap_or("none")
-                );
-            }
-            KeyCode::Char('a') if self.tab == 2 => {
-                if let Some(model) = self.models().get(self.selected).cloned() {
-                    if let Some(profile) = self.target_profile(&model) {
-                        self.alias = Some(AliasEditor {
-                            input: String::new(),
-                            upstream: model,
-                            profile,
-                        });
-                    }
-                }
-            }
-            KeyCode::Char('m') if self.tab == 4 => {
-                self.tab = 2;
-                self.selected = 0;
-            }
-            KeyCode::Char('d') if self.tab == 0 => {
-                if let Some(profile) = self.config.profiles.get(self.selected) {
-                    let id = profile.id.clone();
-                    let name = profile.name.clone();
-                    self.preview(RouterCommand::Profile {command:ProfileCommand::Remove {id}},format!("Remove {name}, all of its routes and keychain credential / 删除配置档及凭证"));
-                }
-            }
-            KeyCode::Char(' ') if self.tab == 0 => {
-                if let Some(profile) = self.config.profiles.get(self.selected) {
-                    let (id, enabled) = (profile.id.clone(), !profile.enabled);
-                    self.preview(
+                    KeyCode::Char(' ') => self.preview(
                         RouterCommand::Profile {
                             command: ProfileCommand::Set {
-                                id: id.clone(),
+                                id: profile.id.clone(),
                                 priority: None,
-                                enabled: Some(enabled),
+                                enabled: Some(!profile.enabled),
                                 name: None,
                             },
                         },
-                        format!("Set profile {id} enabled={enabled} / 更新启用状态"),
-                    );
-                }
-            }
-            KeyCode::Char(delta @ ('+' | '-')) if self.tab == 0 => {
-                if let Some(profile) = self.config.profiles.get(self.selected) {
-                    let (id, priority) = (
-                        profile.id.clone(),
-                        profile
-                            .priority
-                            .saturating_add(if delta == '+' { 1 } else { -1 }),
-                    );
-                    self.preview(RouterCommand::Profile {command:ProfileCommand::Set {id:id.clone(),priority:Some(priority),enabled:None,name:None}},format!("Profile {id} priority → {priority}; smaller is preferred / 数值越小越优先"));
-                }
-            }
-            KeyCode::Char('d') if self.tab == 3 => {
-                if let Some(route) = self.config.routes.get(self.selected) {
-                    let (protocol, model, profile) = (
-                        route.protocol,
-                        route.model.clone(),
-                        route.profile_id.clone(),
-                    );
-                    self.preview(
-                        RouterCommand::Route {
-                            command: RouteCommand::Remove {
-                                protocol,
-                                model: model.clone(),
-                                profile: Some(profile),
+                        format!("{} → {}", profile.name, !profile.enabled),
+                    ),
+                    KeyCode::Char('+') | KeyCode::Char('-') => {
+                        let priority = if key == KeyCode::Char('+') {
+                            profile.priority.saturating_add(1)
+                        } else {
+                            profile.priority.saturating_sub(1)
+                        };
+                        self.preview(
+                            RouterCommand::Profile {
+                                command: ProfileCommand::Set {
+                                    id: profile.id.clone(),
+                                    priority: Some(priority),
+                                    enabled: None,
+                                    name: None,
+                                },
                             },
-                        },
-                        format!(
-                            "Remove {} / {model} routing rule / 删除路由",
-                            protocol.as_str()
-                        ),
-                    );
+                            format!(
+                                "{}  {} → {priority}",
+                                profile.name,
+                                self.theme.t("优先级", "Priority")
+                            ),
+                        );
+                    }
+                    KeyCode::Enter => {
+                        self.detail = true;
+                        self.scroll = 0;
+                    }
+                    _ => {}
                 }
             }
-            KeyCode::Char(delta @ ('+' | '-')) if self.tab == 3 => {
-                if let Some(route) = self.config.routes.get(self.selected) {
-                    let route = route.clone();
-                    let priority = route
-                        .priority
-                        .saturating_add(if delta == '+' { 1 } else { -1 });
-                    self.preview(
-                        RouterCommand::Route {
-                            command: RouteCommand::Set {
-                                protocol: route.protocol,
-                                model: route.model.clone(),
-                                profile: route.profile_id,
-                                upstream_model: route.upstream_model,
-                                priority,
+            1 => match key {
+                KeyCode::Left if self.page > 1 => {
+                    self.page -= 1;
+                    self.load_tokens(api);
+                }
+                KeyCode::Right
+                    if self.page * crate::services::relay::TOKEN_PAGE_SIZE < self.total =>
+                {
+                    self.page += 1;
+                    self.load_tokens(api);
+                }
+                KeyCode::Enter => {
+                    if let Some((id, name)) = index.and_then(|i| self.tokens.get(i)).cloned() {
+                        self.preview(
+                            RouterCommand::Profile {
+                                command: ProfileCommand::Add {
+                                    token_id: id.clone(),
+                                    name: Some(name.clone()),
+                                    priority: 0,
+                                },
                             },
-                        },
-                        format!(
-                            "Route {} priority → {priority} / 调整路由优先级",
-                            route.model
-                        ),
-                    );
-                }
-            }
-            KeyCode::Enter => match self.tab {
-                0 => {
-                    self.tab = 2;
-                    self.selected = 0;
-                }
-                1 => {
-                    if let Some(token) = self.tokens.get(self.selected) {
-                        let (id, name) = (token.id.clone(), token.name.clone());
-                        self.preview(RouterCommand::Profile {command:ProfileCommand::Add {token_id:id.clone(),name:Some(name.clone()),priority:self.config.profiles.len() as i32}},format!("Add {name} ({id}), fetch its models, save secret only in OS keychain / 添加令牌配置档"));
+                            format!("{} {name}\n{id}", self.theme.t("添加配置档", "Add profile")),
+                        );
                     }
                 }
-                2 => {
-                    if let Some(model) = self.models().get(self.selected).cloned() {
-                        if model.starts_with("qys-") {
-                            self.notice = "Stack model is already pinned to its profile; no manual route is needed. / Stack 模型已精确绑定配置档，无需手动创建路由".into();
-                        } else if let Some(profile) = self.target_profile(&model) {
+                _ => {}
+            },
+            2 => {
+                if key == KeyCode::Char('p') {
+                    self.protocol = (self.protocol + 1) % Protocol::ALL.len();
+                    self.selected[2] = 0;
+                    self.target = 0;
+                    return;
+                }
+                if key == KeyCode::Char('t') {
+                    self.target = self.target.saturating_add(1);
+                    return;
+                }
+                let Some(model) = self.selected_model() else {
+                    return;
+                };
+                match key {
+                    KeyCode::Char(' ') => {
+                        self.client_model = Some(model);
+                        self.switch_tab(4);
+                    }
+                    KeyCode::Char('a') => {
+                        if let Some(candidate) = self.target_candidate(&model) {
+                            self.alias = Some(Alias {
+                                text: String::new(),
+                                model: candidate.model,
+                                profile: candidate.profile_id,
+                            });
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(candidate) = self.target_candidate(&model) {
+                            let profile = candidate.profile_id;
+                            let upstream_model =
+                                (candidate.model != model).then_some(candidate.model);
                             self.preview(
                                 RouterCommand::Route {
                                     command: RouteCommand::Set {
                                         protocol: self.protocol(),
                                         model: model.clone(),
                                         profile: profile.clone(),
-                                        upstream_model: None,
+                                        upstream_model,
                                         priority: 0,
                                     },
                                 },
-                                format!(
-                                    "{} / {model} → {profile} / 精确绑定配置档",
-                                    self.protocol().as_str()
-                                ),
+                                format!("{}\n{model} → {profile}", self.protocol().as_str()),
                             );
                         }
                     }
+                    _ => {}
                 }
-                4 => {
-                    let client = CLIENTS[self.selected];
-                    if client == ClientKind::ChatgptDesktop {
-                        self.notice="ChatGPT Desktop has no verified custom Endpoint adapter; no configuration will be changed. 当前不支持，未修改配置。".into();
-                    } else if let Some(model) = self.client_model.clone() {
-                        let preview = crate::router::clients::apply(client, Some(&model), true);
-                        match preview {
-                            Ok(value) => self.preview(
-                                RouterCommand::Apply {
-                                    client,
-                                    model: Some(model),
-                                    dry_run: false,
-                                },
-                                logging::redact(
-                                    &serde_json::to_string_pretty(&value).unwrap_or_default(),
-                                ),
-                            ),
-                            Err(e) => {
-                                self.notice =
-                                    logging::redact(&format!("Cannot prepare client config: {e:#}"))
-                            }
+            }
+            3 => {
+                let Some(route) = index.and_then(|i| self.config.routes.get(i)).cloned() else {
+                    return;
+                };
+                match key {
+                    KeyCode::Char('d') => self.preview(
+                        RouterCommand::Route {
+                            command: RouteCommand::Remove {
+                                protocol: route.protocol,
+                                model: route.model.clone(),
+                                profile: Some(route.profile_id.clone()),
+                            },
+                        },
+                        format!(
+                            "{} {}\n{}",
+                            self.theme.t("删除路由", "Remove route"),
+                            route.model,
+                            route.profile_id
+                        ),
+                    ),
+                    KeyCode::Char('+') | KeyCode::Char('-') => {
+                        let priority = if key == KeyCode::Char('+') {
+                            route.priority.saturating_add(1)
+                        } else {
+                            route.priority.saturating_sub(1)
                         };
-                    } else {
-                        self.notice="Open Models, select the protocol/model and press Space first / 先在模型页按空格选定客户端模型".into();
+                        self.preview(
+                            RouterCommand::Route {
+                                command: RouteCommand::Set {
+                                    protocol: route.protocol,
+                                    model: route.model.clone(),
+                                    profile: route.profile_id,
+                                    upstream_model: route.upstream_model,
+                                    priority,
+                                },
+                            },
+                            format!(
+                                "{}  {} → {priority}",
+                                route.model,
+                                self.theme.t("优先级", "Priority")
+                            ),
+                        );
+                    }
+                    KeyCode::Enter => {
+                        self.detail = true;
+                        self.scroll = 0;
+                    }
+                    _ => {}
+                }
+            }
+            4 => {
+                if key == KeyCode::Char('m') {
+                    self.switch_tab(2);
+                    return;
+                }
+                if key == KeyCode::Enter {
+                    if let Some(client) =
+                        index.and_then(|i| ClientKind::configurable().get(i).copied())
+                    {
+                        self.client_request = Some((client, self.client_model.clone()));
                     }
                 }
-                _ => {}
-            },
-            _ => {}
+            }
+            _ => {
+                if key == KeyCode::Enter {
+                    self.detail = true;
+                    self.scroll = 0;
+                }
+            }
+        }
+    }
+    fn details(&self) -> String {
+        let index = self.index();
+        match self.tab{
+            0=>index.and_then(|i|self.config.profiles.get(i)).map(|p|crate::utils::output::human(&json!({"name":p.name,"id":p.id,"enabled":p.enabled,"priority":p.priority,"models":Protocol::ALL.iter().map(|protocol|(protocol.as_str().to_string(),json!(protocol.models(&p.models).len()))).collect::<serde_json::Map<_,_>>()}),&self.theme.locale)).unwrap_or_default(),
+            1=>index.and_then(|i|self.tokens.get(i)).map(|(id,name)|format!("{name}\nID  {id}\n{} {} / {}",self.theme.t("页码","Page"),self.page,self.total)).unwrap_or_default(),
+            2=>{
+                let model=self.selected_model().unwrap_or_default();let target=self.target_profile(&model).unwrap_or_else(||"—".into());
+                format!("{}\n{model}\n\n{}  {}\nStack  {}",self.protocol().as_str(),self.theme.t("目标","Target"),self.config.profiles.iter().find(|p|p.id==target).map(|p|p.name.as_str()).unwrap_or(&target),self.config.stack_enabled)
+            }
+            3=>index.and_then(|i|self.config.routes.get(i)).map(|r|format!("{}\n{} → {}\n{}\n{}  {}",r.protocol.as_str(),r.model,r.upstream_model.as_deref().unwrap_or(&r.model),r.profile_id,self.theme.t("优先级","Priority"),r.priority)).unwrap_or_default(),
+            4=>format!("{}\n{}  {}",index.and_then(|i|ClientKind::configurable().get(i).copied()).map(|c|c.id()).unwrap_or_default(),self.theme.t("模型","Model"),self.client_model.as_deref().unwrap_or("—")),
+            _=>crate::utils::output::human(&self.status,&self.theme.locale),
         }
     }
     pub fn render(&self, frame: &mut ratatui::Frame) {
-        let [header, tabs, body, footer] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(6),
-            Constraint::Length(4),
-        ])
-        .areas(frame.area());
-        frame.render_widget(Paragraph::new(format!("Quyan Local Router / 本地路由  {}  |  {}\n固定入口 · 按模型路由 · 热切换 · 不记录提示词",if self.status["running"]==true {"RUNNING 运行中"} else {"STOPPED 已停止"},self.config.base_url())).block(Block::default().borders(Borders::BOTTOM)),header);
-        frame.render_widget(
-            Tabs::new(TABS.to_vec())
-                .select(self.tab)
-                .highlight_style(Style::default().fg(Color::Cyan))
-                .block(Block::default().borders(Borders::BOTTOM)),
-            tabs,
+        let title = format!(
+            "{}  {}",
+            self.theme.t("本地路由", "Local Router"),
+            if self.status["running"] == true {
+                "●"
+            } else {
+                "○"
+            }
         );
-        if self.work.is_some() {
-            frame.render_widget(Paragraph::new("Applying confirmed operation… / 正在执行已确认操作
-
-The interface remains responsive; another write or exit is available after this operation finishes. / 操作完成后可继续写入或返回。").wrap(Wrap {trim:false}).block(Block::default().borders(Borders::ALL).title(" Working / 执行中 ")),body);
-        } else if let Some(preview) = &self.preview {
-            frame.render_widget(Paragraph::new(format!("PREVIEW / 操作预览\n\n{}\n\nConfirm with y; n/Esc cancels. / y 确认，n/Esc 取消",preview.description)).wrap(Wrap {trim:false}).block(Block::default().borders(Borders::ALL).title(" Confirm before writing / 写入确认 ")),body);
-        } else if let Some(editor) = &self.alias {
-            frame.render_widget(Paragraph::new(format!("Client-facing alias / 客户端别名: {}▏\nUpstream / 实际模型: {}\nProfile / 配置档: {}\n\nType an alias, Enter previews; Esc cancels. / 输入别名后 Enter 预览",editor.input,editor.upstream,editor.profile)).wrap(Wrap {trim:false}).block(Block::default().borders(Borders::ALL)),body);
+        let keys = if self.pending.is_some() {
+            self.theme
+                .t("y 确认  n/Esc 取消", "y confirm  n/Esc cancel")
+        } else if self.search || self.alias.is_some() {
+            self.theme.t("Enter 完成  Esc 返回", "Enter done  Esc back")
         } else {
-            let [list, details] =
-                Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)])
-                    .areas(body);
-            let items = self
-                .rows()
-                .into_iter()
-                .map(ListItem::new)
-                .collect::<Vec<_>>();
-            let mut state = ListState::default().with_selected(Some(self.selected));
-            frame.render_stateful_widget(
-                List::new(items)
-                    .highlight_style(Style::default().fg(Color::Black).bg(Color::Cyan))
-                    .highlight_symbol("› ")
-                    .block(Block::default().borders(Borders::ALL).title(TABS[self.tab])),
-                list,
-                &mut state,
-            );
-            let detail=match self.tab {
-                0=>self.config.profiles.get(self.selected).map(|p|format!("{}\nID: {}\nRelay Token: {}\nPriority / 优先级: {}\nEnabled / 启用: {}\nModels / 模型: {}\nRefreshed / 刷新: {}\n\nEnter: models | a: add | Space: enable\n+/-: priority | d: remove\n\nSecret stays in OS keychain / 密钥只在系统密钥链",p.name,p.id,p.relay_token_id,p.priority,p.enabled,Protocol::ALL.iter().map(|t|format!("{}:{}",t.as_str(),t.models(&p.models).len())).collect::<Vec<_>>().join(" / "),p.last_models_refresh_at.as_deref().unwrap_or("not refreshed"))).unwrap_or_else(||"No profiles. Press a to choose a Relay Token. / 按 a 添加配置档".into()),
-                1=>format!("Relay Token page {} / {} items\n\nEnter: preview adding selected token\nn/b: next/previous page\n\n令牌只显示名称和 ID；不会显示密钥。",self.page,self.total),
-                2=>{let model=self.models().get(self.selected).cloned().unwrap_or_default();format!("Protocol / 协议: {}\nModel / 模型: {}\nTarget / 目标: {}\n\np: protocol | t: next compatible profile\nv: toggle Stack model IDs\nEnter: bind | a: create alias\nSpace: select for client setup\n\n候选由令牌可用模型决定；物理渠道仍由 Relay 选择。",self.protocol().as_str(),model,self.target_profile(&model).unwrap_or_else(||"none".into()))},
-                3=>self.config.routes.get(self.selected).map(|r|format!("Protocol: {}\nRequested: {}\nUpstream: {}\nProfile: {}\nPriority: {}\n\n+/-: priority | d: remove\n按请求模型、协议绑定到配置档；不发明渠道请求头。",r.protocol.as_str(),r.model,r.upstream_model.as_deref().unwrap_or(&r.model),r.profile_id,r.priority)).unwrap_or_else(||"No explicit routes; compatible profiles are chosen automatically. / 目前使用自动模型匹配。".into()),
-                4=>format!("Client / 客户端: {}\nSelected model / 已选模型: {}\n\nm: choose model\nEnter: preview config + backups\n\nClaude Desktop uses its own 3P profile.\n首次接入可能需要重启，之后路由变更无需重启。\nChatGPT Desktop 不做证书劫持。",CLIENTS[self.selected].id(),self.client_model.as_deref().unwrap_or("choose on Models tab")),
-                _=>serde_json::to_string_pretty(&self.status).unwrap_or_default(),
-            };
+            self.theme.t(
+                "Tab 切页  / 搜索  Enter 打开  ? 帮助  Esc 返回",
+                "Tab page  / search  Enter open  ? help  Esc back",
+            )
+        };
+        let body = ui::shell(frame, &title, &self.notice, keys, &self.theme);
+        let [tabs, filter, area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(1),
+        ])
+        .areas(body);
+        // Compact terminals show the active tab; Tab still reaches every page.
+        if body.width >= 70 {
             frame.render_widget(
-                Paragraph::new(detail).wrap(Wrap { trim: false }).block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title(" Details / 详情 "),
-                ),
-                details,
+                Tabs::new(self.tabs().to_vec())
+                    .select(self.tab)
+                    .highlight_style(self.theme.accent())
+                    .divider(" "),
+                tabs,
+            );
+        } else {
+            frame.render_widget(
+                Paragraph::new(format!("‹ {} ›", self.tabs()[self.tab])).style(self.theme.accent()),
+                tabs,
             );
         }
-        frame.render_widget(Paragraph::new(format!("Tab/Shift-Tab: page | ↑↓: select | r: refresh | s: start | x: stop | f: refresh models | Esc: back\n{}",self.notice)).wrap(Wrap {trim:false}).block(Block::default().borders(Borders::TOP)),footer);
+        frame.render_widget(
+            Paragraph::new(if self.search || !self.query.is_empty() {
+                format!("/ {}{}", self.query, if self.search { "▏" } else { "" })
+            } else {
+                self.config.base_url()
+            }),
+            filter,
+        );
+        if let Some(pending) = &self.pending {
+            ui::text(
+                frame,
+                area,
+                self.theme.t("确认", "Confirm"),
+                &pending.summary,
+                self.scroll,
+            );
+            return;
+        }
+        if let Some(alias) = &self.alias {
+            ui::text(
+                frame,
+                area,
+                self.theme.t("模型别名", "Model alias"),
+                &format!("{}▏\n→ {}\n{}", alias.text, alias.model, alias.profile),
+                0,
+            );
+            return;
+        }
+        let rows = self.all_rows();
+        let filtered = self
+            .indices()
+            .into_iter()
+            .filter_map(|i| rows.get(i).cloned())
+            .collect::<Vec<_>>();
+        let filtered = if filtered.is_empty() {
+            vec![self.theme.t("暂无结果", "No results").into()]
+        } else {
+            filtered
+        };
+        if area.width < 92 && self.detail {
+            ui::text(
+                frame,
+                area,
+                self.tabs()[self.tab],
+                &self.details(),
+                self.scroll,
+            );
+        } else if area.width >= 92 {
+            let [list, detail] =
+                Layout::horizontal([Constraint::Percentage(42), Constraint::Percentage(58)])
+                    .areas(area);
+            ui::list(
+                frame,
+                list,
+                self.tabs()[self.tab],
+                filtered,
+                self.selected[self.tab],
+                &self.theme,
+            );
+            ui::text(
+                frame,
+                detail,
+                self.theme.t("详情", "Details"),
+                &self.details(),
+                self.scroll,
+            );
+        } else {
+            ui::list(
+                frame,
+                area,
+                self.tabs()[self.tab],
+                filtered,
+                self.selected[self.tab],
+                &self.theme,
+            );
+        }
+    }
+    pub fn help(&self) -> String {
+        self.theme.t("Tab / Shift+Tab  切换页签\ns / x  启动 / 停止\nf  刷新模型目录\nv  切换 Stack\n配置档：a 添加 · Space 启停 · +/- 优先级 · d 移除\n令牌：Enter 添加配置档 · ←→ 翻页\n模型：p 协议 · t 目标 · Enter 绑定 · a 别名 · Space 选用\n路由：+/- 优先级 · d 删除\n客户端：m 选择模型 · Enter 配置","Tab / Shift+Tab  tabs\ns / x  start / stop\nf  refresh catalogs\nv  toggle Stack\nProfiles: a add · Space enable · +/- priority · d remove\nTokens: Enter add profile · ←→ pages\nModels: p protocol · t target · Enter bind · a alias · Space select\nRoutes: +/- priority · d remove\nClients: m select model · Enter configure").into()
+    }
+}
+impl Drop for RouterView {
+    fn drop(&mut self) {
+        if let Some(task) = self.snapshot.take() {
+            task.abort();
+        }
+        if let Some(task) = self.token_task.take() {
+            task.abort();
+        }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn a_pending_mutation_is_a_preview_not_an_execution() {
-        let mut view = RouterView::default();
-        view.preview(RouterCommand::Stop, "Stop Router".into());
-        assert!(view.modal());
-        assert!(view.config.profiles.is_empty());
+    fn stack_bindings_and_aliases_keep_the_original_upstream_model() {
+        let mut view = RouterView::new(Theme {
+            locale: "en-US".into(),
+            no_color: true,
+        });
+        view.config.stack_enabled = true;
+        view.config.profiles.push(config::RouterProfile {
+            id: "fixture".into(),
+            name: "Fixture".into(),
+            relay_token_id: "fixture-token".into(),
+            stack_key: "fixture".into(),
+            relay_base_url: "https://relay.example.test".into(),
+            enabled: true,
+            priority: 0,
+            models: config::RouterModels {
+                openai: vec!["upstream-model".into()],
+                ..Default::default()
+            },
+            last_models_refresh_at: None,
+        });
+        view.tab = 2;
+        let model = routing::stack_model_id(Protocol::Openai, "fixture", "upstream-model");
+        view.selected[2] = view
+            .models()
+            .iter()
+            .position(|item| item == &model)
+            .unwrap();
+        let api = ApiClient::with_endpoints(
+            Default::default(),
+            "en-US",
+            "http://127.0.0.1:1",
+            "http://127.0.0.1:1",
+        )
+        .unwrap();
+        view.tab_key(KeyCode::Enter, &api);
+        let pending = view.pending.take().unwrap();
+        match pending.command {
+            RouterCommand::Route {
+                command:
+                    RouteCommand::Set {
+                        model: selected,
+                        upstream_model,
+                        profile,
+                        ..
+                    },
+            } => {
+                assert_eq!(selected, model);
+                assert_eq!(upstream_model.as_deref(), Some("upstream-model"));
+                assert_eq!(profile, "fixture");
+            }
+            _ => panic!("expected a route preview"),
+        }
+        view.tab_key(KeyCode::Char('a'), &api);
+        assert_eq!(view.alias.as_ref().unwrap().model, "upstream-model");
     }
     #[test]
-    fn narrow_workspace_and_confirmation_render_without_secrets() {
-        let mut term = ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
-        let mut view = RouterView::default();
-        view.preview(RouterCommand::Start, "Start loopback Router".into());
-        term.draw(|frame| view.render(frame)).unwrap();
-        let output = format!("{:?}", term.backend().buffer());
-        assert!(output.contains("Start loopback Router"));
-        assert!(!output.contains("rlt_"));
-    }
-}
-
-impl Drop for RouterView {
-    fn drop(&mut self) {
-        if let Some(task) = self.token_work.take() {
-            task.abort();
-        }
-        if let Some(task) = self.poll_task.take() {
-            task.abort();
+    fn customer_router_has_three_clients_and_explicit_mutation_preview() {
+        let mut view = RouterView::new(Theme {
+            locale: "en-US".into(),
+            no_color: true,
+        });
+        view.preview(RouterCommand::Stop, "Stop local Router".into());
+        assert!(view.captures());
+        assert!(!view.busy());
+        assert_eq!(ClientKind::configurable().len(), 3);
+        for (width, height) in [(120, 36), (80, 24), (60, 20)] {
+            let mut term =
+                ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+            term.draw(|frame| view.render(frame)).unwrap();
+            let output = format!("{:?}", term.backend().buffer());
+            assert!(output.contains("Stop local Router"));
+            assert!(!output.contains("sk-rlt-"));
         }
     }
 }

@@ -60,6 +60,12 @@ describe("createRequestSizeGuard", () => {
   });
 
   describe("Content-Length pre-check (Layer 1)", () => {
+    it("applies the JSON budget to vendor +json content types", () => {
+      const guard = createRequestSizeGuard({ maxJsonBytes: 100, maxMultipartBytes: 100, maxOtherBytes: 1000 });
+      mockReq.headers = { "content-type": "application/vnd.fixture+json; charset=utf-8", "content-length": "200" };
+      guard(mockReq, mockRes as Response, mockNext);
+      expect(mockNext).toHaveBeenCalledWith(expect.any(PayloadTooLargeError));
+    });
     it("sends rejection headers before upload ends and delays only the final response chunk", () => {
       const guard = createRequestSizeGuard({ maxJsonBytes: 100, maxMultipartBytes: 100, maxOtherBytes: 100 });
       mockReq.headers = { "content-type": "application/json", "content-length": "200" };

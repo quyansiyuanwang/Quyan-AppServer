@@ -2,7 +2,9 @@ import { RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { parseLegacyPermissions } from "@/iam/legacy-policy";
 import { Prisma } from "@prisma/client";
-import { Permission, getOAuthScopeAliases, toCanonicalCredential } from "@quyan/shared";
+import { Permission, getOAuthScopeAliases } from "@quyan/shared";
+import { plaintextCredentialValues } from "../plaintext-credential";
+import { freshRelayCredential, relayCredentialOccupied } from "./relay-credential-admission";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
@@ -12,7 +14,6 @@ import type { RelayTokenAuthorityIdentity } from "./relay-token-authority";
 import type { RelayTokenUpdateInput } from "./relay-token.store";
 import { RelayCompositionRepository } from "./relay-composition.repository";
 import { validateRelayComposition, type RelayCompositionNode } from "@/util/relay/relay-composition.util";
-import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
 import { RelayTokenCapabilityRepository } from "./relay-token-capability.repository";
 import { BadRequestError } from "@/util/errors";
 const selection = {
@@ -196,22 +197,12 @@ export class RelayTokenUpdateAdmissionRepository {
     return { free, revision: await captureIamOAuthRevision(identity.principal, identity.oauth, [required], tx) };
   }
   async credential(tx: Prisma.TransactionClient, preferred: string, reserved: ReadonlySet<string> = new Set()) {
-    const normalized = preferred.trim(),
-      canonical = toCanonicalCredential(normalized, "relayToken");
-    const values = [...new Set([normalized, canonical])];
-    const occupied = await tx.relayToken.findFirst({
-      where: { OR: [{ token: { in: values } }, { legacyToken: { in: values } }] },
-      select: { id: true },
-    });
-    if (!occupied && !values.some((value) => reserved.has(value))) return { token: canonical, retainAlias: true };
-    let token: string;
-    do {
-      token = generateRelayTokenValue();
-    } while (
-      reserved.has(token) ||
-      (await tx.relayToken.findFirst({ where: { OR: [{ token }, { legacyToken: token }] }, select: { id: true } }))
-    );
+    const normalized = preferred.trim();
+    const values = plaintextCredentialValues(normalized, "relayToken");
+    const canonical = values[0];
+    if (canonical && !values.some((value) => reserved.has(value)) && !(await relayCredentialOccupied(tx, normalized)))
+      return { token: canonical, retainAlias: true };
     // Never retain an alias belonging to another credential when falling back to a generated value.
-    return { token, retainAlias: false };
+    return { token: await freshRelayCredential(tx, reserved), retainAlias: false };
   }
 }

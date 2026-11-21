@@ -1,5 +1,6 @@
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceGuard } from "./middleware/ai-resource-guard";
+import { isRelayProxyPath, relayJsonBodyParser } from "./middleware/relay-body-parser";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import express from "express";
 import type { TypedRequest } from "@/types/express";
@@ -108,15 +109,18 @@ export function createApp() {
   // 第一层：检查 Content-Length 头（快速拒绝诚实客户端的超大请求）
   // 第二层：监听 data 事件计算实际到达字节，防止伪造 Content-Length 的攻击
   // 必须在所有 body-parser 之前注册
-  app.use(
+  app.use((req, res, next) =>
     createRequestSizeGuard({
-      maxJsonBytes: requestSizeLimitConfig.jsonBodyLimitMb * 1024 * 1024,
-      get maxMultipartBytes() {
-        return getAIResourceConfig().relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024;
-      },
+      maxJsonBytes:
+        (isRelayProxyPath(req.path)
+          ? getAIResourceConfig().relay.resourceGuard.jsonBodyLimitMb
+          : requestSizeLimitConfig.jsonBodyLimitMb) *
+        1024 *
+        1024,
+      maxMultipartBytes: getAIResourceConfig().relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024,
       maxArchiveBytes: requestSizeLimitConfig.archiveImportBodyLimitMb * 1024 * 1024,
       maxOtherBytes: requestSizeLimitConfig.otherBodyLimitMb * 1024 * 1024,
-    }),
+    })(req, res, next),
   );
 
   // Keep multipart relay uploads bounded. Large image payloads can otherwise monopolize
@@ -127,13 +131,7 @@ export function createApp() {
       limit: `${getAIResourceConfig().relay.resourceGuard.multipartBodyLimitMb}mb`,
     })(req, res, next),
   );
-  app.use(
-    "/relay/proxy",
-    express.raw({
-      type: ["application/json", "application/*+json"],
-      limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb`,
-    }),
-  );
+  app.use(relayJsonBodyParser);
   app.use(
     "/v1/data-maintenance/imports",
     express.raw({
@@ -141,8 +139,14 @@ export function createApp() {
       limit: `${requestSizeLimitConfig.archiveImportBodyLimitMb}mb`,
     }),
   );
-  app.use(express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` }));
-  app.use(express.urlencoded({ extended: true, limit: `${requestSizeLimitConfig.urlencodedBodyLimitMb}mb` }));
+  const jsonParser = express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` });
+  const formParser = express.urlencoded({ extended: true, limit: `${requestSizeLimitConfig.urlencodedBodyLimitMb}mb` });
+  app.use((req, res, next) =>
+    isRelayProxyPath(req.path) && Buffer.isBuffer(req.body) ? next() : jsonParser(req, res, next),
+  );
+  app.use((req, res, next) =>
+    isRelayProxyPath(req.path) && Buffer.isBuffer(req.body) ? next() : formParser(req, res, next),
+  );
   // Trust only the explicitly configured number of reverse-proxy hops.
   // The default (0) prevents client-controlled forwarding headers from affecting req.ip.
   app.set("trust proxy", env.runtime.trustProxyHops);
@@ -163,15 +167,19 @@ export function createApp() {
   // RSS includes external buffers; use the same configurable high watermark as AI admission.
   startMemoryMonitor({
     intervalMs: 60000,
-    warningThresholdMb: getAIResourceConfig().aiResources.memory.highWatermarkBytes / 1024 / 1024,
+    get warningThresholdMb() {
+      return getAIResourceConfig().aiResources.memory.highWatermarkBytes / 1024 / 1024;
+    },
   });
 
   app.use(localeMiddleware);
 
   // Configure server timeouts to prevent hanging connections
   app.use((req, res, next) => {
-    // Set response timeout to 10 minutes (600 seconds)
-    res.setTimeout(600000, () => {
+    const timeout = isRelayProxyPath(req.path)
+      ? getAIResourceConfig().relay.resourceGuard.downstreamIdleTimeoutMs
+      : 600000;
+    res.setTimeout(timeout, () => {
       logger.warn("Response timeout", { path: req.path, method: req.method });
       if (!res.headersSent)
         sendApplicationError(

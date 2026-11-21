@@ -6,7 +6,7 @@ import {
   type RelayTokenChannelChange,
 } from "./relay-token-channel-change.repository";
 import { RelayChannelSelectionRepository } from "./relay-channel-selection.repository";
-import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
+import { freshRelayCredential } from "./relay-credential-admission";
 import type { ContentSafetyPolicyOverride } from "@quyan/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
@@ -207,7 +207,7 @@ export class RelayTokenMutationRepository {
                 change.kind === "toggle"
                   ? { status: current[0]!.status === 1 ? 0 : 1 }
                   : change.kind === "refresh"
-                    ? { token: generateRelayTokenValue(), legacyToken: null }
+                    ? { token: await freshRelayCredential(tx), legacyToken: null }
                     : data,
             });
             if (result.count !== targets.length) throw iamAccountDenied();

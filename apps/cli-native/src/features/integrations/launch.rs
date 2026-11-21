@@ -78,7 +78,7 @@ fn command(
 
 // npm tools may only expose a .cmd launcher on Windows. Resolve it without
 // constructing a shell command; std::process handles argument escaping.
-fn resolve_program(program: &std::ffi::OsStr) -> OsString {
+pub(crate) fn resolve_program(program: &std::ffi::OsStr) -> OsString {
     #[cfg(windows)]
     if let Some(path) = std::env::var_os("PATH") {
         if let Some(found) = resolve_windows_launcher(program, &path) {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { AlipayOrderDto, AlipayRefundDto, PublicAlipayConfigDto } from '@/client/types.gen'
 import { alipayService } from '@/service/alipayService'
@@ -242,7 +243,13 @@ onBeforeUnmount(() => {
 
 <template>
   <el-card v-if="showPanel" class="page-card alipay-orders" v-loading="loading">
-    <template #header>{{ i18ns.t(management ? 'alipay.management' : 'alipay.title') }}</template>
+    <template #header>
+      <template v-if="management">{{ i18ns.t('alipay.management') }}</template>
+      <div v-else class="alipay-orders__heading">
+        <h2>{{ i18ns.t('alipay.title') }}</h2>
+        <el-button :icon="Refresh" link @click="load">{{ i18ns.t('refresh') }}</el-button>
+      </div>
+    </template>
     <el-alert
       v-if="config?.sandbox"
       :title="i18ns.t('alipay.sandboxNotice')"
@@ -281,7 +288,7 @@ onBeforeUnmount(() => {
       /></el-form-item>
       <el-button @click="search">{{ i18ns.t('search') }}</el-button>
     </el-form>
-    <el-button @click="load">{{ i18ns.t('refresh') }}</el-button>
+    <el-button v-if="management" @click="load">{{ i18ns.t('refresh') }}</el-button>
     <el-table :data="orders">
       <el-table-column prop="outTradeNo" :label="i18ns.t('alipay.order')" min-width="220" />
       <el-table-column
@@ -395,6 +402,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .alipay-orders {
   margin-block: 20px;
+}
+.alipay-orders__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .alipay-orders :deep(.el-alert),
 .alipay-orders :deep(.el-form),

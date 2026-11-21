@@ -15,6 +15,7 @@ pub const DEFAULT_LISTEN_PORT: u16 = 15721;
 // are rejected by the server; administrative requests use a separate nonce.
 pub const LOCAL_API_KEY: &str = "quyan-local-router";
 pub const LOCAL_KEY_ENV: &str = "QUYAN_PROXY_API_KEY";
+pub const LOCAL_PROVIDER_ID: &str = "quyan-router";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

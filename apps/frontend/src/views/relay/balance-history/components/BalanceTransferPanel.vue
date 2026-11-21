@@ -202,12 +202,14 @@ onMounted(load)
         <el-button v-if="config?.directTransferEnabled" :icon="Switch" @click="openTransferDialog">
           {{ i18ns.t('balance.directTransfer') }}
         </el-button>
-        <el-button :icon="Refresh" circle @click="refresh" />
       </div>
     </div>
 
     <div class="balance-transfer-panel__codes">
-      <h3>{{ i18ns.t('balance.myGiftCodes') }}</h3>
+      <div class="balance-transfer-panel__list-heading">
+        <h3>{{ i18ns.t('balance.myGiftCodes') }}</h3>
+        <el-button :icon="Refresh" link @click="refresh">{{ i18ns.t('refresh') }}</el-button>
+      </div>
       <el-table :data="giftCodes" size="small" empty-text="-">
         <el-table-column prop="code" :label="i18ns.t('redemption.code')" min-width="210">
           <template #default="{ row }">
@@ -370,23 +372,12 @@ onMounted(load)
 </template>
 
 <style scoped>
-.balance-transfer-panel {
-  padding: 20px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-}
 .balance-transfer-panel__heading {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px 16px;
   align-items: start;
-}
-.balance-transfer-panel__heading h2,
-.balance-transfer-panel__heading h3 {
-  margin: 0;
-  font-size: 16px;
 }
 .balance-transfer-panel__heading p {
   margin: 6px 0 0;
@@ -402,8 +393,18 @@ onMounted(load)
 .balance-transfer-panel__codes {
   margin-top: 18px;
 }
+.balance-transfer-panel__list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .balance-transfer-panel__codes h3 {
-  margin-bottom: 10px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 .balance-transfer-dialog__form {
   padding-top: 2px;
@@ -453,9 +454,6 @@ onMounted(load)
   margin-top: 18px;
 }
 @media (max-width: 768px) {
-  .balance-transfer-panel {
-    padding: 14px;
-  }
   .balance-transfer-panel__actions {
     width: 100%;
     justify-content: flex-start;
@@ -469,11 +467,8 @@ onMounted(load)
   .balance-transfer-dialog__footer > .el-button {
     flex: 1;
   }
-  .balance-transfer-panel__actions > .el-button:not(.is-circle) {
-    flex: 1 1 148px;
-  }
-  .balance-transfer-panel__actions > .el-button.is-circle {
-    flex: 0 0 auto;
+  .balance-transfer-panel__actions > .el-button {
+    flex: 1 1 auto;
   }
   .balance-transfer-panel__codes :deep(.el-table) {
     font-size: 12px;

@@ -18,32 +18,36 @@ Supported targets are `windows-x64`, `linux-x64`, `linux-arm64`, `macos-x64`
 and `macos-arm64`. Credentials use `sk-ak-` for account APIs (legacy `ak_` is accepted), `sk-rlt-` for AI Relay (legacy `rlt_` is accepted), and `sk-dpk-` for JSON Endpoints (legacy `dpk_` is accepted). Secrets are stored in
 the OS keychain.
 
-Running `quyan` without a subcommand opens the Ratatui control center. It
-shows the shared QuYan ASCII banner, a keyboard-navigable list of account,
-Relay, client configuration, JSON Endpoints and diagnostic workflows, and the
-exact command for the selected action. Use `Up`/`Down` or `j`/`k` to select,
-`Enter` to open the selection, or `1` through `7` to open a home action
-directly. `?` or `h` shows this key guide.
+Run `quyan` without a subcommand for the compact customer console. Home
+shortcuts `1`–`7` open sign-in, account, Relay, AI clients, JSON Endpoints,
+diagnostics and local routing. Use arrows or j/k, Enter, Esc and q. `?` opens
+contextual help and the shared banner. Addresses, paths and events stay in
+diagnostics. Wide lists show details beside them; narrow lists open details
+with Enter. Results support Home/End and PageUp/PageDown.
 
-All home actions are active. Browser login runs the OAuth flow, account loads
-profile/balance/usage, JSON Endpoints reads the product instance, and
-configuration shows safe runtime state. AI client configuration supports Claude
-Code, Codex and pi: choose a client and model, preview with Enter, then confirm
-with y to apply with backup. Secrets remain in the OS keychain. Use
-`quyan launch --client <client>` to inject the selected Relay Token into the
-child process environment. `quyan apply` without a client only lists adapters.
+Relay supports `/` search across all authorized pages, c to create with a name,
+e to rename, d to delete and u to select local credentials. Writes preview the
+target and require y; n/Esc cancels. Partial searches are marked incomplete.
+Network and configuration jobs keep the UI responsive; quitting waits for writes.
+Token values are never rendered or written to events.
 
-In AI Relay, r refreshes, Left/Right changes pages, Enter loads usage, c creates
-and d deletes a token after confirmation. Press u then y to select a token for
-local tools; the secret is never rendered. The equivalent explicit command is
-`quyan relay token use <token-id>`. Use b/Esc to return, q to exit.
+AI clients supports Claude Code, Codex and pi. Tab selects fields; left/right
+changes the client or direct/Router connection. m opens the model picker,
+i accepts a manual model, a previews configuration and l launches the client.
+Configuration writes use backups and reject changes made after preview.
+The child gets a normal terminal; the console resumes when it exits.
+
+Human subcommands use compact output without banners. `--json` preserves
+machine output, and `quyan --json` returns local status. `--lang` overrides the
+saved locale for one run; `--no-color` or `NO_COLOR` disables colors. Redirected
+sessions use explicit subcommands instead of opening a TUI.
 
 Browser login opens the identity site at `/oauth/authorize` (normally
 `https://auth.qysyw.cn`) and exchanges the returned code through the API at
 `/v1/oauth/token`. The API authorization endpoint is protected and is not a
 browser page. The CLI uses the pre-registered loopback callback
 `http://127.0.0.1:40016/callback`. While waiting for the callback the control
-center shows a waiting state with the callback address and a cancel hint;
+center shows a waiting state and a cancel hint;
 `Esc` or `q` aborts the login and returns to the menu. Success automatically
 returns to the menu and updates credential status. The loopback response redirects
 to the configured identity site's `/oauth/result` only after code exchange and
@@ -94,11 +98,12 @@ provider is separate from the existing direct Relay provider. SSE is forwarded
 without buffering the entire response, and profile failover never replays a
 response after forwarding starts. Invalid edits retain the last valid snapshot.
 
-Claude Desktop has its own 3P configLibrary adapter and an explicit model-to-role
-mapping; initial takeover may require one restart. ChatGPT Desktop has no
-verified configuration adapter and is not intercepted or patched. The Router is
-not installed as an OS login service. See the bilingual `quyan-cli` docs-site
-page for routing priorities, TUI keys, credential boundaries and compatibility.
+Router adapters support Claude Code, Codex and pi; desktop takeover is outside
+this release. The Router runs independently of the TUI and is not an OS login
+service. Use `router stop --yes` to stop it. Local profile removal clears its
+keychain entry and routes, not the server token. Account logout does not remove
+Router profiles. See the bilingual `quyan-cli` docs-site page for all keys and
+credential boundaries.
 
 ### Server-side composite profiles
 
