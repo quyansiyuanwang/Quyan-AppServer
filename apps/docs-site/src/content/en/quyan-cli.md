@@ -65,15 +65,21 @@ The authenticated state in `quyan status` only indicates locally stored account 
 
 ## Use the interactive console
 
-Run `quyan` without a subcommand to open the TUI. Select with `Up`/`Down` or `j`/`k`, open with `Enter`, show help with `?`/`h`, and return with `b`/`Esc`. On the home screen, `q` or `Esc` exits. Available workflows include browser login, account overview, AI Relay, AI client setup, JSON Endpoints, and configuration and diagnostics.
+Run `quyan` without a subcommand to open the customer console. Home shortcuts `1`–`7` open sign-in, account, AI Relay, AI clients, JSON Endpoints, diagnostics, and local routing. Select with arrows or `j`/`k`, open with `Enter`, return with `Esc`, and quit with `q`. The banner and complete key guide live under `?`; addresses, configuration paths, and events live in diagnostics.
 
-On the AI Relay page, `r` refreshes, `Left`/`Right` changes pages, and `Enter` loads the selected token's usage. Creating with `c`, deleting with `d`, and selecting a local token with `u` require checking the target and confirming with `y`. Deletion affects the server token; local selection does not change its channels, quota, or permissions. Explicit command-line create and delete commands submit directly without this confirmation screen. After a timeout, check the web console or list before retrying.
+Wide terminals show lists beside details. Narrow terminals use `Enter` to open details and `Esc` to return. Long content supports arrows, `PageUp`/`PageDown`, and `Home`/`End`. Profile, balance, and usage load independently; one failure does not clear the others.
+
+In AI Relay, `/` searches every authorized token by name or ID. Pages load progressively; a failed scan retains partial results and marks them incomplete. Outside search, `Left`/`Right` changes pages. Use `r` to refresh, `Enter` for usage, `c` to create with a name, `e` to rename, `d` to delete, and `u` to select local credentials. Writes show the target first: `y` confirms and `n` or `Esc` cancels. Deletion is irreversible; selecting local credentials does not change server channels, quota, or permissions.
+
+While entering names or searches, character shortcuts such as `q`, `j`, and `k` become text. Confirmed writes run in the background and cannot be submitted twice; quitting waits for them. Explicit command-line create and delete commands continue to submit directly. Check the result before retrying after a timeout.
+
+Human command output uses compact fields or tables. `--json` preserves machine-readable JSON; `quyan --json` alone returns local status. `--lang zh-CN` / `--lang en-US` temporarily overrides the saved locale. `--no-color` or `NO_COLOR` disables colors. Use subcommands or `--json` with redirected output; the TUI will not open there.
 
 ## Configure local AI tools
 
 1. Select an existing token in **AI Relay**, press `u`, check its name, and press `y` to store the local Relay credential. Alternatively, run `quyan relay token use <token-id>`. The token must be enabled and unexpired; your account must be able to read both details and the secret. With IAM enforcement, listing or detail access alone is insufficient: you also need `quyan:relay:RevealToken` for that token. If only metadata is visible, request the necessary scoped authorization or securely import a Relay token from an authorized source.
-2. Open **Configure AI clients**, select Claude Code, Codex, or pi with `Tab` or arrow keys, enter a model ID, and press `Enter` to preview. Check the path, URL, and model; press `y` to write with backup or `n` to cancel. pi requires a model; the others can retain their existing model. Use your actual Relay model catalog.
-3. Run `quyan launch --client <client>`. The credential is loaded from the keychain and injected into the child environment, never added to ordinary configuration or command arguments.
+2. Open **AI clients**. Use `Tab` / `Shift+Tab` for fields and left/right to choose Claude Code, Codex, or pi and a direct or Router connection. Press `m` for a searchable protocol-compatible model picker, or `i` for manual entry. Press `a` to preview paths, address, and model; `y` writes with backup and `n` / `Esc` cancels. If the client file or Router configuration changes after preview, preview again.
+3. Press `l` to launch, or run `quyan launch --client <client>`. Exiting the tool returns to the TUI. Direct credentials enter only the child environment; Router clients use a public local placeholder. Imported Relay tokens lack a token ID: enter models manually when the catalog is unavailable, or select the token again in AI Relay.
 
 ```bash
 # Without a client, list adapters without modifying files
@@ -118,6 +124,31 @@ These provide `OPENAI_API_KEY` / `OPENAI_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` / `
 
 File adapters support only the three tools in the table. For Cursor, Windsurf, Cline, Continue, Aider, or other tools, follow their documentation and supported protocol and configuration format.
 
+## Local model routing
+
+Home action `7` manages the local Router and never edits platform channels. Profiles use Relay tokens you can read and select, with protocol catalogs, model bindings, aliases, priorities, and Stack models. Physical channel selection and billing remain on the server.
+
+```bash
+quyan router profile add --token-id <token-id> --yes
+quyan router models
+quyan router start --yes
+quyan router apply --client codex --model <responses-model-id> --dry-run
+quyan router apply --client codex --model <responses-model-id> --yes
+quyan launch --router --client codex --model <responses-model-id>
+quyan router status
+quyan router stop --yes
+```
+
+The default address is `http://127.0.0.1:15721`, bound only to loopback. Router runs independently: exiting the TUI does not stop it, and it is not installed as a login service. Stopping interrupts connected tools; listening-address changes require stop/start. Invalid configuration or unavailable credentials retain the last valid running snapshot.
+
+Use `Tab` / `Shift+Tab` for Profiles, Tokens, Models, Routes, Clients, and Status, `/` to filter the current list, `s` to start, `x` to stop, and `f` to refresh catalogs. On Profiles, `a` adds, Space enables/disables, `+`/`-` changes priority, and `d` removes. On Tokens, `Enter` adds a profile and arrows change pages. On Models, `p` changes protocol, `t` changes target, `Enter` binds, `a` creates an alias, and Space selects a client model. `Enter` on Clients opens the shared configuration form. Writes require confirmation.
+
+`quyan router stack enable --yes` enables profile-scoped model IDs, `disable --yes` disables them, and `status` inspects them; the TUI shortcut is `v`. Scoped model IDs stay pinned to their profile without fallback to another profile. Ordinary model IDs retain automatic compatible-profile routing.
+
+This iteration supports Claude Code, Codex, and pi, with no desktop takeover entry. Each profile secret uses a separate OS-keychain entry; `router.json` and client files contain no real Relay secret. Removing a profile deletes its local credential and associated routes, not its server token. `logout` / `config reset` do not clear Router profiles: stop Router and remove obsolete profiles separately before switching deployments.
+
+The selected model determines pi's Router protocol and its available models. When switching to a model with another protocol, preview and save the configuration again before launching. Other providers are preserved.
+
 ## Access JSON Endpoints
 
 Browser login does not provide a product key. Create a key for the target instance in [Developer products]({{DOCS_BASE_URL}}/en/developer-products-overview), import it through stdin, then run:
@@ -144,7 +175,7 @@ Both `quyan logout` and `quyan config reset` clear stored account, Relay, and pr
 | Configuration writes succeed but requests fail           | Check the launched tool, model, protocol, quota, and IP whitelist. Writing configuration is not a connectivity test.                 |
 | A write times out or reports authorization or 2FA errors | Check server state first; complete the operation through the web workflow if needed instead of repeatedly submitting writes.         |
 
-Use `quyan config set locale en-US` or `zh-CN` to set the saved language. Add `--debug` for diagnostics; error output reports the log location. Before sharing, check for personal information, product content, or sensitive values from old configurations.
+Use `quyan config set locale en-US` or `zh-CN` to set the saved language. Add `--debug` for diagnostics; default errors stay brief and `--debug` errors report the log location. Before sharing, check for personal information, product content, or sensitive values from old configurations.
 
 ## Related pages
 

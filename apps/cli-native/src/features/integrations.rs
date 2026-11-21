@@ -1,7 +1,7 @@
 //! Client adapters own their protocol keys; endpoint values come from Quyan config.
 //! Credentials stay in the OS keychain and are injected only into launched children.
 pub(crate) mod files;
-mod launch;
+pub(crate) mod launch;
 pub use launch::launch;
 
 use anyhow::{bail, ensure, Context, Result};
@@ -71,6 +71,13 @@ fn target(home: &Path, kind: ClientKind, env: impl Fn(&str) -> Option<PathBuf>) 
         .join(filename))
 }
 
+pub(crate) fn config_path(kind: ClientKind) -> Result<PathBuf> {
+    let home = dirs::home_dir().context("home directory is unavailable")?;
+    target(&home, kind, |name| {
+        std::env::var_os(name).map(PathBuf::from)
+    })
+}
+
 pub fn apply(
     kind: ClientKind,
     base: &str,
@@ -78,14 +85,11 @@ pub fn apply(
     dry_run: bool,
     backup: bool,
 ) -> Result<Value> {
-    let home = dirs::home_dir().context("home directory is unavailable")?;
-    let file = target(&home, kind, |name| {
-        std::env::var_os(name).map(PathBuf::from)
-    })?;
+    let file = config_path(kind)?;
     apply_at(kind, &file, base, model, dry_run, backup)
 }
 
-fn apply_at(
+pub(crate) fn apply_at(
     kind: ClientKind,
     file: &Path,
     base: &str,

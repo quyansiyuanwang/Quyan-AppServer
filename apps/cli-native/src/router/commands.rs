@@ -94,7 +94,7 @@ pub enum RouteCommand {
         profile: Option<String>,
     },
 }
-fn confirm(yes: bool, target: &str) -> Result<()> {
+fn confirm(yes: bool, locale: &str, target: &str) -> Result<()> {
     if yes {
         return Ok(());
     }
@@ -102,7 +102,14 @@ fn confirm(yes: bool, target: &str) -> Result<()> {
         io::stdin().is_terminal(),
         "Router write requires --yes outside an interactive terminal"
     );
-    eprint!("{target}\nConfirm / 确认 [y/N]: ");
+    eprint!(
+        "{target}\n{} [y/N]: ",
+        if locale == "zh-CN" {
+            "确认"
+        } else {
+            "Confirm"
+        }
+    );
     io::stderr().flush()?;
     let mut answer = String::new();
     io::stdin().read_line(&mut answer)?;
@@ -127,19 +134,20 @@ pub async fn run(
 ) -> Result<Option<Value>> {
     let value = match command {
         RouterCommand::Start => {
-            confirm(yes, "Start the local loopback Router?")?;
+            confirm(yes, &cfg.locale, "Start the local loopback Router?")?;
             process::start().await?
         }
         RouterCommand::Stop => {
             confirm(
                 yes,
+                &cfg.locale,
                 "Stop Router? Connected agents cannot request models until it is restarted.",
             )?;
             process::stop().await?
         }
         RouterCommand::Status => process::status().await?,
         RouterCommand::Reload => {
-            confirm(yes, "Reload Router configuration?")?;
+            confirm(yes, &cfg.locale, "Reload Router configuration?")?;
             process::reload().await?
         }
         RouterCommand::Serve => {
@@ -148,7 +156,7 @@ pub async fn run(
         }
         RouterCommand::Models { refresh } => {
             if refresh {
-                confirm(yes, "Refresh saved Relay model catalogs?")?;
+                confirm(yes, &cfg.locale, "Refresh saved Relay model catalogs?")?;
                 profiles::refresh(&api(cfg)?).await?;
                 process::reload_if_running().await?;
             }
@@ -163,7 +171,7 @@ pub async fn run(
                     name,
                     priority,
                 } => {
-                    confirm(yes,&format!("Save Relay Token {token_id} as a Router profile in the system keychain?"))?;
+                    confirm(yes, &cfg.locale,&format!("Save Relay Token {token_id} as a Router profile in the system keychain?"))?;
                     let profile =
                         profiles::add(&api(cfg)?, &token_id, name.as_deref(), priority).await?;
                     process::reload_if_running().await?;
@@ -172,6 +180,7 @@ pub async fn run(
                 ProfileCommand::Remove { id } => {
                     confirm(
                         yes,
+                        &cfg.locale,
                         &format!("Remove profile {id}, its routes and keychain entry?"),
                     )?;
                     profiles::remove(&id)?;
@@ -184,7 +193,7 @@ pub async fn run(
                     enabled,
                     name,
                 } => {
-                    confirm(yes, &format!("Update Router profile {id}?"))?;
+                    confirm(yes, &cfg.locale, &format!("Update Router profile {id}?"))?;
                     config::update(|c| {
                         let p = c
                             .profiles
@@ -218,6 +227,7 @@ pub async fn run(
             } => {
                 confirm(
                     yes,
+                    &cfg.locale,
                     &format!(
                         "Route {} / {model} to profile {profile}, upstream {}?",
                         protocol.as_str(),
@@ -265,6 +275,7 @@ pub async fn run(
             } => {
                 confirm(
                     yes,
+                    &cfg.locale,
                     &format!("Remove {} / {model} routing rule?", protocol.as_str()),
                 )?;
                 config::update(|c| {
@@ -288,6 +299,7 @@ pub async fn run(
                 let enabled = matches!(command, StackCommand::Enable);
                 confirm(
                     yes,
+                    &cfg.locale,
                     &format!(
                         "{} provider-scoped Stack model IDs?",
                         if enabled { "Enable" } else { "Disable" }
@@ -309,6 +321,7 @@ pub async fn run(
             if !dry_run {
                 confirm(
                     yes,
+                    &cfg.locale,
                     &format!("Back up and point {} at the local Router?", client.id()),
                 )?;
             }

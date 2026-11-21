@@ -8,12 +8,14 @@ After signing in, open **Consumption records** on the account site. This page qu
 
 The summary shows:
 
-- Used quota and total quota.
+- Consumption and total quota. Use the switch button inside this metric to cycle through total, today, and the last seven days.
 - Total request count.
 - Average TPM (tokens per minute).
 - Average RPM (requests per minute).
 
 The list below contains consumption records only. It does not include redemptions, transfers, or other account-balance transactions. The quota summary is fetched separately and does not change with the list filters or loaded range. Request count, average TPM, and average RPM use API usage records in the loaded range; type, token, channel, model, and date filters do not change these figures.
+
+The quota defaults to cumulative account consumption. Today starts at midnight in your browser's local time; the last seven days count backward from the current time. These two ranges sum balance charges for API and chat usage, excluding monthly pass coverage, funding, and transfers. The denominator always shows total quota, and the progress bar shows the selected consumption as a share of that quota. Switching shows a loading state; a failed query shows “—”, which does not mean zero consumption.
 
 ## Filter consumption records
 

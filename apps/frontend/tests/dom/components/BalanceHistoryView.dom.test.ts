@@ -9,6 +9,7 @@ vi.mock('@/components/balance/AlipayOrdersPanel.vue', () => ({
 
 const {
   getUsageStatisticsMock,
+  getConsumptionAmountMock,
   getMyBalanceMock,
   getMyTransactionsMock,
   redeemCodeMock,
@@ -25,6 +26,7 @@ const {
   transactionHistoryEmitRef,
 } = vi.hoisted(() => ({
   getUsageStatisticsMock: vi.fn(),
+  getConsumptionAmountMock: vi.fn(),
   getMyBalanceMock: vi.fn(),
   getMyTransactionsMock: vi.fn(),
   redeemCodeMock: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('@/composables/usePageDevice', () => ({
 vi.mock('@/service/balanceTransactionService', () => ({
   balanceTransactionService: {
     getUsageStatistics: getUsageStatisticsMock,
+    getConsumptionAmount: getConsumptionAmountMock,
     getMyBalance: getMyBalanceMock,
     getMyTransactions: getMyTransactionsMock,
   },
@@ -94,6 +97,7 @@ vi.mock('@/utils/elementPlusRuntime', () => ({
 vi.mock('@element-plus/icons-vue', () => ({
   Wallet: defineComponent({ name: 'WalletIcon', template: '<span />' }),
   Refresh: defineComponent({ name: 'RefreshIcon', template: '<span />' }),
+  Switch: defineComponent({ name: 'SwitchIcon', template: '<span />' }),
 }))
 
 vi.mock('vue-echarts', () => ({
@@ -149,6 +153,8 @@ vi.mock('@/views/relay/balance-history/components/BalanceTransferPanel.vue', () 
 }))
 
 import BalanceHistoryView from '@/views/relay/BalanceHistoryView.vue'
+import ConsumptionRecordsView from '@/views/relay/ConsumptionRecordsView.vue'
+import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
 
 const createTransactions = () =>
   [
@@ -183,8 +189,8 @@ const ElColStub = defineComponent({
   },
 })
 
-const mountView = async () => {
-  const wrapper = mount(BalanceHistoryView, {
+const mountView = async (view = BalanceHistoryView) => {
+  const wrapper = mount(view, {
     global: {
       directives: { loading: {} },
       stubs: {
@@ -210,6 +216,7 @@ describe('BalanceHistoryView', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-26T00:15:00.000Z'))
+    configureRequestErrorNotifier((_title, message) => messageErrorMock(message))
     transactionHistoryPropsRef.value = null
     transactionHistoryEmitRef.value = null
     sessionGetItemMock.mockResolvedValue(false)
@@ -356,5 +363,88 @@ describe('BalanceHistoryView', () => {
     const [params] = getMyTransactionsMock.mock.calls[0] ?? []
     expect(params.startTime).toBe('2026-03-27T00:15:00.000Z')
     expect(params.endTime).toBe('2026-04-26T00:15:00.000Z')
+  })
+
+  const mountConsumptionView = async () => {
+    getUsageStatisticsMock.mockResolvedValue({ data: { total: 100, used: 10, remaining: 90 } })
+    getMyBalanceMock.mockResolvedValue({ data: { balance: 88 } })
+    getMyTransactionsMock.mockResolvedValue({ data: { records: [], total: 0 } })
+    sessionGetRecentMock.mockResolvedValue([])
+    sessionGetAllByIndexMock.mockResolvedValue([])
+    return mountView(ConsumptionRecordsView)
+  }
+
+  it('cycles total, local-calendar today, and seven-day consumption independently of the list', async () => {
+    getConsumptionAmountMock.mockResolvedValueOnce(1.25).mockResolvedValueOnce(6.5)
+    const wrapper = await mountConsumptionView()
+    const metric = wrapper.find('.usage-metric')
+    const switchButton = metric.find('button')
+    const initialLabel = metric.find('dt span').text()
+    expect(metric.find('dd').text()).toBe('10 / 100')
+    expect(getConsumptionAmountMock).not.toHaveBeenCalled()
+    const listRequests = getMyTransactionsMock.mock.calls.length
+
+    await switchButton.trigger('click')
+    await flushPromises()
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    expect(getConsumptionAmountMock).toHaveBeenLastCalledWith(
+      midnight.toISOString(),
+      '2026-04-26T00:15:00.000Z',
+    )
+    expect(metric.find('dd').text()).toBe('1.25 / 100')
+    expect(metric.find('dt span').text()).not.toBe(initialLabel)
+
+    await switchButton.trigger('click')
+    await flushPromises()
+    expect(getConsumptionAmountMock).toHaveBeenLastCalledWith(
+      '2026-04-19T00:15:00.000Z',
+      '2026-04-26T00:15:00.000Z',
+    )
+    expect(metric.find('dd').text()).toBe('6.5 / 100')
+
+    await switchButton.trigger('click')
+    await flushPromises()
+    expect(metric.find('dd').text()).toBe('10 / 100')
+    expect(metric.find('dt span').text()).toBe(initialLabel)
+    expect(getConsumptionAmountMock).toHaveBeenCalledTimes(2)
+    expect(getMyTransactionsMock).toHaveBeenCalledTimes(listRequests)
+    wrapper.unmount()
+  })
+
+  it('does not show zero or the previous amount while loading or after a failed period query', async () => {
+    let rejectQuery!: (error: Error) => void
+    getConsumptionAmountMock.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => (rejectQuery = reject)),
+    )
+    const wrapper = await mountConsumptionView()
+    const metric = wrapper.find('.usage-metric')
+    await metric.find('button').trigger('click')
+    expect(metric.find('dd').text()).toBe('— / 100')
+    expect(metric.find('dd').attributes('aria-busy')).toBe('true')
+    rejectQuery(new Error('unavailable'))
+    await flushPromises()
+    expect(metric.find('dd').text()).toBe('— / 100')
+    expect(metric.find('dd').attributes('aria-busy')).toBe('false')
+    expect(metric.find('.el-progress-stub').exists()).toBe(false)
+    expect(messageErrorMock).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('ignores a late response after switching to another consumption range', async () => {
+    let resolveToday!: (amount: number) => void
+    getConsumptionAmountMock
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveToday = resolve)))
+      .mockResolvedValueOnce(7)
+    const wrapper = await mountConsumptionView()
+    const metric = wrapper.find('.usage-metric')
+    await metric.find('button').trigger('click')
+    await metric.find('button').trigger('click')
+    await flushPromises()
+    expect(metric.find('dd').text()).toBe('7 / 100')
+    resolveToday(1)
+    await flushPromises()
+    expect(metric.find('dd').text()).toBe('7 / 100')
+    wrapper.unmount()
   })
 })

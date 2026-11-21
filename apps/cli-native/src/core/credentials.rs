@@ -11,6 +11,8 @@ pub struct Credentials {
     pub refresh_token: Option<String>,
     pub access_key: Option<String>,
     pub relay_token: Option<String>,
+    #[serde(default)]
+    pub relay_token_id: Option<String>,
     pub product_key: Option<String>,
     pub replay_session_id: Option<String>,
     pub replay_signing_key: Option<String>,
