@@ -993,6 +993,7 @@ export class DeveloperProductPlatformService {
             balanceDelta: new Decimal(-chargeAmount),
             totalUsedDelta: new Decimal(chargeAmount),
             minimumBalance: 0,
+            overdraftCategory: "developer",
             requireActive: true,
           });
           if (!mutation)

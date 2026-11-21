@@ -2,6 +2,49 @@
 
 Use balance management to query user balances, add or deduct balance manually, and verify transactions. Adjustments directly change site balance; confirm the user ID, amount, and reason first.
 
+## Account data and overdraft credit
+
+Users with `BALANCE_MANAGEMENT_READ` see the platform account management interface. Users with only the older `BALANCE_READ` permission keep the original interface. The new account list uses server pagination and exact user ID search; users without a balance account show zero values.
+
+A deployment-managed global group must grant the corresponding capability. Reading accounts requires `BALANCE_MANAGEMENT_READ`, correcting data requires separate `BALANCE_ACCOUNT_ADJUST`, and changing credit policies requires separate `BALANCE_OVERDRAFT_MANAGE`. IAM policies can further restrict individual users. Existing balance read or recharge permissions do not grant these new capabilities. Writes recheck authorization and use replay protection and any configured two-factor challenge.
+
+### Configure defaults or individual policies
+
+1. Under **Default overdraft policy**, choose a calculation, bounds, and permitted spending categories, then save. The initial policy disables overdraft. Initial categories are API relay and web chat; categories grant no credit while overdraft is disabled.
+2. Defaults apply dynamically to all inheriting users, including existing users. Use **Overdraft policy** in an account row to override the rule and categories independently, or restore either to the default.
+3. Batch policies merge selections across pages with pasted user IDs, remove duplicates, and support up to 200 users. For rules and categories separately, choose keep unchanged, user override, or inherit default.
+4. Preview total recharge, credit limits, and remaining credit before saving. Editing inputs invalidates the trial. If a target policy or default version changes, the entire batch is rejected; refresh and preview again. Batches do not partially succeed.
+
+| Calculation         | Base credit amount                               |
+| ------------------- | ------------------------------------------------ |
+| Disable overdraft   | Always zero, ignoring the minimum                |
+| Fixed credit        | Fixed amount                                     |
+| Recharge percentage | Total recharge × percentage ÷ 100                |
+| Fixed + percentage  | Fixed amount + recharge percentage amount        |
+| Larger / smaller    | Larger / smaller of fixed and percentage amounts |
+| Custom formula      | Restricted arithmetic expression                 |
+
+Enabled calculations apply a minimum and optional maximum, then round down to four decimal places. The base is existing total recharge, including payments, redemptions, received transfers, and counted administrator credits; refunds reduce it. It is not a cash-payments-only statistic.
+
+Formula variables are `totalRecharged`, `totalUsed`, `fixedAmount`, and `percent` (10 means 10%). Supported syntax includes `+ - * /`, parentheses, `min`, `max`, `abs`, and `round`; `round` rounds half up to four places. Example: `min(100, fixedAmount + totalRecharged * percent / 100)`. Scripts, property access, and other functions are unsupported. Division by zero, out-of-range results, and excessive expression length or depth are rejected. When changed statistics make a saved formula invalid, credit becomes zero and the account shows a calculation error.
+
+### Spending categories and shared credit
+
+Credit can be enabled separately for API relay, web chat, developer metered services, OJ questions, monthly pass purchases, carpool, and terminal purchases. Categories share one credit limit. Used credit is the absolute negative balance; remaining credit cannot be below zero. Recharges and statistical corrections can change the computed credit.
+
+AI requests require balance plus applicable credit to be positive before starting. Admitted requests settle their full actual usage and may temporarily exceed the limit, blocking later requests. Existing monthly pass coverage continues to apply. Known-cost purchases must remain above the allowed negative balance after other carpool reservations. Transfers, gift-code withdrawals, and original-payment refunds cannot use credit.
+
+### Correct balance, total recharge, and total usage independently
+
+1. Select **Correct account data** and enable only the fields to change. Changing balance does not automatically change statistics; changing total recharge does not add balance.
+2. Choose a delta or target value per field. Total recharge and usage cannot be negative. Amounts allow four decimal places and an absolute maximum of 999999.9999.
+3. Enter a reason and preview the before/after account values, credit limit, and remaining credit. Editing inputs requires another trial.
+4. Confirm to create a ledger entry and business audit, including a zero-change ledger when only statistics change. Target writes require the source field to match the previously read value; otherwise they fail. Delta writes accumulate against the latest account value.
+
+Unchanged retries within the same dialog reuse an operation ID to prevent duplicate writes. Reopening the dialog or changing inputs starts a new operation. If the network result is unknown, refresh accounts and logs before submitting another correction. A trial does not lock future balances; submission still checks current data, permissions, and amount limits.
+
+The new interface's original **Adjust Balance** and **View History** actions retain their older permissions and account resource boundaries. The former submits a delta with optional statistics counting; the latter paginates authorized records from the last 30 days. New platform permissions do not expand those older account boundaries. The following original-interface instructions apply to users of the legacy balance management workflow.
+
 ## Alipay orders and original payment refunds
 
 The **Alipay orders and refunds** panel requires separate `PAYMENT_READ` permission; the containing page still requires its existing balance management permissions. Filter by user ID and review CNY amounts, credited units, Alipay transaction numbers, status, and refund history. Both lists use server pagination.

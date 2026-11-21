@@ -1289,6 +1289,7 @@ const typeChartOption = computed(() => {
     peer_transfer_out: i18ns.t('balance.directTransfer'),
     peer_transfer_in: i18ns.t('balance.directTransfer'),
     recharge: i18ns.t('balance.adminAdjustment'),
+    account_adjustment: i18ns.t('balance.adminAdjustment'),
   }
   return {
     title: { text: i18ns.t('balance.transactionType'), left: 'center' },

@@ -1,6 +1,7 @@
 import type { BalanceTransactionResponse } from '@/client/types.gen'
 
 export type TransactionCategory =
+  | 'account_adjustment'
   | 'alipay_recharge'
   | 'alipay_refund_hold'
   | 'alipay_refund_reversal'
@@ -40,7 +41,8 @@ export const getBackendCategory = (tx: BalanceTransactionResponse): TransactionC
     category === 'chat_usage' ||
     category === 'api_usage' ||
     category === 'monthly_pass_coverage' ||
-    category === 'recharge'
+    category === 'recharge' ||
+    category === 'account_adjustment'
   ) {
     return category
   }
@@ -78,6 +80,7 @@ export const isApiUsageRecord = (tx: BalanceTransactionResponse) => {
 }
 
 export const getTransactionCategory = (tx: BalanceTransactionResponse): TransactionCategory => {
+  if (tx.type === 'account_adjustment') return 'account_adjustment'
   if (
     tx.type === 'alipay_recharge' ||
     tx.type === 'alipay_refund_hold' ||

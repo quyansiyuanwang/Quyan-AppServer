@@ -33,7 +33,7 @@ describe("OJQAService", () => {
   };
 
   const balanceService = {
-    getBalance: vi.fn(),
+    available: vi.fn(),
   };
 
   const relayPoolResolver = {
@@ -123,7 +123,7 @@ describe("OJQAService", () => {
       expiresAt: null,
       channel: null,
     });
-    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(0) });
+    balanceService.available.mockResolvedValue(false);
 
     await expect(
       service.askQuestion("ojqa_token", "What is 2+2?", "claude-haiku", undefined, "127.0.0.1"),
@@ -138,7 +138,7 @@ describe("OJQAService", () => {
       expiresAt: null,
       channel: { id: "channel-a", name: "channel-a" },
     });
-    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
+    balanceService.available.mockResolvedValue(true);
     ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
     relayPoolResolver.resolveActiveLeaves.mockResolvedValue([
       {
@@ -203,7 +203,7 @@ describe("OJQAService", () => {
       expiresAt: null,
       channel: null,
     });
-    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
+    balanceService.available.mockResolvedValue(true);
     ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
     anthropicMessagesMock.mockRejectedValue(new Error("upstream exploded"));
 
@@ -220,7 +220,7 @@ describe("OJQAService", () => {
       expiresAt: null,
       channel,
     });
-    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
+    balanceService.available.mockResolvedValue(true);
     ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
     relayPoolResolver.resolveActiveLeaves.mockResolvedValue([
       {
@@ -263,7 +263,7 @@ describe("OJQAService", () => {
       expiresAt: null,
       channel: null,
     });
-    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
+    balanceService.available.mockResolvedValue(true);
     ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
     anthropicMessagesMock.mockResolvedValue({
       content: [{ type: "text", text: "Late answer" }],

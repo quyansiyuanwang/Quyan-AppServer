@@ -144,6 +144,9 @@ export enum Permission {
   // 余额管理权限
   BALANCE_READ = 'balance:read',
   BALANCE_RECHARGE = 'balance:recharge',
+  BALANCE_MANAGEMENT_READ = 'balance:management:read',
+  BALANCE_ACCOUNT_ADJUST = 'balance:account:adjust',
+  BALANCE_OVERDRAFT_MANAGE = 'balance:overdraft:manage',
   PAYMENT_READ = 'payment:read',
   PAYMENT_REFUND = 'payment:refund',
 

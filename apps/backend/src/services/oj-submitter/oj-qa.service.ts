@@ -1,7 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { isValidCredential } from "@quyan/shared";
 import { BadRequestError, NotFoundError, UnauthorizedError } from "@/util/errors";
-import { BalanceService } from "@/services/billing/balance.service";
+import { BalanceOverdraftRepository } from "@/store/billing/balance-overdraft.repository";
 import { AnthropicUpstreamClient } from "@/util/anthropic-upstream.client";
 import { OJAPIKeyRepository } from "@/store/oj-submitter/oj-apikey.repository";
 import { OJModelPricingRepository } from "@/store/oj-submitter/oj-model-pricing.repository";
@@ -21,7 +21,7 @@ export class OJQAService {
     private readonly ojApiKeyRepository: OJAPIKeyStore = OJAPIKeyRepository.getInstance(),
     private readonly ojModelPricingRepository: OJModelPricingStore = OJModelPricingRepository.getInstance(),
     private readonly ojUsageRepository: OJUsageStore = OJUsageRepository.getInstance(),
-    private readonly balanceService: BalanceService = BalanceService.getInstance(),
+    private readonly overdraft = BalanceOverdraftRepository.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
@@ -109,8 +109,7 @@ export class OJQAService {
     const { userId, keyId, channel } = await this.validateAPIKey(apiKey);
 
     // 2. 检查余额
-    const balanceAccount = await this.balanceService.getBalance(userId);
-    if (Number(balanceAccount.balance) <= 0)
+    if (!(await this.overdraft.available(userId, "oj")))
       throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
 
     // 3. 获取定价（使用客户端指定的模型，默认claude-3-haiku）

@@ -794,6 +794,27 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing account balance information',
     category: 'balance',
   },
+  [Permission.BALANCE_MANAGEMENT_READ]: {
+    label: '查看平台余额账户',
+    labelEn: 'View Platform Balance Accounts',
+    tooltip: '允许按平台授权查看用户余额、累计统计与超额规则',
+    tooltipEn: 'View platform-authorized balances, statistics, and overdraft policies',
+    category: 'balance',
+  },
+  [Permission.BALANCE_ACCOUNT_ADJUST]: {
+    label: '修正余额账户数据',
+    labelEn: 'Correct Balance Account Data',
+    tooltip: '允许独立修正余额、累计充值和累计消费',
+    tooltipEn: 'Independently correct balance, total recharge, and total usage',
+    category: 'balance',
+  },
+  [Permission.BALANCE_OVERDRAFT_MANAGE]: {
+    label: '管理超额消费',
+    labelEn: 'Manage Overdraft',
+    tooltip: '允许配置默认及单用户超额额度和消费类别',
+    tooltipEn: 'Configure default and user overdraft rules and categories',
+    category: 'balance',
+  },
   [Permission.PAYMENT_READ]: {
     label: '查看支付订单',
     labelEn: 'View Payment Orders',

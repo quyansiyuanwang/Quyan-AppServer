@@ -9,6 +9,17 @@ import { Permission } from '@/constant/permission'
 const allRoutesAvailable = () => true
 
 describe('navigation catalog', () => {
+  it.each([Permission.BALANCE_READ, Permission.BALANCE_MANAGEMENT_READ])(
+    'shows balance management with %s alone',
+    (permission) => {
+      const entries = collectVisibleNavigationRoutes(
+        navigationMenuDefinition,
+        [permission],
+        allRoutesAvailable,
+      )
+      expect(entries.some(({ node }) => node.route === 'balanceManagement')).toBe(true)
+    },
+  )
   it('uses the same permission filter for sidebar nodes and search route entries', () => {
     const anonymousSidebar = filterNavigationNodes(navigationMenuDefinition, [], allRoutesAvailable)
     const anonymousSearch = collectVisibleNavigationRoutes(

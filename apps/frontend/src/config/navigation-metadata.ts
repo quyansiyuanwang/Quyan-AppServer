@@ -254,7 +254,13 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
   item('ramAuthorization', 'nav.ramAuthorization', 'DataAnalysis', [Permission.RAM_USER_READ]),
   item('ramSessions', 'nav.ramSessions', 'Monitor', [Permission.RAM_SESSION_READ]),
   group('billing', 'nav.financial', 'Wallet', [
-    item('balanceManagement', 'nav.balanceManagement', 'CreditCard', [Permission.BALANCE_READ]),
+    item(
+      'balanceManagement',
+      'nav.balanceManagement',
+      'CreditCard',
+      [Permission.BALANCE_READ, Permission.BALANCE_MANAGEMENT_READ],
+      'any',
+    ),
     item(
       'monthlyPassManagement',
       'nav.monthlyPassManagement',

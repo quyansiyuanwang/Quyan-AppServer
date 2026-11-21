@@ -588,6 +588,7 @@ export class DeveloperProjectRepository {
               balanceDelta: new Decimal(-overagePrice),
               totalUsedDelta: new Decimal(overagePrice),
               minimumBalance: 0,
+              overdraftCategory: "developer",
               requireActive: true,
             });
             if (!mutation)

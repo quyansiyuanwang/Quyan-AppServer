@@ -417,6 +417,9 @@ const en = {
     systemManagedPolicyNotUnbindable: "System-managed product owner policies cannot be unbound",
   },
   billing: {
+    invalidOverdraftRule: "Invalid overdraft rule or arithmetic result",
+    accountChanged: "Account data or configuration changed; refresh and retry",
+    invalidAdjustment: "Invalid account adjustment or resulting amount",
     redemptionCodeDeleted: "Deleted successfully",
     insufficientBalance: "Insufficient balance",
     balanceAccountUpdateFailed: "Balance account update failed",
