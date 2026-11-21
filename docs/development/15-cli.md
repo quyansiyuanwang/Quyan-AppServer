@@ -4,9 +4,15 @@
 
 Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程序，提供账户状态、AI Relay 管理、凭证管理、配置适配和 JSON Endpoints 产品访问。它不依赖 Node.js 运行时。
 
-无子命令执行 `quyan` 时打开 Ratatui 控制台：显示共享的 QuYan 字符画、版本、服务地址、凭证配置状态与最近事件，并提供账户登录、AI Relay、客户端适配、JSON Endpoints、配置与诊断的可导航操作目录。主页菜单显式编号为 `1` 至 `7`，按对应数字可直接打开；也可以按 `Up`/`Down` 或 `j`/`k` 选择后按 `Enter`。右侧始终显示当前项的功能、凭证边界与快捷键，`?`/`h` 显示完整按键帮助，`q` 或 `Esc` 退出。
+无子命令执行 `quyan` 打开紧凑的客户控制台，提供登录、账户、AI 中转、AI 客户端、JSON Endpoints、诊断和本地路由七个可操作入口。默认只显示品牌、凭证状态、导航和当前快捷键；字符画与完整按键收在 `?`，地址、配置路径和事件收在诊断页。数字 `1` 至 `7` 直接打开，方向键或 `j`/`k` 选择，Enter 进入，Esc 返回，q 退出。宽屏双栏、窄屏单栏详情；列表和长内容支持 Home/End、PageUp/PageDown。
 
-所有目录项在 TUI 内都有对应实际行为：浏览器登录启动 OAuth 流程，账户概览读取资料/余额/用量，JSON Endpoints 读取产品实例，配置与诊断显示脱敏运行状态。客户端适配在 TUI 中按工具预览并确认写入：Tab/方向键选择 Claude Code、Codex 或 pi，输入模型后 Enter 预览，y 确认并备份，n 取消；CLI 的 `quyan apply` 不带 client 只列出适配器。`quyan launch` 从系统密钥链读取 Relay Token，注入子进程环境，不在配置文件或命令行参数中保存 Token。AI Relay 支持服务端翻页（Left/Right）、刷新（r）、查询用量（Enter）、创建（c）与删除（d）；写操作需 y 确认。u 然后 y 将选中 Token 保存为本地工具凭证；b/Esc 返回控制台。Token 原文永不渲染、写入日志或进入事件缓冲区。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
+TUI 位于 `features/tui`：共用 `ui` 管理主题、宽字符换行和滚动，`relay_screen` 管理令牌，`client_setup` 管理客户端表单，`router_screen` 管理客户本地路由。账户三区独立加载；所有网络与配置任务脱离事件循环执行。新请求取消旧读取，结果绑定目标身份；写任务由持久页面状态持有，返回后仍被轮询，退出等待已提交写入完成。终端守卫负责错误、正常退出和交接客户端时的恢复。
+
+Relay `/` 搜索通过分页扫描客户获准读取的全部令牌，显示进度并明确标记不完整结果。c 输入名称创建，e 重命名，d 删除，u 选用凭据，Enter 查询用量；写操作先预览目标、y 确认、n/Esc 取消。输入状态吞掉字符快捷键。选用凭据同时在密钥链记录非敏感令牌 ID，供协议模型目录读取；直接导入的旧凭据没有 ID 时保留手动模型输入。
+
+客户端表单使用 Tab/Shift+Tab 切字段，左右键选工具及直连/Router，m 选模型，i 手动输入，a 预览，l 启动。只支持 Claude Code、Codex、pi；预览保存文件和 Router 快照，确认时校验未变化，复用现有配置合并、原子写入和备份。子进程接管普通终端，退出后恢复原页面。真实 Relay 凭证只注入直连子进程环境，Router 客户端使用本地兼容占位值。
+
+命令默认显示简洁字段或表格，不打印字符画；产品内容保留 JSON。`--json` 的既有数据结构不变，无子命令的 `--json` 返回本地状态。显式 `--lang` 优先于保存的 locale，`--no-color` / `NO_COLOR` 控制 TUI 颜色。非 TTY 无子命令时返回文本错误。
 
 ## 目录边界
 
@@ -18,11 +24,11 @@ Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程�
 
 ## API 与凭证
 
-| 用途           | 凭证                                           | 默认地址                                          |
-| -------------- | ---------------------------------------------- | ------------------------------------------------- |
+| 用途           | 凭证                                                              | 默认地址                                          |
+| -------------- | ----------------------------------------------------------------- | ------------------------------------------------- |
 | 账户管理       | OAuth access/refresh token 或 `sk-ak-` Access Key（兼容旧 `ak_`） | `https://api.qysyw.cn`                            |
-| AI Relay       | `sk-rlt-` Relay Token（兼容旧 `rlt_`）                             | `https://ai.qysyw.cn`                             |
-| JSON Endpoints | `sk-dpk-` Product API Key（兼容旧 `dpk_`）                         | `https://api.qysyw.cn/v1/products/json-endpoints` |
+| AI Relay       | `sk-rlt-` Relay Token（兼容旧 `rlt_`）                            | `https://ai.qysyw.cn`                             |
+| JSON Endpoints | `sk-dpk-` Product API Key（兼容旧 `dpk_`）                        | `https://api.qysyw.cn/v1/products/json-endpoints` |
 
 三类凭证必须隔离保存和使用。refresh token、Access Key、Relay Token、Product Key 只写入系统密钥链；普通配置文件仅保存非敏感元数据。
 
@@ -88,7 +94,7 @@ Rust CLI 版本以 `apps/cli-native/Cargo.toml` 为准，GitHub 标签使用 `qu
 - 支持 Chat Completions、Responses、Anthropic、Gemini 和 SSE。Responses 能力从已授权渠道目录推导，不能从 `openai` 模型列表或模型名猜测。跨协议调用复用令牌的服务端转换规则，不在 Rust 中复制业务转换实现。
 - `quyan-router` 是本地客户端 provider，与旧 `quyan` 直连 provider 隔离。本地配置允许公开的兼容占位值，禁止写真实 Relay 凭证；浏览器来源被拒绝，不声称能防御同用户进程。
 - TUI 第七项提供可操作的配置档、令牌、模型、路由、客户端与状态页面。账户读取、写操作在后台执行并显示等待状态；所有写操作先预览确认，敏感正文不会进入面板。
-- Claude Desktop 使用自己的第三方 configLibrary 配置档，首次接管可能需要重启；ChatGPT Desktop 无经过验证的配置适配器，不做系统代理/MITM 接管。
+- 本轮 Router 客户端仅支持 Claude Code、Codex、pi，不暴露桌面适配或平台渠道写入入口。
 
 Rust 代理测试使用本地 mock upstream 与内存凭证 fixture，不访问真实 Relay、用户 keychain 或 agent 文件。命令级生命周期 smoke test 应使用独立 `QUYAN_CONFIG_DIR` 和空 Profile；服务启动生成的短期控制 keychain 项必须在结束时清理。
 

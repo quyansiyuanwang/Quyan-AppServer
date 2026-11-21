@@ -1,7 +1,15 @@
 import { prisma } from "@/config/database";
-import type { OJAPIKey, Prisma } from "@prisma/client";
+import { Prisma, type OJAPIKey } from "@prisma/client";
 import type { OJAPIKeyStore, OJAPIKeyWithChannel } from "./oj-apikey.store";
 import { RECORD_STATUS } from "@/constant/status";
+import { ConflictError } from "@/util/errors";
+import { findUniquePlaintextCredential, keyCredentialWhere, plaintextCredentialValues } from "../plaintext-credential";
+
+export async function assertOjApiKeyAvailable(tx: Prisma.TransactionClient, key: string) {
+  const values = plaintextCredentialValues(key, "ojApiKey");
+  if (!values.length || (await tx.oJAPIKey.findFirst({ where: keyCredentialWhere(values), select: { id: true } })))
+    throw new ConflictError("OJ API key unavailable", undefined, { messageKey: "errors.conflict" });
+}
 
 export class OJAPIKeyRepository implements OJAPIKeyStore {
   private static instance: OJAPIKeyRepository;
@@ -13,17 +21,24 @@ export class OJAPIKeyRepository implements OJAPIKeyStore {
   }
 
   async create(data: Prisma.OJAPIKeyUncheckedCreateInput): Promise<OJAPIKeyWithChannel> {
-    return prisma.oJAPIKey.create({
-      data,
-      include: { channel: true },
-    }) as Promise<OJAPIKeyWithChannel>;
+    return prisma.$transaction(
+      async (tx) => {
+        await assertOjApiKeyAvailable(tx, data.key);
+        return tx.oJAPIKey.create({ data, include: { channel: true } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async findActiveByKey(key: string): Promise<OJAPIKeyWithChannel | null> {
-    return prisma.oJAPIKey.findFirst({
-      where: { OR: [{ key }, { legacyKey: key }], status: RECORD_STATUS.ACTIVE },
+    const values = plaintextCredentialValues(key, "ojApiKey");
+    if (!values.length) return null;
+    const rows = await prisma.oJAPIKey.findMany({
+      where: keyCredentialWhere(values),
       include: { channel: true },
-    }) as Promise<OJAPIKeyWithChannel | null>;
+    });
+    const match = findUniquePlaintextCredential(rows, values, (row) => [row.key, row.legacyKey]);
+    return match?.status === RECORD_STATUS.ACTIVE ? match : null;
   }
 
   async listActiveByUserId(userId: string): Promise<OJAPIKeyWithChannel[]> {

@@ -1,1348 +1,707 @@
 mod client_setup;
+mod relay_screen;
+mod router_screen;
+mod ui;
 
+use crate::{
+    cli::handlers::auth,
+    core::{api::ApiClient, branding::QUYAN_BANNER, credentials::Credentials},
+    services::{account, json_endpoint_product},
+    utils::logging::EventBuffer,
+};
 use anyhow::Result;
 use crossterm::{
     cursor::{Hide, Show},
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{
-        disable_raw_mode, enable_raw_mode, Clear as TerminalClear, ClearType, EnterAlternateScreen,
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
         LeaveAlternateScreen,
     },
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Layout, Rect},
-    style::{Modifier, Style},
-    text::{Line, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    layout::{Constraint, Layout},
+    widgets::Paragraph,
     Terminal,
 };
 use serde_json::Value;
-use std::{io::stdout, time::Instant};
-use tokio::task::JoinHandle;
-
-use crate::core::credentials::Credentials;
-use crate::{
-    cli::handlers::auth,
-    core::{api::ApiClient, branding::QUYAN_BANNER},
-    services::{account, json_endpoint_product, relay},
-    utils::logging::{self, EventBuffer},
+use std::{
+    io::{stdout, IsTerminal},
+    time::Instant,
 };
+use tokio::task::JoinHandle;
+use ui::Theme;
 
 pub struct StatusView<'a> {
     pub api_base_url: &'a str,
     pub relay_base_url: &'a str,
     pub auth_base_url: &'a str,
     pub locale: &'a str,
+    pub no_color: bool,
     pub config_path: &'a str,
+    pub log_path: &'a str,
     pub account_configured: bool,
     pub relay_configured: bool,
     pub product_configured: bool,
-    pub log_path: &'a str,
     pub events: &'a EventBuffer,
 }
-
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ActionKind {
-    BrowserLogin,
+enum Screen {
+    Home,
     Account,
     Relay,
-    Apply,
-    JsonEndpoints,
-    Config,
+    Clients,
+    Product,
+    Diagnostics,
+    Router,
+    Login,
 }
-
-struct TuiAction {
-    kind: ActionKind,
-    label: &'static str,
-    description: &'static str,
-    command: &'static str,
-    credential: &'static str,
-}
-
-#[derive(Default)]
-struct RelayTokenSummary {
-    id: String,
-    name: String,
-    status: String,
-    balance: String,
-    request_count: String,
-    total_tokens: String,
-    used_quota: String,
-}
-
-#[derive(Default)]
-struct RelayState {
-    tokens: Vec<RelayTokenSummary>,
-    page: u64,
-    total: u64,
-    page_size: u64,
-    selected: usize,
-    usage: Option<Value>,
-    notice: String,
-    confirmation: Option<RelayConfirmation>,
-}
-
-enum RelayConfirmation {
-    Create,
-    Use { id: String, name: String },
-    Delete { id: String, name: String },
-}
-
-enum Screen {
-    Home {
-        selected: usize,
-        show_help: bool,
-    },
-    Relay(RelayState),
-    ClientSetup(client_setup::ClientSetup),
-    Output {
-        selected: usize,
-        title: String,
-        content: String,
-    },
-    /// A browser OAuth login whose code exchange runs on a background task so
-    /// the terminal keeps rendering and can cancel with Esc or q.
-    BrowserLogin {
-        view: BrowserLoginView,
-    },
-}
-
-/// Live state for an in-progress browser OAuth login.
-struct BrowserLoginView {
-    /// Home-menu index to return to on success or cancel.
-    selected: usize,
-    locale: String,
-    redirect_uri: String,
-    started_at: Instant,
-    exchange: Option<JoinHandle<anyhow::Result<Credentials>>>,
-}
-
-fn actions(locale: &str) -> Vec<TuiAction> {
-    let chinese = locale == "zh-CN";
-    vec![
-        TuiAction {
-            kind: ActionKind::BrowserLogin,
-            label: if chinese {
-                "浏览器登录"
-            } else {
-                "Browser login"
-            },
-            description: if chinese {
-                "在浏览器中完成 OAuth 授权并安全保存账户凭证。"
-            } else {
-                "Complete OAuth authorization in a browser and store account credentials securely."
-            },
-            command: "quyan login --browser",
-            credential: if chinese {
-                "账户凭证: OAuth / sk-ak-"
-            } else {
-                "Account credential: OAuth / sk-ak-"
-            },
-        },
-        TuiAction {
-            kind: ActionKind::Account,
-            label: if chinese {
-                "账户概览"
-            } else {
-                "Account overview"
-            },
-            description: if chinese {
-                "查看个人资料、余额和用量。"
-            } else {
-                "View your profile, balance, and usage."
-            },
-            command: "quyan account",
-            credential: if chinese {
-                "需要账户凭证"
-            } else {
-                "Requires an account credential"
-            },
-        },
-        TuiAction {
-            kind: ActionKind::Relay,
-            label: if chinese { "AI 中转" } else { "AI Relay" },
-            description: if chinese {
-                "管理 Relay Token、查看渠道和用量。按 Enter 打开。"
-            } else {
-                "Manage Relay tokens and inspect usage. Press Enter to open."
-            },
-            command: "quyan relay token list",
-            credential: if chinese {
-                "需要账户凭证"
-            } else {
-                "Requires an account credential"
-            },
-        },
-        TuiAction {
-            kind: ActionKind::Apply,
-            label: if chinese {
-                "配置 AI 客户端"
-            } else {
-                "Configure AI clients"
-            },
-            description: if chinese {
-                "选择 Claude Code、Codex 或 pi；预览并确认配置，自动备份。"
-            } else {
-                "Configure Claude Code, Codex or pi with preview, confirmation and backup."
-            },
-            command: "quyan apply",
-            credential: if chinese {
-                "需要 sk-rlt- Relay Token"
-            } else {
-                "Requires an sk-rlt- Relay Token"
-            },
-        },
-        TuiAction {
-            kind: ActionKind::JsonEndpoints,
-            label: "JSON Endpoints",
-            description: if chinese {
-                "读取独立 JSON 产品实例的内容和用量。"
-            } else {
-                "Read content and usage for the JSON Endpoints product instance."
-            },
-            command: "quyan product json-endpoints get",
-            credential: if chinese {
-                "需要 sk-dpk- Product API Key"
-            } else {
-                "Requires a sk-dpk- Product API Key"
-            },
-        },
-        TuiAction {
-            kind: ActionKind::Config,
-            label: if chinese {
-                "配置与诊断"
-            } else {
-                "Configuration and diagnostics"
-            },
-            description: if chinese {
-                "查看脱敏配置；需要详细诊断时使用 --debug。"
-            } else {
-                "View masked configuration; add --debug for detailed diagnostics."
-            },
-            command: "quyan config get",
-            credential: if chinese {
-                "不显示任何密钥"
-            } else {
-                "Never displays secret values"
-            },
-        },
+const HOME: [Screen; 7] = [
+    Screen::Login,
+    Screen::Account,
+    Screen::Relay,
+    Screen::Clients,
+    Screen::Product,
+    Screen::Diagnostics,
+    Screen::Router,
+];
+fn labels(theme: &Theme) -> [&str; 7] {
+    [
+        theme.t("登录", "Sign in"),
+        theme.t("账户", "Account"),
+        theme.t("AI 中转", "AI Relay"),
+        theme.t("AI 客户端", "AI clients"),
+        "JSON Endpoints",
+        theme.t("诊断", "Diagnostics"),
+        theme.t("本地路由", "Local Router"),
     ]
+}
+struct Login {
+    started: Instant,
+    task: JoinHandle<Result<Credentials>>,
+}
+#[derive(Default)]
+struct Section {
+    content: String,
+    task: Option<JoinHandle<Result<Value>>>,
+}
+impl Section {
+    async fn poll(&mut self, theme: &Theme) {
+        if !self.task.as_ref().is_some_and(JoinHandle::is_finished) {
+            return;
+        }
+        self.content = match self.task.take().unwrap().await {
+            Ok(Ok(value)) => crate::utils::output::human(&value, &theme.locale),
+            Ok(Err(error)) => ui::error(&error),
+            Err(_) => theme.t("加载失败", "Load failed").into(),
+        };
+    }
+}
+impl Drop for Section {
+    fn drop(&mut self) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+    }
+}
+struct App {
+    screen: Screen,
+    selected: usize,
+    theme: Theme,
+    notice: String,
+    help: Option<u16>,
+    scroll: u16,
+    account: [Section; 3],
+    product: Section,
+    relay: relay_screen::RelayView,
+    clients: client_setup::ClientSetup,
+    router: router_screen::RouterView,
+    login: Option<Login>,
+    quit: bool,
+}
+impl App {
+    fn new(status: &StatusView<'_>) -> Self {
+        let theme = Theme {
+            locale: status.locale.into(),
+            no_color: status.no_color,
+        };
+        Self {
+            screen: Screen::Home,
+            selected: 0,
+            theme: theme.clone(),
+            notice: String::new(),
+            help: None,
+            scroll: 0,
+            account: std::array::from_fn(|_| Section::default()),
+            product: Section::default(),
+            relay: Default::default(),
+            clients: client_setup::ClientSetup::new(theme.clone()),
+            router: router_screen::RouterView::new(theme),
+            login: None,
+            quit: false,
+        }
+    }
+    fn busy(&self) -> bool {
+        self.relay.busy() || self.clients.busy() || self.router.busy()
+    }
+    fn captures(&self) -> bool {
+        match self.screen {
+            Screen::Relay => self.relay.captures(),
+            Screen::Clients => self.clients.captures(),
+            Screen::Router => self.router.captures(),
+            _ => false,
+        }
+    }
+    fn open(&mut self, screen: Screen, api: &ApiClient, status: &StatusView<'_>) {
+        if screen == Screen::Login && self.busy() {
+            self.notice = self
+                .theme
+                .t("请等待操作完成", "Wait for the current operation")
+                .into();
+            return;
+        }
+        self.screen = screen;
+        self.scroll = 0;
+        match screen {
+            Screen::Account => self.load_account(api),
+            Screen::Relay => self.relay.refresh(api, &self.theme),
+            Screen::Clients => self.clients.refresh(api),
+            Screen::Router => self.router.refresh(),
+            Screen::Product => self.load_product(api),
+            Screen::Login => {
+                let api_base = api.api_base_url.clone();
+                let auth_base = status.auth_base_url.to_string();
+                self.login = Some(Login {
+                    started: Instant::now(),
+                    task: tokio::spawn(async move {
+                        let session = auth::begin_browser_login(&api_base, &auth_base).await?;
+                        auth::complete_browser_login(session).await
+                    }),
+                });
+            }
+            _ => {}
+        }
+    }
+    fn load_account(&mut self, api: &ApiClient) {
+        for section in &mut self.account {
+            if let Some(task) = section.task.take() {
+                task.abort();
+            }
+            section.content = self.theme.t("加载中…", "Loading…").into();
+        }
+        let client = api.clone();
+        self.account[0].task = Some(tokio::spawn(async move {
+            let profile = account::profile(&client).await?;
+            let keys = ["username", "nickname", "email"];
+            let fields = keys
+                .into_iter()
+                .filter_map(|key| profile.get(key).map(|v| (key.to_string(), v.clone())))
+                .collect::<serde_json::Map<_, _>>();
+            Ok(Value::Object(fields))
+        }));
+        let client = api.clone();
+        self.account[1].task = Some(tokio::spawn(async move { account::balance(&client).await }));
+        let client = api.clone();
+        self.account[2].task = Some(tokio::spawn(async move { account::usage(&client).await }));
+    }
+    fn load_product(&mut self, api: &ApiClient) {
+        if let Some(task) = self.product.task.take() {
+            task.abort();
+        }
+        let api = api.clone();
+        self.product.content = self.theme.t("加载中…", "Loading…").into();
+        self.product.task = Some(tokio::spawn(async move {
+            json_endpoint_product::get(&api).await
+        }));
+    }
+    fn diagnostics(&self, status: &StatusView<'_>) -> String {
+        format!(
+            "API  {}\nRelay  {}\nAuth  {}\nConfig  {}\nLog  {}\n\n{}",
+            status.api_base_url,
+            status.relay_base_url,
+            status.auth_base_url,
+            status.config_path,
+            status.log_path,
+            status.events.entries().join("\n")
+        )
+    }
+    fn account_text(&self) -> String {
+        [
+            self.theme.t("账户", "Account"),
+            self.theme.t("余额", "Balance"),
+            self.theme.t("用量", "Usage"),
+        ]
+        .into_iter()
+        .zip(&self.account)
+        .map(|(title, section)| format!("{title}\n{}", section.content))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+    }
+    async fn poll(&mut self, api: &mut ApiClient, status: &mut StatusView<'_>) {
+        for section in &mut self.account {
+            section.poll(&self.theme).await;
+        }
+        if self
+            .product
+            .task
+            .as_ref()
+            .is_some_and(JoinHandle::is_finished)
+        {
+            self.product.content = match self.product.task.take().unwrap().await {
+                Ok(Ok(value)) => serde_json::to_string_pretty(&value).unwrap_or_default(),
+                Ok(Err(error)) => ui::error(&error),
+                Err(_) => self.theme.t("加载失败", "Load failed").into(),
+            };
+        }
+        self.relay.poll(api, &self.theme).await;
+        if let Some(credentials) = self.relay.credentials.take() {
+            api.credentials = credentials;
+        }
+        self.clients.poll().await;
+        self.router.poll().await;
+        if let Some((client, model)) = self.router.client_request.take() {
+            self.clients.select_router(client, model, api);
+            self.screen = Screen::Clients;
+        }
+        if self
+            .login
+            .as_ref()
+            .is_some_and(|login| login.task.is_finished())
+        {
+            let login = self.login.take().unwrap();
+            self.notice = match login.task.await {
+                Ok(Ok(credentials)) => {
+                    api.credentials = credentials;
+                    self.theme.t("已登录", "Signed in").into()
+                }
+                Ok(Err(error)) => ui::error(&error),
+                Err(_) => self.theme.t("登录失败", "Sign in failed").into(),
+            };
+            self.screen = Screen::Home;
+        }
+        status.account_configured =
+            api.credentials.access_token.is_some() || api.credentials.access_key.is_some();
+        status.relay_configured = api.credentials.relay_token.is_some();
+        status.product_configured = api.credentials.product_key.is_some();
+    }
+    fn help_text(&self) -> String {
+        let common=self.theme.t("↑↓ / j k  移动\nEnter  打开\nHome / End  首尾\nPgUp / PgDn  翻页\nr  刷新\nEsc  返回\nq / Ctrl+C  退出","↑↓ / j k  move\nEnter  open\nHome / End  first / last\nPgUp / PgDn  page\nr  refresh\nEsc  back\nq / Ctrl+C  quit");
+        let extra = match self.screen {
+            Screen::Home => format!(
+                "{QUYAN_BANNER}\n{}\n1–7  {}",
+                env!("CARGO_PKG_VERSION"),
+                self.theme.t("直接打开", "open directly")
+            ),
+            Screen::Relay => self
+                .theme
+                .t(
+                    "/  搜索全部令牌\nc  新建\ne  重命名\nu  选用\nd  删除\n← →  切页",
+                    "/  search all tokens\nc  create\ne  rename\nu  use\nd  delete\n← →  pages",
+                )
+                .into(),
+            Screen::Clients => self.clients.help(),
+            Screen::Router => self.router.help(),
+            _ => String::new(),
+        };
+        format!("{extra}\n\n{common}")
+    }
+    fn render(&self, frame: &mut ratatui::Frame, status: &StatusView<'_>) {
+        if let Some(offset) = self.help {
+            ui::help(frame, &self.help_text(), offset, &self.theme);
+            return;
+        }
+        match self.screen {
+            Screen::Home => {
+                let summary = format!(
+                    "{} {}  ·  Relay {}  ·  JSON {}",
+                    self.theme.t("账户", "Account"),
+                    if status.account_configured {
+                        "●"
+                    } else {
+                        "○"
+                    },
+                    if status.relay_configured {
+                        "●"
+                    } else {
+                        "○"
+                    },
+                    if status.product_configured {
+                        "●"
+                    } else {
+                        "○"
+                    }
+                );
+                let body = ui::shell(
+                    frame,
+                    &format!("v{}", env!("CARGO_PKG_VERSION")),
+                    &self.notice,
+                    self.theme.t(
+                        "1–7 打开  ↑↓ 选择  Enter 进入  ? 帮助  q 退出",
+                        "1–7 open  ↑↓ select  Enter open  ? help  q quit",
+                    ),
+                    &self.theme,
+                );
+                let [status_area, menu] =
+                    Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).areas(body);
+                frame.render_widget(
+                    Paragraph::new(summary).style(self.theme.muted()),
+                    status_area,
+                );
+                let rows = labels(&self.theme)
+                    .iter()
+                    .enumerate()
+                    .map(|(i, label)| format!("{}  {label}", i + 1))
+                    .collect();
+                ui::list(frame, menu, "", rows, self.selected, &self.theme);
+            }
+            Screen::Relay => self.relay.render(frame, &self.theme),
+            Screen::Clients => self.clients.render(frame, status),
+            Screen::Router => self.router.render(frame),
+            Screen::Login => {
+                let elapsed = self
+                    .login
+                    .as_ref()
+                    .map(|l| l.started.elapsed().as_secs())
+                    .unwrap_or(0);
+                let body = ui::shell(
+                    frame,
+                    self.theme.t("登录", "Sign in"),
+                    "",
+                    self.theme.t("Esc 取消", "Esc cancel"),
+                    &self.theme,
+                );
+                ui::text(
+                    frame,
+                    body,
+                    "",
+                    &format!(
+                        "{}  {elapsed}s",
+                        self.theme.t("等待浏览器授权…", "Waiting for browser…")
+                    ),
+                    0,
+                );
+            }
+            Screen::Account | Screen::Product | Screen::Diagnostics => {
+                let (title, content) = match self.screen {
+                    Screen::Account => (self.theme.t("账户", "Account"), self.account_text()),
+                    Screen::Product => ("JSON Endpoints", self.product.content.clone()),
+                    _ => (
+                        self.theme.t("诊断", "Diagnostics"),
+                        self.diagnostics(status),
+                    ),
+                };
+                let body = ui::shell(
+                    frame,
+                    title,
+                    "",
+                    self.theme.t(
+                        "↑↓ 滚动  r 刷新  ? 帮助  Esc 返回",
+                        "↑↓ scroll  r refresh  ? help  Esc back",
+                    ),
+                    &self.theme,
+                );
+                ui::text(frame, body, "", &content, self.scroll);
+            }
+        }
+        if self.quit && self.busy() {
+            let area = frame.area();
+            let row =
+                ratatui::layout::Rect::new(area.x, area.bottom().saturating_sub(2), area.width, 1);
+            frame.render_widget(
+                Paragraph::new(self.theme.t("正在完成操作…", "Finishing operation…"))
+                    .style(self.theme.accent()),
+                row,
+            );
+        }
+    }
+    async fn key(
+        &mut self,
+        key: KeyCode,
+        api: &mut ApiClient,
+        status: &StatusView<'_>,
+        width: u16,
+        height: u16,
+    ) -> Option<client_setup::LaunchRequest> {
+        if self.quit {
+            return None;
+        }
+        if self.help.is_some() {
+            if matches!(key, KeyCode::Esc | KeyCode::Char('?')) {
+                self.help = None;
+            } else {
+                let content = self.help_text();
+                ui::text_scroll(key, self.help.as_mut().unwrap(), &content, width, height);
+            }
+            return None;
+        }
+        if self.screen == Screen::Login && matches!(key, KeyCode::Esc | KeyCode::Char('q')) {
+            if let Some(login) = self.login.take() {
+                login.task.abort();
+            }
+            self.screen = Screen::Home;
+            return None;
+        }
+        if !self.captures() {
+            if key == KeyCode::Char('q') {
+                self.quit = true;
+                return None;
+            }
+            if key == KeyCode::Char('?') {
+                self.help = Some(0);
+                return None;
+            }
+        }
+        match self.screen {
+            Screen::Home => {
+                if let KeyCode::Char(ch @ '1'..='7') = key {
+                    self.selected = (ch as u8 - b'1') as usize;
+                    self.open(HOME[self.selected], api, status);
+                } else if key == KeyCode::Enter {
+                    self.open(HOME[self.selected], api, status);
+                } else if key == KeyCode::Esc {
+                    self.quit = true;
+                } else {
+                    ui::navigate(key, &mut self.selected, HOME.len(), height);
+                }
+            }
+            Screen::Relay => {
+                if self.relay.key(key, api, &self.theme, width, height) {
+                    self.screen = Screen::Home;
+                    self.selected = 2;
+                }
+            }
+            Screen::Clients => match self.clients.key(key, api, width, height) {
+                client_setup::Action::Back => {
+                    self.screen = Screen::Home;
+                    self.selected = 3;
+                }
+                client_setup::Action::Launch(request) => return Some(request),
+                _ => {}
+            },
+            Screen::Router => {
+                if self.router.key(key, api, width, height) {
+                    self.screen = Screen::Home;
+                    self.selected = 6;
+                }
+            }
+            Screen::Account | Screen::Product | Screen::Diagnostics => {
+                if key == KeyCode::Esc {
+                    self.screen = Screen::Home;
+                } else if key == KeyCode::Char('r') {
+                    match self.screen {
+                        Screen::Account => self.load_account(api),
+                        Screen::Product => self.load_product(api),
+                        _ => {}
+                    }
+                } else {
+                    let content = match self.screen {
+                        Screen::Account => self.account_text(),
+                        Screen::Product => self.product.content.clone(),
+                        _ => self.diagnostics(status),
+                    };
+                    ui::text_scroll(key, &mut self.scroll, &content, width, height);
+                }
+            }
+            Screen::Login => {}
+        }
+        None
+    }
+}
+fn restore_terminal() {
+    let _ = disable_raw_mode();
+    let _ = execute!(stdout(), Show, LeaveAlternateScreen);
+}
+struct TerminalGuard;
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        enable_raw_mode()?;
+        let guard = Self;
+        execute!(stdout(), EnterAlternateScreen, Clear(ClearType::All), Hide)?;
+        Ok(guard)
+    }
+}
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        restore_terminal();
+    }
 }
 
 pub async fn run(mut status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
-    enable_raw_mode()?;
-    let mut out = stdout();
-    execute!(
-        out,
-        EnterAlternateScreen,
-        TerminalClear(ClearType::All),
-        Hide
-    )?;
-    let backend = CrosstermBackend::new(out);
-    let mut terminal = Terminal::new(backend)?;
-    terminal.clear()?;
-    let actions = actions(status.locale);
-    let mut screen = Screen::Home {
-        selected: 0,
-        show_help: false,
-    };
-    let result = async {
-        loop {
-            terminal.draw(|frame| render(frame, &status, &actions, &screen))?;
-            if let Some(resolved) = resolve_browser_login(&mut screen).await {
-                let selected = match &screen {
-                    Screen::BrowserLogin { view } => view.selected,
-                    _ => 0,
-                };
-                screen = match resolved {
-                    Ok(credentials) => {
-                        api.credentials = credentials;
-                        status.account_configured = api.credentials.access_token.is_some()
-                            || api.credentials.access_key.is_some();
-                        status.relay_configured = api.credentials.relay_token.is_some();
-                        status.product_configured = api.credentials.product_key.is_some();
-                        status.events.push(
-                            "INFO",
-                            if status.locale == "zh-CN" {
-                                "登录成功，凭证已保存。"
-                            } else {
-                                "Signed in. Credentials saved."
-                            },
-                        );
-                        login_success_screen(selected)
-                    }
-                    Err(error) => Screen::Output {
-                        selected,
-                        title: "Browser login".into(),
-                        content: format!(
-                            "Operation failed:\n{}",
-                            logging::redact(&format!("{error:#}"))
-                        ),
-                    },
-                };
-                continue;
-            }
-            if !event::poll(std::time::Duration::from_millis(200))? {
-                continue;
-            }
-            let event = event::read()?;
-            if matches!(event, Event::Resize(_, _)) {
-                // A diff render cannot erase cells from the previous terminal
-                // dimensions. Clear the frame whenever the terminal is resized.
-                terminal.clear()?;
-                continue;
-            }
-            let Event::Key(key) = event else { continue };
-            if key.kind != KeyEventKind::Press {
-                continue;
-            }
-            match &mut screen {
-                Screen::Home {
-                    selected,
-                    show_help,
-                } => match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        *selected = selected.checked_sub(1).unwrap_or(actions.len() - 1);
-                        *show_help = false;
-                    }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        *selected = (*selected + 1) % actions.len();
-                        *show_help = false;
-                    }
-                    KeyCode::Char('?') | KeyCode::Char('h') => *show_help = !*show_help,
-                    KeyCode::Enter => {
-                        match run_home_action(actions[*selected].kind, *selected, &status, &mut api)
-                            .await
-                        {
-                            HomeResult::OpenClientSetup => {
-                                screen = Screen::ClientSetup(client_setup::ClientSetup::default())
-                            }
-                            HomeResult::OpenRelay => {
-                                let mut relay_state = RelayState {
-                                    notice: "Loading Relay Tokens...".into(),
-                                    ..Default::default()
-                                };
-                                refresh_relay(&api, &mut relay_state).await;
-                                screen = Screen::Relay(relay_state);
-                            }
-                            HomeResult::BrowserLogin(view) => {
-                                screen = Screen::BrowserLogin { view }
-                            }
-                            HomeResult::Output { title, content } => {
-                                screen = Screen::Output {
-                                    selected: *selected,
-                                    title,
-                                    content,
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Char(shortcut @ '1'..='6') => {
-                        let index = (shortcut as u8 - b'1') as usize;
-                        if let Some(action) = actions.get(index) {
-                            match run_home_action(action.kind, index, &status, &mut api).await {
-                                HomeResult::OpenClientSetup => {
-                                    screen =
-                                        Screen::ClientSetup(client_setup::ClientSetup::default())
-                                }
-                                HomeResult::OpenRelay => {
-                                    let mut relay_state = RelayState {
-                                        notice: "Loading Relay Tokens...".into(),
-                                        ..Default::default()
-                                    };
-                                    refresh_relay(&api, &mut relay_state).await;
-                                    screen = Screen::Relay(relay_state);
-                                }
-                                HomeResult::BrowserLogin(view) => {
-                                    screen = Screen::BrowserLogin { view }
-                                }
-                                HomeResult::Output { title, content } => {
-                                    screen = Screen::Output {
-                                        selected: index,
-                                        title,
-                                        content,
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                },
-                Screen::Relay(state) => match key.code {
-                    KeyCode::Char('q') => break Ok(()),
-                    KeyCode::Esc | KeyCode::Char('b') => {
-                        screen = Screen::Home {
-                            selected: 2,
-                            show_help: false,
-                        }
-                    }
-                    KeyCode::Up | KeyCode::Char('k') if state.confirmation.is_none() => {
-                        if !state.tokens.is_empty() {
-                            state.selected = state
-                                .selected
-                                .checked_sub(1)
-                                .unwrap_or(state.tokens.len() - 1);
-                            state.usage = None;
-                        }
-                    }
-                    KeyCode::Down | KeyCode::Char('j') if state.confirmation.is_none() => {
-                        if !state.tokens.is_empty() {
-                            state.selected = (state.selected + 1) % state.tokens.len();
-                            state.usage = None;
-                        }
-                    }
-                    KeyCode::Char('r') if state.confirmation.is_none() => {
-                        refresh_relay(&api, state).await
-                    }
-                    KeyCode::Enter if state.confirmation.is_none() => load_usage(&api, state).await,
-                    KeyCode::Char('c') if state.confirmation.is_none() => {
-                        state.confirmation = Some(RelayConfirmation::Create)
-                    }
-                    KeyCode::Char('d') if state.confirmation.is_none() => {
-                        if let Some(token) = state.tokens.get(state.selected) {
-                            state.confirmation = Some(RelayConfirmation::Delete {
-                                id: token.id.clone(),
-                                name: token.name.clone(),
-                            });
-                        }
-                    }
-                    KeyCode::Char('u') if state.confirmation.is_none() => {
-                        if let Some(token) = state.tokens.get(state.selected) {
-                            state.confirmation = Some(RelayConfirmation::Use {
-                                id: token.id.clone(),
-                                name: token.name.clone(),
-                            });
-                        }
-                    }
-                    KeyCode::Left if state.confirmation.is_none() && state.page > 1 => {
-                        state.page -= 1;
-                        refresh_relay(&api, state).await;
-                    }
-                    KeyCode::Right
-                        if state.confirmation.is_none()
-                            && state.page * state.page_size < state.total =>
-                    {
-                        state.page += 1;
-                        refresh_relay(&api, state).await;
-                    }
-                    KeyCode::Char('y') => {
-                        confirm_relay_action(&mut api, state).await;
-                        status.relay_configured = api.credentials.relay_token.is_some();
-                    }
-                    KeyCode::Char('n') => {
-                        state.confirmation = None;
-                        state.notice = "Action cancelled".into();
-                    }
-                    _ => {}
-                },
-                Screen::ClientSetup(view) => {
-                    if key.code == KeyCode::Esc {
-                        screen = Screen::Home {
-                            selected: 3,
-                            show_help: false,
-                        };
+    anyhow::ensure!(
+        std::io::stdin().is_terminal() && stdout().is_terminal(),
+        "Use a subcommand or --json outside a terminal"
+    );
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_terminal();
+        previous(info);
+    }));
+    let mut guard = Some(TerminalGuard::enter()?);
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    let mut app = App::new(&status);
+    loop {
+        app.poll(&mut api, &mut status).await;
+        if app.quit && !app.busy() {
+            break;
+        }
+        terminal.draw(|frame| app.render(frame, &status))?;
+        if !event::poll(ui::POLL_TICK)? {
+            continue;
+        }
+        match event::read()? {
+            Event::Resize(_, _) => terminal.clear()?,
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                    app.quit = true;
+                    continue;
+                }
+                if let Some(request) = app
+                    .key(
+                        key.code,
+                        &mut api,
+                        &status,
+                        terminal.size()?.width,
+                        terminal.size()?.height.saturating_sub(4),
+                    )
+                    .await
+                {
+                    // The child owns a normal terminal. Re-enter even when launching fails.
+                    drop(guard.take());
+                    let result = if request.router {
+                        crate::router::clients::launch(
+                            request.client,
+                            request.model.as_deref(),
+                            &[],
+                        )
+                        .await
                     } else {
-                        view.key(key.code, &api.relay_base_url);
-                    }
-                }
-                Screen::Output { selected, .. } => match key.code {
-                    KeyCode::Char('q') => break Ok(()),
-                    KeyCode::Esc | KeyCode::Char('b') | KeyCode::Enter => {
-                        screen = Screen::Home {
-                            selected: *selected,
-                            show_help: false,
-                        }
-                    }
-                    _ => {}
-                },
-                Screen::BrowserLogin { view } => match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
-                        if let Some(handle) = view.exchange.take() {
-                            handle.abort();
-                        }
-                        tracing::debug!("OAuth login cancelled by user");
-                        screen = Screen::Home {
-                            selected: view.selected,
-                            show_help: false,
-                        }
-                    }
-                    _ => {}
-                },
-            }
-        }
-    }
-    .await;
-
-    // Always restore the user's terminal, including when drawing or reading
-    // an event fails. Leaving the alternate screen dirty causes character
-    // remnants and can leave the cursor hidden in the parent shell.
-    let cleanup = (|| -> Result<()> {
-        disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            Show,
-            TerminalClear(ClearType::All),
-            LeaveAlternateScreen
-        )?;
-        terminal.show_cursor()?;
-        Ok(())
-    })();
-    result.and(cleanup)
-}
-
-fn login_success_screen(selected: usize) -> Screen {
-    Screen::Home {
-        selected,
-        show_help: false,
-    }
-}
-
-/// If the browser-login exchange task finished, take the credentials out of it.
-async fn resolve_browser_login(screen: &mut Screen) -> Option<anyhow::Result<Credentials>> {
-    let Screen::BrowserLogin { view } = screen else {
-        return None;
-    };
-    if !view.exchange.as_ref().is_some_and(JoinHandle::is_finished) {
-        return None;
-    }
-    let handle = view.exchange.take()?;
-    match handle.await {
-        Ok(result) => Some(result),
-        Err(join_error) => {
-            tracing::warn!(error = %join_error, "OAuth login task failed to join");
-            if join_error.is_cancelled() {
-                Some(Err(anyhow::anyhow!("OAuth login was cancelled")))
-            } else {
-                Some(Err(anyhow::anyhow!(
-                    "OAuth login task panicked: {join_error}"
-                )))
-            }
-        }
-    }
-}
-
-enum HomeResult {
-    Output { title: String, content: String },
-    OpenRelay,
-    OpenClientSetup,
-    BrowserLogin(BrowserLoginView),
-}
-
-async fn run_home_action(
-    action: ActionKind,
-    selected: usize,
-    status: &StatusView<'_>,
-    api: &mut ApiClient,
-) -> HomeResult {
-    let (title, result) = match action {
-        ActionKind::BrowserLogin => {
-            return start_browser_login(selected, status, api).await;
-        }
-        ActionKind::Account => {
-            let result = futures::try_join!(
-                account::profile(api),
-                account::balance(api),
-                account::usage(api)
-            )
-            .map(|(profile, balance, usage)| {
-                serde_json::json!({"profile": profile, "balance": balance, "usage": usage})
-            });
-            ("Account overview".to_string(), result)
-        }
-        ActionKind::Apply => return HomeResult::OpenClientSetup,
-        ActionKind::JsonEndpoints => (
-            "JSON Endpoints".to_string(),
-            json_endpoint_product::get(api).await,
-        ),
-        ActionKind::Config => (
-            "Configuration".to_string(),
-            Ok(serde_json::json!({
-                "apiBaseUrl": status.api_base_url,
-                "relayBaseUrl": status.relay_base_url,
-                "configPath": status.config_path,
-                "accountConfigured": status.account_configured,
-                "relayConfigured": status.relay_configured,
-                "productConfigured": status.product_configured,
-                "logPath": status.log_path,
-            })),
-        ),
-        ActionKind::Relay => return HomeResult::OpenRelay,
-    };
-    let content = match result {
-        Ok(value) => safe_pretty_json(&value),
-        Err(error) => format!(
-            "Operation failed:\n{}",
-            logging::redact(&format!("{error:#}"))
-        ),
-    };
-    HomeResult::Output { title, content }
-}
-
-/// Binds the callback listener, opens the browser, and hands the exchange to a
-/// background task so the terminal stays interactive and cancellable.
-async fn start_browser_login(
-    selected: usize,
-    status: &StatusView<'_>,
-    api: &ApiClient,
-) -> HomeResult {
-    let session = match auth::begin_browser_login(&api.api_base_url, status.auth_base_url).await {
-        Ok(session) => session,
-        Err(error) => {
-            return HomeResult::Output {
-                title: "Browser login".into(),
-                content: format!(
-                    "Operation failed:\n{}",
-                    logging::redact(&format!("{error:#}"))
-                ),
-            };
-        }
-    };
-    tracing::debug!("waiting for OAuth callback");
-    let exchange = tokio::spawn(async move {
-        let credentials = auth::complete_browser_login(session).await?;
-        Ok::<_, anyhow::Error>(credentials)
-    });
-    HomeResult::BrowserLogin(BrowserLoginView {
-        selected,
-        locale: status.locale.to_string(),
-        redirect_uri: auth::oauth_redirect_uri(),
-        started_at: Instant::now(),
-        exchange: Some(exchange),
-    })
-}
-
-async fn refresh_relay(api: &ApiClient, state: &mut RelayState) {
-    state.notice = "Loading Relay Tokens...".into();
-    state.usage = None;
-    match relay::tokens_page(api, state.page.max(1)).await {
-        Ok(value) => {
-            state.page = value["page"].as_u64().unwrap_or(state.page.max(1));
-            state.total = value["total"].as_u64().unwrap_or_default();
-            state.page_size = value["pageSize"].as_u64().unwrap_or(relay::TOKEN_PAGE_SIZE);
-            state.tokens = parse_relay_tokens(&value);
-            state.selected = state.selected.min(state.tokens.len().saturating_sub(1));
-            state.notice = if state.tokens.is_empty() {
-                "No Relay Tokens found. Press c to create one.".into()
-            } else {
-                format!("Loaded {} Relay Token(s)", state.tokens.len())
-            };
-            tracing::info!(
-                token_count = state.tokens.len(),
-                "loaded Relay Tokens in TUI"
-            );
-        }
-        Err(error) => {
-            state.tokens.clear();
-            state.notice = format!(
-                "Could not load Relay Tokens: {}",
-                logging::redact(&format!("{error:#}"))
-            );
-            tracing::warn!(error = %logging::redact(&format!("{error:#}")), "failed to load Relay Tokens in TUI");
-        }
-    }
-}
-
-async fn load_usage(api: &ApiClient, state: &mut RelayState) {
-    let Some(token) = state.tokens.get(state.selected) else {
-        state.notice = "No Relay Token is selected".into();
-        return;
-    };
-    state.notice = format!("Loading usage for {}...", token.name);
-    match relay::token_usage(api, &token.id).await {
-        Ok(value) => {
-            state.usage = Some(value);
-            state.notice = "Usage loaded".into();
-        }
-        Err(error) => {
-            state.notice = format!(
-                "Could not load usage: {}",
-                logging::redact(&format!("{error:#}"))
-            );
-        }
-    }
-}
-
-async fn confirm_relay_action(api: &mut ApiClient, state: &mut RelayState) {
-    let Some(action) = state.confirmation.take() else {
-        return;
-    };
-    let result = match action {
-        RelayConfirmation::Use { id, name } => {
-            match relay::credentials_with_token(api, &id)
-                .await
-                .and_then(|credentials| {
-                    crate::core::credentials::save(&credentials)?;
-                    Ok(credentials)
-                }) {
-                Ok(credentials) => {
-                    api.credentials = credentials;
-                    state.notice = format!(
-                        "Selected '{name}' for local clients. Credential saved in system keychain."
-                    );
-                }
-                Err(error) => {
-                    state.notice = logging::redact(&format!("Could not select token: {error:#}"))
+                        crate::features::integrations::launch(
+                            request.client,
+                            &api.credentials,
+                            &api.relay_base_url,
+                            request.model.as_deref(),
+                            &[],
+                        )
+                    };
+                    guard = Some(TerminalGuard::enter()?);
+                    terminal.clear()?;
+                    app.clients.launched(result);
                 }
             }
-            return;
-        }
-        RelayConfirmation::Create => relay::create_token(api, None, None, false, None, None)
-            .await
-            .map(|_| "Relay Token created".to_string()),
-        RelayConfirmation::Delete { id, name } => relay::delete_token(api, &id)
-            .await
-            .map(|_| format!("Relay Token '{name}' deleted")),
-    };
-    match result {
-        Ok(notice) => {
-            state.notice = notice;
-            refresh_relay(api, state).await;
-        }
-        Err(error) => {
-            state.notice = format!("Action failed: {}", logging::redact(&format!("{error:#}")))
+            _ => {}
         }
     }
-}
-
-fn parse_relay_tokens(value: &Value) -> Vec<RelayTokenSummary> {
-    let Some(items) = value.get("items").and_then(Value::as_array) else {
-        return Vec::new();
-    };
-    items
-        .iter()
-        .filter_map(|item| {
-            let id = item.get("id")?.as_str()?.to_string();
-            Some(RelayTokenSummary {
-                id,
-                name: item
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .filter(|name| !name.is_empty())
-                    .unwrap_or("Unnamed token")
-                    .to_string(),
-                status: match item.get("status").and_then(Value::as_i64) {
-                    Some(1) => "active",
-                    Some(0) => "disabled",
-                    Some(_) => "deleted",
-                    None => "unknown",
-                }
-                .into(),
-                balance: value_label(item.get("balance")),
-                request_count: value_label(item.get("requestCount")),
-                total_tokens: value_label(item.get("totalTokens")),
-                used_quota: value_label(item.get("usedQuota")),
-            })
-        })
-        .collect()
-}
-
-fn value_label(value: Option<&Value>) -> String {
-    match value {
-        Some(Value::Number(number)) => number.to_string(),
-        Some(Value::String(text)) => text.clone(),
-        _ => "-".into(),
-    }
-}
-
-fn safe_pretty_json(value: &Value) -> String {
-    logging::redact(&serde_json::to_string_pretty(value).unwrap_or_else(|_| "{}".into()))
-}
-
-fn render(
-    frame: &mut ratatui::Frame,
-    status: &StatusView<'_>,
-    actions: &[TuiAction],
-    screen: &Screen,
-) {
-    // Reset the frame buffer before drawing. A shorter screen must overwrite
-    // every cell painted by its predecessor, otherwise terminals using
-    // Ratatui's diff renderer can show stale characters after a page change.
-    frame.render_widget(Clear, frame.area());
-    match screen {
-        Screen::Home {
-            selected,
-            show_help,
-        } => render_home(frame, status, actions, *selected, *show_help),
-        Screen::Relay(state) => render_relay(frame, status, state),
-        Screen::ClientSetup(view) => view.render(frame, status),
-        Screen::Output { title, content, .. } => render_output(frame, title, content),
-        Screen::BrowserLogin { view } => render_browser_login(frame, view),
-    }
-}
-
-fn render_browser_login(frame: &mut ratatui::Frame, view: &BrowserLoginView) {
-    let chinese = view.locale == "zh-CN";
-    let [header, body, footer] = Layout::vertical([
-        Constraint::Length(4),
-        Constraint::Min(8),
-        Constraint::Length(2),
-    ])
-    .areas(frame.area());
-    frame.render_widget(
-        Paragraph::new(format!(
-            "QuYan {}  |  {}",
-            env!("CARGO_PKG_VERSION"),
-            if chinese {
-                "浏览器登录"
-            } else {
-                "Browser login"
-            }
-        ))
-        .block(Block::default().borders(Borders::ALL).title(" QuYan ")),
-        header,
-    );
-    let elapsed = view.started_at.elapsed().as_secs();
-    let lines = vec![
-        Line::from(if chinese {
-            "浏览器授权进行中"
-        } else {
-            "Browser authorization in progress"
-        }),
-        Line::from(""),
-        Line::from(if chinese {
-            "请在浏览器中完成登录和授权。"
-        } else {
-            "Complete login and authorization in the browser that opened."
-        }),
-        Line::from(""),
-        Line::from(if chinese {
-            "回调地址："
-        } else {
-            "Callback address: "
-        }),
-        Line::from(format!("  {}", view.redirect_uri))
-            .style(Style::default().add_modifier(Modifier::BOLD)),
-        Line::from(""),
-        Line::from(if chinese {
-            "按 Esc 或 q 取消"
-        } else {
-            "Press Esc or q to cancel"
-        }),
-        Line::from(""),
-        Line::from(format!(
-            "{} {elapsed}s",
-            if chinese {
-                "等待授权回调"
-            } else {
-                "Waiting for authorization callback"
-            }
-        )),
-    ];
-    frame.render_widget(
-        Paragraph::new(Text::from(lines))
-            .block(Block::default().borders(Borders::ALL).title(" Result "))
-            .wrap(Wrap { trim: false }),
-        body,
-    );
-    render_footer(
-        frame,
-        footer,
-        if chinese {
-            "Esc 或 q: 取消"
-        } else {
-            "Esc or q: cancel"
-        },
-    );
-}
-
-fn render_output(frame: &mut ratatui::Frame, title: &str, content: &str) {
-    let [header, body, footer] = Layout::vertical([
-        Constraint::Length(4),
-        Constraint::Min(8),
-        Constraint::Length(2),
-    ])
-    .areas(frame.area());
-    frame.render_widget(
-        Paragraph::new(format!("QuYan {}  |  {title}", env!("CARGO_PKG_VERSION")))
-            .block(Block::default().borders(Borders::ALL).title(" QuYan ")),
-        header,
-    );
-    frame.render_widget(
-        Paragraph::new(content)
-            .block(Block::default().borders(Borders::ALL).title(" Result "))
-            .wrap(Wrap { trim: false }),
-        body,
-    );
-    render_footer(frame, footer, "Enter, b, or Esc: return  |  q: exit");
-}
-
-fn render_home(
-    frame: &mut ratatui::Frame,
-    status: &StatusView<'_>,
-    actions: &[TuiAction],
-    selected: usize,
-    show_help: bool,
-) {
-    let area = frame.area();
-    let compact = area.width < 92 || area.height < 30;
-    if compact {
-        let [header, menu, footer] = Layout::vertical([
-            Constraint::Length(9),
-            Constraint::Min(8),
-            Constraint::Length(2),
-        ])
-        .areas(area);
-        render_banner(frame, header, "CLI control center");
-        render_action_list(frame, menu, actions, selected);
-        render_footer(
-            frame,
-            footer,
-            "1-6: open item  |  Up/Down or j/k: select  |  Enter: open  |  ?/h: help  |  q/Esc: exit",
-        );
-        return;
-    }
-    let [header, main, events, footer] = Layout::vertical([
-        Constraint::Length(9),
-        Constraint::Min(12),
-        Constraint::Length(6),
-        Constraint::Length(2),
-    ])
-    .areas(area);
-    render_banner(frame, header, "CLI control center");
-    let [menu, detail] =
-        Layout::horizontal([Constraint::Percentage(38), Constraint::Percentage(62)]).areas(main);
-    render_action_list(frame, menu, actions, selected);
-    render_home_detail(frame, detail, status, &actions[selected], show_help);
-    let entries = status
-        .events
-        .entries()
-        .into_iter()
-        .map(Line::from)
-        .collect::<Vec<_>>();
-    frame.render_widget(
-        Paragraph::new(entries)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Recent events "),
-            )
-            .wrap(Wrap { trim: false }),
-        events,
-    );
-    render_footer(
-        frame,
-        footer,
-        "1-6: open item  |  Up/Down or j/k: select  |  Enter: open  |  ?/h: help  |  q/Esc: exit",
-    );
-}
-
-fn render_relay(frame: &mut ratatui::Frame, status: &StatusView<'_>, state: &RelayState) {
-    let area = frame.area();
-    let compact = area.width < 92 || area.height < 26;
-    let [header, main, footer] = Layout::vertical([
-        Constraint::Length(4),
-        Constraint::Min(10),
-        Constraint::Length(3),
-    ])
-    .areas(area);
-    frame.render_widget(
-        Paragraph::new(format!(
-            "QuYan {}  |  AI Relay Token management | page {} | total {}\n{}",
-            env!("CARGO_PKG_VERSION"),
-            state.page.max(1),
-            state.total,
-            state.notice
-        ))
-        .block(Block::default().borders(Borders::ALL).title(" AI Relay "))
-        .wrap(Wrap { trim: false }),
-        header,
-    );
-    if compact && state.confirmation.is_some() {
-        render_relay_detail(frame, main, status, state);
-    } else if compact {
-        render_relay_token_list(frame, main, state);
-    } else {
-        let [list, detail] =
-            Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)])
-                .areas(main);
-        render_relay_token_list(frame, list, state);
-        render_relay_detail(frame, detail, status, state);
-    }
-    let footer_text = if state.confirmation.is_some() {
-        "y: confirm selected action (u saves token in keychain) | n: cancel"
-    } else {
-        "Up/Down or j/k: select  |  Enter: usage  |  r: refresh  |  c: create  |  d: delete  |  u: use token  |  Left/Right: page  |  b/Esc: back  |  q: exit"
-    };
-    render_footer(frame, footer, footer_text);
-}
-
-fn render_banner(frame: &mut ratatui::Frame, area: Rect, title: &str) {
-    frame.render_widget(
-        Paragraph::new(format!(
-            "{QUYAN_BANNER}\nQuYan {}  |  {title}",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .block(Block::default().borders(Borders::ALL).title(" QuYan "))
-        .wrap(Wrap { trim: false }),
-        area,
-    );
-}
-
-fn render_action_list(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    actions: &[TuiAction],
-    selected: usize,
-) {
-    let entries = actions
-        .iter()
-        .enumerate()
-        .map(|(index, action)| {
-            ListItem::new(Line::from(format!("{}  {}", index + 1, action.label)))
-        })
-        .collect::<Vec<_>>();
-    render_list(frame, area, entries, selected, " Actions ");
-}
-
-fn render_relay_token_list(frame: &mut ratatui::Frame, area: Rect, state: &RelayState) {
-    let entries = if state.tokens.is_empty() {
-        vec![ListItem::new("No Relay Tokens")]
-    } else {
-        state
-            .tokens
-            .iter()
-            .map(|token| ListItem::new(format!("{}  [{}]", token.name, token.status)))
-            .collect()
-    };
-    render_list(frame, area, entries, state.selected, " Relay Tokens ");
-}
-
-fn render_list(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    entries: Vec<ListItem<'_>>,
-    selected: usize,
-    title: &str,
-) {
-    let mut state = ListState::default();
-    state.select((!entries.is_empty()).then_some(selected));
-    frame.render_stateful_widget(
-        List::new(entries)
-            .block(Block::default().borders(Borders::ALL).title(title))
-            .highlight_symbol("> ")
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD)),
-        area,
-        &mut state,
-    );
-}
-
-fn render_home_detail(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    status: &StatusView<'_>,
-    action: &TuiAction,
-    show_help: bool,
-) {
-    let lines = if show_help {
-        vec![
-            Line::from("1-6 opens the matching home action immediately."),
-            Line::from("Up/Down or j/k changes selection; Enter opens it."),
-            Line::from("All listed actions perform their described workflow."),
-            Line::from("Credentials are stored only in the OS keychain."),
-            Line::from("Use --json for machine-readable command output."),
-            Line::from("Use --debug for redacted diagnostic logging."),
-        ]
-    } else {
-        vec![
-            Line::from(format!("Selected: {}", action.label)),
-            Line::from(action.description),
-            Line::from(""),
-            Line::from("Keys: Enter opens selected action; 1-6 opens an item directly."),
-            Line::from("Command:"),
-            Line::from(format!("  {}", action.command))
-                .style(Style::default().add_modifier(Modifier::BOLD)),
-            Line::from(action.credential),
-            Line::from(""),
-            Line::from(format!("API: {}", status.api_base_url)),
-            Line::from(format!("Relay: {}", status.relay_base_url)),
-            Line::from(format!(
-                "Credentials: account={} relay={} product={}",
-                configured(status.account_configured),
-                configured(status.relay_configured),
-                configured(status.product_configured)
-            )),
-            Line::from(format!("Log: {}", status.log_path)),
-            Line::from(format!("Config: {}", status.config_path)),
-        ]
-    };
-    frame.render_widget(
-        Paragraph::new(Text::from(lines))
-            .block(Block::default().borders(Borders::ALL).title(if show_help {
-                " Help "
-            } else {
-                " Selected action "
-            }))
-            .wrap(Wrap { trim: false }),
-        area,
-    );
-}
-
-fn render_relay_detail(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    status: &StatusView<'_>,
-    state: &RelayState,
-) {
-    let lines = if let Some(confirmation) = &state.confirmation {
-        match confirmation {
-            RelayConfirmation::Use { name, .. } => vec![
-                Line::from(format!("Use '{name}' for local AI clients?")),
-                Line::from("The selected Relay Token replaces the saved Relay credential only."),
-                Line::from("It is stored in the OS keychain, never in tool config files."),
-                Line::from("Press y to confirm or n to cancel."),
-            ],
-            RelayConfirmation::Create => vec![
-                Line::from("Create a new Relay Token named 'Quyan CLI token'?"),
-                Line::from("Press y to create or n to cancel."),
-                Line::from("The token value will not be displayed in this TUI."),
-            ],
-            RelayConfirmation::Delete { name, .. } => vec![
-                Line::from(format!("Delete Relay Token '{name}'?")),
-                Line::from("This cannot be undone. Press y to confirm or n to cancel."),
-            ],
-        }
-    } else if let Some(token) = state.tokens.get(state.selected) {
-        let mut lines = vec![
-            Line::from(format!("Name: {}", token.name)),
-            Line::from(format!("Status: {}", token.status)),
-            Line::from(format!("Balance: {}", token.balance)),
-            Line::from(format!("Requests: {}", token.request_count)),
-            Line::from(format!("Total tokens: {}", token.total_tokens)),
-            Line::from(format!("Used quota: {}", token.used_quota)),
-            Line::from(""),
-            Line::from("Enter loads current usage."),
-            Line::from("The secret token value is never displayed."),
-        ];
-        if let Some(usage) = &state.usage {
-            lines.push(Line::from(""));
-            lines.push(Line::from("Usage:"));
-            lines.push(Line::from(format!(
-                "Requests: {}",
-                value_label(usage.get("requestCount"))
-            )));
-            lines.push(Line::from(format!(
-                "Total tokens: {}",
-                value_label(usage.get("totalTokens"))
-            )));
-            lines.push(Line::from(format!(
-                "Remaining quota: {}",
-                value_label(usage.get("remainingQuota"))
-            )));
-        }
-        lines
-    } else {
-        vec![
-            Line::from("No Relay Tokens are available."),
-            Line::from("Press c to create a default Quyan CLI token."),
-            Line::from(format!("API: {}", status.api_base_url)),
-        ]
-    };
-    frame.render_widget(
-        Paragraph::new(Text::from(lines))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Token details "),
-            )
-            .wrap(Wrap { trim: false }),
-        area,
-    );
-}
-
-fn render_footer(frame: &mut ratatui::Frame, area: Rect, text: &str) {
-    frame.render_widget(
-        Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL))
-            .wrap(Wrap { trim: false }),
-        area,
-    );
-}
-fn configured(value: bool) -> &'static str {
-    if value {
-        "configured"
-    } else {
-        "not configured"
-    }
+    drop(guard);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        actions, parse_relay_tokens, render, BrowserLoginView, RelayState, Screen, StatusView,
-    };
-    use crate::{cli::handlers::auth, utils::logging::EventBuffer};
-    use ratatui::{backend::TestBackend, Terminal};
-    use serde_json::json;
-    use std::time::Instant;
-
-    fn status<'a>(events: &'a EventBuffer) -> StatusView<'a> {
+    use super::*;
+    fn status(events: &EventBuffer) -> StatusView<'_> {
         StatusView {
-            api_base_url: "https://api.qysyw.cn",
-            relay_base_url: "https://ai.qysyw.cn",
-            auth_base_url: "https://auth.qysyw.cn",
+            api_base_url: "https://api.example.test",
+            relay_base_url: "https://relay.example.test",
+            auth_base_url: "https://auth.example.test",
             locale: "zh-CN",
-            config_path: "C:/config.json",
-            account_configured: false,
-            relay_configured: true,
+            no_color: false,
+            config_path: "fixture/config.json",
+            log_path: "fixture/quyan.log",
+            account_configured: true,
+            relay_configured: false,
             product_configured: false,
-            log_path: "C:/logs/quyan.log",
             events,
         }
     }
-
     #[test]
-    fn successful_login_returns_to_the_menu() {
-        assert!(matches!(
-            super::login_success_screen(2),
-            Screen::Home {
-                selected: 2,
-                show_help: false
+    fn compact_home_exposes_customer_actions_without_explanatory_panels() {
+        for (width, height) in [(120, 36), (80, 24), (60, 20)] {
+            for locale in ["zh-CN", "en-US"] {
+                for no_color in [false, true] {
+                    let events = EventBuffer::new();
+                    let mut status = status(&events);
+                    status.locale = locale;
+                    status.no_color = no_color;
+                    let app = App::new(&status);
+                    let mut terminal =
+                        Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+                    terminal.draw(|frame| app.render(frame, &status)).unwrap();
+                    let output = format!("{:?}", terminal.backend().buffer());
+                    assert!(output.contains(if locale == "zh-CN" {
+                        "本地路由"
+                    } else {
+                        "Local Router"
+                    }));
+                    assert!(!output.contains("Recent events"));
+                    assert!(!output.contains("OAuth /"));
+                    assert!(!output.contains("fixture/config"));
+                    if no_color {
+                        assert!(terminal
+                            .backend()
+                            .buffer()
+                            .content
+                            .iter()
+                            .all(|cell| cell.fg == ratatui::style::Color::Reset
+                                && cell.bg == ratatui::style::Color::Reset));
+                    }
+                }
             }
-        ));
+        }
     }
-
-    #[test]
-    fn parses_safe_relay_token_fields_without_exposing_the_token_value() {
-        let tokens = parse_relay_tokens(
-            &json!({"items":[{"id":"token-1","name":"Primary","token":"rlt_secret","status":1,"balance":12,"requestCount":3,"totalTokens":42,"usedQuota":4}]}),
-        );
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0].name, "Primary");
-        assert_eq!(tokens[0].status, "active");
-        assert!(!format!("{}{}", tokens[0].id, tokens[0].name).contains("rlt_secret"));
-    }
-
-    #[test]
-    fn home_screen_exposes_the_interactive_ai_relay_entry() {
-        let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("test terminal");
+    #[tokio::test]
+    async fn input_keeps_character_shortcuts_and_confirmation_escape_local() {
         let events = EventBuffer::new();
-        events.push("INFO", "CLI started");
-        let actions = actions("zh-CN");
-        terminal
-            .draw(|frame| {
-                render(
-                    frame,
-                    &status(&events),
-                    &actions,
-                    &Screen::Home {
-                        selected: 2,
-                        show_help: false,
-                    },
-                )
-            })
-            .expect("render");
-        let output = format!("{:?}", terminal.backend().buffer());
-        assert!(output.contains("AI 中转"));
-        assert!(output.contains("3  AI 中转"));
-        assert!(output.contains("1-6"));
-        assert!(output.contains("按 Enter 打开"));
-        assert!(output.contains("Recent events"));
+        let status = status(&events);
+        let mut app = App::new(&status);
+        let mut api = ApiClient::with_endpoints(
+            Credentials::default(),
+            "zh-CN",
+            "http://127.0.0.1:1",
+            "http://127.0.0.1:1",
+        )
+        .unwrap();
+        app.screen = Screen::Relay;
+        app.key(KeyCode::Char('c'), &mut api, &status, 80, 20).await;
+        app.key(KeyCode::Char('q'), &mut api, &status, 80, 20).await;
+        assert!(!app.quit);
+        app.key(KeyCode::Enter, &mut api, &status, 80, 20).await;
+        app.key(KeyCode::Esc, &mut api, &status, 80, 20).await;
+        assert!(app.screen == Screen::Relay);
+        assert!(!app.busy());
     }
-
-    #[test]
-    fn narrow_token_selection_confirmation_is_visible_and_redacted() {
-        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    #[tokio::test]
+    async fn account_sections_keep_independent_results_on_failure() {
         let events = EventBuffer::new();
-        let state = RelayState {
-            confirmation: Some(super::RelayConfirmation::Use {
-                id: "test-id".into(),
-                name: "Test token".into(),
-            }),
-            ..Default::default()
-        };
-        terminal
-            .draw(|frame| {
-                render(
-                    frame,
-                    &status(&events),
-                    &actions("en-US"),
-                    &Screen::Relay(state),
-                )
-            })
-            .unwrap();
-        let output = format!("{:?}", terminal.backend().buffer());
-        assert!(output.contains("Use 'Test token'"));
-        assert!(output.contains("OS keychain"));
-    }
-
-    #[test]
-    fn relay_screen_renders_a_safe_token_list() {
-        let mut terminal = Terminal::new(TestBackend::new(120, 32)).expect("test terminal");
-        let events = EventBuffer::new();
-        let actions = actions("en-US");
-        let mut relay = RelayState::default();
-        relay.tokens = parse_relay_tokens(
-            &json!({"items":[{"id":"token-1","name":"Primary","token":"rlt_secret","status":1,"balance":12,"requestCount":3,"totalTokens":42,"usedQuota":4}]}),
-        );
-        relay.notice = "Loaded 1 Relay Token(s)".into();
-        terminal
-            .draw(|frame| render(frame, &status(&events), &actions, &Screen::Relay(relay)))
-            .expect("render");
-        let output = format!("{:?}", terminal.backend().buffer());
-        assert!(output.contains("AI Relay"));
-        assert!(output.contains("Primary"));
-        assert!(!output.contains("rlt_secret"));
-    }
-
-    #[test]
-    fn browser_login_screen_shows_waiting_hint_and_callback_address() {
-        let mut terminal = Terminal::new(TestBackend::new(120, 24)).expect("test terminal");
-        let events = EventBuffer::new();
-        let actions = actions("zh-CN");
-        terminal
-            .draw(|frame| {
-                render(
-                    frame,
-                    &status(&events),
-                    &actions,
-                    &Screen::BrowserLogin {
-                        view: BrowserLoginView {
-                            selected: 0,
-                            locale: "zh-CN".into(),
-                            redirect_uri: auth::oauth_redirect_uri(),
-                            started_at: Instant::now(),
-                            exchange: None,
-                        },
-                    },
-                )
-            })
-            .expect("render");
-        let output = format!("{:?}", terminal.backend().buffer());
-        assert!(output.contains("浏览器授权进行中"));
-        assert!(output.contains("http://127.0.0.1:40016/callback"));
-        assert!(output.contains("按 Esc 或 q 取消"));
-        assert!(output.contains("等待授权回调"));
-    }
-
-    #[test]
-    fn browser_login_screen_render_is_stable_without_a_running_exchange() {
-        let mut terminal = Terminal::new(TestBackend::new(80, 18)).expect("test terminal");
-        let events = EventBuffer::new();
-        let actions = actions("en-US");
-        terminal
-            .draw(|frame| {
-                render(
-                    frame,
-                    &status(&events),
-                    &actions,
-                    &Screen::BrowserLogin {
-                        view: BrowserLoginView {
-                            selected: 0,
-                            locale: "en-US".into(),
-                            redirect_uri: auth::oauth_redirect_uri(),
-                            started_at: Instant::now(),
-                            exchange: None,
-                        },
-                    },
-                )
-            })
-            .expect("render");
-        let output = format!("{:?}", terminal.backend().buffer());
-        assert!(output.contains("Browser authorization in progress"));
-        assert!(output.contains("http://127.0.0.1:40016/callback"));
-        assert!(output.contains("Press Esc or q to cancel"));
+        let mut status = status(&events);
+        let mut app = App::new(&status);
+        let mut api = ApiClient::with_endpoints(
+            Credentials::default(),
+            "zh-CN",
+            "http://127.0.0.1:1",
+            "http://127.0.0.1:1",
+        )
+        .unwrap();
+        app.account[0].task = Some(tokio::spawn(async {
+            Ok(serde_json::json!({"username":"customer"}))
+        }));
+        app.account[1].task = Some(tokio::spawn(async {
+            Err(anyhow::anyhow!("fixture denied"))
+        }));
+        app.account[2].task = Some(tokio::spawn(async {
+            Ok(serde_json::json!({"requestCount":42}))
+        }));
+        while app.account.iter().any(|section| {
+            section
+                .task
+                .as_ref()
+                .is_some_and(|task| !task.is_finished())
+        }) {
+            tokio::task::yield_now().await;
+        }
+        app.poll(&mut api, &mut status).await;
+        assert!(app.account[0].content.contains("customer"));
+        assert!(app.account[1].content.contains("denied"));
+        assert!(app.account[2].content.contains("42"));
     }
 }

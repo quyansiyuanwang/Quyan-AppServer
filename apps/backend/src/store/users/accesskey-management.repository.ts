@@ -2,6 +2,7 @@ import { Prisma, type AccessKey, type User } from "@prisma/client";
 import { maskSecret, toCanonicalCredential, MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { assertAccessKeyAvailable } from "./accesskey.repository";
 import { CustomCode } from "@quyan/shared";
 import type { AccessKeyCreateInput } from "./accesskey.store";
 import type { AccessKeyDto } from "@/api/dto/users/accesskey.dto";
@@ -212,6 +213,7 @@ export class AccessKeyManagementRepository {
         });
         if (consumed.count !== 1) throw invalidVerificationCode();
       }
+      await assertAccessKeyAvailable(tx, data.key);
       return tx.accessKey.create({ data });
     });
   }

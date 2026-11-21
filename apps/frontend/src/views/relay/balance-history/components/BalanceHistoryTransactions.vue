@@ -3,15 +3,7 @@ import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.v
 import TransactionHistory from '@/components/balance/TransactionHistory.vue'
 import { useBalanceHistoryContext } from '../context'
 
-withDefaults(
-  defineProps<{
-    cardClass: string
-    scope?: 'account' | 'consumption' | 'all'
-  }>(),
-  {
-    scope: 'all',
-  },
-)
+defineProps<{ scope: 'account' | 'consumption' }>()
 
 const state = useBalanceHistoryContext()
 const allTransactions = state.allTransactions
@@ -24,7 +16,7 @@ const handleHistorySliderChange = state.handleHistorySliderChange
 </script>
 
 <template>
-  <el-card :class="['transaction-card', cardClass]">
+  <section class="billing-section">
     <ComponentErrorBoundary>
       <TransactionHistory
         :transactions="allTransactions"
@@ -33,9 +25,10 @@ const handleHistorySliderChange = state.handleHistorySliderChange
         :range-hint="historyRangeHint"
         :range-slider="historyRangeSlider"
         :scope="scope"
+        :heading="state.i18ns.t('balance.transactionHistory')"
         @refresh="refreshTransactions"
         @range-slider-change="handleHistorySliderChange"
       />
     </ComponentErrorBoundary>
-  </el-card>
+  </section>
 </template>

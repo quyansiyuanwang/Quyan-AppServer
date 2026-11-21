@@ -24,6 +24,8 @@ Request count and last-used time help you observe key usage; they do not mean ev
 3. Copy the full key from the success dialog and store it safely. The copy-success message does not guarantee the clipboard was updated; paste into trusted secret storage and verify it, or select and copy the read-only text manually if needed. After closing the dialog, you cannot retrieve it from the list.
 4. Configure the key in the application that needs it and verify access to the required APIs. The key does not automatically grant additional business permissions.
 
+Use `sk-ak-` for new configurations. The same Access Key also works with the legacy `ak_` prefix; keep the rest of the key unchanged, including letter case.
+
 ## Delete or replace a key
 
 1. Check the name and masked value to identify the key to delete.

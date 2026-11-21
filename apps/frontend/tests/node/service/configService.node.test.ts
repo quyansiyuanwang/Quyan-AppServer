@@ -8,6 +8,27 @@ beforeEach(() => {
   requestMock.put.mockResolvedValue({ code: 0 })
 })
 describe('configuration secret presence markers', () => {
+  it('reads AI settings without fetching unrelated server configuration', async () => {
+    const configuration = { configKey: 'ai.resources', revision: 'fixture' }
+    requestMock.get.mockResolvedValue({ code: 0, data: configuration })
+    expect(await configService.getAIResourceConfiguration()).toEqual(configuration)
+    expect(requestMock.get).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'ConfigControllerGetAiResourceConfiguration' }),
+      {},
+      undefined,
+    )
+  })
+  it('saves structured AI settings through the protected dedicated operation', async () => {
+    const configuration = { version: 1 } as Parameters<
+      typeof configService.setAIResourceConfiguration
+    >[0]
+    await configService.setAIResourceConfiguration(configuration)
+    expect(requestMock.put).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'ConfigControllerSetAiResourceConfiguration' }),
+      { body: configuration },
+      undefined,
+    )
+  })
   it('preserves masked secrets while saving changed ordinary settings', async () => {
     await configService.setConfigs({
       'smtp.password': SERVER_CONFIG_SECRET_PLACEHOLDER,

@@ -11,8 +11,8 @@ pub struct Cli {
     pub version: bool,
     #[arg(long, global = true)]
     pub json: bool,
-    #[arg(long, global = true, default_value = "zh-CN", value_parser = ["zh-CN", "en-US"])]
-    pub lang: String,
+    #[arg(long, global = true, value_parser = ["zh-CN", "en-US"])]
+    pub lang: Option<String>,
     #[arg(long, global = true)]
     pub no_color: bool,
     #[arg(long, global = true)]
@@ -31,6 +31,13 @@ pub enum Command {
     Logout,
     Status,
     Account,
+    /// Local model routing for your AI tools.
+    Router {
+        #[arg(long, global = true)]
+        yes: bool,
+        #[command(subcommand)]
+        command: crate::router::commands::RouterCommand,
+    },
     Relay {
         #[command(subcommand)]
         command: RelayCommand,
@@ -135,6 +142,8 @@ pub enum ChannelsCommand {
 
 #[derive(Debug, Args)]
 pub struct LaunchArgs {
+    #[arg(long)]
+    pub router: bool,
     #[arg(long, value_enum)]
     pub client: crate::features::integrations::ClientKind,
     #[arg(long)]
@@ -185,6 +194,28 @@ pub enum ProductJsonCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn presentation_options_preserve_saved_locale_and_customer_command_boundary() {
+        assert!(Cli::try_parse_from(["quyan"]).unwrap().lang.is_none());
+        let args = Cli::try_parse_from([
+            "quyan",
+            "--lang",
+            "en-US",
+            "--no-color",
+            "--json",
+            "router",
+            "status",
+        ])
+        .unwrap();
+        assert_eq!(args.lang.as_deref(), Some("en-US"));
+        assert!(args.no_color && args.json);
+        assert!(Cli::try_parse_from(["quyan", "launch", "--router", "--client", "codex"]).is_ok());
+        assert!(
+            Cli::try_parse_from(["quyan", "router", "apply", "--client", "claude-desktop"])
+                .is_err()
+        );
+        assert!(Cli::try_parse_from(["quyan", "relay", "channels", "update"]).is_err());
+    }
     #[test]
     fn parses_client_workflows_and_rejects_unknown_adapters() {
         for args in [

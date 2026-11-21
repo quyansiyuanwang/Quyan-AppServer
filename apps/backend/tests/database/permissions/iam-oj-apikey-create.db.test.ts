@@ -63,7 +63,7 @@ const grant = () =>
       Resource: "acs:quyan:*:" + owner + ":user/" + actor,
     },
   });
-const create = (input = {}, req = request()) => service.create(actor, input, "fixture-new-" + randomUUID(), req);
+const create = (input = {}, req = request()) => service.create(actor, input, "sk-ojqa-fixture-" + randomUUID(), req);
 describe("transactional OJ API Key issuance", () => {
   it("issues one fresh credential on the authorized subject and returns only channel display metadata", async () => {
     await grant();
@@ -125,7 +125,7 @@ describe("transactional OJ API Key issuance", () => {
       if (++count === 2) throw new Error("fixture denied");
       await check();
     };
-    await expect(repository.create({ userId: actor, key: "fixture-rollback" }, prepared.guard)).rejects.toThrow(
+    await expect(repository.create({ userId: actor, key: "sk-ojqa-fixture-rollback" }, prepared.guard)).rejects.toThrow(
       "fixture denied",
     );
     expect(await prisma.oJAPIKey.count({ where: { userId: actor } })).toBe(0);

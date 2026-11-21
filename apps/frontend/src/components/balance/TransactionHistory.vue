@@ -1,5 +1,12 @@
 <template>
   <div class="transaction-history">
+    <div v-if="heading" class="history-heading">
+      <h2>{{ heading }}</h2>
+      <el-radio-group v-model="viewMode" size="small" :aria-label="heading">
+        <el-radio-button value="table">{{ i18ns.t('table') }}</el-radio-button>
+        <el-radio-button value="chart">{{ i18ns.t('chart') }}</el-radio-button>
+      </el-radio-group>
+    </div>
     <div class="filter-section">
       <el-select
         v-if="props.scope !== 'account'"
@@ -128,7 +135,7 @@
           <span v-if="props.rangeHint" class="range-action-group__hint">{{ props.rangeHint }}</span>
         </div>
       </template>
-      <div style="margin-left: auto">
+      <div v-if="!heading" style="margin-left: auto">
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button value="table">{{ i18ns.t('table') }}</el-radio-button>
           <el-radio-button value="chart">{{ i18ns.t('chart') }}</el-radio-button>
@@ -815,6 +822,7 @@ import {
 } from '@/utils/balance-transaction'
 
 const props = defineProps<{
+  heading?: string
   transactions: BalanceTransactionResponse[]
   loading?: boolean
   loadingFull?: boolean

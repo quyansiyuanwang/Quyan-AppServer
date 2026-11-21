@@ -8,84 +8,137 @@ use anyhow::{bail, ensure, Context, Result};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-const DESKTOP_PROFILE_ID: &str = "dfd29f0d-1a0c-4f6c-8d9f-016b29c286b9";
-pub const DESKTOP_ALIAS: &str = "claude-sonnet-quyan";
-
-pub fn desktop_directory(home: &Path, env: impl Fn(&str) -> Option<PathBuf>) -> PathBuf {
-    if let Some(dir) = env("CLAUDE_DESKTOP_CONFIG_DIR") {
-        return dir;
-    }
-    if cfg!(windows) {
-        return env("LOCALAPPDATA")
-            .unwrap_or_else(|| home.join("AppData/Local"))
-            .join("Claude-3p");
-    }
-    if cfg!(target_os = "macos") {
-        return home.join("Library/Application Support/Claude-3p");
-    }
-    env("XDG_CONFIG_HOME")
-        .unwrap_or_else(|| home.join(".config"))
-        .join("Claude-3p")
-}
-fn target(kind: ClientKind) -> Result<PathBuf> {
-    let home = dirs::home_dir().context("Home directory unavailable")?;
-    let override_dir = |key: &str| {
-        std::env::var_os(key)
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-    };
+pub async fn launch(
+    kind: ClientKind,
+    model: Option<&str>,
+    args: &[std::ffi::OsString],
+) -> Result<()> {
+    ensure!(
+        super::process::status().await?["running"] == true,
+        "Router is stopped"
+    );
+    let config = config::load()?;
+    let program = kind
+        .executable()
+        .context("Router launch supports Claude Code, Codex and pi")?;
+    let mut command = std::process::Command::new(
+        crate::features::integrations::launch::resolve_program(program.as_ref()),
+    );
+    let base = config.base_url();
     match kind {
-        ClientKind::ClaudeCode=>Ok(override_dir("CLAUDE_CONFIG_DIR").unwrap_or_else(||home.join(".claude")).join("settings.json")),
-        ClientKind::Codex=>Ok(override_dir("CODEX_HOME").unwrap_or_else(||home.join(".codex")).join("config.toml")),
-        ClientKind::Pi=>Ok(override_dir("PI_CODING_AGENT_DIR").unwrap_or_else(||home.join(".pi/agent")).join("models.json")),
-        ClientKind::ClaudeDesktop=>Ok(desktop_directory(&home,override_dir).join("configLibrary")),
-        ClientKind::ChatgptDesktop=>bail!("ChatGPT Desktop has no verified configurable local API Endpoint adapter. No official settings or login credentials were modified."),
-        _=>bail!("Environment-only clients use quyan launch --router --client {} -- <program>",kind.id()),
+        ClientKind::ClaudeCode => {
+            if let Some(model) = model {
+                ensure!(
+                    !routing::candidates(&config, Protocol::Anthropic, model).is_empty(),
+                    "Model unavailable for Anthropic"
+                );
+            }
+            command
+                .env("ANTHROPIC_BASE_URL", &base)
+                .env("ANTHROPIC_AUTH_TOKEN", LOCAL_API_KEY)
+                .env_remove("ANTHROPIC_API_KEY")
+                .env_remove("CLAUDE_CODE_OAUTH_TOKEN");
+            if let Some(model) = model {
+                command.env("ANTHROPIC_MODEL", model);
+            }
+        }
+        ClientKind::Codex => {
+            if let Some(model) = model {
+                ensure!(
+                    !routing::candidates(&config, Protocol::OpenaiResponses, model).is_empty(),
+                    "Model unavailable for Responses"
+                );
+            }
+            command
+                .arg("-c")
+                .arg(format!("model_provider=\"{LOCAL_PROVIDER_ID}\""));
+            for (key, value) in [
+                ("name", "Quyan Local Router".to_string()),
+                ("base_url", format!("{base}/v1")),
+                ("wire_api", "responses".into()),
+                ("experimental_bearer_token", LOCAL_API_KEY.into()),
+            ] {
+                command.arg("-c").arg(format!(
+                    "model_providers.{LOCAL_PROVIDER_ID}.{key}={}",
+                    serde_json::to_string(&value)?
+                ));
+            }
+            command.arg("-c").arg(format!(
+                "model_providers.{LOCAL_PROVIDER_ID}.query_params.protocol=\"openai-responses\""
+            ));
+            command.arg("-c").arg(format!(
+                "model_providers.{LOCAL_PROVIDER_ID}.supports_websockets=false"
+            ));
+            if let Some(model) = model {
+                command.arg("--model").arg(model);
+            }
+        }
+        ClientKind::Pi => {
+            let text = files::read(&target(kind)?)?.context("Configure pi for Router first")?;
+            let document: Value =
+                serde_json::from_str(&text).context("Invalid pi configuration")?;
+            let model = pi_launch_model(&document, &config, model)?;
+            command
+                .arg("--provider")
+                .arg(LOCAL_PROVIDER_ID)
+                .arg("--model")
+                .arg(model);
+        }
+        _ => bail!("Unsupported Router client"),
     }
+    command.args(args);
+    let status = command
+        .status()
+        .context("Cannot launch client; check installation and PATH")?;
+    ensure!(status.success(), "Client exited unsuccessfully ({status})");
+    Ok(())
+}
+
+fn pi_api(protocol: Protocol) -> &'static str {
+    match protocol {
+        Protocol::Openai => "openai-completions",
+        Protocol::OpenaiResponses => "openai-responses",
+        Protocol::Anthropic => "anthropic-messages",
+        Protocol::Gemini => "google-generative-ai",
+    }
+}
+fn pi_launch_model(document: &Value, config: &RouterConfig, model: Option<&str>) -> Result<String> {
+    let provider = &document["providers"][LOCAL_PROVIDER_ID];
+    let protocol = Protocol::ALL
+        .into_iter()
+        .find(|protocol| provider["api"] == pi_api(*protocol))
+        .context("Configure pi for Router first")?;
+    let base = config.base_url();
+    let expected_base = if matches!(protocol, Protocol::Openai | Protocol::OpenaiResponses) {
+        format!("{base}/v1")
+    } else {
+        base
+    };
+    ensure!(
+        provider["baseUrl"] == expected_base && provider["apiKey"] == LOCAL_API_KEY,
+        "Configure pi for Router first"
+    );
+    provider["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry["id"].as_str())
+        .find(|candidate| {
+            model.is_none_or(|model| *candidate == model)
+                && !routing::candidates(config, protocol, candidate).is_empty()
+        })
+        .map(str::to_owned)
+        .context(
+            "Model unavailable in the current pi configuration; configure pi with this model first",
+        )
+}
+
+fn target(kind: ClientKind) -> Result<PathBuf> {
+    crate::features::integrations::config_path(kind)
 }
 pub fn apply(kind: ClientKind, model: Option<&str>, dry_run: bool) -> Result<Value> {
-    let mut config = config::load()?;
+    let config = config::load()?;
     let target = target(kind)?;
-    if kind == ClientKind::ClaudeDesktop {
-        let model = model.context(
-            "Claude Desktop requires --model; it is mapped to the stable local Sonnet role",
-        )?;
-        let found = routing::candidates(&config, Protocol::Anthropic, model);
-        ensure!(!found.is_empty(),"Model is unavailable through the Anthropic protocol; configure a token translation if needed");
-        config
-            .routes
-            .retain(|r| !(r.protocol == Protocol::Anthropic && r.model == DESKTOP_ALIAS));
-        for (priority, candidate) in found.iter().enumerate() {
-            config.routes.push(config::RouterRoute {
-                protocol: Protocol::Anthropic,
-                model: DESKTOP_ALIAS.into(),
-                profile_id: candidate.profile_id.clone(),
-                upstream_model: Some(candidate.model.clone()),
-                priority: priority as i32,
-            });
-        }
-        let preview = apply_at(kind, &target, &config, Some(DESKTOP_ALIAS), true)?;
-        if dry_run {
-            return Ok(preview);
-        }
-        // Validate all files before saving the alias, then make it routable
-        // before activating the profile. No upstream credential is ever written.
-        config::update(|c| {
-            c.routes
-                .retain(|r| !(r.protocol == Protocol::Anthropic && r.model == DESKTOP_ALIAS));
-            c.routes.extend(
-                config
-                    .routes
-                    .iter()
-                    .filter(|r| r.protocol == Protocol::Anthropic && r.model == DESKTOP_ALIAS)
-                    .cloned(),
-            );
-            Ok(())
-        })?;
-        let value = apply_at(kind, &target, &config, Some(DESKTOP_ALIAS), false)?;
-        // Application restart is only needed for initial takeover/endpoint change.
-        return Ok(value);
-    }
     apply_at(kind, &target, &config, model, dry_run)
 }
 pub(crate) fn apply_at(
@@ -100,14 +153,6 @@ pub(crate) fn apply_at(
         ensure!(config::valid_model(model), "Invalid model ID");
     }
     let base = config.base_url();
-    if kind == ClientKind::ClaudeDesktop {
-        return desktop(
-            path,
-            &base,
-            model.context("Desktop role model required")?,
-            dry_run,
-        );
-    }
     let original = files::read(path)?;
     let next = match kind {
         ClientKind::ClaudeCode => {
@@ -198,12 +243,7 @@ pub(crate) fn apply_at(
                     .find(|p| !routing::aggregate_models(config, *p).is_empty())
                     .context("No pi models available; refresh profiles first")?,
             };
-            let api = match protocol {
-                Protocol::Openai => "openai-completions",
-                Protocol::OpenaiResponses => "openai-responses",
-                Protocol::Anthropic => "anthropic-messages",
-                Protocol::Gemini => "google-generative-ai",
-            };
+            let api = pi_api(protocol);
             let url = if matches!(protocol, Protocol::Openai | Protocol::OpenaiResponses) {
                 format!("{base}/v1")
             } else {
@@ -222,7 +262,13 @@ pub(crate) fn apply_at(
                 .or_insert(json!([]))
                 .as_array_mut()
                 .context("pi models must be an array")?;
-            for model in routing::aggregate_models(config, protocol) {
+            let available = routing::aggregate_models(config, protocol);
+            models.retain(|entry| {
+                entry["id"]
+                    .as_str()
+                    .is_some_and(|model| available.iter().any(|available| available == model))
+            });
+            for model in available {
                 if !models.iter().any(|m| m["id"] == model) {
                     models.push(json!({"id":model}));
                 }
@@ -236,53 +282,6 @@ pub(crate) fn apply_at(
         json!({"client":kind.id(),"path":path,"baseUrl":base,"model":model,"changed":result.changed,"dryRun":dry_run,"backup":result.backup,"credential":"public loopback compatibility placeholder; no Relay Token","nextStep":format!("quyan launch --router --client {}",kind.id())}),
     )
 }
-fn desktop(directory: &Path, base: &str, model: &str, dry_run: bool) -> Result<Value> {
-    let profile_path = directory.join(format!("{DESKTOP_PROFILE_ID}.json"));
-    let meta_path = directory.join("_meta.json");
-    let original = files::read(&profile_path)?;
-    let old_meta = files::read(&meta_path)?;
-    let mut value = files::json_object(original.as_deref())?;
-    let mut meta = files::json_object(old_meta.as_deref())?;
-    for (key, val) in [
-        ("inferenceProvider", json!("gateway")),
-        ("inferenceGatewayAuthScheme", json!("bearer")),
-        ("inferenceGatewayApiKey", json!(LOCAL_API_KEY)),
-        ("inferenceGatewayBaseUrl", json!(base)),
-        ("inferenceModels", json!([model])),
-    ] {
-        value.insert(key.into(), val);
-    }
-    let entries = meta
-        .entry("entries")
-        .or_insert(json!([]))
-        .as_array_mut()
-        .context("Desktop configLibrary entries must be an array")?;
-    if !entries
-        .iter()
-        .any(|entry| entry["id"] == DESKTOP_PROFILE_ID)
-    {
-        entries.push(json!({"id":DESKTOP_PROFILE_ID,"name":"Quyan Local Router"}));
-    }
-    meta.insert("appliedId".into(), json!(DESKTOP_PROFILE_ID));
-    let result = files::write(
-        &profile_path,
-        original.as_deref(),
-        &files::serialize_json(&value)?,
-        dry_run,
-        true,
-    )?;
-    let meta_result = files::write(
-        &meta_path,
-        old_meta.as_deref(),
-        &files::serialize_json(&meta)?,
-        dry_run,
-        true,
-    )?;
-    Ok(
-        json!({"client":"claude-desktop","path":profile_path,"metadataPath":meta_path,"baseUrl":base,"model":model,"dryRun":dry_run,"changed":result.changed||meta_result.changed,"backup":result.backup,"metadataBackup":meta_result.backup,"nextStep":"Restart Claude Desktop once after initial takeover. Subsequent Router model/profile switches do not change these files."}),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,22 +349,42 @@ mod tests {
         }
     }
     #[test]
-    fn desktop_preserves_other_profiles_and_malformed_metadata_is_not_overwritten() {
+    fn pi_protocol_switch_removes_stale_models_and_checks_launch_compatibility() {
         let dir = tempfile::tempdir().unwrap();
-        let meta = dir.path().join("_meta.json");
-        std::fs::write(&meta, "broken").unwrap();
-        assert!(desktop(dir.path(), "http://127.0.0.1:15721", DESKTOP_ALIAS, false).is_err());
-        assert!(!dir
-            .path()
-            .join(format!("{DESKTOP_PROFILE_ID}.json"))
-            .exists());
-        std::fs::write(
-            &meta,
-            r#"{"entries":[{"id":"other","name":"Other"}],"appliedId":"other"}"#,
+        let path = dir.path().join("models.json");
+        let mut config = config();
+        config.profiles[0].models.anthropic = vec!["claude-fixture".into()];
+        apply_at(ClientKind::Pi, &path, &config, Some("model"), false).unwrap();
+        let document: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(pi_launch_model(&document, &config, None).unwrap(), "model");
+        assert!(pi_launch_model(&document, &config, Some("claude-fixture")).is_err());
+
+        apply_at(
+            ClientKind::Pi,
+            &path,
+            &config,
+            Some("claude-fixture"),
+            false,
         )
         .unwrap();
-        desktop(dir.path(), "http://127.0.0.1:15721", DESKTOP_ALIAS, false).unwrap();
-        assert!(std::fs::read_to_string(&meta).unwrap().contains("other"));
+        let mut document: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(
+            document["providers"][LOCAL_PROVIDER_ID]["api"],
+            "anthropic-messages"
+        );
+        assert_eq!(
+            document["providers"][LOCAL_PROVIDER_ID]["models"],
+            json!([{"id":"claude-fixture"}])
+        );
+        assert_eq!(
+            pi_launch_model(&document, &config, None).unwrap(),
+            "claude-fixture"
+        );
+        assert!(pi_launch_model(&document, &config, Some("model")).is_err());
+        document["providers"][LOCAL_PROVIDER_ID]["baseUrl"] = json!("https://example.test");
+        assert!(pi_launch_model(&document, &config, None).is_err());
     }
 }
 
@@ -377,11 +396,7 @@ pub fn binding_status(kind: ClientKind) -> Value {
         return json!({"client":kind.id(),"supported":true,"bound":false});
     };
     let base = config.base_url();
-    let file = if kind == ClientKind::ClaudeDesktop {
-        path.join(format!("{DESKTOP_PROFILE_ID}.json"))
-    } else {
-        path.clone()
-    };
+    let file = path.clone();
     let Ok(Some(text)) = files::read(&file) else {
         return json!({"client":kind.id(),"supported":true,"bound":false,"path":file});
     };
@@ -408,9 +423,6 @@ pub fn binding_status(kind: ClientKind) -> Value {
                 ClientKind::Pi => doc["providers"][LOCAL_PROVIDER_ID]["baseUrl"]
                     .as_str()
                     .is_some_and(|v| v == base || v == format!("{base}/v1")),
-                ClientKind::ClaudeDesktop => doc["inferenceGatewayBaseUrl"]
-                    .as_str()
-                    .is_some_and(|v| v == base || v == format!("{base}/claude-desktop")),
                 _ => false,
             })
     };

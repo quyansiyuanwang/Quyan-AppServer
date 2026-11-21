@@ -12,6 +12,8 @@
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。
 
+Relay、账号 Access Key 和 OJ API Key 在认证查找时分别兼容新旧前缀，密钥后缀保持原样。新签发仍使用 `sk-`。发布前对部署数据库运行只读的 `pnpm --filter @quyan/backend run credential-prefix:check`；命令只输出各类冲突计数，检测到冲突或检查失败时以非零状态退出。发现冲突应先处理再上线，无需运行批量前缀迁移。
+
 ## JWT 认证
 
 ### Token 类型

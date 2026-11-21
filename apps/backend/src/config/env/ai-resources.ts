@@ -25,6 +25,8 @@ export function buildAiResourcesConfig(source: EnvSnapshot) {
     maxSockets: integer("AI_HTTP_MAX_SOCKETS", 4),
     maxTotalSockets: integer("AI_HTTP_MAX_TOTAL_SOCKETS", 8),
     maxFreeSockets: integer("AI_HTTP_MAX_FREE_SOCKETS", 1),
+    keepAliveMsecs: integer("AI_HTTP_KEEP_ALIVE_MS", 30000),
+    socketTimeoutMs: integer("AI_HTTP_SOCKET_TIMEOUT_MS", 60000),
   };
   if (http.maxTotalSockets < http.maxSockets || http.maxFreeSockets > http.maxSockets)
     throw new Error("AI HTTP limits require maxFreeSockets <= maxSockets <= maxTotalSockets");

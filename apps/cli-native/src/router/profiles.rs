@@ -73,7 +73,7 @@ pub async fn add(
         .or(details["name"].as_str())
         .unwrap_or(token_id)
         .to_string();
-    let existing = config::load().unwrap_or_default();
+    let existing = config::load()?;
     let base_key = {
         let value = config::slug_stack_key(&display_name);
         if value.is_empty() {
