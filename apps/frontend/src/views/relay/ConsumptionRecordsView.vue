@@ -1,7 +1,10 @@
 <template>
   <AccountProfileLayout class="billing-page" :class="isDesktop ? 'desktop-page' : 'mobile-page'">
-    <BalanceHistorySummary mode="consumption" />
-    <BalanceHistoryTransactions scope="consumption" />
+    <BalanceHistorySummary mode="consumption" :class="isDesktop ? 'page-card' : 'mobile-card'" />
+    <BalanceHistoryTransactions
+      scope="consumption"
+      :class="isDesktop ? 'page-card' : 'mobile-card'"
+    />
   </AccountProfileLayout>
 </template>
 
