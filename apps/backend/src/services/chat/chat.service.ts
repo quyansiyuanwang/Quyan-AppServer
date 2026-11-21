@@ -561,6 +561,7 @@ export class ChatService {
       requireRelayChannelForFormat({ ...token, channel: candidate.channel }, candidate.requestFormat);
 
       const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
+        category: "chat",
         userId,
         modelName: selectedModelName,
         channelId: candidate.channel.id,

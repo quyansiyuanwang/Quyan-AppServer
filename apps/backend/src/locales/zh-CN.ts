@@ -422,6 +422,9 @@ const zhCN = {
     systemManagedPolicyNotUnbindable: "系统托管的产品所有者策略不可解绑",
   },
   billing: {
+    invalidOverdraftRule: "超额消费规则或计算结果无效",
+    accountChanged: "账户数据或配置已变化，请刷新后重试",
+    invalidAdjustment: "账户修正参数或修正后金额无效",
     redemptionCodeDeleted: "删除成功",
     insufficientBalance: "余额不足",
     balanceAccountUpdateFailed: "余额账户更新失败",

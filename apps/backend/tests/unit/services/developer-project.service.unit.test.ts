@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
     },
     developerQuotaOverride: { findFirst: vi.fn() },
     balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    balanceOverdraftDefault: { findUnique: vi.fn() },
+    balanceReservation: { aggregate: vi.fn() },
     balanceTransaction: { create: vi.fn() },
     developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
@@ -73,6 +75,8 @@ describe("DeveloperProjectService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
+    mocks.prisma.balanceOverdraftDefault.findUnique.mockResolvedValue(null);
+    mocks.prisma.balanceReservation.aggregate.mockResolvedValue({ _sum: { amount: null } });
     (DeveloperProjectService as any).serviceInstance = undefined;
     process.env.DEVELOPER_SECRETS_MASTER_KEY = "d".repeat(64);
     delete process.env.IP_GEOLOCATION_ENDPOINT;
@@ -159,7 +163,12 @@ describe("DeveloperProjectService", () => {
     });
     mocks.prisma.developerQuotaOverride.findFirst.mockResolvedValue(null);
     mocks.prisma.developerQuotaUsage.upsert.mockResolvedValue({ id: "usage-1", requestCount: 3 });
-    mocks.prisma.balanceAccount.findUnique.mockResolvedValue({ balance: 5 });
+    mocks.prisma.balanceAccount.findUnique.mockResolvedValue({
+      balance: 5,
+      status: 1,
+      totalRecharged: 5,
+      totalUsed: 0,
+    });
     mocks.prisma.balanceAccount.updateMany.mockResolvedValue({ count: 1 });
 
     const service = DeveloperProjectService.getInstance();

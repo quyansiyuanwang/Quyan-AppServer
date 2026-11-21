@@ -43,7 +43,7 @@ export class OJUsageRepository implements OJUsageStore {
         userId,
         balanceDelta: new Decimal(-cost),
         totalUsedDelta: new Decimal(cost),
-        minimumBalance: 0,
+        // The request was admitted before upstream execution; settle its complete actual usage.
       });
       if (!mutation) return false;
 

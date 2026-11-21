@@ -48,13 +48,20 @@ describe("UsageChargeService", () => {
   const distributedLockService = {
     runWithLock: vi.fn(),
   };
+  const overdraft = { resolve: vi.fn(), initialize: vi.fn() };
 
   const UsageChargeServiceCtor = UsageChargeService as unknown as new (...args: any[]) => UsageChargeService;
 
-  const service = new UsageChargeServiceCtor(relayProxyRepository, monthlyPassService, distributedLockService);
+  const service = new UsageChargeServiceCtor(
+    relayProxyRepository,
+    monthlyPassService,
+    distributedLockService,
+    overdraft,
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    overdraft.resolve.mockResolvedValue({ categories: ["relay", "chat"], limit: 0 });
     distributedLockService.runWithLock.mockImplementation(async (_key: string, task: () => Promise<any>) => task());
   });
 
@@ -111,6 +118,27 @@ describe("UsageChargeService", () => {
       balanceChargeMode: "strict",
     });
     expect(distributedLockService.runWithLock).toHaveBeenCalledTimes(1);
+  });
+  it("admits a negative balance only for allowed categories with remaining shared credit", async () => {
+    monthlyPassService.hasActiveCoverage.mockResolvedValue(false);
+    relayProxyRepository.findBalanceAccountByUserId.mockResolvedValue({ balance: -9, status: 1 });
+    overdraft.resolve.mockResolvedValue({ categories: ["relay"], limit: 10 });
+    const input = { userId: "user-1", modelName: "fixture-model", channelId: "channel-1" };
+    await expect(service.hasCoverageOrPositiveBalance(input)).resolves.toBe(true);
+    await expect(service.hasCoverageOrPositiveBalance({ ...input, category: "chat" })).resolves.toBe(false);
+    relayProxyRepository.findBalanceAccountByUserId.mockResolvedValue({ balance: -10, status: 1 });
+    await expect(service.hasCoverageOrPositiveBalance(input)).resolves.toBe(false);
+    relayProxyRepository.findBalanceAccountByUserId.mockResolvedValue({ balance: 10, status: 0 });
+    await expect(service.hasCoverageOrPositiveBalance(input)).resolves.toBe(false);
+  });
+  it("initializes an account admitted through the default credit policy", async () => {
+    monthlyPassService.hasActiveCoverage.mockResolvedValue(false);
+    relayProxyRepository.findBalanceAccountByUserId.mockResolvedValue(null);
+    overdraft.resolve.mockResolvedValue({ categories: ["relay"], limit: 10 });
+    await expect(
+      service.hasCoverageOrPositiveBalance({ userId: "new-user", modelName: "fixture-model", channelId: "channel-1" }),
+    ).resolves.toBe(true);
+    expect(overdraft.initialize).toHaveBeenCalledWith("new-user");
   });
 
   it("preserves explicit balanceChargeMode when provided", async () => {

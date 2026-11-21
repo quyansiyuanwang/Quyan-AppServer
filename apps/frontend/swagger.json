@@ -35256,6 +35256,295 @@
 				]
 			}
 		},
+		"/v1/balance-management/accounts": {
+			"get": {
+				"operationId": "BalanceManagementControllerListManagedAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ManagedBalanceListDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/balance-management/defaults": {
+			"get": {
+				"operationId": "BalanceManagementControllerGetOverdraftDefaults",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceOverdraftDefaultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "BalanceManagementControllerSetOverdraftDefaults",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceOverdraftDefaultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetDefaultOverdraftRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/balance-management/preview": {
+			"post": {
+				"operationId": "BalanceManagementControllerPreviewOverdraft",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ManagedBalanceAccountDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PreviewOverdraftRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/balance-management/overdraft": {
+			"post": {
+				"operationId": "BalanceManagementControllerSetUserOverdraft",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"updated": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"updated"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetUserOverdraftRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/balance-management/adjust": {
+			"post": {
+				"operationId": "BalanceManagementControllerAdjustBalanceAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceAdjustmentResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdjustBalanceAccountRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/balance-management/adjust/preview": {
+			"post": {
+				"operationId": "BalanceManagementControllerPreviewBalanceAccountAdjustment",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceAdjustmentPreviewDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"BalanceManagement"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdjustBalanceAccountRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/payments/alipay/public-config": {
 			"get": {
 				"operationId": "AlipayPaymentControllerGetPublicConfig",
@@ -41387,6 +41676,9 @@
 					"redemption:code:read",
 					"balance:read",
 					"balance:recharge",
+					"balance:management:read",
+					"balance:account:adjust",
+					"balance:overdraft:manage",
 					"payment:read",
 					"payment:refund",
 					"developer:quota:manage",
@@ -50510,6 +50802,8 @@
 			"OperationType": {
 				"description": "Business operation types for audit logging",
 				"enum": [
+					"BALANCE_ACCOUNT_ADJUST",
+					"BALANCE_OVERDRAFT_UPDATE",
 					"PAYMENT_CREATE",
 					"PAYMENT_CREDIT",
 					"PAYMENT_REFUND",
@@ -68819,6 +69113,7 @@
 			"BalanceTransactionCategory": {
 				"type": "string",
 				"enum": [
+					"account_adjustment",
 					"alipay_recharge",
 					"alipay_refund_hold",
 					"alipay_refund_reversal",
@@ -69013,6 +69308,419 @@
 					"records",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceOverdraftMode": {
+				"type": "string",
+				"enum": [
+					"fixed",
+					"disabled",
+					"percent",
+					"sum",
+					"max",
+					"min",
+					"formula"
+				]
+			},
+			"BalanceOverdraftRule": {
+				"properties": {
+					"mode": {
+						"$ref": "#/components/schemas/BalanceOverdraftMode"
+					},
+					"fixedAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"percent": {
+						"type": "number",
+						"format": "double"
+					},
+					"minimum": {
+						"type": "number",
+						"format": "double"
+					},
+					"maximum": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"formula": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"mode",
+					"fixedAmount",
+					"percent",
+					"minimum",
+					"maximum",
+					"formula"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceOverdraftCategory": {
+				"type": "string",
+				"enum": [
+					"chat",
+					"relay",
+					"developer",
+					"oj",
+					"monthly_pass",
+					"carpool",
+					"terminal"
+				]
+			},
+			"ManagedBalanceAccountDto": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"balance": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalRecharged": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalUsed": {
+						"type": "number",
+						"format": "double"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"rule": {
+						"$ref": "#/components/schemas/BalanceOverdraftRule"
+					},
+					"categories": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceOverdraftCategory"
+						},
+						"type": "array"
+					},
+					"ruleInherited": {
+						"type": "boolean"
+					},
+					"categoriesInherited": {
+						"type": "boolean"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"overdraftLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"usedOverdraft": {
+						"type": "number",
+						"format": "double"
+					},
+					"remainingOverdraft": {
+						"type": "number",
+						"format": "double"
+					},
+					"calculationError": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"userId",
+					"username",
+					"balance",
+					"totalRecharged",
+					"totalUsed",
+					"updateTime",
+					"rule",
+					"categories",
+					"ruleInherited",
+					"categoriesInherited",
+					"version",
+					"defaultVersion",
+					"overdraftLimit",
+					"usedOverdraft",
+					"remainingOverdraft",
+					"calculationError"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ManagedBalanceListDto": {
+				"properties": {
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/ManagedBalanceAccountDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"records",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceOverdraftDefaultDto": {
+				"properties": {
+					"rule": {
+						"$ref": "#/components/schemas/BalanceOverdraftRule"
+					},
+					"categories": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceOverdraftCategory"
+						},
+						"type": "array"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"rule",
+					"categories",
+					"version"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetDefaultOverdraftRequest": {
+				"$ref": "#/components/schemas/BalanceOverdraftDefaultDto"
+			},
+			"PreviewOverdraftRequest": {
+				"properties": {
+					"userIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"rule": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/BalanceOverdraftRule"
+							}
+						],
+						"nullable": true
+					},
+					"categories": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceOverdraftCategory"
+						},
+						"type": "array",
+						"nullable": true
+					}
+				},
+				"required": [
+					"userIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetUserOverdraftRequest": {
+				"properties": {
+					"targets": {
+						"items": {
+							"properties": {
+								"version": {
+									"type": "number",
+									"format": "double"
+								},
+								"userId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"version",
+								"userId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"defaultVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"rule": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/BalanceOverdraftRule"
+							}
+						],
+						"nullable": true
+					},
+					"categories": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceOverdraftCategory"
+						},
+						"type": "array",
+						"nullable": true
+					}
+				},
+				"required": [
+					"targets",
+					"defaultVersion"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceAdjustmentResultDto": {
+				"properties": {
+					"operationId": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"before": {
+						"properties": {
+							"totalUsed": {
+								"type": "number",
+								"format": "double"
+							},
+							"totalRecharged": {
+								"type": "number",
+								"format": "double"
+							},
+							"balance": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"totalUsed",
+							"totalRecharged",
+							"balance"
+						],
+						"type": "object"
+					},
+					"after": {
+						"properties": {
+							"totalUsed": {
+								"type": "number",
+								"format": "double"
+							},
+							"totalRecharged": {
+								"type": "number",
+								"format": "double"
+							},
+							"balance": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"totalUsed",
+							"totalRecharged",
+							"balance"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"operationId",
+					"userId",
+					"before",
+					"after"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceAdjustmentField": {
+				"properties": {
+					"mode": {
+						"type": "string",
+						"enum": [
+							"delta",
+							"set"
+						]
+					},
+					"value": {
+						"type": "number",
+						"format": "double"
+					},
+					"expected": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"mode",
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AdjustBalanceAccountRequest": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"operationId": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"balance": {
+						"$ref": "#/components/schemas/BalanceAdjustmentField"
+					},
+					"totalRecharged": {
+						"$ref": "#/components/schemas/BalanceAdjustmentField"
+					},
+					"totalUsed": {
+						"$ref": "#/components/schemas/BalanceAdjustmentField"
+					}
+				},
+				"required": [
+					"userId",
+					"operationId",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceAdjustmentPreviewDto": {
+				"properties": {
+					"before": {
+						"$ref": "#/components/schemas/ManagedBalanceAccountDto"
+					},
+					"after": {
+						"$ref": "#/components/schemas/ManagedBalanceAccountDto"
+					}
+				},
+				"required": [
+					"before",
+					"after"
 				],
 				"type": "object",
 				"additionalProperties": false

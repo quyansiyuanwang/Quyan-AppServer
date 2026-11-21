@@ -44,6 +44,51 @@ export interface IamServiceDefinition {
   name: string
   actions: IamActionDefinition[]
 }
+
+export const IAM_BALANCE_MANAGEMENT_OPERATIONS = [
+  {
+    operation: 'ListManagedAccounts',
+    permission: Permission.BALANCE_MANAGEMENT_READ,
+    accessLevel: 'List',
+    route: 'GET /v1/balance-management/accounts',
+  },
+  {
+    operation: 'GetOverdraftDefaults',
+    permission: Permission.BALANCE_MANAGEMENT_READ,
+    accessLevel: 'Read',
+    route: 'GET /v1/balance-management/defaults',
+  },
+  {
+    operation: 'PreviewOverdraft',
+    permission: Permission.BALANCE_OVERDRAFT_MANAGE,
+    accessLevel: 'Read',
+    route: 'POST /v1/balance-management/preview',
+  },
+  {
+    operation: 'SetOverdraftDefaults',
+    permission: Permission.BALANCE_OVERDRAFT_MANAGE,
+    accessLevel: 'Write',
+    route: 'POST /v1/balance-management/defaults',
+  },
+  {
+    operation: 'SetUserOverdraft',
+    permission: Permission.BALANCE_OVERDRAFT_MANAGE,
+    accessLevel: 'Write',
+    route: 'POST /v1/balance-management/overdraft',
+  },
+  {
+    operation: 'AdjustAccount',
+    permission: Permission.BALANCE_ACCOUNT_ADJUST,
+    accessLevel: 'Write',
+    route: 'POST /v1/balance-management/adjust',
+  },
+  {
+    operation: 'PreviewAccountAdjustment',
+    permission: Permission.BALANCE_ACCOUNT_ADJUST,
+    accessLevel: 'Read',
+    route: 'POST /v1/balance-management/adjust/preview',
+  },
+] as const
 export interface IamResourceTypeDefinition {
   id: string
   service: string
@@ -848,6 +893,21 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
   }
 }
 const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
+  ...IAM_BALANCE_MANAGEMENT_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:balance:' + definition.operation,
+      service: 'balance',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel,
+      resourceTypes: ['platform/balance-account', 'platform/system'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: definition.permission,
+    }),
+  ),
   {
     action: 'quyan:iam:GetCatalog',
     service: 'iam',

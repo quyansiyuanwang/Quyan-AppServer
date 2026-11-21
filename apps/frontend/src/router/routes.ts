@@ -857,7 +857,7 @@ export const routes = [
             name: 'balanceManagement',
             component: lazyFeatureView('relay', 'BalanceManagementView.vue'),
             meta: {
-              permission: Permission.BALANCE_READ,
+              anyPermissions: [Permission.BALANCE_READ, Permission.BALANCE_MANAGEMENT_READ],
             },
           },
           {

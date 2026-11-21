@@ -2364,11 +2364,43 @@ model BalanceAccount {
   totalRecharged        Decimal  @default(0) @db.Decimal(10, 4)
   totalUsed             Decimal  @default(0) @db.Decimal(10, 4)
   totalCommissionEarned Decimal  @default(0) @db.Decimal(10, 4)
+  overdraftRule         Json?
+  overdraftCategories   Json?
+  overdraftVersion      Int      @default(0)
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("balance_accounts")
+}
+
+model BalanceOverdraftDefault {
+  id         String   @id @default("default")
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
+  rule       Json
+  categories Json
+  version    Int      @default(0)
+
+  @@map("balance_overdraft_defaults")
+}
+
+model BalanceAccountAdjustment {
+  id           String   @id @default(cuid())
+  status       Int      @default(1)
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  operationId  String   @unique @db.VarChar(128)
+  actorUserId  String
+  userId       String
+  requestHash  String   @db.VarChar(64)
+  reason       String   @db.VarChar(500)
+  before       Json
+  after        Json
+
+  @@index([userId, createTime])
+  @@map("balance_account_adjustments")
 }
 
 model BalanceTransaction {
