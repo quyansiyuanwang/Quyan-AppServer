@@ -3,7 +3,7 @@ import { isValidCredential } from "@quyan/shared";
 
 /**
  * Extract relay token string from request headers or query params.
- * Checks Authorization header, x-api-key header, and ?token= query param.
+ * Checks Authorization, x-api-key, ?token=, then Gemini-compatible ?key=.
  * Uses the first present source; malformed credentials never fall back to another source.
  * Returns only a well-formed canonical or legacy Relay credential.
  */
@@ -16,7 +16,8 @@ export function extractRelayToken(req: Request): string | null {
     const match = /^Bearer +([^\s]+) *$/i.exec(authHeader);
     if (!match || match[0] !== authHeader) return null;
     token = match[1];
-  } else token = apiKeyHeader !== undefined ? apiKeyHeader : req.query.token;
+  } else if (apiKeyHeader !== undefined) token = apiKeyHeader;
+  else token = req.query.token !== undefined ? req.query.token : req.query.key;
 
   return typeof token === "string" && isValidCredential(token, "relayToken") ? token : null;
 }

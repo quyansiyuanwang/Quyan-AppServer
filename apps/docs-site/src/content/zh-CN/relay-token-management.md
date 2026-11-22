@@ -24,7 +24,9 @@
 
 新配置请使用 `sk-rlt-`。无论令牌何时签发，对话与 `/v2/usage` 都可以用 `sk-rlt-` 或 `rlt_` 访问同一令牌。前缀之后的内容（包括字母大小写）必须保持不变，不得为空，且只允许英文字母、数字和连字符。自定义令牌总长度为 12–200 个字符，包含前缀。AccessKey、产品密钥、项目密钥和 OJ API Key 不能代替中转令牌。
 
-调用时使用 `Authorization: Bearer <令牌>`、`x-api-key` 或接口支持的 `token` 查询参数。系统按此顺序选择第一个已提供的来源；若该来源为空或格式错误，请求会被拒绝，不会改用后续来源。查询参数必须是单个字符串，不接受数组或对象。格式正确的令牌仍需通过有效性、停用状态、有效期和 IP 白名单检查。
+调用时支持 `Authorization: Bearer <令牌>`、`x-api-key`、`x-goog-api-key`、`token` 查询参数或 Gemini 兼容的 `key` 查询参数。建议客户端只提供一种凭据。入口在没有 Authorization 时，会优先将 `x-goog-api-key`、其次 `token` 查询参数转换为 Bearer 认证；随后按 Authorization、x-api-key、token、key 的顺序提取令牌。若选中的值为空或格式错误，请求会被拒绝，不会改用后续来源。查询凭据必须是单个字符串，不接受数组或对象。格式正确的令牌仍需通过有效性、停用状态、有效期和 IP 白名单检查。
+
+URL 中的 `key` 应填本站中转令牌，例如 `/v1beta/models/{model}:streamGenerateContent?alt=sse&key=<中转令牌>`。系统会保留普通和流式请求中的业务查询参数（如 `alt=sse`），移除调用方的凭据参数，再使用选中渠道的上游密钥完成认证；不要在客户端填入渠道的 Google 密钥。
 
 ### 编辑、刷新与删除
 

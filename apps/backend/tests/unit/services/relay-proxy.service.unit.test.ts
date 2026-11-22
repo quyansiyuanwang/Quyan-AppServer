@@ -14,7 +14,7 @@ vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
   return {
     ...actual,
-    default: vi.fn(),
+    default: Object.assign(vi.fn(), { getUri: actual.default.getUri }),
   };
 });
 
@@ -3082,11 +3082,12 @@ describe("RelayProxyService failover", () => {
           anthropicUpstreamUrl: "https://primary.example.com",
           anthropicUpstreamApiKey: "anthropic-key",
           geminiUpstreamUrl: "https://primary.example.com",
-          geminiUpstreamApiKey: "gemini-key",
+          geminiUpstreamApiKey: "gemini-fixture+&=/key",
         });
         const req = createRequest({
           path: "/relay/proxy" + path,
           originalUrl: "/relay/proxy" + path,
+          query: { alt: "json", trace: "query-fixture", key: "sk-rlt-caller-fixture", token: "sk-rlt-caller-fixture" },
           body:
             format === "gemini"
               ? { contents: [{ role: "user", parts: [{ text: "hello" }] }] }
@@ -3119,10 +3120,13 @@ describe("RelayProxyService failover", () => {
         await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(
           expect.objectContaining({ status: 200 }),
         );
-        const upstream = axiosMock.mock.calls[0]![0] as unknown as { data: Buffer; url: string };
+        const upstream = axiosMock.mock.calls[0]![0] as unknown as { data: Buffer; url: string; params: unknown };
+        expect(upstream.params).toEqual({ alt: "json", trace: "query-fixture" });
+        expect(req.query).toHaveProperty("key", "sk-rlt-caller-fixture");
         const wireBody = JSON.parse(upstream.data.toString("utf8"));
         if (format === "gemini") {
           expect(upstream.url).toContain("/models/Shared-Upstream-ID:generateContent");
+          expect(new URL(upstream.url).searchParams.getAll("key")).toEqual(["gemini-fixture+&=/key"]);
           expect(wireBody).not.toHaveProperty("model");
         } else expect(wireBody.model).toBe(modelId);
         expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(

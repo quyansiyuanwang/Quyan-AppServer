@@ -1,4 +1,5 @@
 import { buildRelayUpstreamHeaders } from "./utils/relay-upstream-headers.util";
+import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
 import { projectRelayCompositionCatalog } from "./utils/relay-composition-catalog.util";
 import {
   projectRelayAvailableModels,
@@ -3471,8 +3472,9 @@ export class RelayProxyService {
             let fullUpstreamUrl = upstreamUrl.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
 
             if (requestFormat === "gemini") {
-              const separator = fullUpstreamUrl.includes("?") ? "&" : "?";
-              fullUpstreamUrl += `${separator}key=${upstreamApiKey}`;
+              const geminiUrl = new URL(fullUpstreamUrl);
+              geminiUrl.searchParams.set("key", upstreamApiKey);
+              fullUpstreamUrl = geminiUrl.toString();
             }
 
             const headers = buildRelayUpstreamHeaders(
@@ -3852,7 +3854,7 @@ export class RelayProxyService {
                   url: fullUpstreamUrl,
                   headers,
                   data: upstreamBody,
-                  params: req.query,
+                  params: buildRelayUpstreamQuery(req.query),
                   timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
                   maxBodyLength: maxBodyLimitBytes,
                   maxContentLength: maxResponseBytes,

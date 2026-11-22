@@ -55,6 +55,7 @@ jobs:
               - 'tsconfig*.json'
               - 'scripts/run-related-vitest.mjs'
               - '.github/workflows/test-backend.yml'
+              - '.github/actions/backend-runtime-tests/**'
             files:
               - 'apps/backend/src/**'
               - 'apps/backend/tests/**'
@@ -62,14 +63,21 @@ jobs:
   backend-unit-tests:
     needs: changes
     if: >-
+      always() && (needs.changes.result != 'success' || (
       (github.event_name == 'workflow_dispatch') ||
       needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.full == 'true'
+      needs.changes.outputs.full == 'true'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
+      - &require-change-detection
+        name: Require successful change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "Change detection did not succeed."
+          exit 1
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
@@ -98,35 +106,34 @@ jobs:
             VITEST_PROJECT_SELECTOR=backend-unit node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi
 
-  backend-runtime-matrix:
-    name: Backend runtime (MySQL ${{ matrix.mysql }})
-    strategy:
-      fail-fast: false
-      matrix:
-        mysql: ['8.0', '5.7']
+  # Keep both ruleset check names even when runtime tests are skipped. Matrix
+  # expansion would happen after the job condition and omit these names.
+  backend-runtime-mysql80:
+    name: Backend runtime (MySQL 8.0)
     needs: changes
-    if: >-
+    if: &backend-runtime-required >-
+      always() && (needs.changes.result != 'success' || (
       (github.event_name == 'workflow_dispatch') ||
       needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.full == 'true'
+      needs.changes.outputs.full == 'true'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     services:
       mysql:
-        image: mysql:${{ matrix.mysql }}
-        env:
+        image: mysql:8.0
+        env: &mysql-env
           MYSQL_ROOT_PASSWORD: 123456
           MYSQL_DATABASE: QysywDB_test
-        ports:
+        ports: &mysql-ports
           - 3306:3306
-        options: >-
+        options: &mysql-options >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p123456"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=20
-      redis:
+      redis: &redis-service
         image: redis:7-alpine
         ports:
           - 6379:6379
@@ -136,7 +143,7 @@ jobs:
           --health-timeout=5s
           --health-retries=20
 
-    env:
+    env: &backend-runtime-env
       NODE_ENV: test
       PORT: 10002
       DATABASE_URL: mysql://root:123456@127.0.0.1:3306/QysywDB_test
@@ -154,49 +161,45 @@ jobs:
       TEST_REDIS_REQUIRED: 'true'
 
     steps:
+      - *require-change-detection
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: ./.github/actions/backend-runtime-tests
         with:
-          node-version: '22'
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.13
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Generate runtime test prerequisites
-        run: |
-          pnpm --filter @quyan/backend run build:info:stub
-          pnpm --filter @quyan/backend run openapi:generate
-          pnpm --filter @quyan/backend run db:generate
-      - name: Run selected backend runtime tests
-        env:
-          CHANGED_FILES: ${{ needs.changes.outputs.files }}
-          API_CHANGED: ${{ needs.changes.outputs.api }}
-          FULL_CHANGED: ${{ needs.changes.outputs.full }}
-          MANUAL_SUITE: ${{ inputs.suite }}
-        run: |
-          if [ "${{ matrix.mysql }}" = "5.7" ]; then
-            pnpm --filter @quyan/backend exec prisma migrate deploy
-            pnpm --filter @quyan/backend exec node tests/scripts/run-vitest.mjs run --project backend-database \
-              tests/database/permissions/relay-probe-round-scheduler.db.test.ts \
-              tests/database/permissions/iam-relay-probe-overview-read.db.test.ts \
-              tests/database/permissions/iam-relay-probe-account-read.db.test.ts \
-              tests/database/permissions/iam-relay-probe-account-update.db.test.ts \
-              tests/integration/relay-channel-probe-account.integration.test.ts
-          elif [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
-            pnpm --filter @quyan/backend run test:runtime
-          elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
-            pnpm --filter @quyan/backend run test:runtime
-          else
-            VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
-          fi
+          mysql-version: '8.0'
+          changed-files: ${{ needs.changes.outputs.files }}
+          api-changed: ${{ needs.changes.outputs.api }}
+          full-changed: ${{ needs.changes.outputs.full }}
+          manual-suite: ${{ inputs.suite }}
 
-  # Branch protection needs a fixed check name even when the matrix is skipped.
+  backend-runtime-mysql57:
+    name: Backend runtime (MySQL 5.7)
+    needs: changes
+    if: *backend-runtime-required
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      mysql:
+        image: mysql:5.7
+        env: *mysql-env
+        ports: *mysql-ports
+        options: *mysql-options
+      redis: *redis-service
+    env: *backend-runtime-env
+    steps:
+      - *require-change-detection
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/backend-runtime-tests
+        with:
+          mysql-version: '5.7'
+          changed-files: ${{ needs.changes.outputs.files }}
+          api-changed: ${{ needs.changes.outputs.api }}
+          full-changed: ${{ needs.changes.outputs.full }}
+          manual-suite: ${{ inputs.suite }}
+
+  # Branch protection also requires the existing aggregate check name.
   backend-runtime-tests:
-    needs: [changes, backend-runtime-matrix]
+    needs: [changes, backend-runtime-mysql80, backend-runtime-mysql57]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions: {}
@@ -204,19 +207,22 @@ jobs:
       - name: Require every selected runtime job to succeed
         env:
           FILTER_RESULT: ${{ needs.changes.result }}
-          RUNTIME_RESULT: ${{ needs.backend-runtime-matrix.result }}
+          MYSQL80_RESULT: ${{ needs.backend-runtime-mysql80.result }}
+          MYSQL57_RESULT: ${{ needs.backend-runtime-mysql57.result }}
           RUNTIME_REQUIRED: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.full == 'true' }}
         run: |
           if [ "$FILTER_RESULT" != "success" ]; then
             echo "Backend change detection did not succeed."
             exit 1
           fi
-          if [ "$RUNTIME_RESULT" = "success" ]; then
-            exit 0
-          fi
-          if [ "$RUNTIME_RESULT" = "skipped" ] && [ "$RUNTIME_REQUIRED" = "false" ]; then
-            echo "No backend runtime tests selected for this change."
-            exit 0
-          fi
-          echo "Required backend runtime tests did not succeed: $RUNTIME_RESULT"
-          exit 1
+          for result in "$MYSQL80_RESULT" "$MYSQL57_RESULT"; do
+            if [ "$result" = "success" ]; then
+              continue
+            fi
+            if [ "$result" = "skipped" ] && [ "$RUNTIME_REQUIRED" = "false" ]; then
+              echo "No backend runtime tests selected for this change."
+              continue
+            fi
+            echo "Required backend runtime tests did not succeed: $result"
+            exit 1
+          done

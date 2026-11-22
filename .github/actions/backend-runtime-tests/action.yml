@@ -1,0 +1,65 @@
+name: Backend runtime tests
+description: Prepare and run the selected backend suite against a job's MySQL and Redis services.
+
+inputs:
+  mysql-version:
+    description: MySQL service version.
+    required: true
+  changed-files:
+    description: JSON array of changed backend files.
+    required: true
+  api-changed:
+    description: Whether API coverage is required.
+    required: true
+  full-changed:
+    description: Whether runtime infrastructure changed.
+    required: true
+  manual-suite:
+    description: Explicit suite selected by a manual workflow run.
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.13
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+    - name: Generate runtime test prerequisites
+      shell: bash
+      run: |
+        pnpm --filter @quyan/backend run build:info:stub
+        pnpm --filter @quyan/backend run openapi:generate
+        pnpm --filter @quyan/backend run db:generate
+    - name: Run selected backend runtime tests
+      shell: bash
+      env:
+        MYSQL_VERSION: ${{ inputs.mysql-version }}
+        CHANGED_FILES: ${{ inputs.changed-files }}
+        API_CHANGED: ${{ inputs.api-changed }}
+        FULL_CHANGED: ${{ inputs.full-changed }}
+        MANUAL_SUITE: ${{ inputs.manual-suite }}
+      run: |
+        if [ "$MYSQL_VERSION" = "5.7" ]; then
+          pnpm --filter @quyan/backend exec prisma migrate deploy
+          pnpm --filter @quyan/backend exec node tests/scripts/run-vitest.mjs run --project backend-database \
+            tests/database/permissions/relay-probe-round-scheduler.db.test.ts \
+            tests/database/permissions/iam-relay-probe-overview-read.db.test.ts \
+            tests/database/permissions/iam-relay-probe-account-read.db.test.ts \
+            tests/database/permissions/iam-relay-probe-account-update.db.test.ts \
+            tests/integration/relay-channel-probe-account.integration.test.ts
+        elif [ "$MANUAL_SUITE" = "full" ] || [ "$FULL_CHANGED" = "true" ]; then
+          pnpm --filter @quyan/backend run test:runtime
+        elif [ "$MANUAL_SUITE" = "api" ] || [ "$API_CHANGED" = "true" ]; then
+          pnpm --filter @quyan/backend run test:runtime
+        else
+          VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
+        fi

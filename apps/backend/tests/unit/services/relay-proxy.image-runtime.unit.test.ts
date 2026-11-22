@@ -244,6 +244,7 @@ describe("RelayProxyService image runtime", () => {
       "utf8",
     );
     const req = createMultipartImageRequest(multipartBody);
+    req.query = { trace: "image-fixture", key: "sk-rlt-caller-fixture", access_token: "fixture-caller-token" };
     const responseChunks: Buffer[] = [];
     const res = new Writable({
       write(chunk, _encoding, callback) {
@@ -278,6 +279,7 @@ describe("RelayProxyService image runtime", () => {
     expect(axiosMock).toHaveBeenCalledWith(
       expect.objectContaining({
         url: "https://primary.example.com/v1/images/edits",
+        params: { trace: "image-fixture" },
         responseType: "stream",
         data: expect.any(Buffer),
       }),
