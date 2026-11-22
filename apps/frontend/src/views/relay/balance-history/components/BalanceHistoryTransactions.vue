@@ -16,7 +16,7 @@ const handleHistorySliderChange = state.handleHistorySliderChange
 </script>
 
 <template>
-  <section class="billing-section">
+  <el-card class="billing-section">
     <ComponentErrorBoundary>
       <TransactionHistory
         :transactions="allTransactions"
@@ -30,5 +30,5 @@ const handleHistorySliderChange = state.handleHistorySliderChange
         @range-slider-change="handleHistorySliderChange"
       />
     </ComponentErrorBoundary>
-  </section>
+  </el-card>
 </template>
