@@ -55,7 +55,7 @@ const trends = computed(
 </script>
 
 <template>
-  <header
+  <el-card
     class="billing-summary"
     v-loading="loadingStats"
     :element-loading-text="i18ns.t('relay.firstLoadTip')"
@@ -131,5 +131,5 @@ const trends = computed(
         </dd>
       </div>
     </dl>
-  </header>
+  </el-card>
 </template>
