@@ -20,6 +20,7 @@ export interface RechargeRequest {
 }
 
 export type BalanceTransactionCategory =
+  | "account_adjustment"
   | "alipay_recharge"
   | "alipay_refund_hold"
   | "alipay_refund_reversal"

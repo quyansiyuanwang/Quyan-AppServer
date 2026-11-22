@@ -1,5 +1,7 @@
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma, type BalanceAccount } from "@prisma/client";
+import type { BalanceOverdraftCategory } from "@quyan/shared";
+import { BalanceOverdraftRepository } from "./balance-overdraft.repository";
 
 export type BalanceTransactionClient = Prisma.TransactionClient;
 
@@ -13,6 +15,8 @@ export interface BalanceAccountMutationInput {
   requireActive?: boolean;
   minimumBalance?: Decimal.Value;
   clampMinimumBalance?: Decimal.Value;
+  overdraftCategory?: BalanceOverdraftCategory;
+  excludeReservationId?: string;
 }
 
 export interface BalanceAccountMutationResult {
@@ -80,10 +84,24 @@ export const applyBalanceAccountMutation = async (
   // Prisma accounts always have a numeric status and still reject non-active
   // accounts when requireActive is requested.
   if (!account || (input.requireActive && account.status != null && account.status !== 1)) return null;
+  if (input.overdraftCategory && account.status !== 1) return null;
 
   const balanceBefore = new Decimal(account.balance);
   let balanceAfter = balanceBefore.plus(toDecimal(input.balanceDelta));
-  const minimumBalance = input.minimumBalance == null ? undefined : toDecimal(input.minimumBalance);
+  let minimumBalance = input.minimumBalance == null ? undefined : toDecimal(input.minimumBalance);
+  if (input.overdraftCategory) {
+    minimumBalance = await BalanceOverdraftRepository.getInstance().minimum(account, input.overdraftCategory, tx);
+    const reserved = await tx.balanceReservation.aggregate({
+      where: {
+        userId: input.userId,
+        state: "reserved",
+        status: 1,
+        ...(input.excludeReservationId ? { id: { not: input.excludeReservationId } } : {}),
+      },
+      _sum: { amount: true },
+    });
+    minimumBalance = minimumBalance.plus(reserved._sum.amount ?? 0);
+  }
   if (minimumBalance && balanceAfter.lessThan(minimumBalance)) return null;
   const clampMinimumBalance = input.clampMinimumBalance == null ? undefined : toDecimal(input.clampMinimumBalance);
   if (clampMinimumBalance && balanceAfter.lessThan(clampMinimumBalance)) balanceAfter = clampMinimumBalance;

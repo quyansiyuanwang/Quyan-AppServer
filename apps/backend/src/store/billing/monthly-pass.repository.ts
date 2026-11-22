@@ -84,6 +84,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
       balanceDelta: new Decimal(-data.purchaseAmount),
       totalUsedDelta: new Decimal(data.purchaseAmount),
       minimumBalance: 0,
+      overdraftCategory: "monthly_pass",
     });
     if (!mutation)
       throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });

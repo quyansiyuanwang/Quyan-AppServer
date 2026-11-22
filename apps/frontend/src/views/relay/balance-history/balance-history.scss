@@ -22,10 +22,11 @@
     font-size: 16px;
   }
 
-  > .billing-section {
+  > .billing-summary,
+  > .billing-section:not(.el-card) {
+    box-sizing: border-box;
     min-width: 0;
-    border-top: 1px solid var(--el-border-color);
-    padding-top: 18px;
+    padding: 20px;
   }
 
   .balance-overview,
@@ -130,16 +131,6 @@
 
   .alipay-orders.billing-section {
     margin: 0;
-    background: transparent;
-    border-inline: 0;
-    border-bottom: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .alipay-orders > .el-card__header,
-  .alipay-orders > .el-card__body {
-    border: 0;
-    padding: 0;
   }
   .balance-transfer-panel__actions > .el-button {
     margin-inline-start: 0;
@@ -208,6 +199,11 @@
   }
 
   @media (max-width: 768px) {
+    > .billing-summary,
+    > .billing-section:not(.el-card) {
+      padding: 14px;
+    }
+
     .filter-section {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

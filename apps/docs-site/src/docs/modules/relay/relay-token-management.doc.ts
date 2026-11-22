@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'relay-token-management',
-  updatedAt: '2026-11-18',
+  updatedAt: '2026-11-22',
   category: {
     en: 'Relay',
     'zh-CN': '转发',

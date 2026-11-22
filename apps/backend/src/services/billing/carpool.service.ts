@@ -1,4 +1,5 @@
 import { PlatformCarpoolOrderDeliveryIamService } from "./platform-carpool-order-delivery-iam.service";
+import { BalanceOverdraftRepository } from "@/store/billing/balance-overdraft.repository";
 import { PlatformCarpoolDeliveryChannelReadIamService } from "./platform-carpool-delivery-channel-read-iam.service";
 import { PlatformCarpoolOrderRefundIamService } from "./platform-carpool-order-refund-iam.service";
 import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
@@ -603,7 +604,19 @@ export class CarpoolService {
         });
       await lockBalanceAccount(tx, userId, true);
       const balance = await tx.balanceAccount.findUnique({ where: { userId } });
-      if (!balance || balance.balance.lessThan(member.payableAmount))
+      const minimum = balance ? await BalanceOverdraftRepository.getInstance().minimum(balance, "carpool", tx) : ZERO;
+      const others = await tx.balanceReservation.aggregate({
+        where: { userId, state: "reserved", status: 1, memberId: { not: member.id } },
+        _sum: { amount: true },
+      });
+      if (
+        !balance ||
+        balance.status !== 1 ||
+        balance.balance
+          .minus(others._sum.amount ?? 0)
+          .minus(member.payableAmount)
+          .lt(minimum)
+      )
         throw new BadRequestError("Insufficient balance for your carpool share", undefined, {
           messageKey: "carpool.insufficientBalanceForShare",
         });
@@ -705,6 +718,8 @@ export class CarpoolService {
           balanceDelta: reservation.amount.negated(),
           totalUsedDelta: reservation.amount,
           minimumBalance: 0,
+          overdraftCategory: "carpool",
+          excludeReservationId: reservation.id,
         });
         if (!mutation)
           throw new BadRequestError("Balance changed; member needs to reconfirm", undefined, {

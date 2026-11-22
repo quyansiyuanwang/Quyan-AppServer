@@ -1363,7 +1363,7 @@ const overviewSections = computed<OverviewSection[]>(() => {
           label: i18ns.t('nav.balanceManagement'),
           icon: CreditCard,
           route: 'balanceManagement',
-          visible: can(Permission.BALANCE_READ),
+          visible: can(Permission.BALANCE_READ) || can(Permission.BALANCE_MANAGEMENT_READ),
         },
         {
           key: 'monthlyPassManagement',

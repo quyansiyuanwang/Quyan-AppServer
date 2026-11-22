@@ -25,6 +25,18 @@ const createTransaction = (
   }) as BalanceTransactionResponse
 
 describe('balance-transaction utils', () => {
+  it('keeps statistics-only corrections separate from recharge and consumption', () => {
+    const record = createTransaction({
+      type: 'account_adjustment',
+      category: 'account_adjustment',
+      amount: 0,
+      description: 'Fixture statistics correction',
+      model: undefined,
+    })
+    expect(getTransactionCategory(record)).toBe('account_adjustment')
+    expect(isChargeableApiUsageRecord(record)).toBe(false)
+    expect(getTransactionCategory({ ...record, category: undefined })).toBe('account_adjustment')
+  })
   it.each(['alipay_recharge', 'alipay_refund_hold', 'alipay_refund_reversal'] as const)(
     'keeps %s separate from consumption and manual adjustments',
     (type) => {

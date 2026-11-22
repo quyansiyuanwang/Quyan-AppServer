@@ -66,6 +66,7 @@ jobs:
               - 'pnpm-lock.yaml'
             shared:
               - 'packages/**'
+              - '.github/workflows/quality-check.yml'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -76,12 +77,20 @@ jobs:
   backend-quality:
     needs: changes
     if: |
+      always() && (needs.changes.result != 'success' || (
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
       (github.event_name == 'workflow_dispatch' && inputs['check-backend'] ||
-       needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true')
+       github.event_name != 'workflow_dispatch' &&
+       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'))))
     runs-on: ubuntu-latest
     steps:
+      - &require-change-detection
+        name: Require successful change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "Change detection did not succeed."
+          exit 1
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -112,14 +121,17 @@ jobs:
   frontend-quality:
     needs: changes
     if: |
+      always() && (needs.changes.result != 'success' || (
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
        (github.event_name == 'workflow_dispatch' && inputs['check-frontend'] ||
-       needs.changes.outputs.frontend == 'true' ||
+       github.event_name != 'workflow_dispatch' &&
+       (needs.changes.outputs.frontend == 'true' ||
        needs.changes.outputs.shared == 'true' ||
-       needs.changes.outputs.api == 'true')
+       needs.changes.outputs.api == 'true'))))
     runs-on: ubuntu-latest
     steps:
+      - *require-change-detection
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
@@ -147,12 +159,15 @@ jobs:
   docs-quality:
     needs: changes
     if: |
+      always() && (needs.changes.result != 'success' || (
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
       (github.event_name == 'workflow_dispatch' && inputs['check-docs-site'] ||
-       needs.changes.outputs.docs-site == 'true' || needs.changes.outputs.shared == 'true')
+       github.event_name != 'workflow_dispatch' &&
+       (needs.changes.outputs.docs-site == 'true' || needs.changes.outputs.shared == 'true'))))
     runs-on: ubuntu-latest
     steps:
+      - *require-change-detection
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
@@ -171,12 +186,15 @@ jobs:
   cli-quality:
     needs: changes
     if: |
+      always() && (needs.changes.result != 'success' || (
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
       (github.event_name == 'workflow_dispatch' && inputs['check-cli'] ||
-       needs.changes.outputs.cli == 'true' || needs.changes.outputs.shared == 'true')
+       github.event_name != 'workflow_dispatch' &&
+       (needs.changes.outputs.cli == 'true' || needs.changes.outputs.shared == 'true'))))
     runs-on: ubuntu-latest
     steps:
+      - *require-change-detection
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
@@ -197,17 +215,21 @@ jobs:
       - name: Check native CLI
         run: pnpm run check:cli:native
 
-  packages-quality:
+  # Fixed names are emitted even when an unrelated change skips these jobs.
+  # A job-level condition on a matrix runs before its check names expand.
+  packages-quality-shared:
+    name: packages-quality (shared)
     needs: changes
-    if: |
+    if: &packages-quality-required |
+      always() && (needs.changes.result != 'success' || (
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
-      (github.event_name == 'workflow_dispatch' || needs.changes.outputs.shared == 'true')
+      (github.event_name == 'workflow_dispatch' || needs.changes.outputs.shared == 'true')))
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [shared, mcp]
-    steps:
+    env:
+      PACKAGE: shared
+    steps: &packages-quality-steps
+      - *require-change-detection
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
@@ -221,8 +243,46 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Check shared package
-        if: matrix.package == 'shared'
+        if: env.PACKAGE == 'shared'
         run: pnpm --filter @quyan/shared lint && pnpm --filter @quyan/shared test
       - name: Check MCP package
-        if: matrix.package == 'mcp'
+        if: env.PACKAGE == 'mcp'
         run: pnpm --filter @quyan/mcp lint:check && pnpm --filter @quyan/mcp type-check && pnpm --filter @quyan/mcp test
+
+  packages-quality-mcp:
+    name: packages-quality (mcp)
+    needs: changes
+    if: *packages-quality-required
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE: mcp
+    steps: *packages-quality-steps
+
+  # Also provide a stable aggregate for rulesets requiring "packages-quality".
+  packages-quality:
+    needs: [changes, packages-quality-shared, packages-quality-mcp]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - *require-change-detection
+      - name: Require all selected package checks to succeed
+        env:
+          SHARED_RESULT: ${{ needs.packages-quality-shared.result }}
+          MCP_RESULT: ${{ needs.packages-quality-mcp.result }}
+          CHECKS_REQUIRED: >-
+            ${{ !contains(github.event.pull_request.title, '[skip ci]') &&
+                !contains(github.event.pull_request.title, '[skip cicd]') &&
+                (github.event_name == 'workflow_dispatch' || needs.changes.outputs.shared == 'true') }}
+        run: |
+          for result in "$SHARED_RESULT" "$MCP_RESULT"; do
+            if [ "$result" = "success" ]; then
+              continue
+            fi
+            if [ "$result" = "skipped" ] && [ "$CHECKS_REQUIRED" = "false" ]; then
+              echo "Package checks are not required for this change."
+              continue
+            fi
+            echo "Required package check did not succeed: $result"
+            exit 1
+          done

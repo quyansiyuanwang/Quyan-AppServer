@@ -1,5 +1,6 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page page-shell balance-management-page">
+  <BalanceAccountManagement v-if="canManage" />
+  <div v-else-if="isDesktop" class="desktop-page page-shell balance-management-page">
     <div class="balance-management">
       <el-card class="page-card">
         <template #header>
@@ -246,6 +247,9 @@
 </template>
 
 <script setup lang="ts">
+import BalanceAccountManagement from '@/components/balance/BalanceAccountManagement.vue'
+import { usePermissionStore } from '@/stores/permissionStore'
+import { Permission } from '@quyan/shared'
 import AlipayOrdersPanel from '@/components/balance/AlipayOrdersPanel.vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { getErrorMessage } from '@/utils/error-utils'
@@ -267,6 +271,8 @@ interface UserBalanceInfo {
   balance: number
   updateTime: string
 }
+const permissionStore = usePermissionStore()
+const canManage = computed(() => permissionStore.hasPermission(Permission.BALANCE_MANAGEMENT_READ))
 
 const loading = ref(false)
 const adjusting = ref(false)
@@ -543,7 +549,7 @@ const viewHistory = async (row: any) => {
 }
 
 onMounted(() => {
-  loadUsers()
+  if (!canManage.value) loadUsers()
 })
 
 const { isDesktop } = usePageDevice()

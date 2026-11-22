@@ -18,6 +18,7 @@ export async function chargeTerminalPurchase(
     balanceDelta: new Decimal(-data.purchaseAmount),
     totalUsedDelta: new Decimal(data.purchaseAmount),
     minimumBalance: 0,
+    overdraftCategory: "terminal",
   });
   if (!mutation)
     throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });

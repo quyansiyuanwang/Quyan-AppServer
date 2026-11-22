@@ -1,9 +1,13 @@
 <template>
   <AccountProfileLayout class="billing-page" :class="isDesktop ? 'desktop-page' : 'mobile-page'">
-    <BalanceHistorySummary mode="balance" />
-    <BalanceTransferPanel class="billing-section" @changed="handleBalanceChanged" />
+    <BalanceHistorySummary mode="balance" :class="isDesktop ? 'page-card' : 'mobile-card'" />
+    <BalanceTransferPanel
+      class="billing-section"
+      :class="isDesktop ? 'page-card' : 'mobile-card'"
+      @changed="handleBalanceChanged"
+    />
     <AlipayOrdersPanel class="billing-section" @changed="handleBalanceChanged" />
-    <BalanceHistoryTransactions scope="account" />
+    <BalanceHistoryTransactions scope="account" :class="isDesktop ? 'page-card' : 'mobile-card'" />
   </AccountProfileLayout>
 </template>
 

@@ -2,6 +2,12 @@
 import { computed, defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+vi.mock('@/stores/permissionStore', () => ({
+  usePermissionStore: () => ({ hasPermission: () => false }),
+}))
+vi.mock('@/components/balance/BalanceAccountManagement.vue', () => ({
+  default: defineComponent({ template: '<div />' }),
+}))
 
 vi.mock('@/components/balance/AlipayOrdersPanel.vue', () => ({
   default: defineComponent({ template: '<div class="alipay-orders-stub" />' }),
