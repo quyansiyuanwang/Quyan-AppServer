@@ -184,7 +184,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="balance-transfer-panel" v-loading="loading">
+  <el-card class="balance-transfer-panel" v-loading="loading">
     <div class="balance-transfer-panel__heading">
       <div>
         <h2>{{ i18ns.t('balance.transferOut') }}</h2>
@@ -368,7 +368,7 @@ onMounted(load)
         </div>
       </el-form>
     </el-dialog>
-  </section>
+  </el-card>
 </template>
 
 <style scoped>
