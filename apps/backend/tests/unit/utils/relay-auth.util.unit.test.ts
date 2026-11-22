@@ -14,6 +14,7 @@ describe("relay credential extraction", () => {
     expect(extractRelayToken(request({ authorization: `Bearer   ${token} ` }))).toBe(token);
     expect(extractRelayToken(request({ "x-api-key": token }))).toBe(token);
     expect(extractRelayToken(request({}, { token }))).toBe(token);
+    expect(extractRelayToken(request({}, { key: token }))).toBe(token);
   });
 
   it.each([
@@ -32,6 +33,7 @@ describe("relay credential extraction", () => {
     expect(extractRelayToken(request({ authorization: `Bearer ${token}` }))).toBeNull();
     expect(extractRelayToken(request({ "x-api-key": token }))).toBeNull();
     expect(extractRelayToken(request({}, { token }))).toBeNull();
+    expect(extractRelayToken(request({}, { key: token }))).toBeNull();
   });
 
   it.each([null, [], ["sk-rlt-fixture"], ["sk-rlt-one", "sk-rlt-two"], {}, { value: "sk-rlt-fixture" }, 123])(
@@ -40,6 +42,7 @@ describe("relay credential extraction", () => {
       expect(extractRelayToken(request({ authorization: value }))).toBeNull();
       expect(extractRelayToken(request({ "x-api-key": value }))).toBeNull();
       expect(extractRelayToken(request({}, { token: value }))).toBeNull();
+      expect(extractRelayToken(request({}, { key: value }))).toBeNull();
     },
   );
 
@@ -65,5 +68,16 @@ describe("relay credential extraction", () => {
     expect(extractRelayToken(request({ "x-api-key": "sk-rlt-api" }, { token: "sk-rlt-query" }))).toBe("sk-rlt-api");
     expect(extractRelayToken(request({ "x-api-key": "" }, { token: "sk-rlt-query" }))).toBeNull();
     expect(extractRelayToken(request())).toBeNull();
+  });
+
+  it("uses the Gemini query key only when higher-priority sources are absent", () => {
+    expect(extractRelayToken(request({}, { key: "sk-rlt-gemini" }))).toBe("sk-rlt-gemini");
+    expect(extractRelayToken(request({}, { token: "sk-rlt-query", key: "sk-rlt-gemini" }))).toBe("sk-rlt-query");
+    expect(extractRelayToken(request({}, { token: "", key: "sk-rlt-gemini" }))).toBeNull();
+    expect(extractRelayToken(request({ "x-api-key": "" }, { key: "sk-rlt-gemini" }))).toBeNull();
+    expect(extractRelayToken(request({ authorization: "Basic fixture" }, { key: "sk-rlt-gemini" }))).toBeNull();
+    expect(extractRelayToken(request({ authorization: "Bearer sk-rlt-header" }, { key: "sk-rlt-gemini" }))).toBe(
+      "sk-rlt-header",
+    );
   });
 });

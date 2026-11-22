@@ -62,15 +62,21 @@ jobs:
   frontend-tests:
     needs: changes
     if: >-
+      always() && (needs.changes.result != 'success' || (
       (github.event_name == 'workflow_dispatch') ||
       needs.changes.outputs.frontend == 'true' ||
       needs.changes.outputs.api == 'true' ||
-      needs.changes.outputs.full == 'true'
+      needs.changes.outputs.full == 'true'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
+      - name: Require successful change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "Change detection did not succeed."
+          exit 1
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5

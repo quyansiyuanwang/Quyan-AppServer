@@ -4,6 +4,7 @@ import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-confi
 import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
+import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import type { RelayToken } from "@prisma/client";
@@ -129,7 +130,7 @@ export class RelayImageForwarderService {
       url: upstreamUrl,
       headers: cleanHeaders,
       data: bodyData,
-      params: req.query,
+      params: buildRelayUpstreamQuery(req.query),
       timeout: timeoutMs,
       maxBodyLength: bodyData.length,
       maxContentLength: Infinity,

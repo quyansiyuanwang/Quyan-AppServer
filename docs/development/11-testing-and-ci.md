@@ -61,6 +61,10 @@ worker 启动时接收独立 `DATABASE_URL` 和 Redis DB；每个数据库测试
 - 前端 CI 缓存生成的 Swagger 与 `src/client`。缓存未命中时才生成 SDK；API 契约或生成代码变更会运行完整前端套件。related tests 通过前端的 `test:related` 脚本运行，脚本自身生成 `src/router/.gen/**`，因此 CI 只需准备 `src/client`。
 - CI 不共享本地开发数据库、Redis DB 或生产凭据。测试环境变量只能指向隔离的测试资源。
 
+自动质量检查与测试工作流在目标分支的 PR 打开、代码更新、重新打开或转为待审查时触发，不使用工作流级 `paths` / `paths-ignore` 过滤；是否需要执行由工作流内部的变更检测和 job 条件决定。无关改动必须产生固定名称的 `skipped` 检查，不能让 ruleset 等待不存在的检查。包检查与 MySQL 版本检查使用独立 job，保留 `packages-quality (shared)`、`packages-quality (mcp)`、`Backend runtime (MySQL 8.0)` 和 `Backend runtime (MySQL 5.7)` 的既有名称；不能在带动态名称的 matrix 展开前跳过整个 job。
+
+`packages-quality` 与 `backend-runtime-tests` 提供固定的汇总检查：只有未选中的任务允许 `skipped`，选中的任务失败、取消或意外跳过都必须失败。变更检测失败时，各必需检查也必须失败，不能视作无关改动跳过。手动质量检查的应用开关优先于路径检测。
+
 ## 故障处理
 
 - `Cannot find module '.prisma/client/default'`：使用仓库测试命令运行；运行器会先生成 Prisma Client。若单独执行 Vitest，先运行 `pnpm --filter @quyan/backend run db:generate`。

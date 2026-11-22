@@ -25,6 +25,8 @@ function fixture(
     contentType?: string;
     contentLength?: number;
     bodyBuffer?: Buffer;
+    query?: Record<string, unknown>;
+    upstreamUrl?: string;
   } = {},
 ) {
   const upstream = Object.assign(new PassThrough(), {
@@ -39,6 +41,7 @@ function fixture(
     method: "POST",
     headers: {},
     ip: "127.0.0.1",
+    query: options.query ?? {},
   });
   const output: Buffer[] = [];
   let blocked = options.backpressure ?? false;
@@ -101,7 +104,7 @@ function fixture(
     relayToken: { id: "t", userId: "u" },
     req: request,
     res: response,
-    upstreamUrl: "http://fixture.invalid/v1/chat/completions",
+    upstreamUrl: options.upstreamUrl ?? "http://fixture.invalid/v1/chat/completions",
     headers: {},
     selectedRateConfig: { input: 0, output: 0 },
     selectedModelName: "Stream channel pricing",
@@ -134,6 +137,43 @@ function fixture(
   };
 }
 describe("relay single-chain stream forwarding", () => {
+  it.each([false, true])(
+    "preserves query parameters without forwarding caller credentials (Gemini: %s)",
+    async (gemini) => {
+      const query = {
+        alt: "sse",
+        trace: "中文 +&=/?",
+        tags: ["one", "two"],
+        options: { enabled: "true" },
+        key: "sk-rlt-caller-fixture",
+        token: "sk-rlt-caller-fixture",
+        API_KEY: "fixture-caller-key",
+      };
+      const f = fixture({
+        gemini,
+        query,
+        upstreamUrl: gemini
+          ? "http://fixture.invalid/v1beta/models/m:streamGenerateContent?key=fixture%2Bchannel%26key&region=test"
+          : "http://fixture.invalid/v1/chat/completions?region=test",
+      });
+      const pending = f.start();
+      await tick();
+      const options = vi.mocked(http.request).mock.calls[0]![0] as http.RequestOptions;
+      const url = new URL(String(options.path), "http://fixture.invalid");
+      expect(url.searchParams.get("alt")).toBe("sse");
+      expect(url.searchParams.get("region")).toBe("test");
+      expect(url.searchParams.get("trace")).toBe(query.trace);
+      expect(url.searchParams.getAll("tags[]")).toEqual(query.tags);
+      expect(url.searchParams.get("options[enabled]")).toBe("true");
+      expect(url.searchParams.getAll("key")).toEqual(gemini ? ["fixture+channel&key"] : []);
+      expect(url.searchParams.has("token")).toBe(false);
+      expect(url.searchParams.has("API_KEY")).toBe(false);
+      expect(query.key).toBe("sk-rlt-caller-fixture");
+      f.upstream.end(gemini ? Buffer.from('{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}\n') : done);
+      await expect(pending).resolves.toMatchObject({ handled: true, success: true });
+    },
+  );
+
   it("rejects conversion retention overflow as 413 without starting success or billing", async () => {
     const settings = structuredClone(AI_RESOURCE_DEFAULTS);
     settings.aiResources.streaming.retainedLimitBytes = 8;

@@ -20,6 +20,8 @@ import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-
 import { beginAIRequestAttempt, recordAIRequestAttempt, recordAIRequestFailure } from "@/util/ai-request-log-context";
 import http from "http";
 import https from "https";
+import axios from "axios";
+import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
 import type { RelayToken } from "@prisma/client";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
 import { trackErrorForIp } from "@/middleware/error-tracker";
@@ -169,7 +171,7 @@ export class RelayStreamForwarderService {
       });
       responseAiEnabled = Boolean(policy.responseEnabled && policy.responseAiEnabled);
     }
-    const url = new URL(upstreamUrl);
+    const url = new URL(axios.getUri({ url: upstreamUrl, params: buildRelayUpstreamQuery(req.query) }));
     const isHttps = url.protocol === "https:";
     const httpModule = isHttps ? https : http;
 

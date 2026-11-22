@@ -24,7 +24,9 @@ Confirm you can read your tokens and perform the required operation. Creation, u
 
 Relay credentials use `sk-rlt-`, with the legacy `rlt_` prefix still accepted. The suffix must be nonempty and contain only English letters, digits, or hyphens. Custom credentials must be 12–200 characters in total, including the prefix. AccessKeys, product keys, project keys, and OJ API Keys cannot replace a relay credential.
 
-Send the credential through `Authorization: Bearer <token>`, `x-api-key`, or a `token` query parameter where supported. The first supplied source in that order is selected; an empty or malformed value rejects the request without falling back to another source. A query token must be a single string, not an array or object. A well-formed credential must still pass validity, enabled-status, expiry, and IP-allowlist checks.
+Send the credential through `Authorization: Bearer <token>`, `x-api-key`, `x-goog-api-key`, a `token` query parameter, or a Gemini-compatible `key` query parameter. Prefer providing one credential source per request. When Authorization is absent, ingress converts `x-goog-api-key`, or otherwise the `token` query parameter, to Bearer authentication. Token extraction then checks Authorization, x-api-key, token, and key in that order. An empty or malformed selected value rejects the request without falling back to another source. A query credential must be a single string, not an array or object. A well-formed credential must still pass validity, enabled-status, expiry, and IP-allowlist checks.
+
+The URL's `key` must contain your platform Relay Token, for example `/v1beta/models/{model}:streamGenerateContent?alt=sse&key=<relay_token>`. Both ordinary and streaming requests preserve business query parameters such as `alt=sse`. Caller credential parameters are removed before forwarding, and the selected channel's upstream key authenticates the provider request. Do not put the channel's Google key in your client.
 
 ### Edit, rotate and delete
 

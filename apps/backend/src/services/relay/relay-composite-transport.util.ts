@@ -1,4 +1,5 @@
 import { relayConnectionHeaderNames } from "./utils/relay-upstream-headers.util";
+import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
 import { PassThrough, type Transform } from "stream";
 import type { RelayConvertibleRequestFormat } from "@quyan/shared";
 import {
@@ -21,14 +22,6 @@ export function cloneCompositeRequest(request: any, patch: Record<string, unknow
   transforms.set(clone, [...getCompositeTransforms(request)]);
   return clone;
 }
-const COMPOSITE_CREDENTIAL_QUERY_NAMES = new Set([
-  "key",
-  "api_key",
-  "apikey",
-  "access_token",
-  "authorization",
-  "token",
-]);
 const COMPOSITE_PRIVATE_HEADERS = new Set([
   "authorization",
   "x-api-key",
@@ -44,9 +37,7 @@ const COMPOSITE_PRIVATE_HEADERS = new Set([
 ]);
 /** Authentication has already completed. Never forward caller credentials to a physical provider. */
 export function compositeIngressRequest(request: any, body: unknown): any {
-  const query = Object.fromEntries(
-    Object.entries(request.query ?? {}).filter(([key]) => !COMPOSITE_CREDENTIAL_QUERY_NAMES.has(key.toLowerCase())),
-  );
+  const query = buildRelayUpstreamQuery(request.query);
   const connectionHeaders = relayConnectionHeaderNames(request.headers ?? {});
   const headers = Object.fromEntries(
     Object.entries(request.headers ?? {}).filter(
