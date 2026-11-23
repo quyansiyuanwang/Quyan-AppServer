@@ -423,6 +423,7 @@ const zhCN = {
   },
   billing: {
     invalidOverdraftRule: "超额消费规则或计算结果无效",
+    overdraftTargetsUnavailable: "部分用户名不存在或不可用，请核对全部用户名后重新试算；尚未保存任何批量修改。",
     accountChanged: "账户数据或配置已变化，请刷新后重试",
     invalidAdjustment: "账户修正参数或修正后金额无效",
     redemptionCodeDeleted: "删除成功",

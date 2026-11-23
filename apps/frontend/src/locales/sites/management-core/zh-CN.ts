@@ -59,7 +59,10 @@ const zhCN = {
     boundaryHint:
       '所有消费类别共享同一透支额度。AI 请求开始前检查额度，已开始的请求完整结算，可能暂时超限；随后拒绝新请求。转账、礼品码转出和支付退款不可透支。',
     saveDefaults: '保存默认规则',
-    pasteHint: '可粘贴用户 ID，使用空格、换行或逗号分隔；与已选用户合并去重。',
+    batchUsernames: '目标用户名',
+    usernamePlaceholder: '输入用户名，按回车添加',
+    pasteHint:
+      '按回车添加用户名，也可粘贴以空格、换行或逗号分隔的用户名；自动去重，可逐项删除。用户名不存在或无权操作时整批不提交，请核对试算结果。',
     targetCount: '已选择 {count} 人，每批最多 {max} 人',
     ruleAction: '额度规则操作',
     categoryAction: '消费类别操作',

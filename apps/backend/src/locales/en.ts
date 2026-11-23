@@ -418,6 +418,8 @@ const en = {
   },
   billing: {
     invalidOverdraftRule: "Invalid overdraft rule or arithmetic result",
+    overdraftTargetsUnavailable:
+      "One or more usernames are unavailable. Check all usernames and preview again; no batch changes were saved.",
     accountChanged: "Account data or configuration changed; refresh and retry",
     invalidAdjustment: "Invalid account adjustment or resulting amount",
     redemptionCodeDeleted: "Deleted successfully",

@@ -63,11 +63,13 @@ export const batchOverdraftSchema = z
   .refine((v) => v.rule !== undefined || v.categories !== undefined);
 export const previewOverdraftSchema = z
   .object({
-    userIds: z.array(userId).min(1).max(BALANCE_MANAGEMENT_POLICY.batchSize),
+    userIds: z.array(userId).min(1).max(BALANCE_MANAGEMENT_POLICY.batchSize).optional(),
+    usernames: z.array(z.string().trim().min(1).max(191)).min(1).max(BALANCE_MANAGEMENT_POLICY.batchSize).optional(),
     rule: overdraftRuleSchema.nullable().optional(),
     categories: categories.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => (v.userIds !== undefined) !== (v.usernames !== undefined));
 const adjustmentField = z
   .object({ mode: z.enum(["delta", "set"]), value: signedAmount, expected: signedAmount.optional() })
   .strict()

@@ -4,6 +4,13 @@ import { describe, expect, it } from "vitest";
 import { IAM_BALANCE_MANAGEMENT_OPERATIONS, Permission } from "@quyan/shared";
 const document = JSON.parse(readFileSync(resolve(process.cwd(), "src/build/swagger.json"), "utf8"));
 describe("generated balance management contract", () => {
+  it("supports username and legacy ID selectors for overdraft previews", () => {
+    const schema = document.components.schemas.PreviewOverdraftRequest;
+    expect(schema.properties.usernames).toMatchObject({ type: "array", items: { type: "string" } });
+    expect(schema.properties.userIds).toMatchObject({ type: "array", items: { type: "string" } });
+    expect(schema.required ?? []).not.toContain("usernames");
+    expect(schema.required ?? []).not.toContain("userIds");
+  });
   it("exposes self-service credit without changing managed account responses", () => {
     const operation = document.paths["/v1/balance/account"].get;
     expect(operation.security).toContainEqual({ jwt: ["balance:read"] });

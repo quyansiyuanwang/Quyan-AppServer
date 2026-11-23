@@ -90,6 +90,34 @@ async function deny(resource: string, action: string) {
   });
 }
 describe("platform account correction and overdraft persistence", () => {
+  it("previews username batches using existing accounts and canonical usernames", async () => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: target }, select: { username: true } });
+    const rows = await service.preview({ usernames: [user.username, ` ${user.username} `] }, request());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ userId: target, username: user.username, totalRecharged: 100 });
+    const identities = await BalanceManagementRepository.getInstance().identitiesByUsernames([user.username]);
+    expect(identities).toEqual([{ id: target, username: user.username }]);
+  });
+
+  it("rejects the whole username batch when a name is missing or deleted", async () => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: target }, select: { username: true } });
+    await expect(
+      service.preview({ usernames: [user.username, "missing-fixture-user"] }, request()),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await prisma.user.update({ where: { id: target }, data: { status: -1 } });
+    await expect(service.preview({ usernames: [user.username] }, request())).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("applies target IAM denies to resolved username batches without modifying policies", async () => {
+    const users = await prisma.user.findMany({ where: { id: { in: [target, second] } }, select: { username: true } });
+    await deny(managedBalanceArn(target), "quyan:balance:PreviewOverdraft");
+    await expect(service.preview({ usernames: users.map((user) => user.username) }, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    const accounts = await prisma.balanceAccount.findMany({ where: { userId: { in: [target, second] } } });
+    expect(accounts.every((account) => account.overdraftRule === null && account.overdraftVersion === 0)).toBe(true);
+  });
+
   it("corrects only recharge, records zero-change ledger and audit, and deduplicates retries", async () => {
     const body = correction();
     const first = await service.adjust(body, request());
