@@ -222,8 +222,14 @@ export function relayModelRouteRequestCandidates(
       for (const name of Object.keys(channel.modelMapping)) candidates.add(name);
   }
   for (const token of tokens) {
-    for (const rule of normalizeRelayTokenModelMappingRules(token.modelMappingRules, token.modelMapping))
+    for (const rule of normalizeRelayTokenModelMappingRules(token.modelMappingRules, token.modelMapping)) {
       if (!/[?*]/.test(rule.source)) candidates.add(rule.source);
+      // A configured target is a finite discovery seed even when its channel is unrestricted.
+      // Publish its request identity, then let the caller prove this route can serve it.
+      const exact = modelCatalog.filter((model) => resolveModelId(model).trim() === rule.target.trim());
+      const targets = exact.length ? exact : modelCatalog.filter((model) => model.model?.trim() === rule.target.trim());
+      for (const model of targets) candidates.add(resolveModelId(model));
+    }
     for (const name of parseRelayTokenAllowedModelIds(token.allowedModels))
       if (!/[?*]/.test(name)) candidates.add(name);
   }

@@ -232,8 +232,9 @@ describe("native actor-authorized routing catalog", () => {
       ],
     });
     expect(automatic.modelCapabilities).toHaveLength(2);
+    expect(automatic.modelMappings).toEqual([]);
     expect(JSON.stringify(result)).not.toMatch(
-      /fixture-only-secret|fixture.invalid|private-routing|manualAvailability|allowedModelsMode|visibilityConfig|modelMapping|providers/,
+      /fixture-only-secret|fixture.invalid|private-routing|manualAvailability|allowedModelsMode|visibilityConfig|"modelMapping"|providers/,
     );
     expect(rich).not.toHaveBeenCalled();
     expect(preload).not.toHaveBeenCalled();
