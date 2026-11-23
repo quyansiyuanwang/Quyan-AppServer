@@ -152,7 +152,7 @@ const props = defineProps<{
   targetUserId?: string
   settings: Pick<
     RelayCompositionPreviewRequest,
-    'modelMapping' | 'allowedModels' | 'requestFormatTransforms'
+    'modelMappingRules' | 'allowedModels' | 'requestFormatTransforms'
   >
 }>()
 const emit = defineEmits<{
@@ -293,7 +293,8 @@ async function preview() {
     previewModel.value = result.models[previewProtocol.value]?.[0] || ''
     emit('models', [...new Set(protocols.flatMap((protocol) => result.models[protocol] || []))])
   } catch (error) {
-    if (!disposed) showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
+    if (!disposed && request === previewSequence)
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     if (request === previewSequence) previewLoading.value = false
   }
@@ -302,7 +303,7 @@ watch(previewProtocol, () => {
   previewModel.value = previewResult.value?.models[previewProtocol.value]?.[0] || ''
 })
 watch(
-  () => [props.modelValue, props.settings],
+  () => [props.modelValue, props.settings, props.editingTokenId, props.targetUserId],
   () => {
     previewSequence++
     previewLoading.value = false
@@ -328,6 +329,7 @@ watch(
 )
 onBeforeUnmount(() => {
   disposed = true
+  previewSequence++
   sequence++
   clearTimeout(timer)
 })

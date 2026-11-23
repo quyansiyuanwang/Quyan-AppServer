@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'relay-settings',
-  updatedAt: '2026-11-12',
+  updatedAt: '2026-11-23',
   category: {
     en: 'Relay',
     'zh-CN': '转发',
@@ -14,8 +14,9 @@ export default defineDocsPage({
     'zh-CN': '转发设置',
   },
   summary: {
-    en: 'Save relay settings and prices, maintain channels and pools, and configure system header allowlists/blocklists with channel inheritance.',
-    'zh-CN': '说明全局配置与定价保存、渠道和混池维护、系统请求头黑白名单与渠道继承配置。',
+    en: 'Save relay settings and prices, maintain channels and pools, configure header policies, and distinguish channel billing mappings from token model rules.',
+    'zh-CN':
+      '说明全局配置与定价、渠道和混池维护、请求头策略，并区分渠道计费映射与 Token 模型规则。',
   },
   tags: [
     'relay',
@@ -24,6 +25,9 @@ export default defineDocsPage({
     'headers',
     'allowlist',
     'blocklist',
+    'model mapping',
+    '模型映射',
+    '计费模型',
     '请求头',
     '白名单',
     '黑名单',

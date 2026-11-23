@@ -769,9 +769,19 @@
           <template #default="{ row }">
             <div class="action-buttons">
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                <el-button size="small" type="primary" plain @click="state.openEditDialog(row)">{{
-                  i18ns.t('edit')
-                }}</el-button>
+                <el-button
+                  size="small"
+                  type="primary"
+                  plain
+                  :disabled="row.routingMode === 'composite'"
+                  :title="
+                    row.routingMode === 'composite'
+                      ? i18ns.t('relay.compositeImmutable')
+                      : undefined
+                  "
+                  @click="state.openEditDialog(row)"
+                  >{{ i18ns.t('edit') }}</el-button
+                >
               </PermissionWrapper>
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
                 <el-button
@@ -823,6 +833,9 @@
                     <PermissionWrapper :require="[Permission.RELAY_TOKEN_CREATE]">
                       <el-dropdown-item command="duplicate" divided>
                         {{ i18ns.t('relay.cloneToken') }}
+                      </el-dropdown-item>
+                      <el-dropdown-item command="configure-copy">
+                        {{ i18ns.t('relay.configureTokenCopy') }}
                       </el-dropdown-item>
                     </PermissionWrapper>
                     <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">

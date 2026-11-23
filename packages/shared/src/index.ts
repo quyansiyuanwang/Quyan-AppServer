@@ -139,7 +139,22 @@ export * from './relay-upstream-headers'
 export * from './support-knowledge'
 export * from './relay-probe'
 export {
+  RELAY_TOKEN_MODEL_MAPPING_LIMITS,
+  analyzeRelayTokenModelMappingRules,
+  doModelPatternsOverlap,
+  getMatchingRelayTokenModelMappingRule,
+  getMatchingRelayTokenModelMappingRules,
+  getRelayTokenModelMappingTargetCandidates,
   matchesModelPattern,
+  normalizeRelayTokenModelMappingRules,
   resolveMappedModel,
+  selectRelayTokenModelMappingRule,
+  validateRelayTokenModelMappingRules,
   getHigherPriorityModelPatterns,
+} from './model-mapping'
+export type {
+  RelayTokenModelMappingDiagnostic,
+  RelayTokenModelMappingDiagnosticCode,
+  RelayTokenModelMappingPreference,
+  RelayTokenModelMappingRule,
 } from './model-mapping'

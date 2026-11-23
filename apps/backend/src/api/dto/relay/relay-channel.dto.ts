@@ -277,6 +277,8 @@ export interface RelayRoutingCatalogOptionDto {
   modelCapabilities: RelayChannelModelCapabilityDto[];
   /** Only populated for automatic pools; members are logical pooled channels. */
   automaticProxyPool?: RelayAutomaticProxyPoolOptionDto;
+  /** Public aliases on independently resolved channel paths. */
+  modelMappings?: RelayCatalogModelMappingDto[];
 }
 
 export interface RelayPoolPricingOptionDto {

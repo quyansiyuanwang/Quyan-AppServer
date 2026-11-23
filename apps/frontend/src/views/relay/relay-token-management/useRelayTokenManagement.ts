@@ -7,7 +7,13 @@ import type {
   ContentSafetyAction as SharedContentSafetyAction,
   RelayConfiguredRequestFormat as SharedRelayFormat,
 } from '@quyan/shared'
-import { maskSecret, type RelayConvertibleRequestFormat } from '@quyan/shared'
+import {
+  maskSecret,
+  normalizeRelayTokenModelMappingRules,
+  analyzeRelayTokenModelMappingRules,
+  type RelayTokenModelMappingRule,
+  type RelayConvertibleRequestFormat,
+} from '@quyan/shared'
 import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
 import { i18ns } from '@/locales'
@@ -29,7 +35,7 @@ import { Permission } from '@/constant/permission'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
   ImportRelayTokensResponse,
-  RelayChannelOptionDto,
+  RelayRoutingCatalogOptionDto,
   RelayChannelSwitchLogDto,
   RelayTokenImportItemDto,
   RelayTokenChannelConfigDto,
@@ -418,7 +424,7 @@ export const useRelayTokenManagement = () => {
   const userOptionsLoading = ref(false)
   const selectedTargetUserId = ref('')
   const tokenTableRef = ref<TableInstance>()
-  const channels = ref<RelayChannelOptionDto[]>([])
+  const channels = ref<RelayRoutingCatalogOptionDto[]>([])
   const channelsLoading = ref(false)
   const channelsLoadError = ref<unknown>(null)
   const quotaWindowPreviewModes = ref<Record<string, number>>({})
@@ -603,7 +609,7 @@ export const useRelayTokenManagement = () => {
     blockedAutomaticProxyPoolChannelIds: [] as string[],
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
-    modelMapping: {} as Record<string, string>,
+    modelMappingRules: [] as RelayTokenModelMappingRule[],
     requestFormatTransforms: [] as EditableRelayFormatTransform[],
     normalizerConfig: {
       enabled: false,
@@ -926,7 +932,6 @@ export const useRelayTokenManagement = () => {
     const selectedChannelIds = new Set(
       editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
     )
-    if (editForm.value.routingMode === 'composite') return compositionModelIds.value
     if (editForm.value.routingMode === 'automatic-pool') {
       const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
       if (automaticProxyPoolChannelId) selectedChannelIds.add(automaticProxyPoolChannelId)
@@ -940,18 +945,41 @@ export const useRelayTokenManagement = () => {
 
     // Model mapping keys are request aliases that the relay rewrites to the
     // mapped target upstream, so they must be part of the derivable model set.
-    const mappingKeys = Object.keys(editForm.value.modelMapping || {}).filter(
-      (key) => key && !key.includes('*') && !key.includes('?'),
-    )
+    const mappingKeys = editForm.value.modelMappingRules
+      .map((rule) => rule.source)
+      .filter((key) => key && !key.includes('*') && !key.includes('?'))
 
     // Keep saved choices visible while editing even if their channel is no longer available.
     return [
-      ...new Set([...resolvedModels, ...mappingKeys, ...editForm.value.allowedModelIdsList]),
+      ...new Set([
+        ...(editForm.value.routingMode === 'composite'
+          ? compositionModelIds.value
+          : resolvedModels),
+        ...selectedChannelAliases.value,
+        ...mappingKeys,
+        ...editForm.value.allowedModelIdsList,
+      ]),
     ].sort((left, right) => left.localeCompare(right))
   })
 
   const filteredModelIds = computed(() => selectedChannelAllowedModels.value)
   const channelFilteredModelNames = computed(() => selectedChannelAllowedModels.value)
+
+  const selectedChannelAliases = computed(() => {
+    if (editForm.value.routingMode === 'composite') return []
+    const ids = new Set(
+      editForm.value.routingMode === 'automatic-pool'
+        ? [editForm.value.automaticProxyPoolChannelId]
+        : editForm.value.channelConfigs.map((config) => config.channelId),
+    )
+    return channels.value
+      .filter((channel) => ids.has(channel.id))
+      .flatMap((channel) =>
+        (channel.modelMappings || [])
+          .map((mapping) => mapping.requestModelPattern)
+          .filter((source) => source && !/[?*]/.test(source)),
+      )
+  })
 
   const requiredRetrySlots = computed(() => Math.max(0, editForm.value.channelConfigs.length - 1))
 
@@ -1001,6 +1029,26 @@ export const useRelayTokenManagement = () => {
   }
 
   const getModelIdDisplayLabel = (modelId: string): string => {
+    if (
+      selectedChannelAliases.value.includes(modelId) ||
+      editForm.value.modelMappingRules.some(
+        (rule) => rule.source === modelId && !/[?*]/.test(rule.source),
+      )
+    )
+      return `${modelId} · ${i18ns.t('relay.tokenMappingAlias')}`
+    const available =
+      editForm.value.routingMode === 'composite'
+        ? compositionModelIds.value.includes(modelId)
+        : channels.value.some(
+            (channel) =>
+              (editForm.value.routingMode === 'automatic-pool'
+                ? channel.id === editForm.value.automaticProxyPoolChannelId
+                : editForm.value.channelConfigs.some(
+                    (config) => config.channelId === channel.id,
+                  )) &&
+              channel.modelCapabilities.some((capability) => capability.requestModelId === modelId),
+          )
+    if (!available) return `${modelId} · ${i18ns.t('relay.compositionUnavailable')}`
     return modelId
   }
 
@@ -1316,7 +1364,19 @@ export const useRelayTokenManagement = () => {
       quotaLimit: token.quotaLimit ?? null,
       allowedModels: token.allowedModels || null,
       ipWhitelist: token.ipWhitelist || null,
-      modelMapping: token.modelMapping || undefined,
+      modelMappingRules: normalizeRelayTokenModelMappingRules(
+        token.modelMappingRules,
+        token.modelMapping,
+      ),
+      requestFormatTransforms: token.requestFormatTransforms || [],
+      memberTokenConfigs:
+        token.routingMode === 'composite'
+          ? (token.memberTokenConfigs || []).map(({ tokenId, priority, enabled }) => ({
+              tokenId,
+              priority,
+              enabled,
+            }))
+          : undefined,
       enabled: token.status === MANAGED_STATUS.ENABLED,
       routingMode: (token as RelayTokenWithRouting).routingMode,
       automaticProxyPoolChannelId: (token as RelayTokenWithRouting).automaticProxyPoolChannelId,
@@ -1751,9 +1811,13 @@ export const useRelayTokenManagement = () => {
     return Array.isArray(quotaWindows) ? quotaWindows : []
   }
 
-  const openEditDialog = async (row: RelayTokenDto) => {
-    editMode.value = 'edit'
-    currentEditId.value = row.id
+  const openEditDialog = async (row: RelayTokenDto, configureCopy = false) => {
+    if (row.routingMode === 'composite' && !configureCopy) {
+      ElMessage.warning(i18ns.t('relay.compositeImmutable'))
+      return
+    }
+    editMode.value = configureCopy ? 'create' : 'edit'
+    currentEditId.value = configureCopy ? '' : row.id
     originalRoutingMode.value = row.routingMode || 'ordered'
     compositionModelIds.value = []
     compositeDefaultRetryStatusCodes.value = []
@@ -1778,12 +1842,12 @@ export const useRelayTokenManagement = () => {
     )
 
     editForm.value = {
-      name: row.name || '',
+      name: configureCopy ? `${row.name || ''} (${i18ns.t('relay.cloneToken')})` : row.name || '',
       token: '',
       channelId: channelConfigs[0]?.channelId || '',
       expiresAt: row.expiresAt ? new Date(row.expiresAt) : null,
       quotaLimit: row.quotaLimit ?? null,
-      originalQuotaWindowsEnabled: quotaWindows.length > 0,
+      originalQuotaWindowsEnabled: !configureCopy && quotaWindows.length > 0,
       quotaWindowsEnabled: quotaWindows.length > 0,
       quotaWindows,
       allowedModels: row.allowedModels || '',
@@ -1815,7 +1879,10 @@ export const useRelayTokenManagement = () => {
         minCacheHitRate: row.failoverConfig?.minCacheHitRate ?? null,
         maxAcceptedChannelMultiplier: row.failoverConfig?.maxAcceptedChannelMultiplier ?? null,
       },
-      modelMapping: (row.modelMapping as Record<string, string>) || {},
+      modelMappingRules: normalizeRelayTokenModelMappingRules(
+        row.modelMappingRules,
+        row.modelMapping,
+      ),
       requestFormatTransforms:
         (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({
           sourceFormat: rule.sourceFormat,
@@ -1857,6 +1924,8 @@ export const useRelayTokenManagement = () => {
 
     showEditDialog.value = true
   }
+
+  const openConfigureCopyDialog = (row: RelayTokenDto) => openEditDialog(row, true)
 
   const getAvailableChannelOptions = (currentChannelId: string): ChannelOption[] => {
     const selectedChannelIds = new Set(
@@ -2215,6 +2284,15 @@ export const useRelayTokenManagement = () => {
   const handleSave = async () => {
     saving.value = true
     try {
+      if (
+        analyzeRelayTokenModelMappingRules(editForm.value.modelMappingRules).some(
+          (item) => item.severity === 'error',
+        )
+      )
+        throw createUserFacingError(i18ns.t('relay.tokenMappingInvalid'))
+      const modelMappingRules = normalizeRelayTokenModelMappingRules(
+        editForm.value.modelMappingRules,
+      )
       const routingMode = editForm.value.routingMode
       const memberTokenConfigs =
         routingMode === 'composite'
@@ -2294,11 +2372,6 @@ export const useRelayTokenManagement = () => {
         editForm.value.quotaWindowsEnabled
 
       if (editMode.value === 'create') {
-        const modelMapping =
-          editForm.value.modelMapping && Object.keys(editForm.value.modelMapping).length > 0
-            ? editForm.value.modelMapping
-            : undefined
-
         const data = {
           name: normalizedName || undefined,
           token: editForm.value.token.trim() || undefined,
@@ -2314,7 +2387,7 @@ export const useRelayTokenManagement = () => {
           quotaWindows,
           allowedModels: allowedModelsStr || undefined,
           ipWhitelist,
-          modelMapping,
+          modelMappingRules,
           requestFormatTransforms,
           normalizerConfig,
           contentSafetyConfig,
@@ -2328,11 +2401,6 @@ export const useRelayTokenManagement = () => {
         invalidateAllTokensCache()
         ElMessage.success(i18ns.t('relay.createSuccess'))
       } else {
-        const modelMapping =
-          editForm.value.modelMapping && Object.keys(editForm.value.modelMapping).length > 0
-            ? editForm.value.modelMapping
-            : null
-
         const data = {
           name: normalizedName || null,
           token: editForm.value.token.trim() || undefined,
@@ -2348,7 +2416,7 @@ export const useRelayTokenManagement = () => {
           ...(shouldIncludeQuotaWindowsForUpdate ? { quotaWindows } : {}),
           allowedModels: allowedModelsStr || null,
           ipWhitelist: ipWhitelist || null,
-          modelMapping,
+          modelMappingRules,
           requestFormatTransforms,
           normalizerConfig,
           contentSafetyConfig,
@@ -2577,6 +2645,8 @@ export const useRelayTokenManagement = () => {
       }
     } else if (command === 'duplicate') {
       await handleDuplicateSingleToken(row)
+    } else if (command === 'configure-copy') {
+      await openConfigureCopyDialog(row)
     } else if (command === 'export') {
       await handleExportSingleToken(row)
     } else if (command === 'copy-token-value') {
@@ -2749,9 +2819,9 @@ export const useRelayTokenManagement = () => {
   }
 
   const formatModelMapping = (row: RelayTokenDto) => {
-    const entries = Object.entries(row.modelMapping || {})
+    const entries = normalizeRelayTokenModelMappingRules(row.modelMappingRules, row.modelMapping)
     return entries.length
-      ? entries.map(([source, target]) => `${source} → ${target}`).join(', ')
+      ? entries.map(({ source, target }) => `${source} → ${target}`).join(', ')
       : '-'
   }
 
@@ -3090,6 +3160,7 @@ export const useRelayTokenManagement = () => {
     handlePageSizeChange,
     openTokenImportDialog,
     openCreateDialog,
+    openConfigureCopyDialog,
     openEditDialog,
     handleRefreshToken,
     handleToggleStatus,

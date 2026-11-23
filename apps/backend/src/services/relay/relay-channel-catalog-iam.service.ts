@@ -29,6 +29,26 @@ export class RelayChannelCatalogIamService {
   static getInstance() {
     return (this.instance ??= new RelayChannelCatalogIamService());
   }
+  /** Keep the admitted graph inside the authorization callback until its release proofs pass. */
+  async withRoutingSnapshot<T>(
+    actorUserId: string,
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (snapshot: RelayCatalogSnapshot) => Promise<T>,
+  ): Promise<T> {
+    const result = await this.readProjection(
+      actorUserId,
+      request,
+      async () => {
+        throw iamAccountDenied();
+      },
+      "quyan:relay:ListChannelRoutingCatalog",
+      async (snapshot) => [await read(snapshot)],
+      targetUserId,
+      true,
+    );
+    return result[0]!;
+  }
   async read(actorUserId: string, request: TypedRequest | undefined, legacy: () => Promise<RelayCatalogOptionDto[]>) {
     return this.readProjection(actorUserId, request, legacy, "quyan:relay:ListChannelCatalog", (snapshot) =>
       projectRelayChannelCatalog(snapshot),
@@ -93,8 +113,9 @@ export class RelayChannelCatalogIamService {
       principal: IamPrincipal,
     ) => Promise<T[]>,
     targetUserId?: string,
+    alwaysEnforce = false,
   ) {
-    const mode = env.security.iamAuthorizationMode;
+    const mode = alwaysEnforce ? "enforce" : env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
       if (mode !== "legacy") throw iamAccountDenied();
@@ -186,7 +207,7 @@ export class RelayChannelCatalogIamService {
       };
       const assertRequest = () => {
         if (
-          env.security.iamAuthorizationMode !== mode ||
+          (!alwaysEnforce && env.security.iamAuthorizationMode !== mode) ||
           !same(getIamPrincipal(request), principal) ||
           request.accessKey?.id !== keyId ||
           !same(requestTransportConditionContext(request), transport) ||

@@ -18262,6 +18262,124 @@
 				}
 			}
 		},
+		"/v1/relay/tokens/model-mapping-preview": {
+			"post": {
+				"operationId": "RelayControllerPreviewTokenModelMapping",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayTokenModelMappingPreviewDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": [
+							"relay:token:read",
+							"relay:channel:read"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayTokenModelMappingPreviewRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/relay/tokens/model-mapping-channel-options": {
+			"post": {
+				"operationId": "RelayControllerTokenModelMappingChannelOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayTokenModelMappingChannelOptionsDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": [
+							"relay:token:read",
+							"relay:channel:read"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayTokenModelMappingChannelOptionsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay/tokens/composition-candidates": {
 			"get": {
 				"operationId": "RelayControllerCompositionCandidates",
@@ -53671,6 +53789,40 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenModelMappingPreference": {
+				"type": "string",
+				"enum": [
+					"mapping-first",
+					"original-first"
+				]
+			},
+			"RelayTokenModelMappingRule": {
+				"properties": {
+					"source": {
+						"type": "string"
+					},
+					"target": {
+						"type": "string"
+					},
+					"channelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Omitted or empty means global; otherwise applies to matching route ancestors or leaf."
+					},
+					"preference": {
+						"$ref": "#/components/schemas/RelayTokenModelMappingPreference"
+					}
+				},
+				"required": [
+					"source",
+					"target",
+					"preference"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenChannelConfigDto": {
 				"properties": {
 					"channelId": {
@@ -53896,6 +54048,13 @@
 					"modelMapping": {
 						"$ref": "#/components/schemas/Record_string.string_"
 					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
 					"channelConfigs": {
 						"items": {
 							"$ref": "#/components/schemas/RelayTokenChannelConfigDto"
@@ -54095,8 +54254,20 @@
 						"description": "IP 白名单，支持换行、逗号或分号分隔"
 					},
 					"modelMapping": {
-						"$ref": "#/components/schemas/Record_string.string_",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true,
 						"description": "模型映射：请求模型 → 扣费模型"
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
 					}
 				},
 				"type": "object",
@@ -54207,8 +54378,20 @@
 						"description": "IP 白名单，支持换行、逗号或分号分隔"
 					},
 					"modelMapping": {
-						"$ref": "#/components/schemas/Record_string.string_",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true,
 						"description": "模型映射：请求模型 → 扣费模型"
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
 					},
 					"enabled": {
 						"type": "boolean",
@@ -54408,8 +54591,20 @@
 						"description": "IP 白名单，支持换行、逗号或分号分隔"
 					},
 					"modelMapping": {
-						"$ref": "#/components/schemas/Record_string.string_",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true,
 						"description": "模型映射：请求模型 → 扣费模型"
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
 					},
 					"enabled": {
 						"type": "boolean",
@@ -54655,13 +54850,324 @@
 						"description": "IP 白名单，支持换行、逗号或分号分隔"
 					},
 					"modelMapping": {
-						"$ref": "#/components/schemas/Record_string.string_",
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true,
 						"description": "模型映射：请求模型 → 扣费模型"
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
 					},
 					"editingTokenId": {
 						"type": "string"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingPreviewItemDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"tokenPathIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"requestedModel": {
+						"type": "string"
+					},
+					"effectiveModel": {
+						"type": "string"
+					},
+					"ruleSource": {
+						"type": "string",
+						"description": "The token whose mapping rule selected this result."
+					},
+					"outcome": {
+						"type": "string",
+						"enum": [
+							"mapped",
+							"original",
+							"fallback",
+							"unavailable"
+						]
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName",
+					"tokenPathIds",
+					"requestedModel",
+					"outcome",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingDiagnosticDto": {
+				"properties": {
+					"ruleIndex": {
+						"type": "number",
+						"format": "double"
+					},
+					"otherRuleIndex": {
+						"type": "number",
+						"format": "double"
+					},
+					"severity": {
+						"type": "string",
+						"enum": [
+							"error",
+							"warning"
+						]
+					},
+					"code": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ruleIndex",
+					"severity",
+					"code"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingPreviewDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingPreviewItemDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"diagnostics": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingDiagnosticDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize",
+					"diagnostics"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingDraftDto": {
+				"description": "Only the edited token is a draft. Referenced tokens are always loaded unchanged.",
+				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool",
+							"composite"
+						]
+					},
+					"channelId": {
+						"type": "string",
+						"nullable": true
+					},
+					"channelConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenChannelConfigInputDto"
+						},
+						"type": "array"
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string",
+						"nullable": true
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
+					},
+					"editingTokenId": {
+						"type": "string"
+					},
+					"targetUserId": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"failoverConfig": {
+						"properties": {
+							"maxAcceptedChannelMultiplier": {
+								"type": "number",
+								"format": "double",
+								"nullable": true
+							}
+						},
+						"type": "object",
+						"nullable": true,
+						"description": "Omission preserves the saved policy; null clears it."
+					},
+					"modelMapping": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingPreviewRequest": {
+				"properties": {
+					"draft": {
+						"$ref": "#/components/schemas/RelayTokenModelMappingDraftDto"
+					},
+					"requestModel": {
+						"type": "string"
+					},
+					"requestFormat": {
+						"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"draft",
+					"requestModel",
+					"requestFormat"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingChannelOptionsDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"id": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"name",
+								"id"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenModelMappingChannelOptionsRequest": {
+				"properties": {
+					"draft": {
+						"$ref": "#/components/schemas/RelayTokenModelMappingDraftDto"
+					},
+					"search": {
+						"type": "string"
+					},
+					"selectedIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"draft"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -54935,6 +55441,13 @@
 						],
 						"nullable": true,
 						"description": "模型映射：请求模型 → 扣费模型，传 null 清除"
+					},
+					"modelMappingRules": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenModelMappingRule"
+						},
+						"type": "array",
+						"nullable": true
 					}
 				},
 				"type": "object",
@@ -57423,6 +57936,41 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayCatalogModelMappingDto": {
+				"description": "Public billing mapping on one effective route, without route or member identity.",
+				"properties": {
+					"requestModelPattern": {
+						"type": "string"
+					},
+					"catalogModelName": {
+						"type": "string"
+					},
+					"billingModelId": {
+						"type": "string"
+					},
+					"supportedRequestFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+						},
+						"type": "array"
+					},
+					"excludedRequestModelPatterns": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Higher-precedence rules on the same route, including rules with unavailable targets."
+					}
+				},
+				"required": [
+					"requestModelPattern",
+					"catalogModelName",
+					"billingModelId",
+					"supportedRequestFormats"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayRoutingCatalogOptionDto": {
 				"description": "Safe, user-selectable routing catalog. Unlike channel-management options it\nintentionally excludes every physical pooled-member node and its topology.",
 				"properties": {
@@ -57465,6 +58013,13 @@
 					"automaticProxyPool": {
 						"$ref": "#/components/schemas/RelayAutomaticProxyPoolOptionDto",
 						"description": "Only populated for automatic pools; members are logical pooled channels."
+					},
+					"modelMappings": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCatalogModelMappingDto"
+						},
+						"type": "array",
+						"description": "Public aliases on independently resolved channel paths."
 					}
 				},
 				"required": [
@@ -57475,41 +58030,6 @@
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayCatalogModelMappingDto": {
-				"description": "Public billing mapping on one effective route, without route or member identity.",
-				"properties": {
-					"requestModelPattern": {
-						"type": "string"
-					},
-					"catalogModelName": {
-						"type": "string"
-					},
-					"billingModelId": {
-						"type": "string"
-					},
-					"supportedRequestFormats": {
-						"items": {
-							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
-						},
-						"type": "array"
-					},
-					"excludedRequestModelPatterns": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "Higher-precedence rules on the same route, including rules with unavailable targets."
-					}
-				},
-				"required": [
-					"requestModelPattern",
-					"catalogModelName",
-					"billingModelId",
-					"supportedRequestFormats"
 				],
 				"type": "object",
 				"additionalProperties": false

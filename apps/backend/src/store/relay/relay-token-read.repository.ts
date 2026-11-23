@@ -47,6 +47,7 @@ export const relayTokenReadSelect = {
   streamConfig: true,
   ipWhitelist: true,
   modelMapping: true,
+  modelMappingRules: true,
   user: { select: { id: true, username: true, name: true } },
   channel: { select: { id: true, name: true, channelType: true } },
   channelConfigs: {

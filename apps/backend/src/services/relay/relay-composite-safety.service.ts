@@ -10,9 +10,10 @@ export function compositeSafetyService(
   const evaluate =
     (method: "evaluate" | "evaluateLocal") =>
     async (direction: "request" | "response", text: string, fallback?: any) => {
-      if (direction !== "response") return base[method](direction, text, fallback);
+      if (!context.path.length) return base[method](direction, text, fallback);
       const evaluations: ContentSafetyEvaluation[] = [];
-      for (const node of [...context.path].reverse()) {
+      const path = direction === "request" ? context.path : [...context.path].reverse();
+      for (const node of path) {
         const evaluation = await base[method](direction, text, {
           userId: node.userId,
           tokenConfig: node.contentSafetyConfig as any,

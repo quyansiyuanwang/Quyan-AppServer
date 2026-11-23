@@ -69,7 +69,9 @@ export class RelayTokenCreateRepository {
           data.routingMode === "composite" ? { createMany: { data: data.memberTokenConfigs ?? [] } } : undefined,
         contentSafetyConfig: data.contentSafetyConfig as Prisma.InputJsonValue | undefined,
         ipWhitelist: data.ipWhitelist,
-        modelMapping: data.modelMapping ?? undefined,
+        modelMapping: data.modelMapping === null ? Prisma.DbNull : data.modelMapping,
+        modelMappingRules:
+          data.modelMappingRules == null ? Prisma.DbNull : (data.modelMappingRules as unknown as Prisma.InputJsonValue),
         failoverConfig: failoverConfigCreateData
           ? {
               create: failoverConfigCreateData,

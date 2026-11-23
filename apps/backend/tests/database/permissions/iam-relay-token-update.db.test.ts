@@ -277,6 +277,49 @@ afterEach(async () => {
   await prisma.group.deleteMany({ where: { id: groupId } });
 });
 describe("atomic resource-authorized complete token updates", () => {
+  it("preserves scoped rules, rejects legacy overwrite, and clears both JSON fields", async () => {
+    const modelMappingRules = [
+      { source: "model-*", target: "upstream", channelIds: [channels[0]!], preference: "original-first" as const },
+    ];
+    const result = await update({ modelMappingRules });
+    expect(result).toMatchObject({ modelMappingRules });
+    expect((await fullState()).modelMappingRules).toEqual(modelMappingRules);
+    await expect(update({ modelMapping: { old: "replacement" } })).rejects.toMatchObject({
+      messageKey: "relayToken.modelMappingRulesLegacyOverwrite",
+    });
+    await update({ name: "retained" });
+    expect((await fullState()).modelMappingRules).toEqual(modelMappingRules);
+    await update({ modelMappingRules: [] });
+    expect(await fullState()).toMatchObject({ modelMapping: null, modelMappingRules: null });
+    const [cleared] = await prisma.$queryRaw<
+      { legacyCleared: bigint; rulesCleared: bigint }[]
+    >`SELECT modelMapping IS NULL AS legacyCleared, modelMappingRules IS NULL AS rulesCleared FROM relay_tokens WHERE id = ${first}`;
+    expect(Boolean(cleared!.legacyCleared)).toBe(true);
+    expect(Boolean(cleared!.rulesCleared)).toBe(true);
+  }, 30_000);
+  it("rejects scoped catalog denial before hydrating channel topology", async () => {
+    await grant("quyan:relay:ListChannelRoutingCatalog", relayChannelSelectionArn(owner, channels[0]!));
+    const before = await fullState();
+    await expect(
+      update({
+        modelMappingRules: [
+          { source: "*", target: "upstream", channelIds: [channels[0]!], preference: "mapping-first" },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await fullState()).toEqual(before);
+  });
+  it("rejects unreachable scoped rules before updating storage", async () => {
+    const before = await fullState();
+    await expect(
+      update({
+        modelMappingRules: [
+          { source: "*", target: "upstream", channelIds: [channels[1]!], preference: "mapping-first" },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await fullState()).toEqual(before);
+  });
   it("writes ordered routing, nullable fields, quota windows and failover without rich or public postcommit reads", async () => {
     const rich = vi.spyOn(RelayTokenRepository.getInstance(), "findByIdWithRelations");
     const publicGet = vi.spyOn(RelayTokenService.prototype, "getToken");

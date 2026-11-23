@@ -4,6 +4,11 @@ import { AIResourceService, aiResourceContext } from "../../../src/services/infr
 import { contentSafetyAttemptContext } from "../../../src/services/system/content-safety-attempt";
 import { ChatService } from "../../../src/services/chat/chat.service";
 import { BadRequestError, ForbiddenError, NotFoundError, PayloadTooLargeError } from "../../../src/util/errors";
+import { getAIRequestLogContext } from "../../../src/util/ai-request-log-context";
+import { RelayProxyService } from "../../../src/services/relay/relay-proxy.service";
+import { getCompositeContext } from "../../../src/services/relay/relay-composite-executor.service";
+import type { ChatStreamEvent } from "@quyan/shared";
+import { CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from "../../../src/constant/chat";
 
 async function* createChatStream() {
   yield { content: "hello", done: false };
@@ -133,6 +138,8 @@ describe("ChatService", () => {
   };
 
   const relayProxyService = {
+    getCompositeCatalog: vi.fn(),
+    forwardRequest: vi.fn(),
     getAvailableModelMapForToken: vi.fn(),
     assertRelayChannelMultiplierAccepted: vi.fn(),
     getChatAttemptPlan: vi.fn(
@@ -233,6 +240,8 @@ describe("ChatService", () => {
     });
     contentSafetyService.recordIncident.mockResolvedValue(undefined);
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([]);
+    relayProxyService.getCompositeCatalog.mockReset();
+    relayProxyService.forwardRequest.mockReset();
     relayProxyService.getChatAttemptPlan.mockImplementation(
       async (token: any) =>
         ({
@@ -270,7 +279,7 @@ describe("ChatService", () => {
     expect(messageRepo.replaceFrom).not.toHaveBeenCalled();
   });
 
-  function configureStatelessGeneration() {
+  function configureStatelessGeneration(tokenOverrides: Record<string, unknown> = {}) {
     relayTokenRepository.findByIdWithChannel.mockResolvedValue({
       id: "token-1",
       userId: "user-1",
@@ -280,6 +289,7 @@ describe("ChatService", () => {
       upstreamUrl: "https://upstream.example.com",
       upstreamApiKey: "fixture-only",
       channel: { id: "channel-1", name: "main", multiplier: 1, allowedFormats: null },
+      ...tokenOverrides,
     });
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
       {
@@ -299,6 +309,660 @@ describe("ChatService", () => {
     relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
     aiProvider.streamChat.mockReturnValue(createChatStream());
   }
+
+  const compositeFrame = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
+  function configureCompositeChat(format = "openai-chat-completions") {
+    configureStatelessGeneration({ routingMode: "composite", channel: null });
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+    messageRepo.findContext.mockResolvedValue([{ role: "user", content: "hello" }]);
+    messageRepo.create.mockImplementation(async (data) => createPersistedMessage({ ...data, cost: data.cost ?? null }));
+    relayProxyService.getCompositeCatalog.mockImplementation(async (_id, candidate) =>
+      candidate === format ? [{ model: "customer-model", tokenPathIds: ["token-1", "inner", "leaf"] }] : [],
+    );
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(
+        compositeFrame({
+          choices: [{ delta: { content: "hello" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 20 },
+        }) + "data: [DONE]\n\n",
+      );
+      return { status: 200, headers: {}, data: {} };
+    });
+  }
+
+  it("executes composite aliases through the full proxy pipeline and persists without a second settlement", async () => {
+    configureCompositeChat();
+    const events: ChatStreamEvent[] = [];
+    for await (const event of service.sendMessage("conv-1", "user-1", "hello", "customer-model", undefined, {
+      requestId: "composite-chat-fixture",
+      ipAddress: "192.0.2.10",
+    }))
+      events.push(event);
+    expect(events.map((event) => event.type)).toEqual(["delta", "complete"]);
+    expect(events[1]).toMatchObject({
+      message: {
+        content: "hello",
+        model: "customer-model",
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: null,
+        completionStatus: "completed",
+      },
+    });
+    expect(relayProxyService.forwardRequest).toHaveBeenCalledTimes(1);
+    const [token, request, response] = relayProxyService.forwardRequest.mock.calls[0]!;
+    expect(token).toMatchObject({ id: "token-1", routingMode: "composite" });
+    expect(request).toMatchObject({
+      method: "POST",
+      path: "/relay/proxy/v1/chat/completions",
+      ip: "192.0.2.10",
+      body: { model: "customer-model", messages: [{ role: "user", content: "hello" }], stream: true },
+    });
+    expect(request.headers).toEqual({ "content-type": "application/json" });
+    expect(getAIRequestLogContext(response)?.requestId).toBe("composite-chat-fixture");
+    expect(relayProxyService.getCompositeCatalog).toHaveBeenCalledWith(
+      "token-1",
+      "openai-chat-completions",
+      undefined,
+      ["customer-model"],
+    );
+    expect(messageRepo.create).toHaveBeenCalledTimes(2);
+    expect(messageRepo.create).toHaveBeenNthCalledWith(1, { conversationId: "conv-1", role: "user", content: "hello" });
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    expect(usageChargeService.hasCoverageOrPositiveBalance).not.toHaveBeenCalled();
+    expect(relayUsageRepository.create).not.toHaveBeenCalled();
+    expect(aiProvider.streamChat).not.toHaveBeenCalled();
+    expect(relayProxyService.getChatAttemptPlan).not.toHaveBeenCalled();
+    expect(contentSafetyService.evaluate).not.toHaveBeenCalled();
+    expect(modelPricingRepository.listActiveOrderedByModel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "anthropic",
+      "/relay/proxy/v1/messages",
+      [
+        { type: "message_start", message: { usage: { input_tokens: 7 } } },
+        { type: "content_block_delta", delta: { type: "text_delta", text: "hello" } },
+        { type: "message_delta", usage: { output_tokens: 3 } },
+      ],
+    ],
+    [
+      "openai-responses",
+      "/relay/proxy/v1/responses",
+      [
+        { type: "response.output_text.delta", delta: "hello" },
+        {
+          type: "response.completed",
+          response: { output: [{ content: [{ text: "hello" }] }], usage: { input_tokens: 7, output_tokens: 3 } },
+        },
+      ],
+    ],
+    [
+      "gemini",
+      "/relay/proxy/v1beta/models/customer-model:streamGenerateContent",
+      [
+        {
+          candidates: [{ content: { parts: [{ text: "hello" }] } }],
+          usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 3 },
+        },
+      ],
+    ],
+  ])("bridges a composite alias available only in %s", async (format, path, frames) => {
+    configureCompositeChat(format);
+    relayProxyService.forwardRequest.mockImplementation(async (_token, request, response) => {
+      expect(request.path).toBe(path);
+      if (format === "anthropic")
+        expect(request.body).toMatchObject({
+          model: "customer-model",
+          max_tokens: CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+          stream: true,
+        });
+      if (format === "openai-responses")
+        expect(request.body).toMatchObject({ model: "customer-model", stream: true, input: expect.any(Array) });
+      if (format === "gemini")
+        expect(request).toMatchObject({
+          query: { alt: "sse" },
+          body: { contents: [{ role: "user", parts: [{ text: "hello" }] }] },
+        });
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(frames.map(compositeFrame).join(""));
+      return { status: 200, headers: {}, data: {} };
+    });
+    const events: ChatStreamEvent[] = [];
+    for await (const event of service.sendMessage("conv-1", "user-1", "hello", "customer-model")) events.push(event);
+    expect(events.filter((event) => event.type === "delta")).toEqual([
+      { type: "delta", content: "hello", done: false },
+    ]);
+    expect(events.at(-1)).toMatchObject({ type: "complete", message: { inputTokens: 7, outputTokens: 3 } });
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("bridges the real composite executor's nested protocol transform and member failover", async () => {
+    configureCompositeChat();
+    const node = (id: string, members: string[] = []) => ({
+      id,
+      userId: "user-1",
+      status: 1,
+      routingMode: members.length ? "composite" : "ordered",
+      memberTokenConfigs: members.map((tokenId, priority) => ({ tokenId, priority, enabled: true })),
+      expiresAt: null,
+      ipWhitelist: null,
+      failoverConfig: null,
+    });
+    const root = {
+      ...node("token-1", ["unavailable", "inner"]),
+      requestFormatTransforms: [{ sourceFormat: "openai-chat-completions", targetFormat: "anthropic" }],
+    };
+    const inner = node("inner", ["leaf"]);
+    const unavailable = node("unavailable");
+    const leaf = node("leaf");
+    // Exercise actual proxy/composite/transport code, mocking persistence and physical upstream I/O.
+    const proxy = Object.create(RelayProxyService.prototype) as any;
+    proxy.logicalRequestIds = new WeakMap();
+    proxy.relayTokenRepo = {
+      loadCompositionSnapshot: vi.fn(
+        async () =>
+          new Map([
+            [root.id, root],
+            [inner.id, inner],
+            [unavailable.id, unavailable],
+            [leaf.id, leaf],
+          ]),
+      ),
+    };
+    proxy.assertRelayTokenQuotaAvailable = vi.fn(async () => {});
+    proxy.compositeLeafCanServe = vi.fn(async () => true);
+    proxy.contentSafetyService = { evaluate: vi.fn(async () => ({ matched: false, action: "allow" })) };
+    proxy.forwardRequestInternal = vi.fn(async (token: { id: string }, request: any, response: any) => {
+      expect(request.path).toBe("/relay/proxy/v1/messages");
+      expect(request.body).toMatchObject({
+        model: "customer-model",
+        stream: true,
+        max_tokens: CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+      });
+      if (token.id === "unavailable") return { status: 503, headers: {}, data: { error: {} } };
+      expect(getCompositeContext(request)?.path.map((token) => token.id)).toEqual(["token-1", "inner", "leaf"]);
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(
+        [
+          { type: "message_start", message: { id: "fixture", model: "physical-model", usage: { input_tokens: 7 } } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "nested answer" } },
+          { type: "message_delta", usage: { output_tokens: 3 } },
+          { type: "message_stop" },
+        ]
+          .map(compositeFrame)
+          .join(""),
+      );
+      return { status: 200, headers: {}, data: {} };
+    });
+    relayProxyService.forwardRequest.mockImplementation((token, request, response) =>
+      proxy.forwardRequest(token, request, response),
+    );
+    const events: ChatStreamEvent[] = [];
+    for await (const event of service.sendMessage("conv-1", "user-1", "hello", "customer-model")) events.push(event);
+    expect(events.filter((event) => event.type === "delta")).toEqual([
+      { type: "delta", content: "nested answer", done: false },
+    ]);
+    expect(events.at(-1)).toMatchObject({ type: "complete", message: { inputTokens: 7, outputTokens: 3 } });
+    expect(proxy.forwardRequestInternal).toHaveBeenCalledTimes(2);
+    expect(proxy.assertRelayTokenQuotaAvailable.mock.calls.map(([token]: [{ id: string }]) => token.id)).toEqual([
+      "token-1",
+      "unavailable",
+      "inner",
+      "leaf",
+    ]);
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: "nested answer", completionStatus: "completed" }),
+    );
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("waits for proxy settlement after the response stream ends before confirming completion", async () => {
+    configureCompositeChat();
+    let settle!: () => void;
+    const settlement = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(compositeFrame({ choices: [{ delta: { content: "hello" } }] }));
+      await settlement;
+      return { status: 200, headers: {}, data: {} };
+    });
+    const stream = service.sendMessage("conv-1", "user-1", "hello", "customer-model");
+    expect(await stream.next()).toMatchObject({ value: { type: "delta" } });
+    let completed = false;
+    const next = stream.next().then((value) => {
+      completed = true;
+      return value;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(completed).toBe(false);
+    expect(messageRepo.create).toHaveBeenCalledTimes(1);
+    settle();
+    expect(await next).toMatchObject({ value: { type: "complete" } });
+    await stream.return(undefined);
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("persists partial composite output as failed when proxy settlement rejects after end", async () => {
+    configureCompositeChat();
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(compositeFrame({ choices: [{ delta: { content: "partial" } }] }));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      throw new Error("Fixture settlement rejected");
+    });
+    const events: ChatStreamEvent[] = [];
+    await expect(
+      (async () => {
+        for await (const event of service.sendMessage("conv-1", "user-1", "hello", "customer-model"))
+          events.push(event);
+      })(),
+    ).rejects.toThrow("Fixture settlement rejected");
+    expect(events).toEqual([{ type: "delta", content: "partial", done: false }]);
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ role: "assistant", content: "partial", completionStatus: "failed" }),
+    );
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "preserves partial composite output when cancelled (consumer return: %s)",
+    async (consumerReturn) => {
+      configureCompositeChat();
+      let aborted = false;
+      relayProxyService.forwardRequest.mockImplementation(async (_token, request, response) => {
+        const cancellation = new Promise<void>((resolve) =>
+          request.once("aborted", () => {
+            aborted = true;
+            resolve();
+          }),
+        );
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        response.write(compositeFrame({ choices: [{ delta: { content: "partial" } }] }));
+        await cancellation;
+        return { status: 200, headers: {}, data: {} };
+      });
+      const controller = new AbortController();
+      const stream = service.sendMessage("conv-1", "user-1", "hello", "customer-model", undefined, {
+        signal: controller.signal,
+      });
+      expect(await stream.next()).toMatchObject({ value: { type: "delta", content: "partial" } });
+      if (consumerReturn) await stream.return(undefined);
+      else {
+        controller.abort();
+        expect(await stream.next()).toEqual({ done: true, value: undefined });
+      }
+      expect(aborted).toBe(true);
+      expect(messageRepo.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ role: "assistant", content: "partial", completionStatus: "stopped" }),
+      );
+      expect(AIResourceService.getInstance().snapshot().active).toBe(0);
+      expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves a composite answer before an SSE failure and does not report completion", async () => {
+    configureCompositeChat();
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(
+        compositeFrame({ choices: [{ delta: { content: "partial" } }] }) +
+          compositeFrame({ error: { type: "upstream_error", code: 502 } }),
+      );
+      return { status: 200, headers: {}, data: {} };
+    });
+    const stream = service.sendMessage("conv-1", "user-1", "hello", "customer-model");
+    expect(await stream.next()).toMatchObject({ value: { content: "partial" } });
+    await expect(stream.next()).rejects.toThrow("Composite upstream stream failed");
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ completionStatus: "failed", content: "partial" }),
+    );
+    expect(relayUsageRepository.create).not.toHaveBeenCalled();
+  });
+
+  it("applies composite output limits, preserves accepted text and aborts the proxy", async () => {
+    configureCompositeChat();
+    resourceConfig.apply({
+      ...originalResources,
+      chat: { resourceLimits: { ...originalResources.chat.resourceLimits, outputLimitBytes: 4 } },
+    });
+    let aborted = false;
+    relayProxyService.forwardRequest.mockImplementation(async (_token, request, response) => {
+      const cancellation = new Promise<void>((resolve) =>
+        request.once("aborted", () => {
+          aborted = true;
+          resolve();
+        }),
+      );
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.write(
+        compositeFrame({ choices: [{ delta: { content: "ok" } }] }) +
+          compositeFrame({ choices: [{ delta: { content: "oversized" } }] }),
+      );
+      await cancellation;
+      return { status: 200, headers: {}, data: {} };
+    });
+    const stream = service.sendMessage("conv-1", "user-1", "hello", "customer-model");
+    expect(await stream.next()).toMatchObject({ value: { content: "ok" } });
+    await expect(stream.next()).rejects.toBeInstanceOf(PayloadTooLargeError);
+    expect(aborted).toBe(true);
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: "ok", completionStatus: "failed" }),
+    );
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("supports composite stateless generation, split UTF-8 frames and character budgets", async () => {
+    configureCompositeChat();
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      const bytes = Buffer.from(compositeFrame({ choices: [{ delta: { content: "你好" } }] }));
+      for (const byte of bytes) response.write(Buffer.from([byte]));
+      response.end();
+      return { status: 200, headers: {}, data: {} };
+    });
+    await expect(
+      service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 2 }),
+    ).resolves.toBe("你好");
+    await expect(
+      service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 1 }),
+    ).rejects.toThrow("Generation output exceeds the limit");
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "replace"])(
+    "rechecks composite context before persisting the user message (replacement: %s)",
+    async (replaceId) => {
+      configureCompositeChat();
+      messageRepo.findById.mockResolvedValue(createPersistedMessage({ id: "replace", role: "user" }));
+      // The first check passes, but history grows while the route catalog is being read.
+      messageRepo.getContextSize
+        .mockResolvedValueOnce({ count: 0, bytes: 0 })
+        .mockResolvedValueOnce({ count: 0, bytes: originalResources.chat.resourceLimits.contextLimitBytes });
+      await expect(
+        service.sendMessage("conv-1", "user-1", "hello", "customer-model", undefined, undefined, replaceId).next(),
+      ).rejects.toBeInstanceOf(PayloadTooLargeError);
+      expect(relayProxyService.getCompositeCatalog).toHaveBeenCalled();
+      expect(messageRepo.create).not.toHaveBeenCalled();
+      expect(messageRepo.replaceFrom).not.toHaveBeenCalled();
+      expect(relayProxyService.forwardRequest).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["openai-chat-completions", "openai-responses", "anthropic", "gemini"])(
+    "uses the existing Anthropic conversion cap independently of byte limits (%s)",
+    async (format) => {
+      configureCompositeChat(format);
+      resourceConfig.apply({
+        ...originalResources,
+        chat: { resourceLimits: { ...originalResources.chat.resourceLimits, outputLimitBytes: 100 } },
+      });
+      relayProxyService.forwardRequest.mockImplementation(async (_token, request, response) => {
+        if (format === "gemini") {
+          expect(request.body).not.toHaveProperty("generationConfig");
+          expect(request.body).not.toHaveProperty("max_tokens");
+        } else if (format === "openai-responses")
+          expect(request.body.max_output_tokens).toBe(CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS);
+        else expect(request.body.max_tokens).toBe(CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS);
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        const payload =
+          format === "gemini"
+            ? { candidates: [{ content: { parts: [{ text: "hello" }] } }] }
+            : format === "anthropic"
+              ? { type: "content_block_delta", delta: { type: "text_delta", text: "hello" } }
+              : format === "openai-responses"
+                ? { type: "response.output_text.delta", delta: "hello" }
+                : { choices: [{ delta: { content: "hello" } }] };
+        response.end(compositeFrame(payload));
+        return { status: 200, headers: {}, data: {} };
+      });
+      await expect(
+        service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 100 }),
+      ).resolves.toBe("hello");
+    },
+  );
+
+  it("persists Gemini usage from a final metadata-only frame without charging again", async () => {
+    configureCompositeChat("gemini");
+    relayProxyService.forwardRequest.mockImplementation(async (_token, _request, response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(
+        compositeFrame({ candidates: [{ content: { parts: [{ text: "hello" }] } }] }) +
+          compositeFrame({
+            usageMetadata: {
+              promptTokenCount: "17",
+              candidatesTokenCount: "9",
+              totalTokenCount: "26",
+              cachedContentTokenCount: "5",
+            },
+          }),
+      );
+      return { status: 200, headers: {}, data: {} };
+    });
+    const events: ChatStreamEvent[] = [];
+    for await (const event of service.sendMessage("conv-1", "user-1", "hello", "customer-model")) events.push(event);
+    expect(events.at(-1)).toMatchObject({ type: "complete", message: { inputTokens: 17, outputTokens: 9 } });
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        role: "assistant",
+        inputTokens: 17,
+        outputTokens: 9,
+        totalTokens: 26,
+      }),
+    );
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    expect(relayUsageRepository.create).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a composite JSON error without an assistant message or duplicate usage record", async () => {
+    configureCompositeChat();
+    relayProxyService.forwardRequest.mockResolvedValue({
+      status: 429,
+      headers: {},
+      data: { error: { type: "quota_exceeded" } },
+    });
+    await expect(service.sendMessage("conv-1", "user-1", "hello", "customer-model").next()).rejects.toThrow(
+      "Composite upstream stream failed",
+    );
+    expect(messageRepo.create).toHaveBeenCalledTimes(1);
+    expect(messageRepo.create).toHaveBeenCalledWith({ conversationId: "conv-1", role: "user", content: "hello" });
+    expect(relayUsageRepository.create).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("replaces the selected composite user message and rejects an unavailable alias before modifying history", async () => {
+    configureCompositeChat();
+    messageRepo.findById.mockResolvedValue(createPersistedMessage({ id: "replace", role: "user" }));
+    for await (const _event of service.sendMessage(
+      "conv-1",
+      "user-1",
+      "hello",
+      "customer-model",
+      undefined,
+      undefined,
+      "replace",
+    )) {
+      /* Drain */
+    }
+    expect(messageRepo.replaceFrom).toHaveBeenCalledWith("replace", "hello");
+    expect(messageRepo.create).toHaveBeenCalledTimes(1);
+    messageRepo.create.mockClear();
+    relayProxyService.forwardRequest.mockClear();
+    relayProxyService.getCompositeCatalog.mockResolvedValue([]);
+    await expect(service.sendMessage("conv-1", "user-1", "hello", "missing-alias").next()).rejects.toThrow(
+      "No compatible composite chat route",
+    );
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(relayProxyService.forwardRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { modelMapping: { "customer-model": "gpt-4o-mini" } },
+    {
+      modelMappingRules: [
+        { source: "customer-model", target: "gpt-4o-mini", preference: "mapping-first", channelIds: ["channel-1"] },
+      ],
+    },
+    {
+      channel: { id: "channel-1", modelMapping: { "customer-model": "gpt-4o-mini" } },
+    },
+  ])("routes an allowed alias without a base catalog record: %j", async (mapping) => {
+    configureStatelessGeneration({ allowedModels: "customer-model", ...mapping });
+
+    await expect(
+      service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 100 }),
+    ).resolves.toBe("hello");
+    expect(aiProvider.streamChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      "gpt-4o-mini",
+      "fixture-only",
+      "https://upstream.example.com",
+      "openai",
+      expect.any(AbortSignal),
+    );
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: "gpt-4o-mini", modelName: "gpt-4o-mini" }),
+    );
+  });
+
+  it.each([
+    ["mapping-first", "gpt-mapped", "gpt-mapped"],
+    ["original-first", "gpt-mapped", "gpt-4o-mini"],
+    ["mapping-first", "missing-target", "gpt-4o-mini"],
+  ])("uses %s preference with target %s", async (preference, target, expectedModel) => {
+    configureStatelessGeneration({
+      allowedModels: "gpt-4o-mini",
+      modelMappingRules: [{ source: "gpt-4o-mini", target, preference }],
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "gpt-4o-mini", provider: null, supportedFormats: "openai", inputPrice: 1, outputPrice: 1 },
+      { model: "gpt-mapped", provider: null, supportedFormats: "openai", inputPrice: 2, outputPrice: 2 },
+    ]);
+    await service.generateTextForUser("user-1", "hello", "gpt-4o-mini", "token-1", { maxOutputCharacters: 100 });
+    expect(aiProvider.streamChat.mock.calls[0]?.[1]).toBe(expectedModel);
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: expectedModel, modelName: expectedModel }),
+    );
+  });
+
+  it("resolves the original alias independently on every failover path and bills the selected channel pricing", async () => {
+    configureStatelessGeneration({
+      allowedModels: "customer-model",
+      modelMappingRules: [
+        { source: "customer-model", target: "First pricing", preference: "mapping-first", channelIds: ["pool-first"] },
+        {
+          source: "customer-model",
+          target: "Second pricing",
+          preference: "mapping-first",
+          channelIds: ["pool-second"],
+        },
+      ],
+    });
+    const channels = [
+      {
+        resolvedChannel: { id: "leaf-first", allowedModels: '["First pricing"]', allowedFormats: "openai" },
+        displayChannel: { id: "pool-first", name: "First pool" },
+        routingChannelIds: ["pool-first", "leaf-first"],
+      },
+      {
+        resolvedChannel: { id: "leaf-second", allowedModels: '["Second pricing"]', allowedFormats: "anthropic" },
+        displayChannel: { id: "pool-second", name: "Second pool" },
+        routingChannelIds: ["pool-second", "leaf-second"],
+      },
+    ];
+    relayProxyService.getChatAttemptPlan.mockResolvedValue({
+      channels,
+      failoverConfig: { enabled: true, maxRetries: 1, retryStatusCodes: ["5xx"] },
+      allowStickyFailover: true,
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "First pricing", provider: "Upstream-A", supportedFormats: "openai", inputPrice: 1, outputPrice: 1 },
+      { model: "Second pricing", provider: "Upstream-B", supportedFormats: "anthropic", inputPrice: 2, outputPrice: 2 },
+    ]);
+    aiProvider.streamChat
+      .mockReturnValueOnce(createFailingStream(new Error("Fixture upstream unavailable")))
+      .mockReturnValueOnce(createChatStream());
+
+    await expect(
+      service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 100 }),
+    ).resolves.toBe("hello");
+    expect(aiProvider.streamChat.mock.calls.map((args) => [args[1], args[4]])).toEqual([
+      ["Upstream-A", "openai"],
+      ["Upstream-B", "anthropic"],
+    ]);
+    expect(usageChargeService.hasCoverageOrPositiveBalance).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ modelName: "Second pricing", channelId: "leaf-second" }),
+    );
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: "Upstream-B",
+        modelName: "Second pricing",
+        executionChannelId: "leaf-second",
+        displayChannelId: "pool-second",
+      }),
+    );
+  });
+
+  it("filters denied candidates before choosing a route and never retries an unauthorized mapping", async () => {
+    configureStatelessGeneration({ allowedModels: "gpt-4o-mini" });
+    relayProxyService.getChatAttemptPlan.mockResolvedValue({
+      channels: [
+        {
+          resolvedChannel: { id: "denied", modelMapping: { "customer-model": "gpt-denied" } },
+          displayChannel: { id: "denied" },
+        },
+        {
+          resolvedChannel: { id: "allowed", modelMapping: { "customer-model": "gpt-4o-mini" } },
+          displayChannel: { id: "allowed" },
+        },
+      ],
+      failoverConfig: { enabled: true, maxRetries: 1, retryStatusCodes: ["5xx"] },
+      allowStickyFailover: true,
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "gpt-denied", supportedFormats: "openai", inputPrice: 1, outputPrice: 1 },
+      { model: "gpt-4o-mini", supportedFormats: "openai", inputPrice: 1, outputPrice: 1 },
+    ]);
+
+    await service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 100 });
+    expect(aiProvider.streamChat).toHaveBeenCalledTimes(1);
+    expect(aiProvider.streamChat.mock.calls[0]?.[1]).toBe("gpt-4o-mini");
+    expect(usageChargeService.hasCoverageOrPositiveBalance).toHaveBeenCalledTimes(1);
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ executionChannelId: "allowed", modelId: "gpt-4o-mini" }),
+    );
+  });
+
+  it("selects upstream credentials and protocol after the route format transform", async () => {
+    configureStatelessGeneration({
+      modelMapping: { "customer-model": "gpt-4o-mini" },
+      requestFormatTransforms: [{ sourceFormat: "openai-chat-completions", targetFormat: "anthropic" }],
+      channel: {
+        id: "channel-1",
+        allowedFormats: "anthropic",
+        anthropicUpstreamUrl: "https://anthropic.example.test",
+        anthropicUpstreamApiKey: "fixture-anthropic",
+      },
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "gpt-4o-mini", supportedFormats: "anthropic", inputPrice: 1, outputPrice: 1 },
+    ]);
+    await service.generateTextForUser("user-1", "hello", "customer-model", "token-1", { maxOutputCharacters: 100 });
+    expect(aiProvider.streamChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      "gpt-4o-mini",
+      "fixture-anthropic",
+      "https://anthropic.example.test",
+      "anthropic",
+      expect.any(AbortSignal),
+    );
+  });
   it("generates bounded text through user-owned model routing and billing without persisting prompts or messages", async () => {
     configureStatelessGeneration();
     expect(
@@ -1152,7 +1816,11 @@ describe("ChatService", () => {
     "rejects a display name or differently cased model ID: %s",
     async (requestedModel) => {
       conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
-      relayTokenRepository.findByIdWithChannel.mockResolvedValue({ id: "token-1", userId: "user-1" });
+      relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+        id: "token-1",
+        userId: "user-1",
+        channel: { id: "channel-1" },
+      });
       modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
         { model: "Claude Sonnet", provider: "Claude-Sonnet-4-20250514" },
       ]);

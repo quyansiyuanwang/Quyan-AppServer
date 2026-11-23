@@ -21,6 +21,7 @@ export const relayTokenCopySelect = {
   allowedModels: true,
   ipWhitelist: true,
   modelMapping: true,
+  modelMappingRules: true,
   requestFormatTransforms: true,
   normalizerConfig: true,
   streamConfig: true,

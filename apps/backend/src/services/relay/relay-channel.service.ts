@@ -1,3 +1,4 @@
+import { catalogModelMappings } from "./relay-channel-catalog-projection";
 import { normalizeRelayForwardedHeaderNames } from "@quyan/shared";
 import { RelayChannelImportIamService } from "./relay-channel-import-iam.service";
 import { RelayChannelCreateIamService } from "./relay-channel-create-iam.service";
@@ -617,7 +618,9 @@ export class RelayChannelService {
       selectable.map(async (channel) => {
         const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
         const routingChannelType = channelType as RelayRoutingCatalogOptionDto["channelType"];
-        const capabilities = await this.relayPoolResolver.resolveChannelCapabilities(channel.id, resolverContext);
+        const capabilities = await this.relayPoolResolver.resolveChannelCapabilities(channel.id, resolverContext, {
+          preserveModelMappingPaths: true,
+        });
         const modelCapabilities = new Map<string, RelayRoutingCatalogOptionDto["modelCapabilities"][number]>();
         for (const capability of capabilities) {
           const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
@@ -646,6 +649,7 @@ export class RelayChannelService {
           allowedFormats: formatRelayRequestFormats([
             ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
           ]),
+          modelMappings: catalogModelMappings(capabilities),
           modelCapabilities: [...modelCapabilities.values()].sort(
             (left, right) =>
               left.catalogModelName.localeCompare(right.catalogModelName) ||

@@ -21,8 +21,8 @@ describe("agent workspace runtime safety", () => {
       findRelayTokenForUser: vi.fn().mockResolvedValue({ id: "token-1", allowedModels: null, modelMapping: null }),
       createTask: vi.fn(),
     };
-    const pricing = { listActiveOrderedByModel: vi.fn().mockResolvedValue([]) };
-    const service = new (AgentService as any)(repository, pricing);
+    const relayProxy = { canServeRequestedModel: vi.fn().mockResolvedValue(false) };
+    const service = new (AgentService as any)(repository, relayProxy);
 
     await expect(
       service.createRun("user-1", "conversation-1", {
@@ -31,44 +31,48 @@ describe("agent workspace runtime safety", () => {
         model: "glm-5.1",
       }),
     ).rejects.toThrow("Model glm-5.1 is not configured");
+    expect(relayProxy.canServeRequestedModel).toHaveBeenCalledWith("token-1", "glm-5.1");
     expect(repository.createTask).not.toHaveBeenCalled();
   });
 
-  it("stores the configured mapped model and enforces token model permissions", async () => {
-    const repository = {
-      findWorkspaceForUser: vi.fn().mockResolvedValue({ id: "workspace-1", limits: {} }),
-      findConversationForUser: vi.fn().mockResolvedValue({ id: "conversation-1", relayTokenId: "token-1" }),
-      findRelayTokenForUser: vi.fn().mockResolvedValue({
-        id: "token-1",
-        allowedModels: "gpt-4o-mini",
-        modelMapping: { "customer-model": "gpt-4o-mini" },
-      }),
-      createTask: vi.fn().mockResolvedValue({
-        id: "task-1",
+  it.each(["channel-configs", "composite"])(
+    "preserves the requested alias for %s route execution",
+    async (routingMode) => {
+      const repository = {
+        findWorkspaceForUser: vi.fn().mockResolvedValue({ id: "workspace-1", limits: {} }),
+        findConversationForUser: vi.fn().mockResolvedValue({ id: "conversation-1", relayTokenId: "token-1" }),
+        findRelayTokenForUser: vi.fn().mockResolvedValue({
+          id: "token-1",
+          routingMode,
+          allowedModels: "customer-model",
+          modelMapping: null,
+        }),
+        createTask: vi.fn().mockResolvedValue({
+          id: "task-1",
+          workspaceId: "workspace-1",
+          taskStatus: "queued",
+          model: "customer-model",
+          stepCount: 0,
+          createTime: new Date(),
+        }),
+      };
+      const relayProxy = { canServeRequestedModel: vi.fn().mockResolvedValue(true) };
+      const service = new (AgentService as any)(repository, relayProxy);
+      service.run = vi.fn().mockResolvedValue(undefined);
+
+      const result = await service.createRun("user-1", "conversation-1", {
         workspaceId: "workspace-1",
-        taskStatus: "queued",
-        model: "gpt-4o-mini",
-        stepCount: 0,
-        createTime: new Date(),
-      }),
-    };
-    const pricing = {
-      listActiveOrderedByModel: vi.fn().mockResolvedValue([{ model: "GPT-4o Mini", provider: "gpt-4o-mini" }]),
-    };
-    const service = new (AgentService as any)(repository, pricing);
-    service.run = vi.fn().mockResolvedValue(undefined);
+        content: "hello",
+        model: " customer-model ",
+      });
 
-    const result = await service.createRun("user-1", "conversation-1", {
-      workspaceId: "workspace-1",
-      content: "hello",
-      model: "customer-model",
-    });
-
-    expect(result.model).toBe("gpt-4o-mini");
-    expect(repository.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gpt-4o-mini" }),
-      undefined,
-      undefined,
-    );
-  });
+      expect(result.model).toBe("customer-model");
+      expect(relayProxy.canServeRequestedModel).toHaveBeenCalledWith("token-1", "customer-model");
+      expect(repository.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "customer-model" }),
+        undefined,
+        undefined,
+      );
+    },
+  );
 });

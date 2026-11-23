@@ -6,7 +6,7 @@ import type {
   RelayTokenFailoverConfig,
 } from "@prisma/client";
 import type { RelayTokenImportItemDto, CreateRelayTokenDto, RelayTokenQuotaUnit } from "@/api/dto/relay/relay.dto";
-import type { RelayRequestFormatTransform } from "@quyan/shared";
+import type { RelayRequestFormatTransform, RelayTokenModelMappingRule } from "@quyan/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 import { MANAGED_STATUS } from "@/constant/status";
 import { normalizeRetryStatusRules } from "@/util/relay/relay-failover-status-rule.util";
@@ -29,21 +29,22 @@ export type RelayTokenConfigurationProjectionSource = Pick<
   | "streamConfig"
   | "contentSafetyConfig"
   | "status"
-> & {
-  memberTokenConfigs?: Pick<RelayTokenMemberConfig, "tokenId" | "priority" | "enabled">[];
-  channelConfigs: Pick<RelayTokenChannelConfig, "channelId" | "priority">[];
-  quotaWindows: Pick<RelayTokenQuotaWindow, "quotaLimit" | "quotaUnit" | "quotaWindowHours">[];
-  failoverConfig: Pick<
-    RelayTokenFailoverConfig,
-    | "enabled"
-    | "maxRetries"
-    | "retryStatusCodes"
-    | "failoverThreshold"
-    | "failbackCooldownMinutes"
-    | "maxAcceptedChannelMultiplier"
-    | "minCacheHitRate"
-  > | null;
-};
+> &
+  Partial<Pick<RelayToken, "modelMappingRules">> & {
+    memberTokenConfigs?: Pick<RelayTokenMemberConfig, "tokenId" | "priority" | "enabled">[];
+    channelConfigs: Pick<RelayTokenChannelConfig, "channelId" | "priority">[];
+    quotaWindows: Pick<RelayTokenQuotaWindow, "quotaLimit" | "quotaUnit" | "quotaWindowHours">[];
+    failoverConfig: Pick<
+      RelayTokenFailoverConfig,
+      | "enabled"
+      | "maxRetries"
+      | "retryStatusCodes"
+      | "failoverThreshold"
+      | "failbackCooldownMinutes"
+      | "maxAcceptedChannelMultiplier"
+      | "minCacheHitRate"
+    > | null;
+  };
 export interface RelayTokenConfigurationProjectionNormalizers {
   blockedChannelIds: (value: unknown) => string[];
   quotaUnit: (value: string | null | undefined) => RelayTokenQuotaUnit;
@@ -106,7 +107,9 @@ export function projectRelayTokenConfiguration(
       : undefined,
     allowedModels: token.allowedModels || undefined,
     ipWhitelist: token.ipWhitelist || undefined,
-    modelMapping: token.modelMapping as Record<string, string> | undefined,
+    ...(token.modelMappingRules
+      ? { modelMappingRules: token.modelMappingRules as unknown as RelayTokenModelMappingRule[] }
+      : { modelMapping: token.modelMapping as Record<string, string> | undefined }),
     requestFormatTransforms: normalizers.requestFormatTransforms(token.requestFormatTransforms) ?? undefined,
     normalizerConfig: normalizers.normalizerConfig(token.normalizerConfig),
     streamConfig: token.streamConfig as CreateRelayTokenDto["streamConfig"],
