@@ -1,7 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { TypedRequest } from "../../../src/types/express";
 import { BalanceController } from "../../../src/api/controllers/v1/billing/balance.controller";
 
 describe("BalanceController", () => {
+  it("returns overdraft details only for the authenticated account", async () => {
+    const controller = Object.create(BalanceController.prototype) as BalanceController;
+    const result = { userId: "self", balance: 10, overdraft: { overdraftLimit: 20 } };
+    const getMyBalance = vi.fn().mockResolvedValue(result);
+    Object.assign(controller, { balanceService: { getMyBalance } });
+    const request = {
+      user: { userId: "self" },
+      query: { userId: "other" },
+      body: { userId: "other" },
+    } as unknown as TypedRequest;
+    await expect(controller.getMyBalance(request)).resolves.toEqual(result);
+    expect(getMyBalance).toHaveBeenCalledExactlyOnceWith("self");
+  });
+
   it("displays the sender username for incoming peer transfers", () => {
     const controller = Object.create(BalanceController.prototype) as BalanceController;
     const transaction = {

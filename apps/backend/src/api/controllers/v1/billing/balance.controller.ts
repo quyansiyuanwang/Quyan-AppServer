@@ -22,6 +22,7 @@ import {
 import { BalanceService } from "@/services/billing/balance.service";
 import type {
   BalanceAccountResponse,
+  MyBalanceAccountResponse,
   BalanceTransactionCategory,
   RechargeRequest,
   TransactionListResponse,
@@ -315,16 +316,9 @@ export class BalanceController extends Controller {
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
-  public async getMyBalance(@Request() request: TypedRequest): Promise<BalanceAccountResponse> {
+  public async getMyBalance(@Request() request: TypedRequest): Promise<MyBalanceAccountResponse> {
     const userId = request.user!.userId;
-    const account = await this.balanceService.getBalance(userId);
-    return {
-      id: account.id,
-      userId: account.userId,
-      balance: Math.floor(Number(account.balance) * 10000) / 10000,
-      createTime: account.createTime,
-      updateTime: account.updateTime,
-    };
+    return this.balanceService.getMyBalance(userId);
   }
 
   @Get("usage")
