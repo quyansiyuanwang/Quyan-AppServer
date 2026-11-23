@@ -449,11 +449,13 @@ describe("catalog display compatibility and discovery candidates", () => {
         channel(["A"], { modelMapping: { "channel-alias": "A" } }),
         channel([], { id: "unrestricted", allowedModels: null }),
       ],
-      catalog,
+      [...catalog, { model: "Unconfigured", provider: "unconfigured", supportedFormats: CHAT }],
     );
-    expect(result).toEqual(["A", "B", "alias", "allowed-only", "channel-alias"].sort((a, b) => a.localeCompare(b)));
+    expect(result).toEqual(
+      ["A", "B", "C", "alias", "allowed-only", "channel-alias"].sort((a, b) => a.localeCompare(b)),
+    );
     expect(result).not.toContain("wild-*");
-    expect(result).not.toContain("C");
+    expect(result).not.toContain("unconfigured");
     expect(result).not.toContain("Display A");
   });
 });
