@@ -36,7 +36,10 @@ export interface SetUserOverdraftRequest {
   categories?: BalanceOverdraftCategory[] | null;
 }
 export interface PreviewOverdraftRequest {
-  userIds: string[];
+  /** 按用户名精确选择目标，与 userIds 二选一。 */
+  usernames?: string[];
+  /** 兼容原有客户端；管理页面使用 usernames。 */
+  userIds?: string[];
   rule?: BalanceOverdraftRule | null;
   categories?: BalanceOverdraftCategory[] | null;
 }

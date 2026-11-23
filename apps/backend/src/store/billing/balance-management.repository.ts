@@ -49,6 +49,13 @@ export class BalanceManagementRepository {
       orderBy: { id: "asc" },
     });
   }
+  async identitiesByUsernames(usernames: string[]) {
+    return prisma.user.findMany({
+      where: { username: { in: usernames }, status: { in: [0, 1] } },
+      select: { id: true, username: true },
+      take: BALANCE_MANAGEMENT_POLICY.batchSize,
+    });
+  }
   private async lockDefaults(tx: Prisma.TransactionClient) {
     await tx.balanceOverdraftDefault.upsert({
       where: { id: BALANCE_MANAGEMENT_POLICY.defaultId },
