@@ -3400,12 +3400,20 @@ describe("RelayProxyService failover", () => {
       );
     });
 
-    it("lists explicit token aliases on unrestricted channels without exposing the global catalog", async () => {
+    it("lists token aliases and their targets on unrestricted channels without exposing unrelated catalog models", async () => {
       const relayToken = createRelayToken();
       relayToken.modelMapping = { "customer-model": "gpt-4o-mini" };
-      const { service } = createService();
+      const { service, modelPricingService } = createService();
+      const catalog = await modelPricingService.getModelPricing();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        ...catalog,
+        { ...catalog[0]!, model: "unrelated-model", provider: "unrelated-model" },
+      ]);
 
-      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual(["customer-model"]);
+      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([
+        "customer-model",
+        "gpt-4o-mini",
+      ]);
     });
 
     it("applies a protocol transform once when discovering mapped models", async () => {
