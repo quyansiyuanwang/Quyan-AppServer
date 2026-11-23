@@ -196,6 +196,7 @@ export interface RelayTokenStore {
   withSerializableTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
   loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>>;
   findByToken(token: string): Promise<RelayTokenWithRelations | null>;
+  isCredentialOccupied(token: string, tx?: RelayTokenTransactionClient): Promise<boolean>;
   findById(id: string): Promise<RelayToken | null>;
   findByIdWithRelations(id: string): Promise<RelayTokenWithRelations | null>;
   findByIdWithChannel(id: string): Promise<RelayTokenWithChannel | null>;

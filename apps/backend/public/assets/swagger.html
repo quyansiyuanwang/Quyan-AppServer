@@ -123,10 +123,11 @@
 </style>
 
 <script>
-window.addEventListener('load', function () {
+(function () {
   var docsPanelId = 'docs-site-banner';
   var quotaPanelId = 'relay-token-quota-helper';
-  var endpointPath = '/relay/tokens/current/quota-summary';
+  var quotaConfig = __SWAGGER_RELAY_QUOTA_CONFIG__;
+  var prefixHint = quotaConfig.prefixes.canonical + '（兼容 ' + quotaConfig.prefixes.legacy + '）';
 
   function createDocsPanel() {
     var panel = document.createElement('div');
@@ -143,29 +144,9 @@ window.addEventListener('load', function () {
     return panel;
   }
 
-  function findTokenCandidate(value) {
-    if (!value) return null;
-    if (typeof value === 'string') return value.trim();
-    if (Array.isArray(value)) {
-      for (var i = 0; i < value.length; i += 1) {
-        var arrayCandidate = findTokenCandidate(value[i]);
-        if (arrayCandidate) return arrayCandidate;
-      }
-      return null;
-    }
-    if (typeof value === 'object') {
-      for (var key in value) {
-        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
-        var objectCandidate = findTokenCandidate(value[key]);
-        if (objectCandidate) return objectCandidate;
-      }
-    }
-    return null;
-  }
-
   function normalizeBearerToken(value) {
-    if (!value) return null;
-    var normalized = String(value).trim();
+    if (typeof value !== 'string') return null;
+    var normalized = value.trim();
     if (!normalized) return null;
     if (/^Bearer\s+/i.test(normalized)) return normalized.replace(/^Bearer\s+/i, '').trim();
     return normalized;
@@ -178,13 +159,10 @@ window.addEventListener('load', function () {
       var authState = authorized && typeof authorized.toJS === 'function' ? authorized.toJS() : authorized;
       if (!authState || typeof authState !== 'object') return null;
 
-      for (var schemeName in authState) {
-        if (!Object.prototype.hasOwnProperty.call(authState, schemeName)) continue;
-        var candidate = normalizeBearerToken(findTokenCandidate(authState[schemeName]));
-        if (candidate) return candidate;
-      }
-    } catch (error) {
-      console.warn('Failed to read Swagger authorization state', error);
+      var auth = authState['relay-token'];
+      return normalizeBearerToken(auth && auth.value);
+    } catch (_error) {
+      return null;
     }
 
     return null;
@@ -207,13 +185,21 @@ window.addEventListener('load', function () {
   async function fetchQuota(panel, button) {
     var relayToken = getAuthorizedToken();
     if (!relayToken) {
-      setStatus(panel, '请先点击右上角 Authorize 并填入 rlt_ 开头的 Relay Token。', 'error');
+      setStatus(panel, '请先点击右上角 Authorize，在 relay-token 项填写 ' + prefixHint + ' 开头的令牌。', 'error');
       setResult(panel, null);
       return;
     }
 
-    if (!relayToken.startsWith('rlt_')) {
-      setStatus(panel, '当前授权不是 rlt_ Relay Token，无法查询当前令牌额度信息。', 'error');
+    if (!Object.values(quotaConfig.prefixes).some(function (prefix) {
+      return relayToken.startsWith(prefix) && relayToken.length > prefix.length;
+    })) {
+      setStatus(panel, '请填写有效的 Relay Token：' + prefixHint + '。', 'error');
+      setResult(panel, null);
+      return;
+    }
+
+    if (!quotaConfig.path) {
+      setStatus(panel, '当前 API 文档未注册令牌额度摘要接口。', 'error');
       setResult(panel, null);
       return;
     }
@@ -223,7 +209,7 @@ window.addEventListener('load', function () {
     setStatus(panel, '正在读取当前 Relay Token 的额度与余额信息...', 'info');
 
     try {
-      var response = await fetch(endpointPath, {
+      var response = await fetch(quotaConfig.path, {
         method: 'GET',
         headers: {
           Authorization: 'Bearer ' + relayToken,
@@ -262,11 +248,11 @@ window.addEventListener('load', function () {
       '<div class="relay-token-quota-helper__header">',
       '  <div>',
       '    <div class="relay-token-quota-helper__title">Relay Token 额度助手</div>',
-      '    <div class="relay-token-quota-helper__desc">使用右上角 Authorize 中当前填写的 rlt_ 令牌，直接查询该令牌的余额、已用额度与 token 用量。</div>',
+      '    <div class="relay-token-quota-helper__desc">查询当前 Relay Token 的余额、已用额度与 token 用量。</div>',
       '  </div>',
       '  <button type="button" class="relay-token-quota-helper__button">获取当前 Relay Token 额度</button>',
       '</div>',
-      '<div class="relay-token-quota-helper__status relay-token-quota-helper__status--info">请先在 Authorize 中填写 rlt_ 开头的 Relay Token。</div>',
+      '<div class="relay-token-quota-helper__status relay-token-quota-helper__status--info">请先在 Authorize 的 relay-token 项填写令牌。</div>',
       '<pre class="relay-token-quota-helper__result" style="display:none"></pre>',
     ].join('');
 
@@ -300,5 +286,5 @@ window.addEventListener('load', function () {
   var mountTimer = window.setInterval(function () {
     if (mountPanels()) window.clearInterval(mountTimer);
   }, 300);
-});
+})();
 </script>

@@ -1,10 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "crypto";
+import { toLegacyCredential } from "@quyan/shared";
 import { prisma } from "../../../src/config/database";
 import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repository";
 import { RelayTokenCreateRepository } from "../../../src/store/relay/relay-token-create.repository";
 import { RelayTokenUpdateRepository } from "../../../src/store/relay/relay-token-update.repository";
 import { hashPassword } from "../../../src/util/crypto";
+import { generateRelayTokenValue } from "../../../src/util/relay/relay-token-credential.util";
 
 describe("RelayTokenRepository", () => {
   const repository = RelayTokenRepository.getInstance();
@@ -172,7 +174,7 @@ describe("RelayTokenRepository", () => {
       const token = await repository.create({
         userId,
         name,
-        token: `test_${randomUUID()}`,
+        token: generateRelayTokenValue(),
         routingMode: members ? "composite" : "ordered",
         channelId: members ? undefined : primaryChannelId,
         memberTokenConfigs: members?.map((tokenId, priority) => ({ tokenId, priority, enabled: true })),
@@ -205,11 +207,11 @@ describe("RelayTokenRepository", () => {
       createdTokenIds.push(id);
       return id;
     };
-    const input = () => ({
+    const input = (token = generateRelayTokenValue()) => ({
       userId,
       name: "create-writer-fixture",
-      token: `test_${randomUUID()}`,
-      legacyToken: `test_alias_${randomUUID()}`,
+      token,
+      legacyToken: toLegacyCredential(token, "relayToken"),
       isCustomKey: true,
       channelId: primaryChannelId,
       quotaLimit: 0,
@@ -351,7 +353,7 @@ describe("RelayTokenRepository", () => {
           tx,
           {
             userId,
-            token: `test_${randomUUID()}`,
+            token: generateRelayTokenValue(),
             name: null,
             expiresAt: null,
             quotaLimit: null,
@@ -393,7 +395,7 @@ describe("RelayTokenRepository", () => {
           tx,
           {
             userId,
-            token: `test_${randomUUID()}`,
+            token: generateRelayTokenValue(),
             routingMode: "automatic-pool",
             automaticProxyPoolChannelId: primaryChannelId,
             blockedAutomaticProxyPoolChannelIds: [secondaryChannelId],
@@ -418,7 +420,7 @@ describe("RelayTokenRepository", () => {
             tx,
             {
               userId,
-              token: `test_${randomUUID()}`,
+              token: generateRelayTokenValue(),
               routingMode: "composite",
               memberTokenConfigs: [{ tokenId: id, priority: 0, enabled: false }],
             },
@@ -429,13 +431,13 @@ describe("RelayTokenRepository", () => {
       await absent(id);
     });
     it("commits composite members atomically and rolls them back with their parent", async () => {
-      const leaf = await repository.create({ userId, token: `test_${randomUUID()}`, channelId: primaryChannelId });
+      const leaf = await repository.create({ userId, token: generateRelayTokenValue(), channelId: primaryChannelId });
       createdTokenIds.push(leaf.id);
       const id = reserve(),
         rollbackId = reserve();
       const data = {
         userId,
-        token: `test_${randomUUID()}`,
+        token: generateRelayTokenValue(),
         routingMode: "composite" as const,
         memberTokenConfigs: [{ tokenId: leaf.id, priority: 0, enabled: false }],
       };
@@ -448,7 +450,7 @@ describe("RelayTokenRepository", () => {
       const denied = new Error("fixture final composite authority denied");
       await expect(
         prisma.$transaction(async (tx) => {
-          await writer.apply(tx, { ...data, token: `test_${randomUUID()}` }, rollbackId);
+          await writer.apply(tx, { ...data, token: generateRelayTokenValue() }, rollbackId);
           throw denied;
         }),
       ).rejects.toBe(denied);
@@ -462,7 +464,7 @@ describe("RelayTokenRepository", () => {
             tx,
             {
               userId,
-              token: `test_${randomUUID()}`,
+              token: generateRelayTokenValue(),
               routingMode: "composite",
               channelId: primaryChannelId,
             },
@@ -477,7 +479,7 @@ describe("RelayTokenRepository", () => {
             tx,
             {
               userId,
-              token: `test_${randomUUID()}`,
+              token: generateRelayTokenValue(),
               memberTokenConfigs: [{ tokenId: id, priority: 0, enabled: true }],
             },
             id,
@@ -528,7 +530,7 @@ describe("RelayTokenRepository", () => {
       const token = await repository.create({
         userId,
         name,
-        token: `test_${randomUUID()}`,
+        token: generateRelayTokenValue(),
         channelId: primaryChannelId,
         channelConfigs: [{ channelId: primaryChannelId, priority: 0 }],
         quotaWindows: [{ quotaLimit: 10, quotaUnit: "request", quotaWindowHours: 1 }],
@@ -544,10 +546,11 @@ describe("RelayTokenRepository", () => {
       const denied = new Error("simulated final authority or response denial");
       await expect(
         prisma.$transaction(async (tx) => {
+          const replacement = generateRelayTokenValue();
           await writer.apply(tx, token.id, {
             name: "must-roll-back",
-            token: `test_${randomUUID()}`,
-            legacyToken: "fixture-alias",
+            token: replacement,
+            legacyToken: toLegacyCredential(replacement, "relayToken"),
             isCustomKey: true,
             routingMode: "composite",
             channelId: null,

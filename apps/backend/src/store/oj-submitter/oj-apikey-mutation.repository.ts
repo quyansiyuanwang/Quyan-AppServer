@@ -3,6 +3,7 @@ import { prisma } from "@/config/database";
 import { assertIamAccountUserMutation } from "../users/iam-account-user-mutation";
 import { ojApiKeyDenied as denied } from "./oj-apikey-management.repository";
 import { ConflictError } from "@/util/errors";
+import { assertOjApiKeyAvailable } from "./oj-apikey.repository";
 import type {
   OjApiKeyUpdateInput,
   OjApiKeyUpdateGuard,
@@ -35,6 +36,7 @@ export class OjApiKeyMutationRepository implements OjApiKeyMutationStore {
           throw denied();
         await assertIamAccountUserMutation(tx, guard.identity, data.userId);
         await this.assertChannelSnapshot(tx, data.channelId, guard.channel);
+        await assertOjApiKeyAvailable(tx, data.key);
         const record = await tx.oJAPIKey.create({ data, select: { ...metadata, key: true } });
         await assertIamAccountUserMutation(tx, guard.identity, data.userId);
         return record;

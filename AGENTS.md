@@ -151,6 +151,8 @@ pnpm run openapi:gen:all          # 完整流水线
 
 ## GitHub PR 管理流程
 
+分支流转固定为 **`dev → staging → master`**：功能与修复均在 `dev` 提交、推送，使用 `dev` 直接向 `staging` 提 PR，再由 `staging` 向 `master` 提升。禁止创建 `fix/*`、`promote/*` 等中间交付分支，也禁止将 `staging` 合回 `dev`。
+
 需要整理或补全 PR 元数据时，先以 `gh` 读取 PR、改动和近期同目标分支已合并 PR；不要用通用模板覆盖仓库既有风格。
 
 1. 使用 `gh pr view <number>` 与 `gh pr diff <number>` 确认目标分支、提交、改动、现有标题/正文/标签和检查状态。

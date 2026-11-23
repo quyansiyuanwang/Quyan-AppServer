@@ -14,6 +14,7 @@ import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
 import { CarpoolOrderIamService } from "./carpool-order-iam.service";
 import crypto from "crypto";
+import { freshRelayCredential } from "@/store/relay/relay-credential-admission";
 import { Decimal } from "@prisma/client/runtime/library";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { parseAllowedChannels } from "@/util/monthly-pass.util";
@@ -863,7 +864,7 @@ export class CarpoolService {
             userId: member.userId,
             carpoolMemberId: member.id,
             name: `Carpool ${order.packageName}`,
-            token: `sk-rlt-${crypto.randomBytes(24).toString("hex")}`,
+            token: await freshRelayCredential(tx),
             channelId: relayChannelId,
             quotaLimit: member.finalQuota,
             allowedModels: order.allowedModels,

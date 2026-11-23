@@ -11,6 +11,7 @@ import request from "supertest";
 import type { Express } from "express";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { toCanonicalCredential } from "@quyan/shared";
 import { JWTAccessIns } from "@/util/auth";
 import { Permission } from "@/constant/permission";
 import { createApp } from "../../src/app";
@@ -97,6 +98,32 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(records.length).toBe(expectedCount);
     return records[records.length - 1];
   };
+
+  it("authenticates the canonical alias of a legacy relay token across quota and both chat paths", async () => {
+    const canonical = toCanonicalCredential(openaiRelayTokenValue, "relayToken");
+    const priorUsage = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+    const priorCharges = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    for (const stream of [false, true]) {
+      const result = await request(app)
+        .post("/relay/proxy/v1/chat/completions")
+        .set("Authorization", `Bearer ${canonical}`)
+        .send({ model: openaiRelayModelId, stream, messages: [{ role: "user", content: "prefix-fixture" }] });
+      expect(result.status).toBe(200);
+      if (stream) expect(result.headers["content-type"]).toContain("text/event-stream");
+    }
+    const usage = await getLatestUsage(openaiRelayTokenId, priorUsage + 2);
+    const charge = await getLatestBalanceTransaction(testUserId, priorCharges + 2);
+    expect(charge).toMatchObject({ relatedId: usage?.id, userId: testUserId, type: "api_usage" });
+
+    for (const path of ["/relay/proxy/v2/usage", "/v2/relay/tokens/current/quota-summary"]) {
+      const canonicalQuota = await request(app).get(path).set("Authorization", `Bearer ${canonical}`);
+      const legacyQuota = await request(app).get(path).set("Authorization", `Bearer ${openaiRelayTokenValue}`);
+      expect(canonicalQuota.status).toBe(200);
+      expect(legacyQuota.status).toBe(200);
+      expect(canonicalQuota.body.data.allTimeSummary).toMatchObject({ requestCount: priorUsage + 2 });
+      expect(canonicalQuota.body.data).toEqual(legacyQuota.body.data);
+    }
+  });
 
   const getLatestBalanceTransaction = async (userId: string, expectedCount: number) => {
     for (let i = 0; i < 20; i += 1) {
