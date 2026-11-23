@@ -57,6 +57,7 @@ export interface RelayTokenAvailabilityInput {
   requestFormatTransforms?: unknown;
   allowedModels?: string | null;
   modelMapping?: Prisma.JsonValue | Record<string, string> | null;
+  modelMappingRules?: unknown;
   channel?: RelayChannel | null;
   routingMode?: string | null;
   automaticProxyPoolChannel?: RelayChannel | null;

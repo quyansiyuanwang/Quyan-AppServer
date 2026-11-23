@@ -1,11 +1,8 @@
 import { buildRelayUpstreamHeaders } from "./utils/relay-upstream-headers.util";
 import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
+import { resolveRelayModelRoute, relayModelRouteRequestCandidates } from "./utils/relay-model-route.util";
 import { projectRelayCompositionCatalog } from "./utils/relay-composition-catalog.util";
-import {
-  projectRelayAvailableModels,
-  canServeRelayDiscoveryModel,
-  relayDiscoveryAllowsModels,
-} from "./utils/relay-model-discovery.util";
+import { projectRelayAvailableModels, relayDiscoveryAllowsModels } from "./utils/relay-model-discovery.util";
 import { projectRelayConcurrencyLimits } from "@/util/relay-concurrency-status-projection";
 import {
   assertRelayRequestBodyCapacity,
@@ -108,8 +105,8 @@ import {
   normalizeTokenBreakdown,
   resolveFreshInputTokens,
 } from "@/util/token-usage.util";
-import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
-import { resolveMappedModel } from "@/util/model-mapping.util";
+import { resolveModelId } from "@/util/model-resolution.util";
+import { normalizeRelayTokenModelMappingRules } from "@quyan/shared";
 import {
   parseRelayRequestFormats,
   parseRelayChannelAllowedModelNames,
@@ -633,42 +630,6 @@ export class RelayProxyService {
     return resolveRelayRequestFormat(req);
   }
 
-  private resolveRequestedModelConfigs(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto[] {
-    const normalizedRequestedModel = requestedModel.trim();
-    if (!normalizedRequestedModel) return [];
-
-    // Requests must use the configured provider value, which is the upstream
-    // model ID. Keep this comparison exact and case-sensitive: upstream model
-    // IDs such as `MiniMax-M3` are not interchangeable with display names.
-    return modelPricing.filter((config) => {
-      const modelId = resolveModelId(config).trim();
-      return modelId && modelId === normalizedRequestedModel;
-    });
-  }
-
-  private resolveChannelModelConfig(
-    channel: RelayChannel,
-    requestedModelId: string,
-    candidateConfigs: ModelPricingDto[],
-    requestFormat?: RelayRequestFormat,
-  ): ModelPricingDto | null {
-    const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
-    const compatibleConfigs = requestFormat
-      ? candidateConfigs.filter((config) => supportsRelayRequestFormat(config.supportedFormats, requestFormat))
-      : candidateConfigs;
-
-    // null means unrestricted; an explicit empty list denies every model.
-    if (allowedModelNames === null) return compatibleConfigs[0] || null;
-
-    // Prefer the channel's explicit pricing name. An ID may also be the name
-    // of one catalog entry while other entries share that same upstream ID.
-    return (
-      compatibleConfigs.find((config) => isModelNameAllowed(allowedModelNames, config.model || "")) ??
-      compatibleConfigs.find((config) => isModelNameAllowed(allowedModelNames, resolveModelId(config))) ??
-      null
-    );
-  }
-
   private validateChannelModelConfig(
     channel: RelayChannel,
     modelConfig: ModelPricingDto | null,
@@ -925,12 +886,12 @@ export class RelayProxyService {
       relayToken.requestFormatTransforms,
       requestFormat as RelayConvertibleRequestFormat,
     );
-    requestFormat = transform?.targetFormat ?? requestFormat;
+    const upstreamFormat = transform?.targetFormat ?? requestFormat;
     const modelPricing = await this.modelPricingService.getModelPricing();
     const attemptPlan = await this.buildAttemptPlan(relayToken);
     const eligibleChannels = attemptPlan.channels
-      .map((candidate) => candidate.resolvedChannel)
-      .filter((channel) => supportsRelayRequestFormat(channel.allowedFormats, requestFormat));
+      .map((candidate) => ({ ...candidate.resolvedChannel, routingChannelIds: candidate.routingChannelIds }))
+      .filter((channel) => supportsRelayRequestFormat(channel.allowedFormats, upstreamFormat));
 
     if (eligibleChannels.length === 0) {
       const allowedFormats = [
@@ -2051,6 +2012,38 @@ export class RelayProxyService {
     return this.buildAttemptPlan(relayToken);
   }
 
+  /** A preflight proof, including aliases that have no independent pricing row. */
+  async canServeRequestedModel(tokenId: string, requestedModel: string): Promise<boolean> {
+    const token = await this.relayTokenRepo.findByIdWithChannel(tokenId);
+    if (!token || token.status !== 1 || (token.expiresAt && token.expiresAt.getTime() <= Date.now())) return false;
+    if (token.routingMode === "composite") {
+      for (const format of ["openai-chat-completions", "openai-responses", "anthropic", "gemini"] as const)
+        if (
+          (await this.getCompositeCatalog(token.id, format, undefined, [requestedModel])).some(
+            (entry) => entry.model === requestedModel,
+          )
+        )
+          return true;
+      return false;
+    }
+    const plan = await this.buildAttemptPlan(token);
+    const catalog = await this.modelPricingService.getModelPricing();
+    return plan.channels.some((candidate) =>
+      (["openai-chat-completions", "openai-responses", "anthropic", "gemini"] as const).some((format) =>
+        Boolean(
+          resolveRelayModelRoute({
+            requestedModel,
+            requestFormat: format,
+            tokens: [token],
+            channel: candidate.resolvedChannel,
+            channelPathIds: candidate.routingChannelIds,
+            modelCatalog: catalog,
+          }).modelConfig,
+        ),
+      ),
+    );
+  }
+
   private buildFailoverStickyChannelKey(
     relayTokenId: string,
     requestFormat: RelayRequestFormat,
@@ -2140,54 +2133,12 @@ export class RelayProxyService {
     }
   }
 
-  private isStickyPreferredChannelEligible(params: {
-    channel: RelayChannel;
-    requestFormat: RelayRequestFormat;
-    requestedModel: string;
-    modelPricing: ModelPricingDto[];
-    tokenModelMapping?: Record<string, string> | null;
-  }): boolean {
-    try {
-      // The requested model may be an alias that the channel-level (or token-level)
-      // model mapping rewrites to a priced upstream model, so eligibility must be
-      // checked against the effective (mapped) model name.
-      const effectiveModelName = resolveMappedModel(
-        params.requestedModel,
-        params.channel.modelMapping as Record<string, string> | null | undefined,
-        params.tokenModelMapping,
-      );
-      const effectiveModelConfigs = this.resolveRequestedModelConfigs(params.modelPricing, effectiveModelName);
-      let channelModelConfig = this.resolveChannelModelConfig(
-        params.channel,
-        effectiveModelName,
-        effectiveModelConfigs,
-        params.requestFormat,
-      );
-      if (!channelModelConfig && effectiveModelName !== params.requestedModel) {
-        // Fallback for channels that list the original request model directly.
-        const originalModelConfigs = this.resolveRequestedModelConfigs(params.modelPricing, params.requestedModel);
-        channelModelConfig = this.resolveChannelModelConfig(
-          params.channel,
-          params.requestedModel,
-          originalModelConfigs,
-          params.requestFormat,
-        );
-      }
-      this.validateChannelModelConfig(params.channel, channelModelConfig, effectiveModelName);
-      this.resolveChannelUpstreamConfig(params.channel, params.requestFormat);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   private async prioritizeStickyPreferredChannel(params: {
     relayToken: RelayTokenWithChannel;
     channels: RelayResolvedChannelCandidate[];
     requestFormat: RelayRequestFormat;
     requestedModel: string;
-    candidateModelConfigs: ModelPricingDto[];
-    modelPricing: ModelPricingDto[];
+    canServe: (candidate: RelayResolvedChannelCandidate) => boolean;
     failbackCooldownMinutes: number;
   }): Promise<RelayResolvedChannelCandidate[]> {
     if (params.channels.length < 2 || params.failbackCooldownMinutes <= 0) return params.channels;
@@ -2216,15 +2167,7 @@ export class RelayProxyService {
     if (stickyChannelIndex === 0) return params.channels;
 
     const stickyChannel = params.channels[stickyChannelIndex];
-    if (
-      !this.isStickyPreferredChannelEligible({
-        channel: stickyChannel.resolvedChannel,
-        requestFormat: params.requestFormat,
-        requestedModel: params.requestedModel,
-        modelPricing: params.modelPricing,
-        tokenModelMapping: params.relayToken.modelMapping as Record<string, string> | null | undefined,
-      })
-    ) {
+    if (!params.canServe(stickyChannel)) {
       await this.clearStickyPreferredChannel({
         relayTokenId: params.relayToken.id,
         requestFormat: params.requestFormat,
@@ -2744,6 +2687,7 @@ export class RelayProxyService {
           token.memberTokenConfigs.map(({ tokenId, priority, enabled }) => ({ tokenId, priority, enabled })),
           token.failoverConfig,
           token.modelMapping,
+          token.modelMappingRules,
           token.requestFormatTransforms,
         ]),
       )
@@ -2752,16 +2696,27 @@ export class RelayProxyService {
     return `composite:${token.id}:${revision}`;
   }
 
-  private async compositeLeafCanServe(token: RelayTokenWithRelations, request: any): Promise<boolean> {
-    const source = this.getRequestFormat(request);
-    const format =
-      resolveRelayRequestFormatTransform(token.requestFormatTransforms, source as RelayConvertibleRequestFormat)
-        ?.targetFormat ?? source;
-    const model = String(this.extractRequestedModel(request, source) ?? "").trim();
+  private async compositeLeafCanServe(
+    token: RelayTokenWithRelations,
+    request: any,
+    ancestors: RelayTokenWithRelations[] = [],
+    ingress?: { requestedModel: string; requestFormat: RelayRequestFormat },
+  ): Promise<boolean> {
+    const source = ingress?.requestFormat ?? this.getRequestFormat(request);
+    const model = ingress?.requestedModel ?? String(this.extractRequestedModel(request, source) ?? "").trim();
     const pricing = await this.modelPricingService.getModelPricing();
     const plan = await this.buildAttemptPlan(token);
     return plan.channels.some((candidate) =>
-      canServeRelayDiscoveryModel(token, candidate.resolvedChannel, pricing, format, model),
+      Boolean(
+        resolveRelayModelRoute({
+          requestedModel: model,
+          requestFormat: source,
+          tokens: [...ancestors, token],
+          channel: candidate.resolvedChannel,
+          channelPathIds: candidate.routingChannelIds,
+          modelCatalog: pricing,
+        }).modelConfig,
+      ),
     );
   }
 
@@ -2769,10 +2724,39 @@ export class RelayProxyService {
     id: string,
     format: RelayRequestFormat,
     snapshot?: Map<string, RelayTokenWithRelations>,
+    requestedModels: string[] = [],
   ): Promise<Array<{ model: string; tokenPathIds: string[] }>> {
     snapshot ??= await this.relayTokenRepo.loadCompositionSnapshot(id);
     const graph = snapshot;
     return projectRelayCompositionCatalog(id, format, graph, {
+      pathModels: async (token, sourceFormat, ancestors) => {
+        const plan = await this.buildAttemptPlan(token);
+        const catalog = await this.modelPricingService.getModelPricing();
+        const nodes = [...ancestors, token];
+        return [
+          ...new Set([
+            ...relayModelRouteRequestCandidates(
+              nodes,
+              plan.channels.map((candidate) => candidate.resolvedChannel),
+              catalog,
+            ),
+            ...requestedModels,
+          ]),
+        ].filter((model) =>
+          plan.channels.some((candidate) =>
+            Boolean(
+              resolveRelayModelRoute({
+                requestedModel: model,
+                requestFormat: sourceFormat,
+                tokens: nodes,
+                channel: candidate.resolvedChannel,
+                channelPathIds: candidate.routingChannelIds,
+                modelCatalog: catalog,
+              }).modelConfig,
+            ),
+          ),
+        );
+      },
       leaf: async (token, requestFormat, requested) => {
         try {
           const models = new Set(await this.getAvailableModelsForToken(token, requestFormat));
@@ -2830,6 +2814,11 @@ export class RelayProxyService {
       }
     }
     const original = compositeIngressRequest(req, body);
+    context.ingressBody = original.body;
+    context.modelRequest = {
+      requestedModel: String(this.extractRequestedModel(original, this.getRequestFormat(original)) ?? "").trim(),
+      requestFormat: this.getRequestFormat(original),
+    };
     req.once?.("aborted", cancelRequest);
     response?.once?.("close", cancelResponse);
     try {
@@ -2879,7 +2868,14 @@ export class RelayProxyService {
           }
           if (token.routingMode !== "composite") {
             try {
-              if (!(await this.compositeLeafCanServe(this.compositeLeafLimits(token, ancestors), input)))
+              if (
+                !(await this.compositeLeafCanServe(
+                  this.compositeLeafLimits(token, ancestors),
+                  input,
+                  ancestors,
+                  context.modelRequest,
+                ))
+              )
                 throw new CompositeBranchUnavailable();
             } catch (error) {
               if (error instanceof BadRequestError) throw new CompositeBranchUnavailable();
@@ -2892,8 +2888,8 @@ export class RelayProxyService {
           const model = String(this.extractRequestedModel(input, source) ?? "").trim();
           if (!model)
             throw new BadRequestError("Model is required", undefined, { messageKey: "relayProxy.modelRequired" });
-          const mapped = resolveMappedModel(model, undefined, token.modelMapping as Record<string, string>);
-          if (!(await this.compositionAllows(token, model, mapped))) {
+          const mapped = model;
+          if (!context.modelRequest && !(await this.compositionAllows(token, model, mapped))) {
             if (token.id === root.id)
               throw new BadRequestError("Entry model is not allowed", undefined, {
                 messageKey: "relayProxy.tokenModelNotAllowed",
@@ -2917,12 +2913,6 @@ export class RelayProxyService {
           const target = transform?.targetFormat ?? source;
           if (converted && typeof converted === "object" && !Buffer.isBuffer(converted) && target !== "gemini")
             converted.model = mapped;
-          if (target === "anthropic")
-            converted = normalizeAnthropicRequestBeforeSend(
-              converted,
-              mapped,
-              normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
-            );
           const safety = await this.contentSafetyService.evaluate(
             "request",
             Buffer.isBuffer(converted) ? converted.toString("utf8") : JSON.stringify(converted),
@@ -2967,22 +2957,8 @@ export class RelayProxyService {
           const limits = execution.path
             .map((node) => (node.streamConfig as any)?.preflightBufferLimitBytes)
             .filter((limit): limit is number => Number.isFinite(limit));
-          const normalizers = execution.path.map((node) => normalizeRelayTokenNormalizerConfig(node.normalizerConfig));
-          const leafNormalizer = normalizeRelayTokenNormalizerConfig(token.normalizerConfig);
           const leaf = {
             ...this.compositeLeafLimits(token, execution.path.slice(0, -1)),
-            normalizerConfig: {
-              ...leafNormalizer,
-              enabled: normalizers.some((n) => n.enabled),
-              thinkingSignature: normalizers.some((n) => n.enabled && n.thinkingSignature),
-              thinkingBudget: normalizers.some((n) => n.enabled && n.thinkingBudget),
-              unsupportedImage: normalizers.some((n) => n.enabled && n.unsupportedImage),
-              textOnlyModelIds: [
-                ...new Set(
-                  normalizers.filter((n) => n.enabled && n.unsupportedImage).flatMap((n) => n.textOnlyModelIds),
-                ),
-              ],
-            },
             streamConfig: limits.length ? { preflightBufferLimitBytes: Math.min(...limits) } : token.streamConfig,
           };
           const rules = getCompositeTransforms(input);
@@ -3123,85 +3099,65 @@ export class RelayProxyService {
         messageKey: "relayProxy.noChannelSupportsFormat",
       });
 
-    // Apply token-level model mapping for pricing resolution.
-    // The requested model (e.g. "gpt-5-codex") may not exist in model_pricing,
-    // but the token's mapping (e.g. "*" → "deepseek-v4-flash") tells us which
-    // pricing config to use. Per-channel mapping is applied later during routing.
-    const pricingModelName = resolveMappedModel(
-      normalizedRequestedModel,
-      null,
-      relayToken.modelMapping as Record<string, string> | null | undefined,
-    );
-
-    // The requested model may also be an alias that only a channel-level model
-    // mapping rewrites to a priced upstream model. Resolve the effective model
-    // name for every eligible channel so the token-level checks and the
-    // "not configured" guard below account for channel mappings.
-    const perChannelMappedModelNames = eligibleChannels.map((candidate) =>
-      resolveMappedModel(
-        normalizedRequestedModel,
-        candidate.resolvedChannel.modelMapping as Record<string, string> | null | undefined,
-        relayToken.modelMapping as Record<string, string> | null | undefined,
-      ),
-    );
-
-    // Find all model configs matching the resolved model ID for pricing purposes
-    const candidateModelConfigs = this.resolveRequestedModelConfigs(modelPricing, pricingModelName);
-    if (
-      candidateModelConfigs.length === 0 &&
-      !perChannelMappedModelNames.some(
-        (name) => name !== pricingModelName && this.resolveRequestedModelConfigs(modelPricing, name).length > 0,
-      )
-    )
-      throw new BadRequestError(`Model ${normalizedRequestedModel} is not configured`, undefined, {
-        messageKey: "relayProxy.modelNotConfigured",
+    const composite = getCompositeContext(req);
+    const routeTokens = composite?.path.length ? composite.path : [relayToken];
+    const routeModel = composite?.modelRequest?.requestedModel ?? normalizedRequestedModel;
+    const routeFormat = composite?.modelRequest?.requestFormat ?? clientRequestFormat;
+    const routeFor = (candidate: RelayResolvedChannelCandidate) =>
+      resolveRelayModelRoute({
+        requestedModel: routeModel,
+        requestFormat: routeFormat,
+        tokens:
+          !composite && relayToken.routingMode === "automatic-pool"
+            ? [{ ...relayToken, failoverConfig: null }]
+            : routeTokens,
+        channel: candidate.resolvedChannel,
+        channelPathIds: candidate.routingChannelIds,
+        modelCatalog: modelPricing,
       });
-
-    const formatModelConfigs = perChannelMappedModelNames.flatMap((modelId) =>
-      this.resolveRequestedModelConfigs(modelPricing, modelId),
-    );
-
-    // Token allowedModels check: match against BOTH original and mapped model.
-    // A token might allow "gpt-5-codex" directly, or it might allow "deepseek-v4-flash"
-    // (the mapped billing model). Either should pass.
-    const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(relayToken.allowedModels);
-    if (tokenAllowedModelIds.length > 0) {
-      // Match against every name the request may be routed as: the original
-      // model, the token-level mapped model, and each channel-level mapped model.
-      const effectiveModelNames = new Set<string>([
-        normalizedRequestedModel,
-        pricingModelName,
-        ...perChannelMappedModelNames,
-      ]);
-      const tokenAllowsAny = [...effectiveModelNames].some((name) =>
-        this.resolveRequestedModelConfigs(modelPricing, name).some((config) =>
-          isModelIdAllowed(tokenAllowedModelIds, config),
+    const resolutions = new Map(eligibleChannels.map((candidate) => [candidate, routeFor(candidate)]));
+    const routableChannels = eligibleChannels.filter((candidate) => resolutions.get(candidate)!.modelConfig);
+    if (!routableChannels.length) {
+      if ([...resolutions.values()].some((route) => route.reason === "model-not-allowed"))
+        throw new BadRequestError(`Relay token does not allow model ${routeModel}`, undefined, {
+          messageKey: "relayProxy.tokenModelNotAllowed",
+        });
+      const knownNames = new Set([
+        routeModel,
+        ...routeTokens.flatMap((token) =>
+          normalizeRelayTokenModelMappingRules(token.modelMappingRules, token.modelMapping).map((rule) => rule.target),
         ),
+        ...eligibleChannels.flatMap((candidate) =>
+          Object.values((candidate.resolvedChannel.modelMapping as Record<string, string>) ?? {}),
+        ),
+      ]);
+      const knownConfigs = modelPricing.filter(
+        (row) => knownNames.has(resolveModelId(row)) || (knownNames.has(row.model) && row.model !== routeModel),
       );
-      if (!tokenAllowsAny)
-        throw new BadRequestError(
-          `Relay token does not allow model ${normalizedRequestedModel}. Allowed models: ${tokenAllowedModelIds.join(", ")}`,
-          undefined,
-          { messageKey: "relayProxy.tokenModelNotAllowed" },
-        );
+      if (!knownConfigs.length)
+        throw new BadRequestError("Requested model is not configured", undefined, {
+          messageKey: "relayProxy.modelNotConfigured",
+        });
+      if (!knownConfigs.some((row) => supportsRelayRequestFormat(row.supportedFormats, requestFormat)))
+        throw new BadRequestError("Requested model does not support this protocol", undefined, {
+          messageKey: "relayProxy.modelFormatUnsupported",
+        });
     }
-
-    if (!formatModelConfigs.some((config) => supportsRelayRequestFormat(config.supportedFormats, requestFormat)))
-      throw new BadRequestError(
-        `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${formatModelConfigs
-          .map((config) => config.supportedFormats)
-          .join(", ")}`,
-        undefined,
-        { messageKey: "relayProxy.modelFormatUnsupported" },
-      );
-
     const orderedEligibleChannels = await this.prioritizeStickyPreferredChannel({
       relayToken,
       channels: eligibleChannels,
       requestFormat,
-      requestedModel: normalizedRequestedModel,
-      candidateModelConfigs,
-      modelPricing,
+      requestedModel: routeModel,
+      canServe: (candidate) => {
+        const route = resolutions.get(candidate) ?? routeFor(candidate);
+        if (!route.modelConfig) return false;
+        try {
+          this.resolveChannelUpstreamConfig(candidate.resolvedChannel, route.requestFormat);
+          return true;
+        } catch {
+          return false;
+        }
+      },
       failbackCooldownMinutes: stickyFailbackCooldownMinutes,
     });
 
@@ -3284,7 +3240,7 @@ export class RelayProxyService {
           auditDurationMs = value;
         },
       };
-      const tokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
+      let tokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
       let tokenNormalizerRetried = false;
       let tokenNormalizerBody: unknown;
       let relayProxyConfig: Awaited<ReturnType<ConfigService["getRelayProxyConfig"]>> = {
@@ -3346,47 +3302,14 @@ export class RelayProxyService {
                 userId: relayToken.userId,
                 tokenConfig: relayToken.contentSafetyConfig as any,
               });
-            // Resolve the model config for this specific channel. The requested
-            // model may be an alias that the channel-level (or token-level) model
-            // mapping rewrites to a priced upstream model, so eligibility is first
-            // checked against the effective (mapped) model name.
-            const effectiveModelName = resolveMappedModel(
-              normalizedRequestedModel,
-              channel.modelMapping as Record<string, string> | null | undefined,
-              relayToken.modelMapping as Record<string, string> | null | undefined,
-            );
-            const effectiveModelConfigs =
-              effectiveModelName === pricingModelName
-                ? candidateModelConfigs
-                : this.resolveRequestedModelConfigs(modelPricing, effectiveModelName);
-            let channelModelConfig = this.resolveChannelModelConfig(
-              channel,
-              effectiveModelName,
-              effectiveModelConfigs,
-              requestFormat,
-            );
-            if (!channelModelConfig && effectiveModelName !== normalizedRequestedModel) {
-              // Fallback for channels that list the original request model directly.
-              channelModelConfig = this.resolveChannelModelConfig(
-                channel,
-                normalizedRequestedModel,
-                candidateModelConfigs,
-                requestFormat,
-              );
-            }
+            const modelRoute = resolutions.get(candidate) ?? routeFor(candidate);
+            const effectiveModelName = modelRoute.effectiveModel ?? routeModel;
+            const channelModelConfig = modelRoute.modelConfig;
             this.validateChannelModelConfig(channel, channelModelConfig, effectiveModelName);
-
-            // TypeScript doesn't know that validateChannelModelConfig throws if null
-            if (!channelModelConfig) {
-              const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
-              const allowedModelsStr =
-                allowedModelNames && allowedModelNames.length > 0 ? allowedModelNames.join(", ") : "none";
-              throw new RelayChannelSkipError(
-                `Channel does not support model ${effectiveModelName}. Allowed models: ${allowedModelsStr}`,
-                "channel-model-not-allowed",
-                { messageKey: "relayProxy.channelModelUnsupported" },
-              );
-            }
+            if (!channelModelConfig)
+              throw new RelayChannelSkipError("Channel model unavailable", "channel-model-not-allowed", {
+                messageKey: "relayProxy.channelModelUnsupported",
+              });
 
             // Validate pricing type
             if (
@@ -3418,13 +3341,25 @@ export class RelayProxyService {
               );
 
             selectedModelName = channelModelConfig.model.trim() || normalizedRequestedModel;
+            if (composite) {
+              const policies = composite.path
+                .filter((_, index) => modelRoute.steps[index]?.targetFormat === "anthropic")
+                .map((node) => normalizeRelayTokenNormalizerConfig(node.normalizerConfig));
+              const leafPolicy = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
+              tokenNormalizerConfig = {
+                ...leafPolicy,
+                enabled: policies.some((policy) => policy.enabled),
+                thinkingSignature: policies.some((policy) => policy.enabled && policy.thinkingSignature),
+                thinkingBudget: policies.some((policy) => policy.enabled && policy.thinkingBudget),
+                unsupportedImage: policies.some((policy) => policy.enabled && policy.unsupportedImage),
+              };
+            }
 
             // Preserve the pricing name and rates selected for this channel.
             // Other catalog entries can share this same upstream model ID.
 
             // Track original model for billing description when model mapping is active
-            relayOriginalRequestedModel =
-              effectiveModelName !== normalizedRequestedModel ? normalizedRequestedModel : undefined;
+            relayOriginalRequestedModel = effectiveModelName !== routeModel ? routeModel : undefined;
 
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             if (channel.useProxy === true && !relayProxyConfigLoaded) {
@@ -3491,7 +3426,57 @@ export class RelayProxyService {
               },
             );
 
-            let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
+            let sourceBody = req.body;
+            if (composite?.ingressBody !== undefined) {
+              sourceBody = Buffer.isBuffer(composite.ingressBody)
+                ? composite.ingressBody
+                : structuredClone(composite.ingressBody);
+              for (let index = 0; index < composite.path.length - 1; index++) {
+                const parent = composite.path[index]!;
+                const step = modelRoute.steps[index]!;
+                if (step.sourceFormat !== step.targetFormat)
+                  sourceBody = convertRelayRequest(
+                    sourceBody,
+                    step.sourceFormat as RelayConvertibleRequestFormat,
+                    step.targetFormat as RelayConvertibleRequestFormat,
+                  );
+                sourceBody = this.buildForwardBody(sourceBody, step.targetFormat, step.outputModel);
+                if (step.targetFormat === "anthropic")
+                  sourceBody = normalizeAnthropicRequestBeforeSend(
+                    sourceBody,
+                    step.outputModel,
+                    normalizeRelayTokenNormalizerConfig(parent.normalizerConfig),
+                  );
+                const safety = await this.contentSafetyService.evaluate(
+                  "request",
+                  Buffer.isBuffer(sourceBody) ? sourceBody.toString("utf8") : JSON.stringify(sourceBody),
+                  { userId: parent.userId, tokenConfig: parent.contentSafetyConfig as any },
+                );
+                auditInputTokens += safety.auditInputTokens;
+                auditOutputTokens += safety.auditOutputTokens;
+                auditCost += safety.auditCost;
+                auditDurationMs += safety.auditDurationMs;
+                if (safety.matched)
+                  await this.contentSafetyService.recordIncident({
+                    userId: parent.userId,
+                    relayTokenId: parent.id,
+                    requestId: composite.requestId,
+                    direction: "request",
+                    evaluation: safety,
+                    model: step.outputModel,
+                    request: req,
+                  });
+                if (safety.action === "unreachable") throw new ContentSafetyBlockedError();
+                if (safety.action === "blackhole") {
+                  try {
+                    sourceBody = JSON.parse(safety.text);
+                  } catch {
+                    throw new ContentSafetyBlockedError();
+                  }
+                }
+              }
+            }
+            let sourceForwardedBody = this.buildForwardBody(sourceBody, clientRequestFormat, selectedModelId);
             if (
               Buffer.isBuffer(sourceForwardedBody) &&
               this.isMultipartRequest(req) &&
@@ -3528,12 +3513,13 @@ export class RelayProxyService {
               convertedBody = normalizeAnthropicRequestBeforeSend(
                 convertedBody,
                 selectedModelId,
-                tokenNormalizerConfig,
+                normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig),
               );
             }
 
             const reuseRawRequest = Boolean(
               rawJsonBody &&
+                !composite &&
                 !requestFormatTransform &&
                 selectedModelId === normalizedRequestedModel &&
                 tokenNormalizerBody === undefined &&
@@ -3542,7 +3528,7 @@ export class RelayProxyService {
             );
             // Evaluate the final wire body regardless of whether bytes can be reused.
             let wireBody: Buffer | undefined;
-            if (!Buffer.isBuffer(convertedBody) || reuseRawRequest) {
+            if (!Buffer.isBuffer(convertedBody) || reuseRawRequest || composite) {
               const requestSafetyText = reuseRawRequest
                 ? rawJsonBody!.toString("utf8")
                 : Buffer.isBuffer(convertedBody)

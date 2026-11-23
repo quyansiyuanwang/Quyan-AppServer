@@ -82,6 +82,41 @@
     margin: 18px 0 0;
   }
 
+  .balance-credit {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+  .balance-credit__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 24px;
+    margin: 12px 0;
+  }
+  .balance-credit__metrics dt,
+  .balance-credit__hint {
+    color: var(--el-text-color-regular);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .balance-credit__metrics dd {
+    margin: 4px 0 0;
+    color: var(--el-text-color-primary);
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .balance-credit__metrics small {
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .balance-credit__hint {
+    margin: 6px 0 0;
+    overflow-wrap: anywhere;
+  }
+
   .usage-metric {
     min-width: 0;
     padding-inline: 20px;
@@ -175,6 +210,9 @@
   }
 
   @container (max-width: 640px) {
+    .balance-credit__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .usage-metrics {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       row-gap: 16px;

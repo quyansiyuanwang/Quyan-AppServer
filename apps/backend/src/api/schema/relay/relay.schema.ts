@@ -6,6 +6,8 @@ import {
   isValidCredential,
   MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
   MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  RELAY_TOKEN_MODEL_MAPPING_LIMITS,
+  validateRelayTokenModelMappingRules,
 } from "@quyan/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
@@ -138,7 +140,7 @@ const retryStatusRuleSchema = z
       "retryStatusCodes must be exact HTTP codes, wildcard rules like 4xx/xx*, or regex literals such as /^5(02|03)$/",
   });
 
-const relayTokenFailoverConfigSchema = z.object({
+export const relayTokenFailoverConfigSchema = z.object({
   enabled: z.boolean(),
   maxRetries: z.coerce.number().int().min(0).max(100),
   retryStatusCodes: z
@@ -248,6 +250,46 @@ const relayTokenStreamConfigSchema = z.object({
     .optional(),
 });
 
+export const relayTokenModelMappingRulesSchema = z
+  .array(
+    z
+      .object({
+        source: z.string().min(1).max(RELAY_TOKEN_MODEL_MAPPING_LIMITS.maxPatternLength),
+        target: z.string().min(1).max(RELAY_TOKEN_MODEL_MAPPING_LIMITS.maxTargetLength),
+        channelIds: z.array(z.string().min(1).max(50)).max(RELAY_TOKEN_MODEL_MAPPING_LIMITS.maxChannelIds).optional(),
+        preference: z.enum(["mapping-first", "original-first"]),
+      })
+      .strict(),
+  )
+  .max(RELAY_TOKEN_MODEL_MAPPING_LIMITS.maxRules)
+  .superRefine((rules, ctx) => {
+    for (const diagnostic of validateRelayTokenModelMappingRules(rules))
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid token model mapping rule",
+        path: diagnostic.ruleIndex < 0 ? [] : [diagnostic.ruleIndex],
+        params: {
+          messageKey:
+            diagnostic.code === "duplicate-source"
+              ? "relayToken.modelMappingRulesDuplicateSource"
+              : "relayToken.modelMappingRulesInvalid",
+        },
+      });
+  });
+
+const validateModelMappingFields = (
+  value: { modelMapping?: unknown; modelMappingRules?: unknown },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.modelMapping !== undefined && value.modelMappingRules !== undefined)
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Token model mapping representations are mutually exclusive",
+      path: ["modelMappingRules"],
+      params: { messageKey: "relayToken.modelMappingMutuallyExclusive" },
+    });
+};
+
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
@@ -269,10 +311,12 @@ export const createRelayTokenBodySchema = z
     contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
     streamConfig: relayTokenStreamConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
-    modelMapping: z.record(z.string(), z.string()).optional(),
+    modelMapping: z.record(z.string(), z.string()).nullable().optional(),
+    modelMappingRules: relayTokenModelMappingRulesSchema.nullable().optional(),
   })
   .superRefine((value, ctx) => {
     validateCompositionFields(value, ctx);
+    validateModelMappingFields(value, ctx);
     if (value.routingMode === "composite" && !value.memberTokenConfigs?.length)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -385,9 +429,11 @@ export const updateRelayTokenBodySchema = z
     streamConfig: relayTokenStreamConfigSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
+    modelMappingRules: relayTokenModelMappingRulesSchema.nullable().optional(),
   })
   .superRefine((value, ctx) => {
     validateCompositionFields(value, ctx);
+    validateModelMappingFields(value, ctx);
     if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -494,11 +540,13 @@ const relayTokenImportItemSchema = z
     contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
     streamConfig: relayTokenStreamConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
-    modelMapping: z.record(z.string(), z.string()).optional(),
+    modelMapping: z.record(z.string(), z.string()).nullable().optional(),
+    modelMappingRules: relayTokenModelMappingRulesSchema.nullable().optional(),
     enabled: z.coerce.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     validateCompositionFields(value, ctx);
+    validateModelMappingFields(value, ctx);
     if (value.routingMode === "composite" && !value.memberTokenConfigs?.length)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

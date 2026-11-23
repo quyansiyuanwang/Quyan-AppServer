@@ -11,6 +11,7 @@ export interface RelayCompositionCatalogToken {
   routingMode: string;
   requestFormatTransforms?: unknown;
   modelMapping?: unknown;
+  modelMappingRules?: unknown;
   memberTokenConfigs: readonly { tokenId: string; enabled: boolean; priority: number }[];
 }
 /** Both management discovery and execution use this path-preserving composition transform. */
@@ -21,6 +22,8 @@ export async function projectRelayCompositionCatalog<TToken extends RelayComposi
   host: {
     leaf(token: TToken, format: RelayRequestFormat, requested: string[], ancestors: TToken[]): Promise<string[]>;
     allows(token: TToken, model: string, mapped: string): Promise<boolean>;
+    /** Resolve the entire token path at the leaf; returned names are entry request identities. */
+    pathModels?(token: TToken, format: RelayRequestFormat, ancestors: TToken[]): Promise<string[]>;
   },
 ): Promise<Array<{ model: string; tokenPathIds: string[] }>> {
   const visit = async (
@@ -38,7 +41,11 @@ export async function projectRelayCompositionCatalog<TToken extends RelayComposi
     )
       return [];
     if (token.routingMode !== "composite")
-      return (await host.leaf(token, requestFormat, requested, ancestors)).map((model) => ({
+      return (
+        await (host.pathModels
+          ? host.pathModels(token, format, ancestors)
+          : host.leaf(token, requestFormat, requested, ancestors))
+      ).map((model) => ({
         model,
         tokenPathIds: [token.id],
       }));
@@ -51,6 +58,11 @@ export async function projectRelayCompositionCatalog<TToken extends RelayComposi
     for (const edge of [...token.memberTokenConfigs].sort((a, b) => a.priority - b.priority)) {
       const child = graph.get(edge.tokenId);
       if (!edge.enabled || !child || child.userId !== token.userId) continue;
+      if (host.pathModels) {
+        const available = await visit(child, target, new Set(path).add(token.id), requested, [...ancestors, token]);
+        entries.push(...available.map((item) => ({ ...item, tokenPathIds: [token.id, ...item.tokenPathIds] })));
+        continue;
+      }
       const mapping = token.modelMapping as Record<string, string> | null;
       const targets = [
         ...requested.map((model) => resolveMappedModel(model, undefined, mapping)),

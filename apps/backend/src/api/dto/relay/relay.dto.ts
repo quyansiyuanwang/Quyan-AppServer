@@ -1,4 +1,9 @@
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform, RelayTokenStreamConfig } from "@quyan/shared";
+import type {
+  ContentSafetyPolicyOverride,
+  RelayRequestFormatTransform,
+  RelayTokenStreamConfig,
+  RelayTokenModelMappingRule,
+} from "@quyan/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
@@ -145,7 +150,8 @@ export interface CreateRelayTokenDto {
    */
   ipWhitelist?: string | null;
   /** 模型映射：请求模型 → 扣费模型 */
-  modelMapping?: Record<string, string>;
+  modelMapping?: Record<string, string> | null;
+  modelMappingRules?: RelayTokenModelMappingRule[] | null;
 }
 
 export interface UpdateRelayTokenDto {
@@ -183,6 +189,7 @@ export interface UpdateRelayTokenDto {
   ipWhitelist?: string | null;
   /** 模型映射：请求模型 → 扣费模型，传 null 清除 */
   modelMapping?: Record<string, string> | null;
+  modelMappingRules?: RelayTokenModelMappingRule[] | null;
 }
 
 export interface UpdateRelayTokenChannelDto {
@@ -289,6 +296,7 @@ export interface RelayTokenDto {
   streamConfig?: RelayTokenStreamConfig;
   ipWhitelist?: string;
   modelMapping?: Record<string, string>;
+  modelMappingRules?: RelayTokenModelMappingRule[] | null;
   channelConfigs: RelayTokenChannelConfigDto[];
   /** True when legacy ordered configuration still references an automatic pool. */
   hasInvalidOrderedChannels?: boolean;

@@ -24,6 +24,17 @@ import {
   Response,
 } from "@tsoa/runtime";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
+import { RelayTokenModelMappingService } from "@/services/relay/relay-token-model-mapping.service";
+import type {
+  RelayTokenModelMappingPreviewRequest,
+  RelayTokenModelMappingPreviewDto,
+  RelayTokenModelMappingChannelOptionsRequest,
+  RelayTokenModelMappingChannelOptionsDto,
+} from "@/api/dto/relay/relay-token-model-mapping.dto";
+import {
+  relayTokenModelMappingPreviewBodySchema,
+  relayTokenModelMappingChannelOptionsBodySchema,
+} from "@/api/schema/relay/relay-token-model-mapping.schema";
 import type {
   BatchDeleteRelayTokensRequest,
   BatchDuplicateRelayTokensRequest,
@@ -190,6 +201,48 @@ export class RelayController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayCompositionPreviewDto> {
     return this.relayTokenService.previewComposition(request.user!.userId, body, request);
+  }
+
+  @Post("tokens/model-mapping-preview")
+  @Security("jwt", ["relay:token:read", "relay:channel:read"])
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:PreviewTokenModelMapping",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+      alwaysEnforce: true,
+    }),
+  )
+  @Middlewares(validateBody(relayTokenModelMappingPreviewBodySchema))
+  async previewTokenModelMapping(
+    @Body() body: RelayTokenModelMappingPreviewRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayTokenModelMappingPreviewDto> {
+    return RelayTokenModelMappingService.getInstance().preview(request.user!.userId, body, request);
+  }
+
+  @Post("tokens/model-mapping-channel-options")
+  @Security("jwt", ["relay:token:read", "relay:channel:read"])
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListTokenModelMappingChannelOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+      alwaysEnforce: true,
+    }),
+  )
+  @Middlewares(validateBody(relayTokenModelMappingChannelOptionsBodySchema))
+  async tokenModelMappingChannelOptions(
+    @Body() body: RelayTokenModelMappingChannelOptionsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayTokenModelMappingChannelOptionsDto> {
+    return RelayTokenModelMappingService.getInstance().channelOptions(request.user!.userId, body, request);
   }
 
   @Get("tokens/composition-candidates")

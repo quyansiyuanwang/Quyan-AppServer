@@ -12,6 +12,10 @@ on:
     branches: [master, staging]
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -106,10 +110,9 @@ jobs:
             VITEST_PROJECT_SELECTOR=backend-unit node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi
 
-  # Keep both ruleset check names even when runtime tests are skipped. Matrix
-  # expansion would happen after the job condition and omit these names.
-  backend-runtime-mysql80:
-    name: Backend runtime (MySQL 8.0)
+  # Each shard owns its MySQL/Redis services and retains worker isolation.
+  backend-runtime-mysql80-shards:
+    name: Backend runtime shard ${{ matrix.shard }} (MySQL 8.0)
     needs: changes
     if: &backend-runtime-required >-
       always() && (needs.changes.result != 'success' || (
@@ -119,6 +122,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     services:
       mysql:
@@ -170,6 +177,26 @@ jobs:
           api-changed: ${{ needs.changes.outputs.api }}
           full-changed: ${{ needs.changes.outputs.full }}
           manual-suite: ${{ inputs.suite }}
+          shard: ${{ matrix.shard }}/${{ strategy.job-total }}
+
+  # Preserve the fixed ruleset check even if the matrix is skipped before
+  # expansion. Selected shards must all succeed, including empty related shards.
+  backend-runtime-mysql80:
+    name: Backend runtime (MySQL 8.0)
+    needs: [changes, backend-runtime-mysql80-shards]
+    if: *backend-runtime-required
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - *require-change-detection
+      - name: Require every runtime shard to succeed
+        env:
+          SHARDS_RESULT: ${{ needs.backend-runtime-mysql80-shards.result }}
+        run: |
+          if [ "$SHARDS_RESULT" != "success" ]; then
+            echo "Required backend runtime shards did not succeed: $SHARDS_RESULT"
+            exit 1
+          fi
 
   backend-runtime-mysql57:
     name: Backend runtime (MySQL 5.7)

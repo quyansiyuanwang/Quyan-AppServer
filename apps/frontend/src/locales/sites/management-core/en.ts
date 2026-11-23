@@ -56,8 +56,10 @@ const en = {
     boundaryHint:
       'All spending categories share one credit limit. AI calls are checked before starting and settled in full; admitted calls may exceed the limit temporarily, blocking subsequent calls. Transfers, gift-code withdrawals, and payment refunds cannot use credit.',
     saveDefaults: 'Save default policy',
+    batchUsernames: 'Target usernames',
+    usernamePlaceholder: 'Enter a username and press Enter',
     pasteHint:
-      'Paste user IDs separated by spaces, newlines, or commas; duplicates are removed and merged with the selection.',
+      'Press Enter to add a username, or paste usernames separated by spaces, newlines, or commas. Duplicates are removed and each tag can be deleted. Missing or unauthorized users block the whole batch; check the preview before confirming.',
     targetCount: '{count} users selected; maximum {max} per batch',
     ruleAction: 'Credit policy action',
     categoryAction: 'Category action',

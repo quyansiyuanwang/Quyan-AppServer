@@ -13,6 +13,8 @@ import { getLogger, LogCategory } from "@/util/logger";
 import { Decimal } from "@prisma/client/runtime/library";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { BalanceRepository } from "@/store/billing/balance.repository";
+import { BalanceOverdraftRepository } from "@/store/billing/balance-overdraft.repository";
+import type { MyBalanceAccountResponse } from "@/api/dto/billing/balance.dto";
 import { UserRepository } from "@/store/users/user.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
 import type { UserStore } from "@/store/users/user.store";
@@ -28,6 +30,7 @@ export class BalanceService {
     private readonly permissions = PermissionService.getInstance(),
     private readonly userMutationIam = IamAccountUserMutationService.getInstance(),
     private readonly transactionIam = BalanceTransactionIamService.getInstance(),
+    private readonly overdraft = BalanceOverdraftRepository.getInstance(),
   ) {}
 
   static getInstance() {
@@ -56,6 +59,29 @@ export class BalanceService {
 
     const accountMap = new Map(accounts.map((acc) => [acc.userId, acc]));
     return userIds.map((userId) => accountMap.get(userId) || null);
+  }
+
+  async getMyBalance(userId: string): Promise<MyBalanceAccountResponse> {
+    const account = await this.getBalance(userId);
+    const policy = await this.overdraft.resolve(account);
+    const used = Decimal.max(0, account.balance.negated());
+    const accountActive = !account.id || account.status === BALANCE_ACCOUNT_STATUS.ACTIVE;
+    const available = accountActive && !policy.calculationError && policy.categories.length > 0;
+    return {
+      id: account.id,
+      userId: account.userId,
+      balance: Math.floor(Number(account.balance) * 10000) / 10000,
+      createTime: account.createTime,
+      updateTime: account.updateTime,
+      overdraft: {
+        overdraftLimit: policy.limit.toNumber(),
+        usedOverdraft: used.toNumber(),
+        remainingOverdraft: available ? Decimal.max(0, policy.limit.minus(used)).toNumber() : 0,
+        categories: policy.categories,
+        calculationError: policy.calculationError,
+        accountActive,
+      },
+    };
   }
 
   private async legacyRead(request?: TypedRequest) {

@@ -3,6 +3,7 @@ import { defineComponent, h, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_BALANCE_OVERDRAFT_RULE, Permission } from '@quyan/shared'
+import { ElInputTag } from 'element-plus'
 
 const fixture = vi.hoisted(() => ({
   service: {
@@ -39,7 +40,7 @@ import BalanceAccountManagement from '@/components/balance/BalanceAccountManagem
 
 const row = {
   userId: 'fixture-user',
-  username: 'Fixture user',
+  username: 'fixture_user',
   balance: -2,
   totalRecharged: 100,
   totalUsed: 102,
@@ -61,6 +62,8 @@ const mountPage = async () => {
     global: {
       directives: { loading: {} },
       stubs: {
+        'el-input-tag': ElInputTag,
+        'el-tag': false,
         'el-table': defineComponent({
           setup(_props, { slots, expose }) {
             expose({ clearSelection: vi.fn() })
@@ -119,24 +122,96 @@ describe('balance account management', () => {
     expect(wrapper.vm.total).toBe(42)
     wrapper.unmount()
   })
-  it('deduplicates pasted IDs and selection and supports independent category reset', async () => {
+  it('uses deduplicated username tags and saves only the accounts confirmed by preview', async () => {
     const wrapper = await mountPage()
     wrapper.vm.selectionChanged([row])
     wrapper.vm.openBatch()
-    wrapper.vm.pastedIds = 'fixture-user, second-user\nsecond-user'
+    expect(wrapper.vm.batchUsernames).toEqual(['fixture_user'])
+    wrapper.vm.batchUsernames = ['fixture_user', ' second_user,second_user\nfixture_user ']
     wrapper.vm.ruleAction = 'keep'
     wrapper.vm.categoryAction = 'inherit'
+    fixture.service.preview.mockResolvedValueOnce([
+      row,
+      { ...row, userId: 'second-id', username: 'second_user' },
+    ])
     await wrapper.vm.preview()
     expect(fixture.service.preview).toHaveBeenCalledWith({
-      userIds: ['fixture-user', 'second-user'],
+      usernames: ['fixture_user', 'second_user'],
       categories: null,
     })
     await wrapper.vm.saveBatch()
     expect(fixture.service.saveUsers).toHaveBeenCalledWith({
-      targets: [{ userId: 'fixture-user', version: 3 }],
+      targets: [
+        { userId: 'fixture-user', version: 3 },
+        { userId: 'second-id', version: 3 },
+      ],
       defaultVersion: 7,
       categories: null,
     })
+    wrapper.unmount()
+  })
+  it('adds a username with Enter and removes selected users through the tag controls', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openBatch(row)
+    await nextTick()
+    const tags = wrapper.find('.el-input-tag')
+    expect(tags.findAll('.el-tag__content').map((tag) => tag.text())).toEqual(['fixture_user'])
+    const input = tags.find('input')
+    await input.setValue('new_user')
+    await input.trigger('keydown', { key: 'Enter', code: 'Enter' })
+    expect(wrapper.vm.batchUsernames).toEqual(['fixture_user', 'new_user'])
+    await tags.find('.el-tag__close').trigger('click')
+    expect(wrapper.vm.batchUsernames).toEqual(['new_user'])
+    wrapper.vm.categoryAction = 'inherit'
+    fixture.service.preview.mockResolvedValueOnce([
+      { ...row, username: 'new_user', userId: 'new-id' },
+    ])
+    await wrapper.vm.preview()
+    expect(fixture.service.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ usernames: ['new_user'] }),
+    )
+    wrapper.unmount()
+  })
+  it('clears username tags without restoring the original selection', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.selectionChanged([row])
+    wrapper.vm.openBatch()
+    wrapper.vm.batchUsernames = undefined
+    await wrapper.vm.preview()
+    expect(wrapper.vm.batchUsernames).toEqual([])
+    expect(fixture.service.preview).not.toHaveBeenCalled()
+    expect(fixture.error).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('rejects an oversized paste without silently using the first 200 users', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openBatch(row)
+    wrapper.vm.batchUsernames = Array.from({ length: 201 }, (_, i) => `user_${i}`)
+    expect(wrapper.vm.batchUsernames).toEqual(['fixture_user'])
+    expect(fixture.error).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('invalidates the preview when a username tag changes', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openBatch(row)
+    await wrapper.vm.preview()
+    expect(wrapper.vm.previewRows).toHaveLength(1)
+    wrapper.vm.batchUsernames = ['new_user']
+    await wrapper.vm.saveBatch()
+    expect(wrapper.vm.previewRows).toEqual([])
+    expect(fixture.service.saveUsers).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('blocks saving when username resolution fails or the preview returns only part of the batch', async () => {
+    const wrapper = await mountPage()
+    wrapper.vm.openBatch(row)
+    wrapper.vm.batchUsernames = ['fixture_user', 'missing_user']
+    await wrapper.vm.preview()
+    expect(wrapper.vm.previewRows).toEqual([])
+    fixture.service.preview.mockRejectedValueOnce(new Error('Username unavailable'))
+    await wrapper.vm.preview()
+    await wrapper.vm.saveBatch()
+    expect(fixture.service.saveUsers).not.toHaveBeenCalled()
     wrapper.unmount()
   })
   it('discards a trial response when the batch changes during the request', async () => {

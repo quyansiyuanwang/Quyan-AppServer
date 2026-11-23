@@ -418,6 +418,8 @@ const en = {
   },
   billing: {
     invalidOverdraftRule: "Invalid overdraft rule or arithmetic result",
+    overdraftTargetsUnavailable:
+      "One or more usernames are unavailable. Check all usernames and preview again; no batch changes were saved.",
     accountChanged: "Account data or configuration changed; refresh and retry",
     invalidAdjustment: "Invalid account adjustment or resulting amount",
     redemptionCodeDeleted: "Deleted successfully",
@@ -765,6 +767,12 @@ const en = {
     duplicateRunId: "Duplicate runId",
   },
   relayToken: {
+    modelMappingMutuallyExclusive: "Use either legacy model mapping or model mapping rules, not both.",
+    modelMappingRulesInvalid:
+      "Model mapping rules are invalid. Check the source, target, preference and channel scope.",
+    modelMappingRulesDuplicateSource: "Duplicate model sources cannot share the same channel priority and scope.",
+    modelMappingRulesLegacyOverwrite:
+      "Saved model mapping rules cannot be replaced by the legacy mapping field. Edit the rules or explicitly clear them first.",
     compositionInvalidMember: "Members must be unique relay tokens owned by the same user.",
     compositionCycle: "A relay token composition cannot contain a cycle.",
     compositionDepth: "Compositions support at most four composite levels.",

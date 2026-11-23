@@ -2,6 +2,10 @@ import type {
   RelayCompositionCandidatesDto,
   RelayCompositionPreviewDto,
   RelayCompositionPreviewRequest,
+  RelayTokenModelMappingPreviewRequest,
+  RelayTokenModelMappingPreviewDto,
+  RelayTokenModelMappingChannelOptionsRequest,
+  RelayTokenModelMappingChannelOptionsDto,
 } from '@/client/types.gen'
 import { useRequestStore } from '@/stores/request'
 import { CustomCode } from '@/constant/custom-code'
@@ -76,6 +80,38 @@ class RelayTokenService {
     data: RelayCompositionPreviewRequest,
   ): Promise<RelayCompositionPreviewDto> {
     return this.unwrapResponse(await relayApi.previewComposition({ body: data }))
+  }
+
+  async previewModelMapping(
+    data: RelayTokenModelMappingPreviewRequest,
+  ): Promise<RelayTokenModelMappingPreviewDto> {
+    return this.unwrapResponse(
+      await relayApi.previewTokenModelMapping({
+        body: {
+          ...data,
+          draft: {
+            ...data.draft,
+            targetUserId: this.normalizeTargetUserId(data.draft.targetUserId),
+          },
+        },
+      }),
+    )
+  }
+
+  async getModelMappingChannelOptions(
+    data: RelayTokenModelMappingChannelOptionsRequest,
+  ): Promise<RelayTokenModelMappingChannelOptionsDto> {
+    return this.unwrapResponse(
+      await relayApi.tokenModelMappingChannelOptions({
+        body: {
+          ...data,
+          draft: {
+            ...data.draft,
+            targetUserId: this.normalizeTargetUserId(data.draft.targetUserId),
+          },
+        },
+      }),
+    )
   }
 
   async getRequestDiagnostics(params: Record<string, string | number | undefined>) {

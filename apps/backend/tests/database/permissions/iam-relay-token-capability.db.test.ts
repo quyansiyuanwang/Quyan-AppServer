@@ -250,12 +250,34 @@ describe("resource-authorized token model capabilities", () => {
     await expect(read()).rejects.toMatchObject({ statusCode: 400 });
     expect(rich).not.toHaveBeenCalled();
   });
-  it("keeps unrestricted routes from dumping the public model catalog", async () => {
-    await prisma.relayChannel.update({ where: { id: channel }, data: { allowedModels: null } });
-    expect(await read(child)).toEqual(empty);
-    await prisma.relayToken.update({ where: { id: parent }, data: { modelMapping: { requested: "model-a" } } });
-    expect(await read()).toEqual({ ...empty, openai: ["model-a", "requested"] });
-  });
+  it.each(["legacy", "structured"])(
+    "keeps unrestricted routes finite while retaining %s mapping targets",
+    async (kind) => {
+      await prisma.modelPricing.create({
+        data: {
+          model: prefix + "unrelated",
+          provider: "unrelated",
+          supportedFormats: "openai",
+          inputPrice: 0,
+          outputPrice: 0,
+        },
+      });
+      await prisma.relayChannel.update({ where: { id: channel }, data: { allowedModels: null } });
+      expect(await read(child)).toEqual(empty);
+      await prisma.relayToken.update({
+        where: { id: parent },
+        data:
+          kind === "legacy"
+            ? { modelMapping: { requested: "model-a" } }
+            : { modelMappingRules: [{ source: "requested", target: "model-a", preference: "mapping-first" }] },
+      });
+      expect(await read()).toEqual({ ...empty, openai: ["model-a", "requested"] });
+      await prisma.relayToken.update({ where: { id: parent }, data: { allowedModels: "requested" } });
+      expect(await read()).toEqual({ ...empty, openai: ["requested"] });
+      await prisma.relayToken.update({ where: { id: child }, data: { allowedModels: "not-allowed" } });
+      expect(await read()).toEqual(empty);
+    },
+  );
   it("keeps each alias paired with the constraints of the same channel path", async () => {
     const pool = await prisma.relayChannel.create({
       data: { name: prefix + "pool", channelType: "pooled", allowedModels: JSON.stringify(["not-allowed"]) },

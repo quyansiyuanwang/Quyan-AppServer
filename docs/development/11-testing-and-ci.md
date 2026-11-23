@@ -57,11 +57,12 @@ worker 启动时接收独立 `DATABASE_URL` 和 Redis DB；每个数据库测试
 
 后端与前端各自使用 paths filter：普通源码变更运行 related tests；OpenAPI、共享包、Vitest 配置、测试 runtime、锁文件等基础设施变更升级为完整相关项目测试。
 
-- 后端 CI 分为纯单测 job 与运行时 job。运行时 job 提供 MySQL 和 Redis service，生成 OpenAPI/Prisma 前置，再运行数据库和 contract 项目。
+- 后端 CI 的纯单测、MySQL 8.0 运行时分片和 MySQL 5.7 兼容测试在变更检测后并行启动。MySQL 8.0 主套件通过 Vitest `--shard` 分成 4 个 job，每个 job 独占 MySQL/Redis service，内部仍为 2 个隔离 worker；完整套件与 related tests 使用相同分片机制，测试文件不重复也不遗漏。分片使用 `fail-fast: false`，一个失败不会取消其他分片。MySQL 5.7 保留迁移验证与指定兼容测试。
 - 前端 CI 缓存生成的 Swagger 与 `src/client`。缓存未命中时才生成 SDK；API 契约或生成代码变更会运行完整前端套件。related tests 通过前端的 `test:related` 脚本运行，脚本自身生成 `src/router/.gen/**`，因此 CI 只需准备 `src/client`。
 - CI 不共享本地开发数据库、Redis DB 或生产凭据。测试环境变量只能指向隔离的测试资源。
+- 后端与前端测试工作流按 PR 取消旧提交仍在运行的任务，避免过期测试占用 runner；手动触发的运行不会被自动取消。
 
-自动质量检查与测试工作流在目标分支的 PR 打开、代码更新、重新打开或转为待审查时触发，不使用工作流级 `paths` / `paths-ignore` 过滤；是否需要执行由工作流内部的变更检测和 job 条件决定。无关改动必须产生固定名称的 `skipped` 检查，不能让 ruleset 等待不存在的检查。包检查与 MySQL 版本检查使用独立 job，保留 `packages-quality (shared)`、`packages-quality (mcp)`、`Backend runtime (MySQL 8.0)` 和 `Backend runtime (MySQL 5.7)` 的既有名称；不能在带动态名称的 matrix 展开前跳过整个 job。
+自动质量检查与测试工作流在目标分支的 PR 打开、代码更新、重新打开或转为待审查时触发，不使用工作流级 `paths` / `paths-ignore` 过滤；是否需要执行由工作流内部的变更检测和 job 条件决定。无关改动必须产生固定名称的 `skipped` 检查，不能让 ruleset 等待不存在的检查。包检查与 MySQL 版本检查使用独立 job，保留 `packages-quality (shared)`、`packages-quality (mcp)`、`Backend runtime (MySQL 8.0)` 和 `Backend runtime (MySQL 5.7)` 的既有名称。MySQL 8.0 的固定检查汇总所有分片结果，不能只依赖 matrix 的动态名称；无关改动时，固定检查仍产生 `skipped`。
 
 `packages-quality` 与 `backend-runtime-tests` 提供固定的汇总检查：只有未选中的任务允许 `skipped`，选中的任务失败、取消或意外跳过都必须失败。变更检测失败时，各必需检查也必须失败，不能视作无关改动跳过。手动质量检查的应用开关优先于路径检测。
 

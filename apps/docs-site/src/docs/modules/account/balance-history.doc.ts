@@ -13,11 +13,11 @@ export default defineDocsPage({
     'zh-CN': '账户余额与转出',
   },
   summary: {
-    en: 'Check your balance, redeem codes, create gift codes, transfer balance, and review account transactions.',
-    'zh-CN': '说明余额查看、兑换充值、生成兑换码、直接转账和账户资金流水。',
+    en: 'Check your balance and overdraft credit, redeem codes, transfer balance, and review account transactions.',
+    'zh-CN': '说明余额与超额消费额度查看、兑换充值、生成兑换码、直接转账和账户资金流水。',
   },
-  tags: ['balance', 'redemption', 'gift-code', 'transfer', 'transaction'],
-  updatedAt: '2026-11-08',
+  tags: ['balance', 'overdraft', 'redemption', 'gift-code', 'transfer', 'transaction'],
+  updatedAt: '2026-11-23',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

@@ -4,8 +4,23 @@ import {
   adjustAccountSchema,
   batchOverdraftSchema,
   overdraftRuleSchema,
+  previewOverdraftSchema,
 } from "@/api/schema/billing/balance-management.schema";
 describe("balance management input", () => {
+  it("accepts username previews and keeps legacy ID requests compatible", () => {
+    expect(previewOverdraftSchema.parse({ usernames: [" alice ", "bob"] })).toEqual({ usernames: ["alice", "bob"] });
+    expect(previewOverdraftSchema.parse({ userIds: ["user-1"] })).toEqual({ userIds: ["user-1"] });
+  });
+  it.each([
+    {},
+    { usernames: [] },
+    { usernames: [" "] },
+    { userIds: ["user-1"], usernames: ["alice"] },
+    { usernames: Array.from({ length: 201 }, (_, i) => `user_${i}`) },
+    { usernames: ["a".repeat(192)] },
+  ])("rejects invalid or ambiguous preview targets: %j", (body) => {
+    expect(previewOverdraftSchema.safeParse(body).success).toBe(false);
+  });
   it("requires target values to carry the expected original value", () => {
     const input = {
       userId: "user-1",

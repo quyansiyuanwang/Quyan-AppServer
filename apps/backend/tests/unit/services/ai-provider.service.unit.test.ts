@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
 import { AIProviderService } from "../../../src/services/chat/ai-provider.service";
+import { CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from "../../../src/constant/chat";
 
 vi.mock("axios", () => ({
   default: {
@@ -83,7 +84,7 @@ describe("AIProviderService", () => {
 
     expect(mockedPost).toHaveBeenCalledWith(
       "https://upstream.example.com/v1/messages",
-      expect.objectContaining({ model: "claude-3-5-sonnet", stream: true }),
+      expect.objectContaining({ model: "claude-3-5-sonnet", stream: true, max_tokens: 4096 }),
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer test-key",
@@ -92,6 +93,30 @@ describe("AIProviderService", () => {
         }),
         responseType: "stream",
       }),
+    );
+  });
+
+  it.each([undefined, 256])("preserves the Anthropic default and explicit output cap (%s)", async (maxOutputTokens) => {
+    mockedPost.mockResolvedValue({
+      data: createAsyncChunkStream([
+        'data: {"type":"message_stop","message":{"usage":{"input_tokens":12,"output_tokens":5}}}\n\n',
+      ]),
+    } as any);
+    await collectChunks(
+      AIProviderService.getInstance().streamChat(
+        [],
+        "claude-3-5-sonnet",
+        "test-key",
+        "https://upstream.example.com",
+        undefined,
+        undefined,
+        { maxOutputTokens },
+      ),
+    );
+    expect(mockedPost).toHaveBeenCalledWith(
+      "https://upstream.example.com/v1/messages",
+      expect.objectContaining({ max_tokens: maxOutputTokens ?? CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS }),
+      expect.anything(),
     );
   });
 

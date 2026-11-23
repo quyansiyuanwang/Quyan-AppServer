@@ -11,6 +11,8 @@ export interface CompositeExecutionContext {
   path: RelayTokenWithRelations[];
   retryStatusCodes: string[];
   lastUpstreamStatus?: number;
+  modelRequest?: { requestedModel: string; requestFormat: import("@/util/relay").RelayRequestFormat };
+  ingressBody?: unknown;
   lease?: unknown;
   stopHeartbeat?: () => void;
 }

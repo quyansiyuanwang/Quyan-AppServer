@@ -17,10 +17,7 @@ import type {
 import { RootlessDockerWorkspaceProvider } from "./workspace-runtime.service";
 import { AgentRuntimeGateway } from "./agent-runtime.gateway";
 import { AgentRepository } from "@/store/agent/agent.repository";
-import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
-import { parseRelayTokenAllowedModelIds } from "@/util/relay";
-import { isModelIdAllowed, resolveModelId } from "@/util/model-resolution.util";
-import { resolveMappedModel } from "@/util/model-mapping.util";
+import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
@@ -49,7 +46,10 @@ export class AgentService {
   private static instance: AgentService;
   private constructor(
     private readonly repository: AgentRepository = AgentRepository.getInstance(),
-    private readonly modelPricingRepository = ModelPricingRepository.getInstance(),
+    private readonly relayProxyService: Pick<
+      RelayProxyService,
+      "canServeRequestedModel"
+    > = RelayProxyService.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new AgentService());
@@ -376,21 +376,9 @@ export class AgentService {
     const requestedModel = body.model.trim();
     if (!requestedModel)
       throw new BadRequestError("Agent model is required", undefined, { messageKey: "agent.modelRequired" });
-    const effectiveModel = resolveMappedModel(
-      requestedModel,
-      null,
-      token.modelMapping as Record<string, string> | null | undefined,
-    ).trim();
-    const modelPricing = await this.modelPricingRepository.listActiveOrderedByModel();
-    const modelConfig = modelPricing.find((config) => resolveModelId(config).trim() === effectiveModel);
-    if (!modelConfig)
-      throw new BadRequestError(`Model ${requestedModel} is not configured`, undefined, {
+    if (!(await this.relayProxyService.canServeRequestedModel(token.id, requestedModel)))
+      throw new BadRequestError(`Model ${requestedModel} is not configured for this relay token`, undefined, {
         messageKey: "agent.modelNotConfigured",
-      });
-    const allowedModelIds = parseRelayTokenAllowedModelIds(token.allowedModels);
-    if (allowedModelIds.length > 0 && !isModelIdAllowed(allowedModelIds, modelConfig))
-      throw new ForbiddenError(`Relay token does not allow model ${requestedModel}`, undefined, {
-        messageKey: "agent.modelNotAllowed",
       });
     const limits = workspace.limits as Record<string, number>;
     if (authorization) {
@@ -421,7 +409,7 @@ export class AgentService {
         workspaceId: workspace.id,
         conversationId,
         relayTokenId: token.id,
-        model: resolveModelId(modelConfig),
+        model: requestedModel,
         prompt: body.content,
         maxSteps: body.maxSteps || limits.maxSteps || 30,
         budget: body.budget ?? limits.budget,

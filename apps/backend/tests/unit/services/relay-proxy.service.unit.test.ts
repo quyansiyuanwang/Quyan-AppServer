@@ -9,6 +9,7 @@ import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { env } from "../../../src/config/env";
 import { GatewayTimeoutError, LockBackendUnavailableError, TooManyRequestsError } from "../../../src/util/errors";
 import { OperationType } from "../../../src/constant/operation-type";
+import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
 
 vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
@@ -3399,12 +3400,74 @@ describe("RelayProxyService failover", () => {
       );
     });
 
-    it("keeps available models canonical when token mappings use aliases", async () => {
+    it("lists token aliases and their targets on unrestricted channels without exposing unrelated catalog models", async () => {
       const relayToken = createRelayToken();
       relayToken.modelMapping = { "customer-model": "gpt-4o-mini" };
-      const { service } = createService();
+      const { service, modelPricingService } = createService();
+      const catalog = await modelPricingService.getModelPricing();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        ...catalog,
+        { ...catalog[0]!, model: "unrelated-model", provider: "unrelated-model" },
+      ]);
 
-      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([]);
+      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([
+        "customer-model",
+        "gpt-4o-mini",
+      ]);
+    });
+
+    it("applies a protocol transform once when discovering mapped models", async () => {
+      const token = createRelayToken();
+      token.requestFormatTransforms = [
+        { sourceFormat: "anthropic", targetFormat: "openai-chat-completions" },
+        { sourceFormat: "openai-chat-completions", targetFormat: "openai-responses" },
+      ];
+      token.modelMappingRules = [{ source: "alias", target: "gpt-4o-mini", preference: "mapping-first" }];
+      for (const edge of token.channelConfigs) edge.channel.allowedFormats = "openai-chat-completions";
+      const { service, modelPricingService } = createService();
+      const catalog = await modelPricingService.getModelPricing();
+      modelPricingService.getModelPricing.mockResolvedValue(
+        catalog.map((row: ModelPricingDto) => ({ ...row, supportedFormats: "openai-chat-completions" })),
+      );
+      await expect(service.getAvailableModelsForToken(token, "anthropic")).resolves.toContain("alias");
+    });
+
+    it("retries the original model on a channel without the mapped target and bills the successful model", async () => {
+      const token = createRelayToken();
+      token.modelMappingRules = [{ source: "gpt-4o", target: "gpt-4o-mini", preference: "mapping-first" }];
+      token.channelConfigs[0].channel.allowedModels = '["gpt-4o-mini"]';
+      token.channelConfigs[1].channel.allowedModels = '["gpt-4o"]';
+      const request = createRequest({ body: { model: "gpt-4o", messages: [{ role: "user", content: "fixture" }] } });
+      const original = structuredClone(request.body);
+      const { service, modelPricingService, usageChargeService } = createService();
+      const catalog = await modelPricingService.getModelPricing();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        ...catalog,
+        { ...catalog[0]!, model: "gpt-4o", provider: "gpt-4o" },
+      ]);
+      axiosMock.mockResolvedValueOnce({
+        status: 503,
+        headers: {},
+        data: { error: { message: "fixture unavailable" } },
+      });
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: {},
+        data: { choices: [{ message: { content: "fixture" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } },
+      });
+      await expect(service.forwardRequest(token, request)).resolves.toMatchObject({ status: 200 });
+      expect(
+        axiosMock.mock.calls.map(([config]) => {
+          const upstream = config as unknown as { data: Buffer };
+          return JSON.parse(upstream.data.toString("utf8")).model;
+        }),
+      ).toEqual(["gpt-4o-mini", "gpt-4o"]);
+      expect(request.body).toEqual(original);
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledOnce();
+      expect(usageChargeService.chargeUsage.mock.calls[0]?.[0]).toMatchObject({
+        modelId: "gpt-4o",
+        channelId: "channel-secondary",
+      });
     });
   });
 
