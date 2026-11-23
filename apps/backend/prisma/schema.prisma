@@ -1606,6 +1606,7 @@ model RelayToken {
   streamConfig                        Json?
   ipWhitelist                         String?   @db.Text
   modelMapping                        Json?
+  modelMappingRules                   Json?
   isCustomKey                         Boolean   @default(false)
   carpoolMemberId                     String?   @unique
 

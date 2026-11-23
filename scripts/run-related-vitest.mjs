@@ -11,10 +11,12 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
-const [workspace, sourcePrefix, changedFilesJson] = process.argv.slice(2)
+const [workspace, sourcePrefix, changedFilesJson, ...vitestArgs] = process.argv.slice(2)
 
 if (!workspace || !sourcePrefix || !changedFilesJson) {
-  console.error('Usage: run-related-vitest.mjs <workspace> <source-prefix> <changed-files-json>')
+  console.error(
+    'Usage: run-related-vitest.mjs <workspace> <source-prefix> <changed-files-json> [vitest-args...]',
+  )
   process.exit(2)
 }
 
@@ -52,8 +54,16 @@ const projectArgs = selectedProjects.flatMap((project) => ['--project', project]
 // their suites need (Prisma Client, domain-view/i18n manifests) before running
 // Vitest, so this selector never has to know about those prerequisites.
 const command = backendWorkspace
-  ? ['--filter', '@quyan/backend', 'run', 'test:related', ...projectArgs, ...relatedFiles]
-  : ['--filter', '@quyan/frontend', 'run', 'test:related', ...relatedFiles]
+  ? [
+      '--filter',
+      '@quyan/backend',
+      'run',
+      'test:related',
+      ...projectArgs,
+      ...vitestArgs,
+      ...relatedFiles,
+    ]
+  : ['--filter', '@quyan/frontend', 'run', 'test:related', ...vitestArgs, ...relatedFiles]
 
 const result = spawnSync('pnpm', command, {
   cwd: workspace,

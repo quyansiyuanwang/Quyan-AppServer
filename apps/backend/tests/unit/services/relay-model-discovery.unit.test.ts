@@ -22,6 +22,27 @@ describe("credential-free model discovery", () => {
   it("does not dump the pricing catalog through an unrestricted channel", () => {
     expect(project({}, [channel({ allowedModels: null })])).toEqual([]);
   });
+  it.each(["model-a", "A"])("retains the configured target %s and alias on unrestricted routes", (target) => {
+    expect(project({ modelMapping: { requested: target } }, [channel({ allowedModels: null })])).toEqual([
+      "model-a",
+      "requested",
+    ]);
+  });
+  it("retains structured mapping targets without listing unrelated catalog models", () => {
+    expect(
+      project({ modelMappingRules: [{ source: "requested", target: "model-a", preference: "mapping-first" }] }, [
+        channel({ allowedModels: null }),
+      ]),
+    ).toEqual(["model-a", "requested"]);
+  });
+  it("still checks restrictions and protocols for configured targets on unrestricted routes", () => {
+    const unrestricted = [channel({ allowedModels: null })];
+    expect(project({ allowedModels: "requested", modelMapping: { requested: "model-a" } }, unrestricted)).toEqual([
+      "requested",
+    ]);
+    expect(project({ modelMapping: { requested: "model-b", missing: "missing-model" } }, unrestricted)).toEqual([]);
+    expect(project({ modelMapping: { requested: "model-a" } }, [channel({ allowedModels: "[]" })])).toEqual([]);
+  });
   it("honors token model restrictions and protocol independently", () => {
     expect(project({ allowedModels: "model-b" })).toEqual([]);
     expect(project({}, [channel({ allowedFormats: "anthropic" })])).toEqual([]);

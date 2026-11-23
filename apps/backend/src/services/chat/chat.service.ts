@@ -1,6 +1,6 @@
 import { withContentSafetyGenerator, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
-import { CHAT_MESSAGE_STORAGE_LIMIT_BYTES } from "@/constant/chat";
+import { CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS, CHAT_MESSAGE_STORAGE_LIMIT_BYTES } from "@/constant/chat";
 import { aiContentTooLarge } from "@/util/streaming/bounded-text";
 import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { ConversationRepository } from "@/store/chat/conversation.repository";
@@ -21,18 +21,11 @@ import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
 import type { Message as PrismaMessage, RelayChannel } from "@prisma/client";
 import type { ChatStreamEvent, ChatStreamMessage } from "@quyan/shared";
-import { ALL_RELAY_REQUEST_FORMATS } from "@quyan/shared";
+import { RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
-import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
-import {
-  parseRelayRequestFormats,
-  parseRelayChannelAllowedModelNames,
-  parseRelayTokenAllowedModelIds,
-  requireRelayChannelForFormat,
-  type RelayConfiguredRequestFormat,
-  type RelayRequestFormat,
-  supportsRelayRequestFormat,
-} from "@/util/relay";
+import { resolveModelId } from "@/util/model-resolution.util";
+import { requireRelayChannelForFormat, type RelayConfiguredRequestFormat, type RelayRequestFormat } from "@/util/relay";
+import { resolveRelayModelRoute } from "@/services/relay/utils/relay-model-route.util";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService, type RelayAttemptPlan } from "@/services/relay/relay-proxy.service";
@@ -41,6 +34,13 @@ import { shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
 import { ContentSafetyBlockedError } from "@/util/errors";
 import { RelayChannelHealthService } from "@/services/relay/relay-channel-health.service";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { BoundedByteFrames } from "@/util/streaming/bounded-byte-frames";
+import { extractTokenUsageMetrics } from "@/util/token-usage.util";
+import { convertRelayRequest } from "@/services/relay/relay-request-format-transform.service";
+import { relayConvertedRequestPath } from "@/services/relay/utils/relay-request-format.util";
+import { setAIRequestLogContext } from "@/util/ai-request-log-context";
 
 interface ChatRequestMeta {
   path?: string;
@@ -66,6 +66,36 @@ interface ChatRouteCandidate {
   modelPricing: ModelPricing;
 }
 
+/** HTTP response surface used by the relay, backed by a bounded, backpressured in-process stream. */
+class ChatRelayResponse extends PassThrough {
+  headersSent = false;
+  statusCode = 200;
+  locals = {};
+  private readonly headers = new Map<string, unknown>();
+  setHeader(name: string, value: unknown) {
+    this.headers.set(name.toLowerCase(), value);
+    return this;
+  }
+  getHeader(name: string) {
+    return this.headers.get(name.toLowerCase());
+  }
+  writeHead(status: number, headers: Record<string, unknown> = {}) {
+    this.statusCode = status;
+    for (const [name, value] of Object.entries(headers)) this.setHeader(name, value);
+    this.headersSent = true;
+    return this;
+  }
+  status(status: number) {
+    this.statusCode = status;
+    return this;
+  }
+  json(data: unknown) {
+    this.writeHead(this.statusCode, { "content-type": "application/json" });
+    this.end(JSON.stringify(data));
+    return this;
+  }
+}
+
 export class ChatService {
   private static instance: ChatService;
 
@@ -89,27 +119,13 @@ export class ChatService {
     return this.instance;
   }
 
-  private resolveRequestedPricings(pricingList: ModelPricing[], requestedModelId: string): ModelPricing[] {
-    const normalizedModelId = requestedModelId.trim();
-    if (!normalizedModelId) return [];
-    // Multiple pricing names may share an upstream ID. Select the name only
-    // after resolving the channel, whose allow-list determines its pricing.
-    return pricingList.filter((pricing) => resolveModelId(pricing) === normalizedModelId);
-  }
-
-  private getPreferredRequestFormatOrder(
-    modelId: string,
-    supportedFormats?: string | null,
-  ): RelayConfiguredRequestFormat[] {
+  private getPreferredRequestFormatOrder(modelId: string): RelayConfiguredRequestFormat[] {
     const preferredFormat = this.aiProvider.getProvider(modelId);
-    const supported = parseRelayRequestFormats(supportedFormats);
     const fallbackOrder: RelayConfiguredRequestFormat[] = [
       preferredFormat === "openai" ? "openai-chat-completions" : preferredFormat,
-      ...ALL_RELAY_REQUEST_FORMATS,
+      ...RELAY_REQUEST_FORMATS,
     ];
-    return fallbackOrder.filter(
-      (format, index) => supported.includes(format) && fallbackOrder.indexOf(format) === index,
-    );
+    return fallbackOrder.filter((format, index) => fallbackOrder.indexOf(format) === index);
   }
 
   private getUpstreamConfigForFormat(
@@ -138,7 +154,7 @@ export class ChatService {
   private async resolveChatRouteCandidates(
     token: RelayTokenWithChannel,
     modelPricings: ModelPricing[],
-    selectedModelId: string,
+    requestedModel: string,
   ): Promise<{ candidates: ChatRouteCandidate[]; attemptPlan: RelayAttemptPlan }> {
     const attemptPlan = await this.relayProxyService.getChatAttemptPlan(token);
     const candidateChannels = attemptPlan.channels;
@@ -151,47 +167,46 @@ export class ChatService {
       );
 
     const candidates: ChatRouteCandidate[] = [];
+    const unavailableReasons = new Set<string>();
     for (const candidate of candidateChannels) {
       const channel = candidate.resolvedChannel;
-      const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
-      const namedPricings = modelPricings.filter((pricing) =>
-        isModelNameAllowed(channelAllowedModels, pricing.model.trim()),
-      );
-      const channelPricings =
-        namedPricings.length > 0
-          ? namedPricings
-          : isModelNameAllowed(channelAllowedModels, selectedModelId)
-            ? modelPricings
-            : [];
-      const candidateCount = candidates.length;
-      for (const modelPricing of channelPricings) {
-        const orderedFormats = this.getPreferredRequestFormatOrder(selectedModelId, modelPricing.supportedFormats);
-        for (const requestFormat of orderedFormats) {
-          const channelAllowedFormats = channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini";
-          if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
-
-          const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
-          const upstreamUrl = config.upstreamUrl?.trim();
-          const upstreamApiKey = config.upstreamApiKey?.trim();
-          if (upstreamUrl && upstreamApiKey) {
-            candidates.push({
-              channel,
-              displayChannel: candidate.displayChannel,
-              requestFormat,
-              upstreamUrl,
-              upstreamApiKey,
-              modelPricing,
-            });
-            break;
-          }
+      for (const requestFormat of this.getPreferredRequestFormatOrder(requestedModel)) {
+        const route = resolveRelayModelRoute({
+          requestedModel,
+          requestFormat,
+          tokens: [token],
+          channel,
+          channelPathIds: candidate.routingChannelIds,
+          modelCatalog: modelPricings,
+        });
+        if (!route.modelConfig) {
+          unavailableReasons.add(route.reason);
+          continue;
         }
-        if (candidates.length > candidateCount) break;
+        const config = this.getUpstreamConfigForFormat(token, channel, route.requestFormat);
+        const upstreamUrl = config.upstreamUrl?.trim();
+        const upstreamApiKey = config.upstreamApiKey?.trim();
+        if (upstreamUrl && upstreamApiKey) {
+          candidates.push({
+            channel,
+            displayChannel: candidate.displayChannel,
+            requestFormat: route.requestFormat,
+            upstreamUrl,
+            upstreamApiKey,
+            modelPricing: route.modelConfig,
+          });
+          break;
+        }
       }
     }
 
     if (candidates.length) return { candidates, attemptPlan };
 
-    throw new BadRequestError(`Model ID ${selectedModelId} has no compatible upstream configuration`, undefined, {
+    if (unavailableReasons.has("model-not-allowed"))
+      throw new BadRequestError(`Relay token does not allow model ${requestedModel}`, undefined, {
+        messageKey: "relayProxy.tokenModelNotAllowed",
+      });
+    throw new BadRequestError(`Model ID ${requestedModel} is not configured with a compatible upstream`, undefined, {
       messageKey: "chat.modelNoCompatibleUpstream",
     });
   }
@@ -247,6 +262,252 @@ export class ChatService {
       completionStatus: message.completionStatus,
       createTime: message.createTime.toISOString(),
     };
+  }
+
+  private async *streamCompositeCompletion(
+    token: RelayTokenWithChannel,
+    requestedModel: string,
+    content: string,
+    conversationId?: string,
+    requestMeta?: ChatRequestMeta,
+    replaceMessageId?: string,
+    generation?: { maxOutputCharacters: number },
+  ): AsyncGenerator<ModelCompletionEvent> {
+    // Include the concrete request seed so wildcard aliases need no independent catalog row.
+    let format: RelayConfiguredRequestFormat | undefined;
+    for (const candidate of this.getPreferredRequestFormatOrder(requestedModel)) {
+      const routes = await this.relayProxyService.getCompositeCatalog(token.id, candidate, undefined, [requestedModel]);
+      if (routes.some((route) => route.model === requestedModel)) {
+        format = candidate;
+        break;
+      }
+    }
+    if (!format)
+      throw new BadRequestError("No compatible composite chat route", undefined, {
+        messageKey: "chat.modelNoCompatibleUpstream",
+      });
+    if (requestMeta?.signal?.aborted) return;
+    if (conversationId) await this.assertContextBudget(conversationId, token.userId, content, replaceMessageId);
+    if (conversationId && replaceMessageId) {
+      const message = await this.messageRepo.findById(replaceMessageId);
+      if (!message || message.conversationId !== conversationId || message.role !== "user")
+        throw new BadRequestError("The message to replace must be a user message in this conversation", undefined, {
+          messageKey: "chat.replaceTargetInvalid",
+        });
+      await this.messageRepo.replaceFrom(replaceMessageId, content);
+    } else if (conversationId) await this.messageRepo.create({ conversationId, role: "user", content });
+    const limits = getAIResourceConfig().chat.resourceLimits;
+    const history = conversationId
+      ? await this.messageRepo.findContext(conversationId, limits.contextMaxMessages)
+      : [{ role: "user", content }];
+    const historyBytes = history.reduce((sum, message) => sum + Buffer.byteLength(message.content), 0);
+    if (
+      (limits.contextMaxMessages > 0 && history.length > limits.contextMaxMessages) ||
+      historyBytes > limits.contextLimitBytes
+    )
+      throw aiContentTooLarge();
+    const messages = history.map(({ role, content }) => ({ role, content }));
+    const usage = { inputTokens: 0, outputTokens: 0 };
+    let answer = "";
+    let answerBytes = 0;
+    let failure: unknown;
+    let stopped = false;
+    let completed = false;
+    let message: PrismaMessage | undefined;
+    try {
+      for await (const delta of this.streamCompositeRelay(
+        token,
+        requestedModel,
+        messages,
+        format,
+        usage,
+        requestMeta,
+      )) {
+        const nextBytes = answerBytes + Buffer.byteLength(delta);
+        if (
+          nextBytes > limits.outputLimitBytes ||
+          nextBytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES ||
+          historyBytes + nextBytes > limits.contextLimitBytes ||
+          (limits.contextMaxMessages > 0 && history.length + 1 > limits.contextMaxMessages)
+        )
+          throw aiContentTooLarge();
+        if (generation && answer.length + delta.length > generation.maxOutputCharacters)
+          throw new BadRequestError("Generation output exceeds the limit", undefined, {
+            messageKey: "chat.generationOutputTooLarge",
+          });
+        answerBytes = nextBytes;
+        answer += delta;
+        yield { type: "delta", content: delta, done: false };
+      }
+      if (!answer)
+        throw new BadRequestError("Upstream completed without a visible response", undefined, {
+          messageKey: "chat.upstreamNoVisibleResponse",
+        });
+      completed = true;
+    } catch (error) {
+      stopped = this.isAborted(error, requestMeta?.signal);
+      if (!stopped) failure = error;
+    } finally {
+      stopped ||= Boolean(requestMeta?.signal?.aborted) || (!completed && !failure);
+      // Proxy owns physical pricing, usage records and every token's settlement. Chat never charges again.
+      // Protocol usage has no settled price, so preserve unknown cost rather than inventing a price.
+      if (conversationId && answer)
+        message = await this.messageRepo.create({
+          conversationId,
+          role: "assistant",
+          content: answer,
+          model: requestedModel,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.inputTokens + usage.outputTokens,
+          completionStatus: stopped ? "stopped" : failure ? "failed" : "completed",
+        });
+    }
+    if (failure) throw failure;
+    if (stopped || requestMeta?.signal?.aborted) return;
+    if (message) yield { type: "complete", done: true, message: this.toStreamMessage(message) };
+    else yield { type: "generation-complete", done: true };
+  }
+
+  private async *streamCompositeRelay(
+    token: RelayTokenWithChannel,
+    requestedModel: string,
+    messages: Array<{ role: string; content: string }>,
+    format: RelayConfiguredRequestFormat,
+    usage: { inputTokens: number; outputTokens: number },
+    meta?: ChatRequestMeta,
+  ): AsyncGenerator<string> {
+    const response = new ChatRelayResponse({
+      highWaterMark: getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    });
+    const request = Object.assign(new EventEmitter(), {
+      method: "POST",
+      path:
+        format === "gemini"
+          ? `/relay/proxy/v1beta/models/${encodeURIComponent(requestedModel)}:streamGenerateContent`
+          : `/relay/proxy${relayConvertedRequestPath(format)}`,
+      headers: { "content-type": "application/json" },
+      query: format === "gemini" ? { alt: "sse" } : {},
+      ip: meta?.ipAddress || "unknown",
+      aborted: false,
+      res: response,
+      body:
+        format === "gemini"
+          ? {
+              contents: messages.map((message) => ({
+                role: message.role === "assistant" ? "model" : "user",
+                parts: [{ text: message.content }],
+              })),
+            }
+          : convertRelayRequest(
+              // A nested composite member may convert to Anthropic, which requires a cap.
+              // Preserve Chat's existing Anthropic default independently of byte limits.
+              { model: requestedModel, messages, stream: true, max_tokens: CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS },
+              "openai-chat-completions",
+              format,
+            ),
+    });
+    setAIRequestLogContext(response as unknown as Parameters<typeof setAIRequestLogContext>[0], {
+      requestId: meta?.requestId || randomUUID(),
+    });
+    const abort = () => {
+      request.aborted = true;
+      request.emit("aborted");
+      response.destroy(Object.assign(new Error("Chat request aborted"), { name: "AbortError" }));
+    };
+    // Attach an error observer before forwarding, including an already-aborted request.
+    response.on("error", () => {});
+    meta?.signal?.addEventListener("abort", abort, { once: true });
+    if (meta?.signal?.aborted) abort();
+    let forwardingError: unknown;
+    const forwarding = Promise.resolve()
+      .then(async () => {
+        if (request.aborted) return;
+        const result = await this.relayProxyService.forwardRequest(token, request, response);
+        if (!response.headersSent && !response.destroyed) response.status(result.status).json(result.data);
+      })
+      .catch((error: unknown) => {
+        forwardingError = error;
+        response.destroy(error instanceof Error ? error : new Error("Composite relay failed"));
+      });
+    const frames = new BoundedByteFrames(
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+      format === "gemini" ? "gemini" : "sse",
+    );
+    let hasText = false;
+    const parseFrame = (frame: Buffer): string => {
+      const raw = frame.toString("utf8").trim();
+      if (!raw) return "";
+      const data =
+        raw.startsWith("{") || raw.startsWith("[")
+          ? raw
+          : raw
+              .split(/\r?\n/)
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trimStart())
+              .join("\n");
+      if (!data || data === "[DONE]") return "";
+      const payload = JSON.parse(data);
+      if (response.statusCode >= 400 || payload.error || payload.type === "response.failed") {
+        const error = payload.error ?? payload.response?.error;
+        if (error?.type === "content_safety_blocked") throw new ContentSafetyBlockedError();
+        if (response.statusCode === 413 || Number(error?.code) === 413) throw aiContentTooLarge();
+        throw new BadRequestError("Composite upstream stream failed", undefined, {
+          messageKey: "chat.upstreamNoVisibleResponse",
+        });
+      }
+      const metrics = extractTokenUsageMetrics(
+        payload.usage ?? payload.message?.usage ?? payload.response?.usage ?? payload.usageMetadata,
+      );
+      usage.inputTokens = Math.max(usage.inputTokens, metrics.inputTokens);
+      usage.outputTokens = Math.max(usage.outputTokens, metrics.outputTokens);
+      let text = "";
+      if (format === "gemini")
+        text = (payload.candidates?.[0]?.content?.parts ?? [])
+          .map((part: { text?: string }) => part.text ?? "")
+          .join("");
+      else if (format === "anthropic") {
+        if (payload.type === "content_block_delta" && payload.delta?.type === "text_delta") text = payload.delta.text;
+        else if (payload.type === "content_block_start" && payload.content_block?.type === "text")
+          text = payload.content_block.text;
+        else if (!payload.type || payload.type === "message")
+          text = (payload.content ?? [])
+            .filter((part: { type: string }) => part.type === "text")
+            .map((part: { text: string }) => part.text)
+            .join("");
+      } else if (format === "openai-responses") {
+        if (payload.type === "response.output_text.delta") text = payload.delta;
+        else if (!hasText && (payload.type === "response.completed" || payload.object === "response"))
+          text = (payload.response?.output ?? payload.output ?? [])
+            .flatMap((item: { content?: Array<{ text?: string }> }) => item.content ?? [])
+            .map((item: { text?: string }) => item.text ?? "")
+            .join("");
+      } else text = payload.choices?.[0]?.delta?.content ?? payload.choices?.[0]?.message?.content ?? "";
+      if (typeof text !== "string") return "";
+      hasText ||= text.length > 0;
+      return text;
+    };
+    try {
+      for await (const chunk of response)
+        for (const frame of frames.feed(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))) {
+          const text = parseFrame(frame);
+          if (text) yield text;
+        }
+      const tail = frames.finish();
+      if (tail) {
+        const text = parseFrame(tail);
+        if (text) yield text;
+      }
+      await forwarding;
+      if (forwardingError) throw forwardingError;
+      if (meta?.signal?.aborted) throw Object.assign(new Error("Chat request aborted"), { name: "AbortError" });
+    } finally {
+      if (!response.readableEnded) abort();
+      response.destroy();
+      meta?.signal?.removeEventListener("abort", abort);
+      frames.clear();
+      await forwarding;
+    }
   }
 
   async createConversation(userId: string, title?: string, relayTokenId?: string) {
@@ -441,6 +702,21 @@ export class ChatService {
     if (!requestedModel)
       throw new BadRequestError("Model is required", undefined, { messageKey: "chat.modelRequired" });
 
+    if (token.routingMode === "composite") {
+      if (token.status !== 1 || (token.expiresAt && token.expiresAt.getTime() <= Date.now()))
+        throw new ForbiddenError("Inactive composite token", undefined, { messageKey: "relayToken.invalid" });
+      yield* this.streamCompositeCompletion(
+        token,
+        requestedModel,
+        content,
+        conversationId,
+        requestMeta,
+        replaceMessageId,
+        generation,
+      );
+      return;
+    }
+
     if (typeof this.contentSafetyService.prepareAttempt === "function")
       await this.contentSafetyService.prepareAttempt({ userId, tokenConfig: token.contentSafetyConfig as any });
     const requestSafety = await this.contentSafetyService.evaluate("request", content, {
@@ -471,26 +747,10 @@ export class ChatService {
 
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
-    const requestedPricings = this.resolveRequestedPricings(configuredModels, requestedModel);
-    if (requestedPricings.length === 0)
-      throw new BadRequestError(`Model '${requestedModel}' is not configured`, undefined, {
-        messageKey: "chat.modelNotConfigured",
-      });
-
-    const selectedModelId = requestedModel;
-    const { candidates, attemptPlan } = await this.resolveChatRouteCandidates(
-      token,
-      requestedPricings,
-      selectedModelId,
-    );
+    const { candidates, attemptPlan } = await this.resolveChatRouteCandidates(token, configuredModels, requestedModel);
     let resolvedPricing = candidates[0]!.modelPricing;
+    let selectedModelId = resolveModelId(resolvedPricing);
     let selectedModelName = resolvedPricing.model.trim();
-
-    const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(token.allowedModels);
-    if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, resolvedPricing))
-      throw new BadRequestError(`Relay token does not allow model ${requestedModel}`, undefined, {
-        messageKey: "relayProxy.tokenModelNotAllowed",
-      });
 
     if (conversationId) await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
     if (conversationId && replaceMessageId) {
@@ -555,6 +815,7 @@ export class ChatService {
       const candidate = attemptCandidates[attemptIndex];
       if (!candidate) continue;
       resolvedPricing = candidate.modelPricing;
+      selectedModelId = resolveModelId(resolvedPricing);
       selectedModelName = resolvedPricing.model.trim();
       if (token.routingMode === "automatic-pool")
         this.relayProxyService.assertRelayChannelMultiplierAccepted(candidate.channel, attemptPlan.failoverConfig);

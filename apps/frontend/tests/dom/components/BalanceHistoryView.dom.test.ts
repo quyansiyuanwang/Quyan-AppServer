@@ -155,6 +155,8 @@ vi.mock('@/views/relay/balance-history/components/BalanceTransferPanel.vue', () 
 import BalanceHistoryView from '@/views/relay/BalanceHistoryView.vue'
 import ConsumptionRecordsView from '@/views/relay/ConsumptionRecordsView.vue'
 import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
+import * as requestErrorNotice from '@/utils/requestErrorNotice'
+import { i18ns } from '@/locales'
 
 const createTransactions = () =>
   [
@@ -227,6 +229,109 @@ describe('BalanceHistoryView', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
+  })
+
+  const setupCredit = (overrides: Record<string, unknown> = {}) => {
+    const overdraft = {
+      overdraftLimit: 20,
+      usedOverdraft: 5.1234,
+      remainingOverdraft: 14.8766,
+      categories: ['relay', 'chat'],
+      calculationError: false,
+      accountActive: true,
+      ...overrides,
+    }
+    getMyBalanceMock.mockResolvedValue({ data: { balance: -5.1234, overdraft } })
+    getUsageStatisticsMock.mockResolvedValue({ data: { total: 100, used: 10, remaining: 90 } })
+    getMyTransactionsMock.mockResolvedValue({ data: { records: [], total: 0 } })
+    sessionGetRecentMock.mockResolvedValue([])
+    sessionGetAllByIndexMock.mockResolvedValue([])
+    return overdraft
+  }
+
+  it('shows the server credit limit, used amount, remaining amount, and permitted categories', async () => {
+    setupCredit()
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-credit="limit"] dd').text()).toContain('20')
+    expect(wrapper.find('[data-credit="used"] dd').text()).toContain('5.1234')
+    expect(wrapper.find('[data-credit="remaining"] dd').text()).toContain('14.8766')
+    expect(wrapper.find('.balance-credit').text()).toContain(
+      i18ns.t('balance.overdraft.category.relay'),
+    )
+    expect(wrapper.find('.balance-credit').text()).toContain(
+      i18ns.t('balance.overdraft.category.chat'),
+    )
+    expect(wrapper.find('[role="status"]').text()).toBe(i18ns.t('balance.overdraft.hint'))
+    wrapper.unmount()
+  })
+
+  it.each([
+    [{ overdraftLimit: 0, remainingOverdraft: 0 }, 'disabled'],
+    [{ categories: [], remainingOverdraft: 0 }, 'disabled'],
+    [{ accountActive: false, remainingOverdraft: 0 }, 'accountInactive'],
+    [{ calculationError: true, overdraftLimit: 0, remainingOverdraft: 0 }, 'calculationError'],
+  ])('explains unavailable credit: %j', async (overrides, status) => {
+    setupCredit(overrides)
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-credit="remaining"] dd').text()).toContain('0')
+    expect(wrapper.find('[role="status"]').text()).toBe(
+      i18ns.t(`balance.overdraft.${status}` as any),
+    )
+    wrapper.unmount()
+  })
+
+  it('uses placeholders while refreshing and after failure instead of showing stale or zero credit', async () => {
+    const notice = vi
+      .spyOn(requestErrorNotice, 'showRequestErrorNotice')
+      .mockImplementationOnce(() => {})
+    setupCredit()
+    const wrapper = await mountView()
+    let rejectLoad!: (error: Error) => void
+    getMyBalanceMock.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectLoad = reject
+        }),
+    )
+    const refresh = (wrapper.vm as any).refreshBalanceAndStats()
+    await flushPromises()
+    expect(wrapper.find('[data-credit="remaining"] dd').text()).toContain('—')
+    expect(wrapper.find('.balance-credit').attributes('aria-busy')).toBe('true')
+    rejectLoad(new Error('Balance credit refresh unavailable'))
+    await refresh
+    await flushPromises()
+    expect(wrapper.find('[data-credit="remaining"] dd').text()).toContain('—')
+    expect(wrapper.find('[role="status"]').text()).toBe(i18ns.t('balance.overdraft.unavailable'))
+    expect(notice).toHaveBeenCalled()
+    notice.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('refreshes percentage-based credit after a successful redemption', async () => {
+    const overdraft = setupCredit()
+    const wrapper = await mountView()
+    getMyBalanceMock.mockResolvedValueOnce({
+      data: {
+        balance: 94.8766,
+        overdraft: { ...overdraft, overdraftLimit: 40, usedOverdraft: 0, remainingOverdraft: 40 },
+      },
+    })
+    redeemCodeMock.mockResolvedValue({ code: 0, data: { balance: 94.8766 } })
+    ;(wrapper.vm as any).redeemCode = 'test-credit-redemption'
+    await (wrapper.vm as any).handleRedeem()
+    await flushPromises()
+    expect(getMyBalanceMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-credit="remaining"] dd').text()).toContain('40')
+    wrapper.unmount()
+  })
+
+  it('does not treat an older server without credit fields as a zero limit', async () => {
+    setupCredit()
+    getMyBalanceMock.mockResolvedValue({ data: { balance: 88 } })
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-credit="limit"] dd').text()).toContain('—')
+    expect(wrapper.find('[role="status"]').text()).toBe(i18ns.t('balance.overdraft.unavailable'))
+    wrapper.unmount()
   })
 
   it('excludes zero-charge upstream errors from request and token stats', async () => {

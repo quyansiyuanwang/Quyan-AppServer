@@ -17,10 +17,24 @@ describe("BalanceService", () => {
 
   const BalanceServiceCtor = BalanceService as unknown as new (...args: any[]) => BalanceService;
 
-  const service = new BalanceServiceCtor(balanceRepository, userRepository);
+  const overdraft = { resolve: vi.fn() };
+  const service = new BalanceServiceCtor(
+    balanceRepository,
+    userRepository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    overdraft,
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    overdraft.resolve.mockResolvedValue({
+      limit: new Decimal(20),
+      categories: ["relay", "chat"],
+      calculationError: false,
+    });
   });
 
   it("returns default zero balance account when account is missing", async () => {
@@ -46,6 +60,77 @@ describe("BalanceService", () => {
     expect(result[0]?.userId).toBe("u-1");
     expect(result[1]).toBeNull();
     expect(result[2]?.userId).toBe("u-3");
+  });
+
+  it.each([
+    [10, 0, 20],
+    [-5.1234, 5.1234, 14.8766],
+    [-20, 20, 0],
+    [-25, 25, 0],
+  ])("reports current overdraft usage for balance %s", async (balance, used, remaining) => {
+    const account = {
+      id: "account-1",
+      userId: "u-1",
+      status: 1,
+      balance: new Decimal(balance),
+      totalRecharged: new Decimal(100),
+      totalUsed: new Decimal(90),
+      createTime: new Date(),
+      updateTime: new Date(),
+      overdraftRule: { mode: "percent", percent: 20 },
+    };
+    balanceRepository.findAccountByUserId.mockResolvedValue(account);
+    const result = await service.getMyBalance("u-1");
+    expect(overdraft.resolve).toHaveBeenCalledWith(account);
+    expect(result.overdraft).toEqual({
+      overdraftLimit: 20,
+      usedOverdraft: used,
+      remainingOverdraft: remaining,
+      categories: ["relay", "chat"],
+      calculationError: false,
+      accountActive: true,
+    });
+    expect(result.balance).toBe(balance);
+    expect(result).not.toHaveProperty("overdraftRule");
+    expect(result).not.toHaveProperty("totalRecharged");
+  });
+
+  it("shows default credit for an uninitialized account without creating an account", async () => {
+    balanceRepository.findAccountByUserId.mockResolvedValue(null);
+    const result = await service.getMyBalance("u-new");
+    expect(result.userId).toBe("u-new");
+    expect(result.overdraft).toMatchObject({ accountActive: true, remainingOverdraft: 20 });
+    expect(balanceRepository.recharge).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { limit: 0, categories: ["relay"], calculationError: false, status: 1 },
+    { limit: 20, categories: [], calculationError: false, status: 1 },
+    { limit: 0, categories: ["relay"], calculationError: true, status: 1 },
+    { limit: 20, categories: ["relay"], calculationError: false, status: 0 },
+  ])("does not offer usable credit for unavailable policies: %j", async (policy) => {
+    balanceRepository.findAccountByUserId.mockResolvedValue({
+      id: "account-1",
+      userId: "u-1",
+      status: policy.status,
+      balance: new Decimal(-1),
+      createTime: new Date(),
+      updateTime: new Date(),
+    });
+    overdraft.resolve.mockResolvedValue({ ...policy, limit: new Decimal(policy.limit) });
+    const result = await service.getMyBalance("u-1");
+    expect(result.overdraft).toMatchObject({
+      remainingOverdraft: 0,
+      usedOverdraft: 1,
+      calculationError: policy.calculationError,
+      accountActive: policy.status === 1,
+    });
+  });
+
+  it("does not invent zero credit if loading the current policy fails", async () => {
+    balanceRepository.findAccountByUserId.mockResolvedValue(null);
+    overdraft.resolve.mockRejectedValueOnce(new Error("Policy is unavailable"));
+    await expect(service.getMyBalance("u-1")).rejects.toThrow("Policy is unavailable");
   });
 
   it("throws when recharge amount is zero", async () => {

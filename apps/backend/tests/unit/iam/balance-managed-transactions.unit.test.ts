@@ -16,6 +16,9 @@ vi.mock("@/config/env", () => ({
   },
 }));
 vi.mock("@/store/billing/balance.repository", () => ({ BalanceRepository: { getInstance: vi.fn() } }));
+vi.mock("@/store/billing/balance-overdraft.repository", () => ({
+  BalanceOverdraftRepository: { getInstance: vi.fn() },
+}));
 vi.mock("@/store/users/user.repository", () => ({ UserRepository: { getInstance: vi.fn() } }));
 vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
 vi.mock("@/services/users/iam-account-user-authorization.service", () => ({

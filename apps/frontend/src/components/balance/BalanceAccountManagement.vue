@@ -21,7 +21,7 @@
             />
             <el-button type="primary" @click="search">{{ t('search') }}</el-button>
             <el-button v-if="canOverdraft" @click="openBatch()"
-              >{{ t('overdraft.batch') }} ({{ selectedIds.length }})</el-button
+              >{{ t('overdraft.batch') }} ({{ selectedUsers.length }})</el-button
             >
           </div>
           <el-alert v-if="error" :title="error" type="error" :closable="false" />
@@ -146,16 +146,24 @@
       width="min(900px, 96vw)"
       :close-on-click-modal="false"
     >
-      <el-input
-        v-model="pastedIds"
-        type="textarea"
-        :rows="2"
-        :placeholder="t('overdraft.pasteHint')"
-      />
+      <el-form label-position="top">
+        <el-form-item :label="t('overdraft.batchUsernames')">
+          <el-input-tag
+            v-model="batchUsernames"
+            :placeholder="t('overdraft.usernamePlaceholder')"
+            :aria-label="t('overdraft.batchUsernames')"
+            :delimiter="/[\s,;，；]+/"
+            save-on-blur
+            clearable
+            data-testid="batch-usernames"
+          />
+        </el-form-item>
+      </el-form>
+      <p class="batch-hint">{{ t('overdraft.pasteHint') }}</p>
       <p>
         {{
           t('overdraft.targetCount', {
-            count: batchIds.length,
+            count: batchUsernames.length,
             max: BALANCE_MANAGEMENT_POLICY.batchSize,
           })
         }}
@@ -370,7 +378,7 @@ const records = ref<ManagedBalanceAccountDto[]>([]),
 const defaultRule = ref<BalanceOverdraftRule>({ ...DEFAULT_BALANCE_OVERDRAFT_RULE }),
   defaultCategories = ref<BalanceOverdraftCategory[]>([]),
   defaultVersion = ref(0)
-const selectedIds = ref<string[]>([])
+const selectedUsers = ref<ManagedBalanceAccountDto[]>([])
 const accountTable = ref<{ clearSelection(): void }>()
 async function run(task: () => Promise<void>) {
   saving.value = true
@@ -413,7 +421,7 @@ function search() {
   void load()
 }
 function selectionChanged(rows: ManagedBalanceAccountDto[]) {
-  selectedIds.value = rows.map((row) => row.userId)
+  selectedUsers.value = rows
 }
 async function saveDefaults() {
   await run(async () => {
@@ -427,19 +435,32 @@ async function saveDefaults() {
   })
 }
 const batchVisible = ref(false),
-  pastedIds = ref(''),
-  batchBaseIds = ref<string[]>([]),
+  batchNames = ref<string[]>([]),
   ruleAction = ref<'keep' | 'inherit' | 'override'>('override'),
   categoryAction = ref<'keep' | 'inherit' | 'override'>('keep')
 const batchRule = ref<BalanceOverdraftRule>({ ...DEFAULT_BALANCE_OVERDRAFT_RULE }),
   batchCategories = ref<BalanceOverdraftCategory[]>([]),
   previewRows = ref<ManagedBalanceAccountDto[]>([])
-const batchIds = computed(() => [
-  ...new Set([...batchBaseIds.value, ...pastedIds.value.split(/[\s,;，；]+/).filter(Boolean)]),
-])
+const batchUsernames = computed({
+  get: () => batchNames.value,
+  set: (values: string[] | undefined) => {
+    const names = [
+      ...new Map(
+        (values ?? [])
+          .flatMap((value) => value.split(/[\s,;，；]+/))
+          .filter(Boolean)
+          .map((name) => [name.toLowerCase(), name]),
+      ).values(),
+    ]
+    if (names.length > BALANCE_MANAGEMENT_POLICY.batchSize) {
+      ElMessage.error(t('overdraft.invalidBatch'))
+      return
+    }
+    batchNames.value = names
+  },
+})
 function openBatch(row?: ManagedBalanceAccountDto) {
-  batchBaseIds.value = row ? [row.userId] : [...selectedIds.value]
-  pastedIds.value = ''
+  batchNames.value = (row ? [row] : selectedUsers.value).map((user) => user.username)
   batchRule.value = { ...(row?.rule ?? defaultRule.value) }
   batchCategories.value = [...(row?.categories ?? defaultCategories.value)]
   ruleAction.value = 'override'
@@ -449,7 +470,7 @@ function openBatch(row?: ManagedBalanceAccountDto) {
 }
 function previewBody(): PreviewOverdraftRequest {
   return {
-    userIds: batchIds.value,
+    usernames: batchUsernames.value,
     ...(ruleAction.value === 'keep'
       ? {}
       : { rule: ruleAction.value === 'inherit' ? null : batchRule.value }),
@@ -460,7 +481,7 @@ function previewBody(): PreviewOverdraftRequest {
 }
 let batchRevision = 0
 watch(
-  [batchBaseIds, pastedIds, batchRule, batchCategories, ruleAction, categoryAction, batchVisible],
+  [batchNames, batchRule, batchCategories, ruleAction, categoryAction, batchVisible],
   () => {
     batchRevision++
     previewRows.value = []
@@ -470,14 +491,17 @@ watch(
 async function preview() {
   await run(async () => {
     if (
-      !batchIds.value.length ||
-      batchIds.value.length > BALANCE_MANAGEMENT_POLICY.batchSize ||
+      !batchUsernames.value.length ||
+      batchUsernames.value.length > BALANCE_MANAGEMENT_POLICY.batchSize ||
       (ruleAction.value === 'keep' && categoryAction.value === 'keep')
     )
       throw new Error(t('overdraft.invalidBatch'))
     const revision = batchRevision
+    previewRows.value = []
     const rows = (await service.preview(previewBody())) ?? []
-    if (revision === batchRevision) previewRows.value = rows
+    if (revision !== batchRevision) return
+    if (rows.length !== batchUsernames.value.length) throw new Error(t('overdraft.failed'))
+    previewRows.value = rows
   })
 }
 async function saveBatch() {
@@ -493,7 +517,7 @@ async function saveBatch() {
     })
     batchVisible.value = false
     accountTable.value?.clearSelection()
-    selectedIds.value = []
+    selectedUsers.value = []
     ElMessage.success(t('overdraft.saved'))
     await load()
   })
@@ -672,6 +696,11 @@ onMounted(load)
   font-size: 11px;
   color: var(--el-text-color-secondary);
   overflow-wrap: anywhere;
+}
+.batch-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }
 .account-management :deep(.amount-cell) {
   font-variant-numeric: tabular-nums;

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockDeep } from "vitest-mock-extended";
 import type { AgentRepository, PublicAgentWorkspace, PublicAgentMachine } from "@/store/agent/agent.repository";
-import type { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
+import type { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import type { TypedRequest } from "@/types/express";
 const mocks = vi.hoisted(() => ({
   mode: "enforce",
@@ -29,7 +29,7 @@ vi.mock("@/services/agent/agent-workspace-iam.service", () => ({
 vi.mock("@/services/agent/agent-machine-iam.service", () => ({ AgentMachineIamService: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/mcp-server-iam.service", () => ({ McpServerIamService: { getInstance: vi.fn() } }));
 vi.mock("@/store/agent/agent.repository", () => ({ AgentRepository: { getInstance: vi.fn() } }));
-vi.mock("@/store/relay/model-pricing.repository", () => ({ ModelPricingRepository: { getInstance: vi.fn() } }));
+vi.mock("@/services/relay/relay-proxy.service", () => ({ RelayProxyService: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/agent-runtime.gateway", () => ({
   AgentRuntimeGateway: { getInstance: () => ({ request: mocks.remoteRequest }) },
 }));
@@ -53,12 +53,12 @@ vi.mock("@/services/agent/agent-task-creation-iam.service", () => ({
 }));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
-  pricing = mockDeep<ModelPricingRepository>();
+  relayProxy = mockDeep<Pick<RelayProxyService, "canServeRequestedModel">>();
 const Service = AgentService as unknown as new (
   repository: AgentRepository,
-  pricing: ModelPricingRepository,
+  relayProxy: Pick<RelayProxyService, "canServeRequestedModel">,
 ) => AgentService;
-const service = new Service(repository, pricing);
+const service = new Service(repository, relayProxy);
 const request = { user: { userId: "actor", roleSessionId: "session" } } as unknown as TypedRequest;
 const row: PublicAgentWorkspace = {
   id: "workspace",

@@ -12,8 +12,8 @@ A deployment-managed global group must grant the corresponding capability. Readi
 
 1. Under **Default overdraft policy**, choose a calculation, bounds, and permitted spending categories, then save. The initial policy disables overdraft. Initial categories are API relay and web chat; categories grant no credit while overdraft is disabled.
 2. Defaults apply dynamically to all inheriting users, including existing users. Use **Overdraft policy** in an account row to override the rule and categories independently, or restore either to the default.
-3. Batch policies merge selections across pages with pasted user IDs, remove duplicates, and support up to 200 users. For rules and categories separately, choose keep unchanged, user override, or inherit default.
-4. Preview total recharge, credit limits, and remaining credit before saving. Editing inputs invalidates the trial. If a target policy or default version changes, the entire batch is rejected; refresh and preview again. Batches do not partially succeed.
+3. Batch policies display users selected across pages as removable username tags. Enter a username and press Enter, or paste usernames separated by spaces, newlines, or commas. Duplicates are removed; tags can be deleted or cleared, with up to 200 targets per batch. For rules and categories separately, choose keep unchanged, user override, or inherit default.
+4. Preview usernames, total recharge, credit limits, and remaining credit before saving. Missing or unauthorized users block the entire batch. Changing tags or other inputs invalidates the trial. Saving uses the accounts confirmed by the preview. If a target policy or default version changes, the entire batch is rejected; refresh and preview again. Batches do not partially succeed.
 
 | Calculation         | Base credit amount                               |
 | ------------------- | ------------------------------------------------ |

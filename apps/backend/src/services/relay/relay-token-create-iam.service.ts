@@ -395,6 +395,7 @@ export class RelayTokenCreateIamService {
                 routingMode: created.routingMode ?? "ordered",
                 channelId: created.channelId ?? null,
                 isCustomKey: created.isCustomKey ?? false,
+                modelMappingRules: (created.modelMappingRules ?? null) as unknown as Prisma.JsonValue,
                 automaticProxyPoolChannelId: created.automaticProxyPoolChannelId ?? null,
                 blockedAutomaticProxyPoolChannelIds: created.blockedAutomaticProxyPoolChannelIds ?? null,
                 channelConfigs: [...(created.channelConfigs ?? [])].sort((a, b) => a.priority - b.priority),

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockDeep } from "vitest-mock-extended";
 import type { AgentRepository } from "@/store/agent/agent.repository";
-import type { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
+import type { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import type { TypedRequest } from "@/types/express";
 const mocks = vi.hoisted(() => ({
   mode: "enforce",
@@ -36,7 +36,7 @@ vi.mock("@/services/agent/agent-workspace-lifecycle.service", () => ({
 }));
 vi.mock("@/services/agent/mcp-server-iam.service", () => ({ McpServerIamService: { getInstance: vi.fn() } }));
 vi.mock("@/store/agent/agent.repository", () => ({ AgentRepository: { getInstance: vi.fn() } }));
-vi.mock("@/store/relay/model-pricing.repository", () => ({ ModelPricingRepository: { getInstance: vi.fn() } }));
+vi.mock("@/services/relay/relay-proxy.service", () => ({ RelayProxyService: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/agent-runtime.gateway", () => ({ AgentRuntimeGateway: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/workspace-runtime.service", () => ({ RootlessDockerWorkspaceProvider: class {} }));
 vi.mock("@/services/users/permission.service", () => ({
@@ -53,12 +53,12 @@ vi.mock("@/services/agent/agent-task-creation-iam.service", () => ({
 }));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
-  pricing = mockDeep<ModelPricingRepository>();
+  relayProxy = mockDeep<Pick<RelayProxyService, "canServeRequestedModel">>();
 const Service = AgentService as unknown as new (
   repository: AgentRepository,
-  pricing: ModelPricingRepository,
+  relayProxy: Pick<RelayProxyService, "canServeRequestedModel">,
 ) => AgentService;
-const service = new Service(repository, pricing);
+const service = new Service(repository, relayProxy);
 const request = () => ({ user: { userId: "actor", roleSessionId: "session" } }) as unknown as TypedRequest;
 const creationTargets = {
   workspace: { id: "workspace", userId: "actor", machineId: null, createTime: new Date(1), updateTime: new Date(1) },
@@ -79,14 +79,12 @@ beforeEach(() => {
       modelMapping: { "customer-model": "gpt-4o-mini" },
     },
   });
-  pricing.listActiveOrderedByModel.mockResolvedValue([{ model: "GPT-4o Mini", provider: "gpt-4o-mini" }] as Awaited<
-    ReturnType<ModelPricingRepository["listActiveOrderedByModel"]>
-  >);
+  relayProxy.canServeRequestedModel.mockResolvedValue(true);
   repository.createTask.mockResolvedValue({
     id: "task",
     workspaceId: "workspace",
     taskStatus: "queued",
-    model: "gpt-4o-mini",
+    model: "customer-model",
     stepCount: 0,
     createTime: new Date(1),
   } as Awaited<ReturnType<AgentRepository["createTask"]>>);
@@ -148,7 +146,8 @@ describe("Agent task event and cancellation modes", () => {
       { content: "hello", model: "customer-model", workspaceId: "workspace" },
       request(),
     );
-    expect(result.model).toBe("gpt-4o-mini");
+    expect(result.model).toBe("customer-model");
+    expect(relayProxy.canServeRequestedModel).toHaveBeenCalledWith("token", "customer-model");
     expect(mocks.creation).toHaveBeenCalledTimes(2);
     expect(repository.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -156,7 +155,7 @@ describe("Agent task event and cancellation modes", () => {
         workspaceId: "workspace",
         conversationId: "conversation",
         relayTokenId: "token",
-        model: "gpt-4o-mini",
+        model: "customer-model",
         maxSteps: 7,
         budget: 2,
       }),
@@ -171,6 +170,7 @@ describe("Agent task event and cancellation modes", () => {
     mocks.creation.mockRejectedValueOnce(new Error("denied"));
     await expect(service.createRun("actor", "conversation", body, request())).rejects.toThrow("denied");
     expect(mocks.configuration).not.toHaveBeenCalled();
+    expect(relayProxy.canServeRequestedModel).not.toHaveBeenCalled();
     expect(repository.createTask).not.toHaveBeenCalled();
     mocks.creation
       .mockResolvedValueOnce({ principal: { accountOwnerId: "owner" }, targets: creationTargets })
@@ -183,19 +183,14 @@ describe("Agent task event and cancellation modes", () => {
     });
     expect(repository.createTask).not.toHaveBeenCalled();
   });
-  it("preserves configured-model and token-model checks under resource authorization", async () => {
+  it("requires a route capability proof under resource authorization", async () => {
     const body = { content: "hello", model: "customer-model", workspaceId: "workspace" };
-    pricing.listActiveOrderedByModel.mockResolvedValueOnce([]);
+    relayProxy.canServeRequestedModel.mockResolvedValueOnce(false);
     await expect(service.createRun("actor", "conversation", body, request())).rejects.toMatchObject({
       statusCode: 400,
     });
-    mocks.configuration.mockResolvedValueOnce({
-      workspace: { id: "workspace", limits: {} },
-      token: { id: "token", allowedModels: "different-model", modelMapping: { "customer-model": "gpt-4o-mini" } },
-    });
-    await expect(service.createRun("actor", "conversation", body, request())).rejects.toMatchObject({
-      statusCode: 403,
-    });
+    relayProxy.canServeRequestedModel.mockRejectedValueOnce(new Error("capability unavailable"));
+    await expect(service.createRun("actor", "conversation", body, request())).rejects.toThrow("capability unavailable");
     expect(repository.createTask).not.toHaveBeenCalled();
   });
 });

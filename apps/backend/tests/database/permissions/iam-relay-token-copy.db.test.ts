@@ -260,6 +260,29 @@ const absentAll = async () => {
 };
 
 describe("atomic resource-authorized token duplication", () => {
+  it("rejects scoped channel visibility removal during copy", async () => {
+    const modelMappingRules = [
+      { source: "*", target: "upstream", channelIds: [channels[0]!], preference: "mapping-first" as const },
+    ];
+    await prisma.relayToken.update({ where: { id: sources[0] }, data: { modelMappingRules } });
+    await prisma.relayChannel.update({ where: { id: channels[0] }, data: { visibilityMode: "hidden" } });
+    await expect(copiedOne()).rejects.toMatchObject({ statusCode: 403 });
+    await absent();
+  });
+  it("preserves scoped model mapping rules when copying without changing the source", async () => {
+    const modelMappingRules = [
+      { source: "model-*", target: "upstream", channelIds: [channels[0]!], preference: "original-first" as const },
+    ];
+    await prisma.relayToken.update({ where: { id: sources[0] }, data: { modelMappingRules } });
+    const before = await prisma.relayToken.findUniqueOrThrow({ where: { id: sources[0] } });
+    const result = await copiedOne();
+    expect(result).toMatchObject({ modelMappingRules });
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      modelMapping: null,
+      modelMappingRules,
+    });
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: sources[0] } })).toEqual(before);
+  });
   it("copies in request order in one transaction with fresh credentials and no source secrets or counters", async () => {
     const rich = vi.spyOn(RelayTokenRepository.getInstance(), "findByIdWithRelations");
     const richCreate = vi.spyOn(RelayTokenRepository.getInstance(), "create");

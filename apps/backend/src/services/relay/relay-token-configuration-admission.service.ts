@@ -12,6 +12,7 @@ import { platformRelayTokenArn, relayTokenArn, isRelayTokenResourceId } from "@/
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { BadRequestError, ForbiddenError } from "@/util/errors";
 import type { RelayTokenUpdatePreparation } from "./relay-token-update-preparation";
+import { validateRelayTokenSavedModelMappingScope } from "./relay-token-update-preparation";
 
 export interface RelayTokenConfigurationInvocation {
   normalizers: Omit<RelayTokenUpdatePreparation, "orderedChannels" | "automaticPool" | "customCredential">;
@@ -206,6 +207,33 @@ export class RelayTokenConfigurationAdmissionService {
             });
           }
         }
+        // Member reference/read and root channel selection proofs above must precede any scope snapshot.
+        const scopeProof = async (client: Prisma.TransactionClient) => {
+          const visibility: unknown[] = [];
+          const snapshot = await validateRelayTokenSavedModelMappingScope(
+            source,
+            update,
+            client,
+            async (ids) => {
+              const outcomes = await decide(
+                "quyan:relay:ListChannelRoutingCatalog",
+                ids.map((channelId) => relayChannelSelectionArn(principal.accountOwnerId, channelId)),
+              );
+              if (outcomes.length !== ids.length) throw iamAccountDenied();
+              const admitted = ids.filter((_, index) => outcomes[index] === "Allow");
+              const proof = await this.selections.mappingCatalogVisibility(principal, userId, admitted, client);
+              visibility.push(proof);
+              return proof.ids;
+            },
+            { repository: this.repository, pools: this.pools },
+          );
+          return snapshot === undefined ? undefined : JSON.stringify({ snapshot, visibility });
+        };
+        const mappingScope = await scopeProof(tx);
+        if (mappingScope !== undefined)
+          verifiers.push(async (tx) => {
+            if ((await scopeProof(tx)) !== mappingScope) throw iamAccountDenied();
+          });
       },
       verify: async (tx: Prisma.TransactionClient, persisted: boolean) => {
         for (const verify of verifiers) await verify(tx, persisted);

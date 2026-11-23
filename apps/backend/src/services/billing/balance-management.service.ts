@@ -106,7 +106,20 @@ export class BalanceManagementService {
   }
   async preview(body: PreviewOverdraftRequest, request: TypedRequest) {
     const data = previewOverdraftSchema.parse(body);
-    const ids = [...new Set(data.userIds)];
+    let ids: string[];
+    if (data.usernames) {
+      // Authorize the operation before resolving any username; no account data is read here.
+      await this.iam.prepare("PreviewOverdraft", request);
+      const usernames = [...new Map(data.usernames.map((name) => [name.toLowerCase(), name])).values()];
+      const identities = await this.repository.identitiesByUsernames(usernames);
+      if (identities.length !== usernames.length)
+        throw new NotFoundError("Batch user unavailable", undefined, {
+          messageKey: "billing.overdraftTargetsUnavailable",
+        });
+      ids = identities.map((row) => row.id);
+    } else {
+      ids = [...new Set(data.userIds!)];
+    }
     const guard = await this.iam.prepare("PreviewOverdraft", request, ids);
     const rows = await this.repository.targets(ids);
     if (rows.length !== ids.length)

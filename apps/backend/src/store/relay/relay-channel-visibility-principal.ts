@@ -9,7 +9,7 @@ export async function relayChannelVisibilityPrincipal(principal: IamPrincipal, t
   return readVisibilityIdentity(principal.subjectUserId, principal.accountOwnerId, tx);
 }
 /** Authorization is the caller's responsibility; this helper only derives persisted business visibility. */
-async function readVisibilityIdentity(userId: string, accountOwnerId: string, tx: Prisma.TransactionClient) {
+export async function readVisibilityIdentity(userId: string, accountOwnerId: string, tx: Prisma.TransactionClient) {
   const user = await tx.user.findUnique({
     where: { id: userId },
     select: {

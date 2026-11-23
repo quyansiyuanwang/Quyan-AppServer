@@ -94,6 +94,67 @@ describe("matchesModelPattern", () => {
     expect(matchesModelPattern("gpt-4-xyz", "gpt-?-*")).toBe(true);
     expect(matchesModelPattern("gpt--xyz", "gpt-?-*")).toBe(false);
   });
+
+  it.each(["\n", "\r", "\u2028", "\u2029"])(
+    "preserves literal and wildcard semantics around line terminator %j",
+    (separator) => {
+      expect(matchesModelPattern(separator, "*")).toBe(false);
+      expect(matchesModelPattern(separator, "?")).toBe(false);
+      expect(matchesModelPattern(`a${separator}b`, "a*b")).toBe(false);
+      expect(matchesModelPattern(`a${separator}b`, "a?b")).toBe(false);
+      expect(matchesModelPattern(`a${separator}b`, `*${separator}*`)).toBe(true);
+      expect(matchesModelPattern(`a${separator}`, "a")).toBe(false);
+      expect(matchesModelPattern(`a${separator}`, `a${separator}`)).toBe(true);
+    },
+  );
+
+  it("preserves empty matches, UTF-16 wildcards and regex metacharacters as literals", () => {
+    expect(matchesModelPattern("", "")).toBe(true);
+    expect(matchesModelPattern("", "***")).toBe(true);
+    expect(matchesModelPattern("", "*?*")).toBe(false);
+    expect(matchesModelPattern("😀", "?")).toBe(false);
+    expect(matchesModelPattern("😀", "??")).toBe(true);
+    expect(matchesModelPattern("😀", "*?")).toBe(true);
+    expect(matchesModelPattern("😀", "😀")).toBe(true);
+    const literal = ".+^${}()|[]\\";
+    expect(matchesModelPattern(literal, literal)).toBe(true);
+    expect(matchesModelPattern(`${literal}tail`, `${literal}*`)).toBe(true);
+    expect(matchesModelPattern(`x${literal}`, `?${literal}`)).toBe(true);
+  });
+
+  it("agrees with legacy regex matching for exhaustive short patterns and inputs", () => {
+    const words = (alphabet: string[], maxLength: number): string[] => {
+      const result = [""];
+      let level = [""];
+      for (let length = 1; length <= maxLength; length++) {
+        level = level.flatMap((prefix) => alphabet.map((character) => prefix + character));
+        result.push(...level);
+      }
+      return result;
+    };
+    const models = words(["a", "b", "\n", "."], 3);
+    // Short inputs keep the reference regex bounded; adversarial cases below
+    // deliberately exercise only the production matcher.
+    for (const pattern of words(["a", "*", "?", "\n", "."], 3)) {
+      const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      const legacy = new RegExp(`^${escaped.replace(/\*/g, ".*").replace(/\?/g, ".")}$`);
+      for (const model of models) expect(matchesModelPattern(model, pattern)).toBe(legacy.test(model));
+    }
+  });
+
+  it("bounds matching for maximum-length repeated star/literal patterns", () => {
+    const pattern = "*a".repeat(99) + "*b";
+    const input = "a".repeat(4096);
+    expect(pattern.length).toBe(shared.RELAY_TOKEN_MODEL_MAPPING_LIMITS.maxPatternLength);
+    expect(matchesModelPattern(input, pattern)).toBe(false);
+    expect(matchesModelPattern(input + "b", pattern)).toBe(true);
+    expect(resolveMappedModel(input, { [pattern]: "unavailable", "*": "fallback" })).toBe("fallback");
+    const rules: shared.RelayTokenModelMappingRule[] = [
+      { source: pattern, target: "unavailable", preference: "mapping-first" },
+      { source: "*", target: "fallback", preference: "mapping-first" },
+    ];
+    expect(shared.selectRelayTokenModelMappingRule(input, rules)?.target).toBe("fallback");
+  });
 });
 
 describe("resolveMappedModel", () => {

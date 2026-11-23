@@ -56,7 +56,10 @@ const emoji = {
     defaultsHint: '🌐 → 👥 · 👤 ⚙️ > 🌐 · 🚫 → 0',
     boundaryHint: '🛒 ➕ ∑ · 🤖 ▶️ ✅ → 🧾 💯 · 💸 🎟️ ↩️ 🚫 ➕',
     saveDefaults: '🌐 💾',
-    pasteHint: '📋 👤 ID · ␣ ↵ , · 🔁 🚫',
+    batchUsernames: '👥 用户名',
+    usernamePlaceholder: '👤 输入用户名，按 ↵ 添加',
+    pasteHint:
+      '🏷️ ↵ 添加用户名 · 📋 ␣ ↵ , · 🔁 自动去重 · ❌ 逐项删除 · 用户名不存在或无权操作时整批不提交，请核对试算结果。',
     targetCount: '👥 {count} / {max}',
     ruleAction: '🧮 ⚙️',
     categoryAction: '🛒 ⚙️',

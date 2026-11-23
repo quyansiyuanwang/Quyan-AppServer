@@ -423,6 +423,7 @@ const zhCN = {
   },
   billing: {
     invalidOverdraftRule: "超额消费规则或计算结果无效",
+    overdraftTargetsUnavailable: "部分用户名不存在或不可用，请核对全部用户名后重新试算；尚未保存任何批量修改。",
     accountChanged: "账户数据或配置已变化，请刷新后重试",
     invalidAdjustment: "账户修正参数或修正后金额无效",
     redemptionCodeDeleted: "删除成功",
@@ -764,6 +765,10 @@ const zhCN = {
     duplicateRunId: "runId 不能重复",
   },
   relayToken: {
+    modelMappingMutuallyExclusive: "旧版模型映射和模型映射规则只能设置其中一种。",
+    modelMappingRulesInvalid: "模型映射规则无效，请检查来源、目标、优先方式及渠道范围。",
+    modelMappingRulesDuplicateSource: "相同渠道优先级和范围内不能重复设置同一模型来源。",
+    modelMappingRulesLegacyOverwrite: "已保存的模型映射规则不能通过旧版映射字段覆盖，请编辑规则或先显式清空规则。",
     compositionInvalidMember: "成员必须是同一用户拥有且不重复的中转令牌。",
     compositionCycle: "组合令牌不能包含循环引用。",
     compositionDepth: "组合令牌最多支持四层组合节点。",

@@ -1641,6 +1641,36 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
         : Permission.RELAY_TOKEN_READ,
     }),
   ),
+  ...['PreviewTokenModelMapping', 'ListTokenModelMappingChannelOptions'].flatMap((operation) =>
+    [false, true].map((managed): IamActionDefinition => {
+      const managedOperation = operation.replace('Token', 'ManagedToken')
+      return {
+        action: `quyan:relay:${managed ? managedOperation : operation}`,
+        service: 'relay',
+        operation: managed ? managedOperation : operation,
+        accessLevel: operation.startsWith('List') ? 'List' : 'Read',
+        resourceTypes: managed
+          ? ['platform/user', 'platform/relay-token']
+          : ['quyan/user', 'relay/token'],
+        apiRoutes: [
+          operation.startsWith('List')
+            ? 'POST /v1/relay/tokens/model-mapping-channel-options'
+            : 'POST /v1/relay/tokens/model-mapping-preview',
+        ],
+        conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+        sensitive: true,
+        authorizationStage: 'declared',
+        ...(managed ? { authorizationBoundary: 'platform' as const } : {}),
+        conditionalActions: [
+          ...(managed ? [] : [`quyan:relay:${managedOperation}`]),
+          'quyan:relay:ListChannelRoutingCatalog',
+        ],
+        legacyPermission: managed
+          ? Permission.RELAY_TOKEN_MANAGE_OTHERS_READ
+          : Permission.RELAY_TOKEN_READ,
+      }
+    }),
+  ),
   {
     action: 'quyan:relay:ListAvailableModels',
     service: 'relay',

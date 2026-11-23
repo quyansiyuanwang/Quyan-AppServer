@@ -50,6 +50,7 @@ export class RelayTokenUpdateRepository {
       quotaWindows,
       channelId,
       modelMapping,
+      modelMappingRules,
       requestFormatTransforms,
       normalizerConfig,
       contentSafetyConfig,
@@ -93,7 +94,13 @@ export class RelayTokenUpdateRepository {
         ...(channelId !== undefined ? { channelId } : {}),
         ...(automaticProxyPoolChannelId !== undefined ? { automaticProxyPoolChannelId } : {}),
         ...(blockedAutomaticProxyPoolChannelIds !== undefined ? { blockedAutomaticProxyPoolChannelIds } : {}),
-        ...(modelMapping !== undefined ? { modelMapping: modelMapping as Prisma.InputJsonValue } : {}),
+        ...(modelMapping !== undefined ? { modelMapping: modelMapping === null ? Prisma.DbNull : modelMapping } : {}),
+        ...(modelMappingRules !== undefined
+          ? {
+              modelMappingRules:
+                modelMappingRules === null ? Prisma.DbNull : (modelMappingRules as unknown as Prisma.InputJsonValue),
+            }
+          : {}),
         ...(requestFormatTransforms !== undefined
           ? {
               requestFormatTransforms:

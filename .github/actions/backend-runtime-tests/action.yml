@@ -17,6 +17,9 @@ inputs:
   manual-suite:
     description: Explicit suite selected by a manual workflow run.
     required: false
+  shard:
+    description: Optional Vitest shard in index/count form; each shard needs its own services.
+    required: false
 
 runs:
   using: composite
@@ -47,7 +50,15 @@ runs:
         API_CHANGED: ${{ inputs.api-changed }}
         FULL_CHANGED: ${{ inputs.full-changed }}
         MANUAL_SUITE: ${{ inputs.manual-suite }}
+        TEST_SHARD: ${{ inputs.shard }}
       run: |
+        runtime_args=()
+        related_args=()
+        if [ -n "$TEST_SHARD" ]; then
+          related_args+=("--shard=$TEST_SHARD")
+          runtime_args+=("${related_args[@]}" --passWithNoTests)
+        fi
+
         if [ "$MYSQL_VERSION" = "5.7" ]; then
           pnpm --filter @quyan/backend exec prisma migrate deploy
           pnpm --filter @quyan/backend exec node tests/scripts/run-vitest.mjs run --project backend-database \
@@ -57,9 +68,10 @@ runs:
             tests/database/permissions/iam-relay-probe-account-update.db.test.ts \
             tests/integration/relay-channel-probe-account.integration.test.ts
         elif [ "$MANUAL_SUITE" = "full" ] || [ "$FULL_CHANGED" = "true" ]; then
-          pnpm --filter @quyan/backend run test:runtime
+          pnpm --filter @quyan/backend run test:runtime "${runtime_args[@]}"
         elif [ "$MANUAL_SUITE" = "api" ] || [ "$API_CHANGED" = "true" ]; then
-          pnpm --filter @quyan/backend run test:runtime
+          pnpm --filter @quyan/backend run test:runtime "${runtime_args[@]}"
         else
-          VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
+          # test:related already sets --passWithNoTests; Vitest rejects duplicates.
+          VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES" "${related_args[@]}"
         fi
