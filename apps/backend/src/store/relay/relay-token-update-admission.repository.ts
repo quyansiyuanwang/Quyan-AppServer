@@ -2,7 +2,6 @@ import { RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { parseLegacyPermissions } from "@/iam/legacy-policy";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/config/database";
 import { Permission, getOAuthScopeAliases, toCanonicalCredential } from "@quyan/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -19,6 +18,7 @@ import { RelayTokenCapabilityRepository } from "./relay-token-capability.reposit
 import { BadRequestError } from "@/util/errors";
 import { readVisibilityIdentity } from "./relay-channel-visibility-principal";
 import { isRelayChannelVisible } from "@/util/relay/relay-channel-visibility.util";
+import { prisma } from "@/config/database";
 const selection = {
   id: true,
   userId: true,

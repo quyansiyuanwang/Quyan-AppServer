@@ -1170,6 +1170,11 @@ export class RelayTokenService {
       normalizerConfig: normalizeRelayTokenNormalizerConfig,
       compositeFailover: (count) => this.compositeFailover(count),
     });
+    if (
+      prepared.update.legacyToken &&
+      toCanonicalCredential(prepared.update.legacyToken, "relayToken") !== prepared.update.token
+    )
+      prepared.update.legacyToken = null;
     await this.withGraphWrite(token.userId, prepared.requiresGraphLock, async () => {
       await validateRelayTokenSavedModelMappingScope(token, prepared.update, undefined, (ids) =>
         this.legacyMappingScopeChannels(ids, actorUserId, token.userId),
