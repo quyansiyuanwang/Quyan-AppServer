@@ -2,6 +2,7 @@ import { compositeIngressRequest } from "@/services/relay/relay-composite-transp
 import { describe, it, expect, vi } from "vitest";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { getCompositeContext } from "@/services/relay/relay-composite-executor.service";
+import { resolveRelayModelRoute } from "@/services/relay/utils/relay-model-route.util";
 const node = (id: string, members: string[], mapping: Record<string, string> = {}) => ({
   id,
   userId: "owner",
@@ -14,7 +15,7 @@ const node = (id: string, members: string[], mapping: Record<string, string> = {
   failoverConfig: null,
 });
 describe("composite request pipeline", () => {
-  it("preserves internal endpoint prefixes and applies mappings outside-in before leaf execution", async () => {
+  it("preserves ingress identity and resolves mappings outside-in at the physical leaf", async () => {
     const proxy = Object.create(RelayProxyService.prototype) as any;
     const a = {
       ...node("a", ["b"], { alias: "inner" }),
@@ -40,8 +41,19 @@ describe("composite request pipeline", () => {
     proxy.getAvailableModelsForToken = vi.fn(async () => ["priced"]);
     proxy.forwardRequestInternal = vi.fn(async (_token, req) => {
       expect(req.path).toBe("/relay/proxy/v1/chat/completions");
-      expect(req.body.model).toBe("priced");
-      expect(getCompositeContext(req)!.path.map((token) => token.id)).toEqual(["a", "b", "c"]);
+      expect(req.body.model).toBe("alias");
+      const context = getCompositeContext(req)!;
+      expect(context.path.map((token) => token.id)).toEqual(["a", "b", "c"]);
+      expect(context.modelRequest).toEqual({ requestedModel: "alias", requestFormat: "anthropic" });
+      const route = resolveRelayModelRoute({
+        requestedModel: context.modelRequest!.requestedModel,
+        requestFormat: context.modelRequest!.requestFormat,
+        tokens: context.path,
+        channel: { id: "physical", allowedModels: '["priced"]', allowedFormats: "openai-chat-completions" },
+        modelCatalog: [{ provider: "priced", model: "priced", supportedFormats: "openai-chat-completions" }],
+      });
+      expect(route.effectiveModel).toBe("priced");
+      expect(route.steps.map((step) => step.outputModel)).toEqual(["inner", "priced", "priced"]);
       return {
         status: 200,
         headers: {},

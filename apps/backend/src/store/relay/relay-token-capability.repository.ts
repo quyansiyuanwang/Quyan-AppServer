@@ -12,6 +12,7 @@ const tokenSelect = {
   ...relayCompositionGraphSelect,
   allowedModels: true,
   modelMapping: true,
+  modelMappingRules: true,
   requestFormatTransforms: true,
   channelId: true,
   automaticProxyPoolChannelId: true,
@@ -66,7 +67,11 @@ export class RelayTokenCapabilityRepository {
     }
     return rows.sort((a, b) => a.id.localeCompare(b.id));
   }
-  async channels(rootIds: readonly string[], tx: Prisma.TransactionClient = prisma) {
+  async channels(
+    rootIds: readonly string[],
+    tx: Prisma.TransactionClient = prisma,
+    admit?: (ids: readonly string[]) => Promise<readonly string[]>,
+  ) {
     const rows = new Map<string, Prisma.RelayChannelGetPayload<{ select: typeof channelSelect }>>();
     const seen = new Set<string>();
     let frontier = [...new Set(rootIds)].sort();
@@ -74,8 +79,10 @@ export class RelayTokenCapabilityRepository {
       if (seen.size + frontier.length > RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes) throw iamAccountDenied();
       const next = new Set<string>();
       for (let offset = 0; offset < frontier.length; offset += IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) {
-        const ids = frontier.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest);
-        ids.forEach((id) => seen.add(id));
+        const candidates = frontier.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest);
+        candidates.forEach((id) => seen.add(id));
+        const ids = admit ? [...(await admit(candidates))] : candidates;
+        if (!ids.length) continue;
         const found = await tx.relayChannel.findMany({
           where: { id: { in: ids } },
           select: channelSelect,

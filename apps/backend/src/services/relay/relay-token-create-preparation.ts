@@ -2,6 +2,7 @@ import type { CreateRelayTokenDto } from "@/api/dto/relay/relay.dto";
 import type { RelayTokenCreateInput } from "@/store/relay/relay-token.store";
 import { DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG } from "@/util/anthropic-token-normalizer.util";
 import type { RelayTokenUpdatePreparation } from "./relay-token-update-preparation";
+import { prepareRelayTokenModelMapping } from "./relay-token-update-preparation";
 
 export type RelayTokenCreatePreparation = RelayTokenUpdatePreparation & {
   generatedCredential: () => string | Promise<string>;
@@ -13,6 +14,7 @@ export async function prepareRelayTokenCreate(
   data: CreateRelayTokenDto,
   prepare: RelayTokenCreatePreparation,
 ): Promise<{ create: RelayTokenCreateInput; requiresGraphLock: boolean }> {
+  const modelMapping = prepareRelayTokenModelMapping(data);
   const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
   const blockedAutomaticProxyPoolChannelIds = automaticPoolId
     ? await prepare.automaticPool(automaticPoolId, data.blockedAutomaticProxyPoolChannelIds)
@@ -51,7 +53,7 @@ export async function prepareRelayTokenCreate(
         : structuredClone(DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG),
       contentSafetyConfig: data.contentSafetyConfig ?? undefined,
       ipWhitelist: prepare.ipWhitelist(data.ipWhitelist),
-      modelMapping: data.modelMapping ?? undefined,
+      ...modelMapping,
     },
   };
 }

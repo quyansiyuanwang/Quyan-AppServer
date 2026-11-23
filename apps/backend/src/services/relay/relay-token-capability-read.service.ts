@@ -1,3 +1,4 @@
+import { resolveRelayModelRoute, relayModelRouteRequestCandidates } from "./utils/relay-model-route.util";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { relayCompositionPreviewBodySchema } from "@/api/schema/relay/relay.schema";
@@ -122,6 +123,7 @@ export class RelayTokenCapabilityReadService {
           expiresAt: data.expiresAt ?? null,
           allowedModels: data.allowedModels ?? null,
           modelMapping: data.modelMapping ?? null,
+          modelMappingRules: (data.modelMappingRules ?? null) as Prisma.JsonValue,
           requestFormatTransforms: (data.requestFormatTransforms ?? null) as Prisma.JsonValue,
           memberTokenConfigs: data.memberTokenConfigs!.map((edge, index) => ({
             ...edge,
@@ -170,6 +172,39 @@ export class RelayTokenCapabilityReadService {
     for (const [protocol, format] of MODEL_PROTOCOLS) {
       const entries = await projectRelayCompositionCatalog(id, format, graph, {
         allows: async (token, ...names) => relayDiscoveryAllowsModels(token, catalog, ...names),
+        pathModels: async (token, sourceFormat, ancestors) => {
+          const blocked = new Set(
+            Array.isArray(token.blockedAutomaticProxyPoolChannelIds)
+              ? token.blockedAutomaticProxyPoolChannelIds.filter((value): value is string => typeof value === "string")
+              : [],
+          );
+          const roots = rootsFor(token).filter(
+            (id) =>
+              token.routingMode === "automatic-pool" || channels.graph.get(id)?.channelType !== "automatic-proxy-pool",
+          );
+          const paths = (await this.pools.resolveCapabilityLeafCandidates(roots, channels.graph)).filter(
+            (path) => !path.routingChannelIds.some((id) => blocked.has(id)),
+          );
+          const nodes = [...ancestors, token];
+          return relayModelRouteRequestCandidates(
+            nodes,
+            paths.map((path) => path.resolvedChannel),
+            catalog,
+          ).filter((model) =>
+            paths.some((path) =>
+              Boolean(
+                resolveRelayModelRoute({
+                  requestedModel: model,
+                  requestFormat: sourceFormat,
+                  tokens: nodes,
+                  channel: path.resolvedChannel,
+                  channelPathIds: path.routingChannelIds,
+                  modelCatalog: catalog,
+                }).modelConfig,
+              ),
+            ),
+          );
+        },
         leaf: async (token, sourceFormat, requested, ancestors) => {
           const format =
             resolveRelayRequestFormatTransform(

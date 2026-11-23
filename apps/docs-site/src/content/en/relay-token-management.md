@@ -7,6 +7,7 @@ Use this page to manage relay tokens, channel routing, quotas, and failover beha
 - Create and maintain relay tokens.
 - Review token usage, expiry, and quota windows.
 - Control channel ordering and failover strategy.
+- Configure model mappings scoped to channels on the current token and preview the model and protocol actually selected.
 - Enable or disable tokens without deleting them immediately.
 - Bulk import/export token configuration and channel references within a token.
 
@@ -31,7 +32,7 @@ The URL's `key` must contain your platform Relay Token, for example `/v1beta/mod
 ### Edit, rotate and delete
 
 - Refresh the list before editing an ordinary token. The drawer uses the list's configuration without automatically fetching fresh details, and saves the complete form. An empty custom-key field preserves the credential. Clearing expiry or the overall cap removes that limit; an empty name clears the name.
-- A saved composite token currently cannot have its complete configuration, including members or routing mode, changed through this editor. Configure it before creation or conversion from an ordinary token. To change it, create a replacement composition and update callers. Enable/disable, refresh and delete are separate operations.
+- A saved composite token currently cannot have its complete configuration, including members, routing mode or model mapping rules, changed through this editor. Configure these during composition creation or copying, or before converting an ordinary token. To change them, create or copy a replacement composition and update callers. Enable/disable, refresh and delete are separate operations.
 - Confirming credential refresh rotates it immediately and invalidates the old value. Rotation does not reset usage, extend expiry or enable a disabled token. The page attempts to copy the new value. Clipboard failure does not mean rotation failed: refresh the list, copy manually and update callers.
 - Disabling retains settings and usage history. Re-enabling remains subject to expiry and quotas. Deletion requires confirmation and cannot be undone by enabling. Existing composition references remain, but that branch becomes unavailable.
 
@@ -41,7 +42,7 @@ Select targets before a batch action. Select all covers currently displayed rows
 
 JSON export uses the server export endpoint and includes authorized selected credentials and configuration; protect it like a password. Import accepts an array or JSON containing a `tokens` array and creates entries immediately. Existing entries remain unchanged; name collisions receive copy suffixes. Credential conflicts can generate new values, so retrieve actual credentials from the list afterward. Composite members must already exist under the target owner; importing entries in order does not automatically remap their references. IAM enforcement accepts up to 200 items per atomic batch; see the permission reference for details.
 
-Copying immediately creates enabled tokens with fresh credentials and zero usage, but retains settings such as expiry, so copying an expired source may still produce an unusable token. Batch enable/disable saves immediately; delete and clear content-safety overrides require confirmation. A safety snapshot stores the target user's then-effective settings; clearing overrides restores inheritance from user and system rules.
+Copying an ordinary token immediately creates an enabled token with a fresh credential and zero usage, but retains settings such as expiry, so copying an expired source may still produce an unusable token. Batch enable/disable saves immediately; delete and clear content-safety overrides require confirmation. A safety snapshot stores the target user's then-effective settings; clearing overrides restores inheritance from user and system rules.
 
 ### Channel-reference import/export inside the drawer
 
@@ -76,6 +77,37 @@ Each token can have one or more rolling time-window rate limits (e.g. per-minute
 
 - Bind a token to a set of allowed IPs or CIDR ranges.
 - Leaving it empty allows any source IP; adding entries restricts access to those addresses only.
+
+### Model mappings on the current token
+
+Model mapping rules belong to the current token. The source is the caller's requested model ID or matching pattern; the target is the model to use after mapping. Each rule has its own channel scope and preference, and takes effect after saving the current token. It does not change channel mapping configuration. See [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings) for channel billing mappings.
+
+1. Add a source and target model. Sources accept exact model IDs and patterns containing `*` or `?`. Call with a concrete model ID, not the pattern itself.
+2. Apply the rule to all channels or select specific visible logical channels. All channels means the current token's routing scope. Selecting channels only narrows where the rule applies; it does not make hidden or unavailable channels usable.
+3. Choose mapping-first or original-first for this rule, then save. Configure composite tokens during creation or copying; saved compositions still cannot have their rules edited directly.
+
+| Preference              | Preferred model        | When the preferred model is unavailable |
+| ----------------------- | ---------------------- | --------------------------------------- |
+| Mapping-first (default) | Mapped model           | Fall back to the original request model |
+| Original-first          | Original request model | Fall back to the mapped model           |
+
+Selection considers model and request-protocol capabilities on the current path. If neither model is available, the path is unavailable. This fallback selects an available model; switching after a channel or member request fails remains controlled by failover settings.
+
+**Match channel scope before the source model:** along the current channel path, an applicable rule closest to the actual execution channel takes precedence, with all-channel rules providing the global scope. A matching selected-channel wildcard rule can therefore take priority over a global exact rule. Within the same scope, exact sources take priority over wildcard sources. Matching wildcards are evaluated from most to least specific, preserving configuration order for ties. In wildcards, `*` matches any number of characters and `?` matches one character.
+
+The same source can have different targets in disjoint selected-channel scopes. For example, `client-model` can map to `model-a` on channel A and `model-b` on channel B; sharing a source alone is not a duplicate conflict. A match does not recursively rematch within the same mapping table: `alias-a → alias-b` and `alias-b → model-c` do not turn `alias-a` directly into `model-c` at that level.
+
+### Allowed models and mapping preview
+
+The allowed-model dropdown combines the base selectable models with exact source aliases from the current token's mappings, retaining saved exact aliases for selection and display. Adding aliases does not replace the base model list. Wildcard sources are not expanded into concrete model options. A listed model or alias does not establish availability on every channel path or protocol.
+
+Specify a concrete request model and protocol in preview. Check the model each candidate path actually uses and whether the result is mapped, original, fallback or unavailable:
+
+- With mapping-first, an available target selects the mapped model. An unavailable target with an available original shows fallback to the original model.
+- With original-first, an available original remains unchanged. An unavailable original with an available target uses the mapped model instead.
+- If neither is available, the path is unavailable. Whether another candidate can be selected still depends on routing configuration.
+
+Preview also considers member mappings, model restrictions and protocol conversions along the path. Check the final model and protocol, rather than only the source and target text. Preview describes configured capabilities and does not guarantee request-time quota, safety checks or upstream health.
 
 ### Request format conversion
 
@@ -178,7 +210,9 @@ Choose **Composite Token** when creating a token or converting an ordinary token
 
 ### Advanced settings and safety
 
-Request model mappings, protocol conversions and applicable normalization run outside-in before the ordinary leaf selects a physical channel. Response protocol conversion runs inside-out. Every level independently enforces its model allow-list, expiry, IP and quota rules, and descendants cannot disable ancestor safety requirements. Safety rejection cannot be bypassed with a fallback. Conversion supports only the existing converters' supported fields and explicitly rejects unsafe conversions. Streaming preflight uses the smallest buffer limit along the executed path.
+An outer composition's mappings can be scoped to visible logical channels along member paths, but the rules are **stored only on the current composite token** and affect only requests through that composition entry. Saving outer rules never updates any member's mappings or allowed-model settings. Direct calls to a member and calls through another composition using that member are unaffected by these outer rules. Saved compositions remain immutable through this editor; configure a replacement during creation or copying.
+
+Request model mappings, protocol conversions and applicable normalization run outside-in, evaluating channel scopes for each candidate path, before the ordinary leaf selects a physical channel. Response protocol conversion runs inside-out. After outer mapping, members' own mappings and model allowlists still apply; this is consistent with prohibiting recursion within a single mapping table. Every level independently enforces expiry, IP and quota rules, and descendants cannot disable ancestor safety requirements. Safety rejection cannot be bypassed with a fallback. Conversion supports only the existing converters' supported fields and explicitly rejects unsafe conversions. Streaming preflight uses the smallest buffer limit along the executed path.
 
 Preview describes capabilities and configured order, not guaranteed availability: IP, quota, safety and upstream health are checked at request time. Configuration changes to member tokens and disabling them affect subsequent requests. Secret rotation does not require reconfiguring the composition because references use IDs. In-flight requests retain their routing snapshot.
 

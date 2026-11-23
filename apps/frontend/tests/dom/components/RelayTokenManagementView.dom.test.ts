@@ -9,6 +9,8 @@ const {
   getRelayTokensMock,
   createRelayTokenMock,
   updateTokenMock,
+  duplicateTokenMock,
+  exportTokensMock,
   refreshRelayTokenMock,
   getTokenSwitchLogsMock,
   listChannelsMock,
@@ -23,6 +25,8 @@ const {
   getRelayTokensMock: vi.fn(),
   createRelayTokenMock: vi.fn(),
   updateTokenMock: vi.fn(),
+  duplicateTokenMock: vi.fn(),
+  exportTokensMock: vi.fn(),
   refreshRelayTokenMock: vi.fn(),
   getTokenSwitchLogsMock: vi.fn(),
   listChannelsMock: vi.fn(),
@@ -53,6 +57,14 @@ vi.mock('@/service/relayTokenService', () => ({
     getRelayTokens: getRelayTokensMock,
     createRelayToken: createRelayTokenMock,
     updateToken: updateTokenMock,
+    duplicateToken: duplicateTokenMock,
+    exportTokens: exportTokensMock,
+    getModelMappingChannelOptions: vi.fn(async () => ({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    })),
     refreshRelayToken: refreshRelayTokenMock,
     toggleTokenStatus: vi.fn(),
     deleteRelayToken: vi.fn(),
@@ -124,6 +136,7 @@ vi.mock('@/stores/userInfoStore', () => ({
 }))
 
 import RelayTokenManagementView from '@/views/relay/RelayTokenManagementView.vue'
+import TokenModelMappingRulesEditor from '@/components/relay/TokenModelMappingRulesEditor.vue'
 
 const ElCardStub = defineComponent({
   name: 'ElCard',
@@ -439,6 +452,8 @@ describe('RelayTokenManagementView', () => {
     ])
     createRelayTokenMock.mockResolvedValue({ id: 'created-token' })
     updateTokenMock.mockResolvedValue({ id: relayToken.id })
+    duplicateTokenMock.mockResolvedValue({ id: 'duplicated-token', token: 'new-credential' })
+    exportTokensMock.mockResolvedValue({})
     refreshRelayTokenMock.mockResolvedValue({ ...relayToken, token: 'rlt_refreshed_token_value' })
     confirmMock.mockResolvedValue(undefined)
 
@@ -1678,6 +1693,154 @@ describe('RelayTokenManagementView', () => {
     expect(payload).not.toHaveProperty('channelConfigs')
     wrapper.unmount()
   })
+  it('configures a composite copy before creating it while keeping the original immutable', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const original = createRelayTokenFixture({
+      routingMode: 'composite',
+      modelMappingRules: [
+        {
+          source: 'public',
+          target: 'actual',
+          channelIds: ['channel-primary'],
+          preference: 'original-first',
+        },
+      ],
+      memberTokenConfigs: [{ tokenId: 'owned-a', priority: 0, enabled: true }],
+    })
+    const before = JSON.stringify(original)
+    await vm.openEditDialog(original)
+    expect(vm.showEditDialog).toBe(false)
+    expect(messageWarningMock).toHaveBeenCalled()
+    await vm.handleMoreCommand('configure-copy', original)
+    await flushPromises()
+    expect(vm.editMode).toBe('create')
+    expect(vm.currentEditId).toBe('')
+    expect(vm.editForm.token).toBe('')
+    expect(vm.editForm.modelMappingRules).toEqual(original.modelMappingRules)
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(duplicateTokenMock).not.toHaveBeenCalled()
+    expect(updateTokenMock).not.toHaveBeenCalled()
+    vm.editForm.modelMappingRules[0].target = 'replacement'
+    await flushPromises()
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(duplicateTokenMock).not.toHaveBeenCalled()
+    expect(updateTokenMock).not.toHaveBeenCalled()
+    await vm.handleSave()
+    await flushPromises()
+    const payload = createRelayTokenMock.mock.calls[0]![0]
+    expect(payload.modelMappingRules[0].target).toBe('replacement')
+    expect(payload.memberTokenConfigs).toEqual(original.memberTokenConfigs)
+    expect(payload.token).toBeUndefined()
+    expect(payload).not.toHaveProperty('modelMapping')
+    expect(createRelayTokenMock).toHaveBeenCalledTimes(1)
+    expect(duplicateTokenMock).not.toHaveBeenCalled()
+    expect(updateTokenMock).not.toHaveBeenCalled()
+    expect(JSON.stringify(original)).toBe(before)
+    wrapper.unmount()
+  })
+
+  it('retains immediate duplicate behavior and does not copy its credential automatically', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.handleMoreCommand('duplicate', relayToken)
+    expect(duplicateTokenMock).toHaveBeenCalledWith(relayToken.id, expect.any(Object))
+    expect(vm.showEditDialog).toBe(false)
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(clipboardWriteTextMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('passes only the edited multiplier ceiling into the model mapping draft and clears it explicitly', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openEditDialog(relayToken)
+    vm.editForm.failoverConfig.maxAcceptedChannelMultiplier = 2.5
+    await flushPromises()
+    const editor = wrapper.getComponent(TokenModelMappingRulesEditor)
+    expect(editor.props('draft').failoverConfig).toEqual({ maxAcceptedChannelMultiplier: 2.5 })
+    vm.editForm.failoverConfig.maxAcceptedChannelMultiplier = null
+    await flushPromises()
+    expect(editor.props('draft').failoverConfig).toEqual({ maxAcceptedChannelMultiplier: null })
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(updateTokenMock).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('normalizes legacy mappings on edit and saves only rules, including explicit clearing', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openEditDialog(createRelayTokenFixture({ modelMapping: { friendly: 'actual' } }))
+    expect(vm.editForm.modelMappingRules).toEqual([
+      { source: 'friendly', target: 'actual', preference: 'mapping-first' },
+    ])
+    await vm.handleSave()
+    expect(updateTokenMock.mock.calls[0]![1].modelMappingRules).toEqual(
+      vm.editForm.modelMappingRules,
+    )
+    expect(updateTokenMock.mock.calls[0]![1]).not.toHaveProperty('modelMapping')
+    await vm.openEditDialog(createRelayTokenFixture({ modelMapping: { friendly: 'actual' } }))
+    vm.editForm.modelMappingRules = []
+    await vm.handleSave()
+    expect(updateTokenMock.mock.calls[1]![1].modelMappingRules).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('unions channel aliases, exact own sources and saved models for ordinary and composite drafts', async () => {
+    listChannelsMock.mockResolvedValue([
+      {
+        ...channelPrimary,
+        modelMappings: [
+          { requestModelPattern: 'channel-alias' },
+          { requestModelPattern: 'wild-*' },
+        ],
+      },
+    ])
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openEditDialog(
+      createRelayTokenFixture({
+        modelMappingRules: [
+          { source: 'own-alias', target: 'actual', preference: 'mapping-first' },
+          { source: 'own-*', target: 'actual', preference: 'mapping-first' },
+        ],
+      }),
+    )
+    expect(vm.filteredModelIds).toEqual(
+      expect.arrayContaining(['gpt-4o', 'channel-alias', 'own-alias', 'custom-model']),
+    )
+    expect(vm.filteredModelIds).not.toContain('wild-*')
+    expect(vm.filteredModelIds).not.toContain('own-*')
+    vm.editForm.routingMode = 'composite'
+    vm.compositionModelIds = ['member-model', 'member-alias']
+    await flushPromises()
+    expect(vm.filteredModelIds).toEqual(
+      expect.arrayContaining(['member-model', 'member-alias', 'own-alias', 'custom-model']),
+    )
+    wrapper.unmount()
+  })
+
+  it('exports normalized rules without the legacy object', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.handleMoreCommand(
+      'copy-json',
+      createRelayTokenFixture({ modelMapping: { alias: 'actual' } }),
+    )
+    const payload = JSON.parse(clipboardWriteTextMock.mock.calls[0]![0])[0]
+    expect(payload.modelMappingRules).toEqual([
+      { source: 'alias', target: 'actual', preference: 'mapping-first' },
+    ])
+    expect(payload).not.toHaveProperty('modelMapping')
+    wrapper.unmount()
+  })
+
   it('keeps edits intact when a routing mode switch is cancelled', async () => {
     const wrapper = mountView()
     await flushPromises()

@@ -5,7 +5,11 @@ import {
 import { relayTokenCopyNames } from "@/util/relay/relay-token-name.util";
 import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
-import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
+import {
+  prepareRelayTokenModelMapping,
+  prepareRelayTokenUpdate,
+  validateRelayTokenSavedModelMappingScope,
+} from "./relay-token-update-preparation";
 import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
 import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
 import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
@@ -34,6 +38,8 @@ import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
+import type { RelayTokenCreateInput } from "@/store/relay/relay-token.store";
+import { createId } from "@paralleldrive/cuid2";
 import type { RelayTokenUsageAggregate, RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import {
@@ -110,7 +116,11 @@ import { RateLimiterService } from "@/services/infrastructure/rate-limiter.servi
 import { backendI18n } from "@/locales";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@quyan/shared";
+import type {
+  ContentSafetyPolicyOverride,
+  RelayRequestFormatTransform,
+  RelayTokenModelMappingRule,
+} from "@quyan/shared";
 import {
   DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
   normalizeRelayTokenNormalizerConfig,
@@ -309,6 +319,7 @@ export class RelayTokenService {
     data: RelayCompositionPreviewRequest,
     request?: TypedRequest,
   ): Promise<RelayCompositionPreviewDto> {
+    prepareRelayTokenModelMapping(data);
     return RelayTokenCapabilityReadService.getInstance().preview(actorUserId, data, request, () =>
       this.previewCompositionLegacy(actorUserId, data),
     );
@@ -347,6 +358,7 @@ export class RelayTokenService {
       token: "",
       allowedModels: data.allowedModels ?? null,
       modelMapping: data.modelMapping ?? null,
+      modelMappingRules: data.modelMappingRules ?? null,
       requestFormatTransforms: data.requestFormatTransforms ?? null,
       status: 1,
       routingMode: "composite",
@@ -555,9 +567,10 @@ export class RelayTokenService {
       normalizerConfig: normalizeRelayTokenNormalizerConfig,
       compositeFailover: (count) => this.compositeFailover(count),
     });
-    const relayToken = await this.withGraphWrite(userId, prepared.requiresGraphLock, () =>
-      this.relayTokenRepo.create(prepared.create),
-    );
+    const relayToken = await this.withGraphWrite(userId, prepared.requiresGraphLock, async () => {
+      await this.validateNewTokenMappingScope(prepared.create, actorUserId);
+      return this.relayTokenRepo.create(prepared.create);
+    });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_CREATE,
@@ -1157,9 +1170,12 @@ export class RelayTokenService {
       normalizerConfig: normalizeRelayTokenNormalizerConfig,
       compositeFailover: (count) => this.compositeFailover(count),
     });
-    await this.withGraphWrite(token.userId, prepared.requiresGraphLock, () =>
-      this.relayTokenRepo.update(tokenId, prepared.update),
-    );
+    await this.withGraphWrite(token.userId, prepared.requiresGraphLock, async () => {
+      await validateRelayTokenSavedModelMappingScope(token, prepared.update, undefined, (ids) =>
+        this.legacyMappingScopeChannels(ids, actorUserId, token.userId),
+      );
+      return this.relayTokenRepo.update(tokenId, prepared.update);
+    });
     const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
@@ -2251,6 +2267,7 @@ export class RelayTokenService {
       allowedModels: token.allowedModels || undefined,
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
+      modelMappingRules: token.modelMappingRules as unknown as RelayTokenModelMappingRule[] | null,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       streamConfig: token.streamConfig ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
@@ -2637,6 +2654,7 @@ export class RelayTokenService {
     reservedTokens: Set<string> = new Set<string>(),
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
+    const modelMapping = prepareRelayTokenModelMapping(data);
     const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
     const automaticPool = automaticPoolId
       ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
@@ -2662,37 +2680,77 @@ export class RelayTokenService {
     const isCustomKey = hasCustomToken;
     const canonicalTokenValue = toCanonicalCredential(tokenValue, "relayToken");
 
-    return this.relayTokenRepo.create(
-      {
-        userId,
-        status: data.enabled === false ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED,
-        name: data.name?.trim() || undefined,
-        token: canonicalTokenValue,
-        legacyToken: tokenValue !== canonicalTokenValue ? tokenValue : undefined,
-        isCustomKey,
-        expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
-        channelId: normalizedConfig.defaultChannelId,
-        routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
-        memberTokenConfigs: data.memberTokenConfigs,
-        streamConfig: data.streamConfig,
-        automaticProxyPoolChannelId: automaticPoolId,
-        blockedAutomaticProxyPoolChannelIds,
-        channelConfigs: normalizedConfig.channelConfigs,
-        failoverConfig:
-          data.failoverConfig ??
-          (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
-        quotaLimit: data.quotaLimit ?? undefined,
-        quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
-        allowedModels: data.allowedModels?.trim() || undefined,
-        requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
-        normalizerConfig: data.normalizerConfig
-          ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
-          : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
-        contentSafetyConfig: data.contentSafetyConfig ?? undefined,
-        ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
-        modelMapping: data.modelMapping ?? undefined,
-      },
+    const create: RelayTokenCreateInput = {
+      userId,
+      status: data.enabled === false ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED,
+      name: data.name?.trim() || undefined,
+      token: canonicalTokenValue,
+      legacyToken: tokenValue !== canonicalTokenValue ? tokenValue : undefined,
+      isCustomKey,
+      expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
+      channelId: normalizedConfig.defaultChannelId,
+      routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
+      memberTokenConfigs: data.memberTokenConfigs,
+      streamConfig: data.streamConfig,
+      automaticProxyPoolChannelId: automaticPoolId,
+      blockedAutomaticProxyPoolChannelIds,
+      channelConfigs: normalizedConfig.channelConfigs,
+      failoverConfig:
+        data.failoverConfig ??
+        (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
+      quotaLimit: data.quotaLimit ?? undefined,
+      quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
+      allowedModels: data.allowedModels?.trim() || undefined,
+      requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
+      normalizerConfig: data.normalizerConfig
+        ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
+        : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
+      contentSafetyConfig: data.contentSafetyConfig ?? undefined,
+      ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
+      ...modelMapping,
+    };
+    await this.validateNewTokenMappingScope(create, actorUserId, tx);
+    return this.relayTokenRepo.create(create, tx);
+  }
+
+  private async legacyMappingScopeChannels(
+    ids: readonly string[],
+    actorUserId: string,
+    userId: string,
+    tx?: RelayTokenTransactionClient,
+  ) {
+    const { RelayTokenUpdateAdmissionRepository } = await import(
+      "@/store/relay/relay-token-update-admission.repository"
+    );
+    return RelayTokenUpdateAdmissionRepository.getInstance().legacyMappingChannelVisibility(
+      ids,
+      actorUserId,
+      userId,
       tx,
+    );
+  }
+
+  private async validateNewTokenMappingScope(
+    create: RelayTokenCreateInput,
+    actorUserId: string,
+    tx?: RelayTokenTransactionClient,
+  ) {
+    await validateRelayTokenSavedModelMappingScope(
+      {
+        id: createId(),
+        userId: create.userId,
+        status: create.status ?? 1,
+        routingMode: create.routingMode ?? "ordered",
+        channelId: create.channelId ?? null,
+        automaticProxyPoolChannelId: create.automaticProxyPoolChannelId ?? null,
+        blockedAutomaticProxyPoolChannelIds: create.blockedAutomaticProxyPoolChannelIds ?? null,
+        modelMappingRules: (create.modelMappingRules ?? null) as unknown as import("@prisma/client").Prisma.JsonValue,
+        channelConfigs: create.channelConfigs ?? [],
+        memberTokenConfigs: create.memberTokenConfigs ?? [],
+      },
+      {},
+      tx,
+      (ids) => this.legacyMappingScopeChannels(ids, actorUserId, create.userId, tx),
     );
   }
 

@@ -58,6 +58,65 @@ beforeEach(() => {
 afterEach(() => {
   env.security.iamAuthorizationMode = mode;
 });
+describe("model mapping native inspection admission", () => {
+  it.each(["legacy", "shadow", "enforce"])(
+    "requires explicit draft admission in %s mode even without token IDs",
+    async (rollout) => {
+      env.security.iamAuthorizationMode = rollout as typeof mode;
+      project.mockResolvedValue({ items: [] });
+      await service.modelMapping("model-mapping-preview", "actor", [], undefined, request(), project);
+      expect(project).toHaveBeenCalledWith([], "actor", expect.any(Function));
+      expect(repository.list).not.toHaveBeenCalled();
+      expect(iam.authorizeMany.mock.calls.map(([input]) => input.action)).toContain(
+        "quyan:relay:PreviewTokenModelMapping",
+      );
+      expect(repository.snapshot).toHaveBeenCalledWith(expect.anything(), "modelRead");
+      expect(permissions.checkUserPermissions).not.toHaveBeenCalled();
+      iam.authorizeMany.mockResolvedValue([{ decision: "ExplicitDeny" }]);
+      project.mockClear();
+      await expect(
+        service.modelMapping("model-mapping-preview", "actor", [], undefined, request(), project),
+      ).rejects.toMatchObject({ statusCode: 403 });
+      expect(project).not.toHaveBeenCalled();
+    },
+  );
+  it("requires a bound request even in legacy mode", async () => {
+    env.security.iamAuthorizationMode = "legacy";
+    await expect(
+      service.modelMapping("model-mapping-preview", "actor", [], undefined, undefined, project),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(project).not.toHaveBeenCalled();
+  });
+  it("checks both managed user and token operations before exposing configuration", async () => {
+    repository.list.mockImplementation(async (_owner, ids, decide) => {
+      expect(await decide(ids)).toEqual(["Allow"]);
+      return [{ id: "member", userId: "peer", status: 1, updateTime: new Date(0) }];
+    });
+    await service.modelMapping("model-mapping-channel-options", "actor", ["member"], "peer", request(), project);
+    const calls = iam.authorizeMany.mock.calls.map(([input]) => ({ action: input.action, resources: input.resources }));
+    expect(calls).toContainEqual({
+      action: "quyan:relay:ListTokenModelMappingChannelOptions",
+      resources: ["acs:quyan:*:owner:user/actor"],
+    });
+    expect(calls).toContainEqual({
+      action: "quyan:relay:ListManagedTokenModelMappingChannelOptions",
+      resources: [platformUserArn("peer")],
+    });
+    expect(calls).toContainEqual({
+      action: "quyan:relay:ListManagedTokenModelMappingChannelOptions",
+      resources: [platformRelayTokenArn("peer", "member")],
+    });
+  });
+  it("discards mapping projections when the final operation is revoked", async () => {
+    project.mockImplementation(async () => {
+      iam.authorizeMany.mockResolvedValue([{ decision: "ExplicitDeny" }]);
+      return {};
+    });
+    await expect(
+      service.modelMapping("model-mapping-preview", "actor", [], undefined, request(), project),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
 describe("token usage inspection authorization", () => {
   it("declares server-owned action at both usage endpoints", () => {
     const project = new Project({ skipAddingFilesFromTsConfig: true });

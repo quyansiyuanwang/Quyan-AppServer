@@ -7,7 +7,11 @@ import type {
   RelayChannelSwitchLog,
   RelayTokenQuotaWindow,
 } from "@prisma/client";
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@quyan/shared";
+import type {
+  ContentSafetyPolicyOverride,
+  RelayRequestFormatTransform,
+  RelayTokenModelMappingRule,
+} from "@quyan/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
@@ -127,6 +131,7 @@ export interface RelayTokenCreateInput {
   contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   ipWhitelist?: string | null;
   modelMapping?: Record<string, string> | null;
+  modelMappingRules?: RelayTokenModelMappingRule[] | null;
   failoverConfig?: RelayFailoverConfigInput;
   channelConfigs?: RelayTokenChannelConfigInput[];
 }
@@ -151,6 +156,7 @@ export type RelayTokenUpdateInput = Partial<{
   contentSafetyConfig: ContentSafetyPolicyOverride | null;
   ipWhitelist: string | null;
   modelMapping: Record<string, string> | null;
+  modelMappingRules: RelayTokenModelMappingRule[] | null;
 }> & {
   channelId?: string | null;
   routingMode?: "ordered" | "automatic-pool" | "composite";

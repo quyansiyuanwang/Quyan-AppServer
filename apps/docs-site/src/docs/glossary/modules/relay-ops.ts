@@ -15,6 +15,32 @@ const relayOpsGlossaryModule: GlossaryModule = {
       },
     },
     {
+      id: 'token-model-mapping',
+      aliases: ['token model mapping', 'Token 模型映射', '令牌模型映射'],
+      title: {
+        en: 'Token model mapping',
+        'zh-CN': 'Token 模型映射',
+      },
+      description: {
+        en: 'Rules owned by one relay token that select an original or mapped model within a channel scope, with availability fallback. Outer composition rules apply only through that entry and do not change member settings.',
+        'zh-CN':
+          '属于单个转发 Token 的规则，在渠道作用域内选择原始或映射模型，并按可用性回退。组合外层规则只影响经过该入口的请求，不修改成员配置。',
+      },
+    },
+    {
+      id: 'channel-model-mapping',
+      aliases: ['channel model mapping', '渠道模型映射', '渠道计费映射'],
+      title: {
+        en: 'Channel model mapping',
+        'zh-CN': '渠道模型映射',
+      },
+      description: {
+        en: 'A channel setting relating request models to billing models. It does not itself imply rewriting the upstream model ID; token model selection is configured on the token.',
+        'zh-CN':
+          '渠道上请求模型与计费模型的对应设置，本身不表示改写上游模型 ID；Token 的模型选择规则在 Token 上配置。',
+      },
+    },
+    {
       id: 'proxy-relay',
       aliases: ['proxy', 'relay', '转发', '代理'],
       title: {

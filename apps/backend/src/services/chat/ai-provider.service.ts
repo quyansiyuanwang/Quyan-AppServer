@@ -1,4 +1,5 @@
 import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from "@/constant/chat";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { AIResourceService, withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { boundedTextLines, aiContentTooLarge } from "@/util/streaming/bounded-text";
@@ -471,7 +472,7 @@ export class AIProviderService {
       url,
       {
         model,
-        max_tokens: options?.maxOutputTokens ?? 4096,
+        max_tokens: options?.maxOutputTokens ?? CHAT_ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
         stream: true,
         messages: this.toAnthropicMessages(messages),
       },

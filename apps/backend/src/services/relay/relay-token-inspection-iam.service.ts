@@ -20,9 +20,25 @@ import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 type Selection =
   | { kind: "usage" | "switch-logs" | "models"; id: string }
-  | { kind: "usage-batch" | "composition-candidates" | "preview"; ids?: string[] };
+  | {
+      kind:
+        | "usage-batch"
+        | "composition-candidates"
+        | "preview"
+        | "model-mapping-preview"
+        | "model-mapping-channel-options";
+      ids?: string[];
+    };
 export type RelayTokenInspectionAdmission = (ids: readonly string[]) => Promise<RelayTokenInspectionTarget[]>;
 const inspectionActions = Object.freeze({
+  "model-mapping-preview": {
+    action: "quyan:relay:PreviewTokenModelMapping",
+    managedAction: "quyan:relay:PreviewManagedTokenModelMapping",
+  },
+  "model-mapping-channel-options": {
+    action: "quyan:relay:ListTokenModelMappingChannelOptions",
+    managedAction: "quyan:relay:ListManagedTokenModelMappingChannelOptions",
+  },
   preview: {
     action: "quyan:relay:PreviewTokenComposition",
     managedAction: "quyan:relay:PreviewManagedTokenComposition",
@@ -147,6 +163,23 @@ export class RelayTokenInspectionIamService {
       });
     return this.inspect({ kind: "preview", ids: parsed.data }, actorUserId, targetUserId, request, read, legacy);
   }
+  /** New draft APIs require native admission even when existing endpoints use the rollout bridge. */
+  async modelMapping<T>(
+    kind: "model-mapping-preview" | "model-mapping-channel-options",
+    actorUserId: string,
+    ids: string[],
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (targets: RelayTokenInspectionTarget[], userId: string, admit: RelayTokenInspectionAdmission) => Promise<T>,
+  ): Promise<T> {
+    if (ids.length && !relayTokenIdsSchema.safeParse(ids).success)
+      throw new BadRequestError("Invalid model mapping token selection", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    return this.inspect({ kind, ids }, actorUserId, targetUserId, request, read, async () => {
+      throw iamAccountDenied();
+    });
+  }
   private async inspect<T>(
     selection: Selection,
     actorUserId: string,
@@ -162,7 +195,8 @@ export class RelayTokenInspectionIamService {
     )
       throw new BadRequestError("Invalid token inspection selection", undefined, { messageKey: "errors.badRequest" });
     const { action, managedAction } = inspectionActions[selection.kind];
-    const mode = env.security.iamAuthorizationMode;
+    const mapping = selection.kind === "model-mapping-preview" || selection.kind === "model-mapping-channel-options";
+    const mode = mapping ? "enforce" : env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
       if (mode !== "legacy") throw iamAccountDenied();
@@ -199,7 +233,7 @@ export class RelayTokenInspectionIamService {
         managed: userId !== actorUserId,
         ...(oauth ? { oauth: { id: oauth.id, clientId: oauth.oauthClientId } } : {}),
       };
-      const profile = selection.kind === "models" ? "modelRead" : "read";
+      const profile = selection.kind === "models" || mapping ? "modelRead" : "read";
       const snapshot = await this.repository.snapshot(identity, profile),
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
       const keyId = request.accessKey?.id,
@@ -250,7 +284,7 @@ export class RelayTokenInspectionIamService {
         if ((await decide(operation, targets)).some((result) => result !== "Allow")) throw iamAccountDenied();
       };
       const authorize = async () => {
-        if (identity.managed || selection.kind === "preview") {
+        if (identity.managed || selection.kind === "preview" || mapping) {
           await requireAllow(action, [
             buildAcsResource({
               service: "quyan",
@@ -269,12 +303,14 @@ export class RelayTokenInspectionIamService {
       const targets =
         "id" in selection
           ? [await this.repository.target(userId, selection.id)]
-          : await this.repository.list(
-              userId,
-              selection.ids,
-              (ids) => decide(identity.managed ? managedAction : action, ids.map(resource)),
-              recheck,
-            );
+          : mapping && selection.ids?.length === 0
+            ? []
+            : await this.repository.list(
+                userId,
+                selection.ids,
+                (ids) => decide(identity.managed ? managedAction : action, ids.map(resource)),
+                recheck,
+              );
       const descendants = new Map<string, RelayTokenInspectionTarget>();
       const admit: RelayTokenInspectionAdmission = async (ids) => {
         await recheck();

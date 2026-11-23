@@ -8,6 +8,7 @@ import { RelayTokenCreateIamService } from "@/services/relay/relay-token-create-
 import { RelayTokenCreateMutationRepository } from "@/store/relay/relay-token-create-mutation.repository";
 import { RelayTokenCreateRepository } from "@/store/relay/relay-token-create.repository";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
+import { RelayTokenUpdateAdmissionRepository } from "@/store/relay/relay-token-update-admission.repository";
 import { RelayTokenMutationResponseRepository } from "@/store/relay/relay-token-mutation-response.repository";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -251,6 +252,117 @@ const absentAll = async () => {
 const credential = () => getCredentialPrefix("relayToken") + "custom-" + randomUUID();
 
 describe("atomic native resource-authorized token import", () => {
+  it("checks legacy scoped visibility through the supplied transaction", async () => {
+    await prisma.$transaction(async (tx) => {
+      await tx.relayChannel.update({ where: { id: channels[0] }, data: { visibilityMode: "hidden" } });
+      const outsideRead = vi.spyOn(prisma.relayChannel, "findMany");
+      expect(
+        await RelayTokenUpdateAdmissionRepository.getInstance().legacyMappingChannelVisibility(
+          [channels[0]!],
+          actor,
+          actor,
+          tx,
+        ),
+      ).toEqual([]);
+      expect(outsideRead).not.toHaveBeenCalled();
+    });
+  });
+  it("imports composite scoped rules without changing member configuration", async () => {
+    const tokenId = await member();
+    const before = await prisma.relayToken.findUniqueOrThrow({ where: { id: tokenId } });
+    const modelMappingRules = [
+      { source: "*", target: "upstream", channelIds: [channels[0]!], preference: "mapping-first" as const },
+    ];
+    const result = await imported([
+      {
+        routingMode: "composite",
+        channelId: undefined,
+        memberTokenConfigs: [{ tokenId, priority: 0, enabled: true }],
+        modelMappingRules,
+      },
+    ]);
+    expect(result.data[0]).toMatchObject({ modelMappingRules });
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id } })).toMatchObject({ modelMappingRules });
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: tokenId } })).toEqual(before);
+  });
+  it.each(["enforce", "legacy"] as const)(
+    "preserves scoped model mapping rules on disabled import in %s",
+    async (mode) => {
+      env.security.iamAuthorizationMode = mode;
+      const modelMappingRules = [
+        { source: "model-*", target: "upstream", channelIds: [channels[0]!], preference: "original-first" as const },
+      ];
+      const result = await imported([{ name: "scoped", enabled: false, modelMappingRules }]);
+      expect(result.data[0]).toMatchObject({ modelMappingRules });
+      expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: result.data[0]!.id } })).toMatchObject({
+        status: 0,
+        modelMapping: null,
+        modelMappingRules,
+      });
+    },
+  );
+  it("preserves scoped rules across legacy create, update, copy and export and rejects unreachable imports", async () => {
+    env.security.iamAuthorizationMode = "legacy";
+    const service = new RelayTokenService();
+    const modelMappingRules = [
+      { source: "*", target: "upstream", channelIds: [channels[0]!], preference: "mapping-first" as const },
+    ];
+    const created = await service.generateToken(actor, { channelId: channels[0], modelMappingRules }, request());
+    expect(created).toMatchObject({ modelMappingRules });
+    await service.updateToken(created.id, actor, { name: "retained" }, request());
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({
+      modelMappingRules,
+    });
+    const exported = await service.exportTokens({ ids: [created.id] }, actor, request());
+    expect(exported.tokens[0]).toMatchObject({ modelMappingRules });
+    expect(exported.tokens[0]).not.toHaveProperty("modelMapping");
+    const copied = await service.duplicateToken(created.id, {}, actor, request());
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: copied.id } })).toMatchObject({
+      modelMappingRules,
+    });
+    await expect(
+      service.updateToken(created.id, actor, { modelMapping: { legacy: "replacement" } }, request()),
+    ).rejects.toMatchObject({ messageKey: "relayToken.modelMappingRulesLegacyOverwrite" });
+    await service.updateToken(created.id, actor, { modelMappingRules: null }, request());
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({
+      modelMapping: null,
+      modelMappingRules: null,
+    });
+    const before = await prisma.relayToken.count({ where: { userId: actor } });
+    await expect(
+      imported([{ modelMappingRules: [{ ...modelMappingRules[0]!, channelIds: [channels[1]!] }] }]),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.generateToken(
+        actor,
+        { channelId: channels[0], modelMappingRules: [{ ...modelMappingRules[0]!, channelIds: [channels[1]!] }] },
+        request(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.updateToken(
+        created.id,
+        actor,
+        { modelMappingRules: [{ ...modelMappingRules[0]!, channelIds: [channels[1]!] }] },
+        request(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.relayChannel.update({ where: { id: channels[0] }, data: { visibilityMode: "hidden" } });
+    await expect(service.duplicateToken(copied.id, {}, actor, request())).rejects.toMatchObject({ statusCode: 404 });
+    expect(await prisma.relayToken.count({ where: { userId: actor } })).toBe(before);
+  }, 30_000);
+  it("rejects unreachable scoped rules before importing any token", async () => {
+    await expect(
+      imported([
+        {
+          modelMappingRules: [
+            { source: "*", target: "upstream", channelIds: [channels[1]!], preference: "mapping-first" },
+          ],
+        },
+      ]),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await absentAll();
+  });
   it("imports all configuration in request order without legacy rich reads or nested transactions", async () => {
     const legacyCreate = vi.spyOn(RelayTokenRepository.getInstance(), "create"),
       transactions = vi.spyOn(prisma, "$transaction");

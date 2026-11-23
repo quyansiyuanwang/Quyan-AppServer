@@ -10,7 +10,7 @@ import type {
 } from "@/api/dto/relay/relay-channel.dto";
 import type { RelayCatalogSnapshot, RelayCatalogSource } from "@/store/relay/relay-channel-catalog-read.repository";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
-import { catalogModelCapabilities } from "./relay-channel-catalog-projection";
+import { catalogModelCapabilities, catalogModelMappings } from "./relay-channel-catalog-projection";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { formatRelayRequestFormats } from "@quyan/shared";
 /** Explicit public DTO projection; unknown persisted routing keys must never become response fields. */
@@ -72,7 +72,9 @@ export async function projectRelayChannelRoutingCatalog(
   for (const source of sources) {
     const channelType = source.channelType;
     if (channelType !== "standalone" && channelType !== "pooled" && channelType !== "automatic-proxy-pool") continue;
-    const capabilities = await resolver.resolveChannelCapabilities(source.id, context),
+    const capabilities = await resolver.resolveChannelCapabilities(source.id, context, {
+        preserveModelMappingPaths: true,
+      }),
       modelCapabilities = catalogModelCapabilities(capabilities);
     let automaticProxyPool: RelayAutomaticProxyPoolOptionDto | undefined;
     if (channelType === "automatic-proxy-pool") {
@@ -124,6 +126,7 @@ export async function projectRelayChannelRoutingCatalog(
         ...new Set(modelCapabilities.flatMap((capability) => capability.supportedRequestFormats)),
       ]),
       modelCapabilities,
+      modelMappings: catalogModelMappings(capabilities),
       ...(automaticProxyPool ? { automaticProxyPool } : {}),
     });
   }

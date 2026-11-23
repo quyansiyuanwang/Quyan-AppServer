@@ -374,11 +374,15 @@ Guidance:
 
 ### Model mapping
 
-- Purpose: maps a requested model to another billing or routing target model.
+- Purpose: configures the relationship between request models and billing models for this channel. A channel billing mapping does not itself imply rewriting the model ID sent upstream.
 - Effect:
   - helps normalize vendor aliases
   - can bill several near-equivalent models against one pricing target
 - Risk: incorrect mappings can create a mismatch between the requested model and the billed model.
+
+To choose the model actually used by a particular token, configure that token's model mapping rules in [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management). Each rule can apply to all or selected visible logical channels and use mapping-first (default) or original-first, falling back to the other model when the preferred one is unavailable. Preview a concrete model and protocol to check the actual result; the channel pricing table is not a token routing preview.
+
+Token rules are stored only on the current token. A composition entry can scope outer rules to logical channels along member paths without changing member mappings, member allowed models or channel configuration. Direct member calls and other composition entries are unaffected. Saved compositions still cannot have these settings edited directly; configure a replacement during creation or copying.
 
 ## Time-based multipliers
 

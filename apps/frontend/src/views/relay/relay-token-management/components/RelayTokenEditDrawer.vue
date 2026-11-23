@@ -1248,6 +1248,8 @@
                   v-model="editForm.allowedModelIdsList"
                   multiple
                   filterable
+                  allow-create
+                  default-first-option
                   :placeholder="i18ns.t('relay.selectModels')"
                   style="width: 100%"
                 >
@@ -1264,13 +1266,12 @@
                 :label="i18ns.t('relay.modelMapping')"
               >
                 <div class="flex flex-col gap-1 w-full">
-                  <ModelMappingEditor
-                    v-model="editForm.modelMapping"
+                  <TokenModelMappingRulesEditor
+                    v-if="showEditDialog"
+                    v-model="editForm.modelMappingRules"
                     :available-models="channelFilteredModelNames"
+                    :draft="modelMappingDraft"
                   />
-                  <span class="text-[#909399] text-xs">{{
-                    i18ns.t('relay.tokenModelMappingHelp')
-                  }}</span>
                 </div>
               </el-form-item>
             </div>
@@ -1339,7 +1340,7 @@ import { computed, ref, unref, type ComponentPublicInstance } from 'vue'
 import { Permission } from '@/constant/permission'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import RelayTokenCompositeMembers from './RelayTokenCompositeMembers.vue'
-import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
+import TokenModelMappingRulesEditor from '@/components/relay/TokenModelMappingRulesEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelayTokenManagementContext } from '../context'
 
@@ -1369,11 +1370,28 @@ const {
 } = state
 
 const compositionSettings = computed(() => ({
-  modelMapping: editForm.value.modelMapping,
+  modelMappingRules: editForm.value.modelMappingRules,
   allowedModels: editForm.value.allowedModelIdsList.join(','),
   requestFormatTransforms: editForm.value.requestFormatTransforms
     .filter((rule) => rule.sourceFormat && rule.targetFormat)
     .map((rule) => ({ sourceFormat: rule.sourceFormat!, targetFormat: rule.targetFormat! })),
+}))
+
+const modelMappingDraft = computed(() => ({
+  ...compositionSettings.value,
+  routingMode: editForm.value.routingMode,
+  channelId: editForm.value.channelId || undefined,
+  channelConfigs: editForm.value.channelConfigs
+    .filter((config) => config.channelId)
+    .map(({ channelId, priority }) => ({ channelId, priority })),
+  automaticProxyPoolChannelId: editForm.value.automaticProxyPoolChannelId || undefined,
+  blockedAutomaticProxyPoolChannelIds: editForm.value.blockedAutomaticProxyPoolChannelIds,
+  failoverConfig: {
+    maxAcceptedChannelMultiplier: editForm.value.failoverConfig.maxAcceptedChannelMultiplier,
+  },
+  memberTokenConfigs: editForm.value.memberTokenConfigs,
+  editingTokenId: state.currentEditId.value || undefined,
+  targetUserId: state.currentTargetUserIdForRequest.value,
 }))
 
 const requestFormatOptions = computed(

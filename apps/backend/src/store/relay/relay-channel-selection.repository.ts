@@ -1,4 +1,4 @@
-import { relayChannelVisibilityPrincipal } from "./relay-channel-visibility-principal";
+import { relayChannelVisibilityPrincipal, relayChannelTargetVisibility } from "./relay-channel-visibility-principal";
 import { RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
@@ -67,5 +67,43 @@ export class RelayChannelSelectionRepository {
     await tx.$queryRaw(
       Prisma.sql`SELECT id FROM relay_channels WHERE id IN (${Prisma.join([...ids].sort())}) ORDER BY id FOR UPDATE`,
     );
+  }
+  /** Apply the catalog's persisted actor and target visibility ceilings before topology hydration. */
+  async mappingCatalogVisibility(
+    principal: IamPrincipal,
+    userId: string,
+    ids: readonly string[],
+    tx: Prisma.TransactionClient,
+  ) {
+    const actor = await relayChannelVisibilityPrincipal(principal, tx);
+    const target =
+      userId === principal.subjectUserId ? undefined : await relayChannelTargetVisibility(principal, userId, tx);
+    const rows = await tx.relayChannel.findMany({
+      where: { id: { in: [...ids] } },
+      select: selection,
+      orderBy: { id: "asc" },
+    });
+    const visibleTo = (channel: (typeof rows)[number], identity: typeof actor) =>
+      identity.managementBypass ||
+      isRelayChannelVisible(channel, {
+        id: identity.user.id,
+        groupId: identity.user.groupId,
+        roleIds: identity.roleIds,
+      });
+    return {
+      actor,
+      target,
+      rows,
+      ids: rows
+        .filter(
+          (channel) =>
+            channel.status === RELAY_CHANNEL_STATUS.ENABLED &&
+            channel.providerServiceEnabled !== false &&
+            channel.visibilityMode !== "hidden" &&
+            visibleTo(channel, actor) &&
+            (!target || visibleTo(channel, target.visibility)),
+        )
+        .map((channel) => channel.id),
+    };
   }
 }

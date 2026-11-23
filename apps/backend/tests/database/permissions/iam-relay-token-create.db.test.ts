@@ -229,6 +229,50 @@ afterEach(async () => {
 });
 
 describe("atomic native resource-authorized token creation", () => {
+  it.each(["logical", "physical", "hidden", "denied"] as const)(
+    "keeps scoped pool reachability within the catalog boundary: %s",
+    async (scenario) => {
+      const pool = await prisma.relayChannel.create({ data: { name: prefix, channelType: "pooled" } });
+      channels.push(pool.id);
+      const physical = await prisma.relayChannel.update({
+        where: { id: channels[0] },
+        data: {
+          channelType: "pooled-member",
+          pooledParentId: pool.id,
+          ...(scenario === "hidden" ? { visibilityMode: "hidden" } : {}),
+        },
+      });
+      if (scenario === "denied")
+        await grant("quyan:relay:ListChannelRoutingCatalog", relayChannelSelectionArn(owner, physical.id));
+      const modelMappingRules = [
+        {
+          source: "*",
+          target: "upstream",
+          channelIds: [scenario === "physical" ? physical.id : pool.id],
+          preference: "mapping-first" as const,
+        },
+      ];
+      const result = create({ channelId: pool.id, modelMappingRules });
+      if (scenario === "logical") {
+        expect(await result).toMatchObject({ modelMappingRules });
+        expect(await prisma.relayToken.findUniqueOrThrow({ where: { id } })).toMatchObject({ modelMappingRules });
+      } else {
+        await expect(result).rejects.toMatchObject({ statusCode: 403 });
+        await absent();
+      }
+      expect(await prisma.relayChannel.findUniqueOrThrow({ where: { id: physical.id } })).toEqual(physical);
+    },
+  );
+  it("creates scoped model mapping rules and returns the persisted configuration", async () => {
+    const modelMappingRules = [
+      { source: "model-*", target: "upstream", channelIds: [channels[0]!], preference: "original-first" as const },
+    ];
+    expect(await create({ modelMappingRules })).toMatchObject({ modelMappingRules });
+    expect(await prisma.relayToken.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      modelMapping: null,
+      modelMappingRules,
+    });
+  });
   it("creates complete ordered configuration and returns an authorized projection without legacy rich reads", async () => {
     const rich = vi.spyOn(RelayTokenRepository.getInstance(), "create"),
       read = vi.spyOn(RelayTokenService.prototype, "getToken");
