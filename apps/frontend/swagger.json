@@ -34825,7 +34825,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/BalanceAccountResponse"
+									"$ref": "#/components/schemas/MyBalanceAccountResponse"
 								}
 							}
 						}
@@ -69290,7 +69290,61 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"BalanceAccountResponse": {
+			"BalanceOverdraftCategory": {
+				"type": "string",
+				"enum": [
+					"chat",
+					"relay",
+					"developer",
+					"oj",
+					"monthly_pass",
+					"carpool",
+					"terminal"
+				]
+			},
+			"BalanceOverdraftSummary": {
+				"properties": {
+					"overdraftLimit": {
+						"type": "number",
+						"format": "double",
+						"description": "当前生效的超额消费上限，单位：曲。"
+					},
+					"usedOverdraft": {
+						"type": "number",
+						"format": "double",
+						"description": "当前负余额已占用的额度；可能超过上限。"
+					},
+					"remainingOverdraft": {
+						"type": "number",
+						"format": "double",
+						"description": "扣除已用额度后可继续使用的额度，不小于零。"
+					},
+					"categories": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceOverdraftCategory"
+						},
+						"type": "array"
+					},
+					"calculationError": {
+						"type": "boolean"
+					},
+					"accountActive": {
+						"type": "boolean",
+						"description": "未初始化的账户仍可使用默认规则；被停用的已有账户不可消费。"
+					}
+				},
+				"required": [
+					"overdraftLimit",
+					"usedOverdraft",
+					"remainingOverdraft",
+					"categories",
+					"calculationError",
+					"accountActive"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"MyBalanceAccountResponse": {
 				"properties": {
 					"id": {
 						"type": "string"
@@ -69309,6 +69363,10 @@
 					"updateTime": {
 						"type": "string",
 						"format": "date-time"
+					},
+					"overdraft": {
+						"$ref": "#/components/schemas/BalanceOverdraftSummary",
+						"description": "当前登录账户的超额消费信息；兼容旧版客户端。"
 					}
 				},
 				"required": [
@@ -69354,6 +69412,37 @@
 				"required": [
 					"isValid",
 					"remaining"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceAccountResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"balance": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"balance",
+					"createTime",
+					"updateTime"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -69880,18 +69969,6 @@
 				],
 				"type": "object",
 				"additionalProperties": false
-			},
-			"BalanceOverdraftCategory": {
-				"type": "string",
-				"enum": [
-					"chat",
-					"relay",
-					"developer",
-					"oj",
-					"monthly_pass",
-					"carpool",
-					"terminal"
-				]
 			},
 			"ManagedBalanceAccountDto": {
 				"properties": {

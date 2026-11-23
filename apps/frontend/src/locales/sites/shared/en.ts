@@ -986,6 +986,31 @@ const en = {
     },
   },
   balance: {
+    overdraft: {
+      title: 'Overdraft credit',
+      limit: 'Total overdraft limit',
+      used: 'Overdraft used',
+      remaining: 'Remaining overdraft credit',
+      scope: 'Permitted spending categories:',
+      hint: 'All permitted categories share this credit. It is separate from your balance and cannot fund transfers, gift-code creation, or payment refunds. The current server policy determines the limit.',
+      disabled: 'Overdraft is not currently available. Please keep sufficient balance.',
+      loading: 'Updating overdraft credit…',
+      unavailable:
+        'Overdraft credit is unavailable. Retry using the refresh button beside your balance.',
+      accountInactive:
+        'Your account is inactive and cannot use overdraft credit. Contact an administrator.',
+      calculationError:
+        'The overdraft calculation failed. Available credit is currently zero. Contact an administrator.',
+      category: {
+        relay: 'API relay',
+        chat: 'Web chat',
+        developer: 'Developer usage services',
+        oj: 'OJ Q&A',
+        monthly_pass: 'Monthly pass purchases',
+        carpool: 'Carpool',
+        terminal: 'Terminal purchases',
+      },
+    },
     transactionType: 'Transaction Type',
     tokenName: 'Token Name',
     allTypes: 'All Types',

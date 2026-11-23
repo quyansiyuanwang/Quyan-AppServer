@@ -1,9 +1,29 @@
+import type { BalanceOverdraftCategory } from "@quyan/shared";
+
 export interface BalanceAccountResponse {
   id: string;
   userId: string;
   balance: number;
   createTime: Date;
   updateTime: Date;
+}
+
+export interface BalanceOverdraftSummary {
+  /** 当前生效的超额消费上限，单位：曲。 */
+  overdraftLimit: number;
+  /** 当前负余额已占用的额度；可能超过上限。 */
+  usedOverdraft: number;
+  /** 扣除已用额度后可继续使用的额度，不小于零。 */
+  remainingOverdraft: number;
+  categories: BalanceOverdraftCategory[];
+  calculationError: boolean;
+  /** 未初始化的账户仍可使用默认规则；被停用的已有账户不可消费。 */
+  accountActive: boolean;
+}
+
+export interface MyBalanceAccountResponse extends BalanceAccountResponse {
+  /** 当前登录账户的超额消费信息；兼容旧版客户端。 */
+  overdraft?: BalanceOverdraftSummary;
 }
 
 export interface RechargeRequest {

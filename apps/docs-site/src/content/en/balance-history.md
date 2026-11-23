@@ -10,6 +10,14 @@ Gift-code creation and direct transfers must be enabled by the server. Your bala
 
 In IAM enforcement mode, balance reads, transaction reads, redemption, gift-code creation and cancellation, and direct transfers have separate authorization checks. An explicit Deny can restrict an individual operation. The gift-code list and total include only your authorized codes; an empty list does not necessarily mean you have never created one.
 
+## Check overdraft credit
+
+The **Overdraft credit** section at the top of Account balance shows your current total limit, used credit, remaining credit, and permitted spending categories. All permitted categories share one limit. A negative balance consumes credit, and remaining credit cannot fall below zero. An AI request that has already started settles in full and may temporarily exceed the limit, so used credit can exceed the total limit.
+
+An administrator's individual or default policy determines your limit. A recharge percentage or formula can change the limit as account data changes. Successful recharges, redemptions, and outgoing transfers reload the credit; you can also refresh beside your balance. The page explicitly indicates when overdraft is unavailable. A failed load displays “—”, which does not mean zero credit. An inactive account or a calculation error prompts you to contact an administrator.
+
+Overdraft credit is separate from your balance. It cannot fund transfers, gift-code creation, or payment refunds. Spending still depends on permitted categories, token limits, and other applicable conditions.
+
 ## Recharge with Alipay
 
 When enabled by an administrator, the account balance page shows Alipay recharge. Enter an amount in CNY, check the estimated credit, then select **Pay with Alipay** and complete payment at the Alipay checkout.

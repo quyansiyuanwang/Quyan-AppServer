@@ -4,6 +4,31 @@ import { describe, expect, it } from "vitest";
 import { IAM_BALANCE_MANAGEMENT_OPERATIONS, Permission } from "@quyan/shared";
 const document = JSON.parse(readFileSync(resolve(process.cwd(), "src/build/swagger.json"), "utf8"));
 describe("generated balance management contract", () => {
+  it("exposes self-service credit without changing managed account responses", () => {
+    const operation = document.paths["/v1/balance/account"].get;
+    expect(operation.security).toContainEqual({ jwt: ["balance:read"] });
+    expect(operation.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/MyBalanceAccountResponse",
+    });
+    const schemas = document.components.schemas;
+    expect(schemas.MyBalanceAccountResponse.properties.overdraft.$ref).toBe(
+      "#/components/schemas/BalanceOverdraftSummary",
+    );
+    expect(schemas.MyBalanceAccountResponse.required).not.toContain("overdraft");
+    expect(schemas.BalanceAccountResponse.properties).not.toHaveProperty("overdraft");
+    expect(schemas.BalanceOverdraftSummary.required).toEqual(
+      expect.arrayContaining([
+        "overdraftLimit",
+        "usedOverdraft",
+        "remainingOverdraft",
+        "categories",
+        "calculationError",
+        "accountActive",
+      ]),
+    );
+    expect(schemas.BalanceOverdraftSummary.properties).not.toHaveProperty("rule");
+  });
+
   it.each(IAM_BALANCE_MANAGEMENT_OPERATIONS)(
     "requires JWT and replay protection for $operation",
     ({ route, accessLevel }) => {

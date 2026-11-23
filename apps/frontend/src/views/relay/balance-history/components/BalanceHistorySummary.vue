@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { BALANCE_MANAGEMENT_POLICY } from '@quyan/shared'
 import { Refresh, Switch } from '@element-plus/icons-vue'
 import { AsyncVChart as VChart } from '@/utils/asyncChart'
 import { useBalanceHistoryContext } from '../context'
@@ -12,6 +13,7 @@ const {
   userInfoStore,
   loadingStats,
   refreshingBalance,
+  balanceAccount,
   refreshBalanceAndStats,
   redeemCode,
   handleRedeem,
@@ -26,6 +28,31 @@ const {
   avgRPM,
   rpmChartOption,
 } = useBalanceHistoryContext()
+
+const overdraft = computed(() => balanceAccount.value?.overdraft)
+const formatCredit = (amount: number | undefined) =>
+  amount === undefined
+    ? '—'
+    : amount.toLocaleString(undefined, {
+        maximumFractionDigits: BALANCE_MANAGEMENT_POLICY.decimals,
+      })
+const overdraftStatus = computed(() => {
+  if (refreshingBalance.value) return 'balance.overdraft.loading'
+  if (!overdraft.value) return 'balance.overdraft.unavailable'
+  if (!overdraft.value.accountActive) return 'balance.overdraft.accountInactive'
+  if (overdraft.value.calculationError) return 'balance.overdraft.calculationError'
+  if (overdraft.value.overdraftLimit <= 0 || !overdraft.value.categories.length)
+    return 'balance.overdraft.disabled'
+  return 'balance.overdraft.hint'
+})
+const creditMetrics = computed(
+  () =>
+    [
+      { key: 'limit', value: overdraft.value?.overdraftLimit },
+      { key: 'used', value: overdraft.value?.usedOverdraft },
+      { key: 'remaining', value: overdraft.value?.remainingOverdraft },
+    ] as const,
+)
 
 const {
   label: quotaLabel,
@@ -93,6 +120,32 @@ const trends = computed(
         </div>
       </form>
     </div>
+    <section
+      v-if="mode === 'balance'"
+      class="balance-credit"
+      :aria-label="i18ns.t('balance.overdraft.title')"
+      :aria-busy="refreshingBalance"
+      aria-live="polite"
+    >
+      <h2>{{ i18ns.t('balance.overdraft.title') }}</h2>
+      <dl class="balance-credit__metrics">
+        <div v-for="metric in creditMetrics" :key="metric.key" :data-credit="metric.key">
+          <dt>{{ i18ns.t(`balance.overdraft.${metric.key}`) }}</dt>
+          <dd>
+            {{ formatCredit(metric.value) }} <small>{{ i18ns.t('balance.yuan') }}</small>
+          </dd>
+        </div>
+      </dl>
+      <p class="balance-credit__hint" role="status">{{ i18ns.t(overdraftStatus) }}</p>
+      <p v-if="overdraft?.categories.length" class="balance-credit__hint">
+        {{ i18ns.t('balance.overdraft.scope') }}
+        {{
+          overdraft.categories
+            .map((category) => i18ns.t(`balance.overdraft.category.${category}`))
+            .join(' / ')
+        }}
+      </p>
+    </section>
     <dl v-else class="usage-metrics">
       <div class="usage-metric" v-loading="loadingQuota">
         <dt class="usage-metric__heading">

@@ -6,7 +6,7 @@ import { i18ns } from '@/locales'
 import { balanceTransactionService } from '@/service/balanceTransactionService'
 import { redemptionCodeService } from '@/service/redemptionCodeService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
-import type { BalanceTransactionResponse } from '@/client/types.gen'
+import type { BalanceTransactionResponse, MyBalanceAccountResponse } from '@/client/types.gen'
 import { sessionDB, STORE_NAMES } from '@/utils/sessionDB'
 import { isApiUsageRecord, isChargeableApiUsageRecord } from '@/utils/balance-transaction'
 
@@ -39,6 +39,7 @@ export function useBalanceHistory() {
   const loadingStats = ref(false)
   const loadingAllData = ref(false)
   const refreshingBalance = ref(false)
+  const balanceAccount = shallowRef<MyBalanceAccountResponse | null>(null)
   const redeeming = ref(false)
   const showCharts = ref(false)
   const redeemCode = ref('')
@@ -578,6 +579,7 @@ export function useBalanceHistory() {
       ElMessage.success(i18ns.t('redemption.redeemSuccess'))
       userInfoStore.setUserInfo({ balance: result.data?.balance })
       redeemCode.value = ''
+      await refreshBalanceAndStats()
     } catch (error: any) {
       showRequestErrorNotice(error, i18ns.t('redemption.redeemFailed'))
     } finally {
@@ -802,8 +804,11 @@ export function useBalanceHistory() {
 
   const refreshBalanceAndStats = async () => {
     refreshingBalance.value = true
+    balanceAccount.value = null
     try {
       const result = await balanceTransactionService.getMyBalance()
+      if (!result.data) throw new Error('Balance account response is missing')
+      balanceAccount.value = result.data
       userInfoStore.setUserInfo({ balance: result.data?.balance })
     } catch (error: any) {
       showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
@@ -834,6 +839,7 @@ export function useBalanceHistory() {
     loadingStats,
     loadingAllData,
     refreshingBalance,
+    balanceAccount,
     redeeming,
     showCharts,
     redeemCode,
