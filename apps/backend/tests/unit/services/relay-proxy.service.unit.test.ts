@@ -3061,9 +3061,15 @@ describe("RelayProxyService failover", () => {
   });
 
   describe("RelayProxyService model mapping forwarding", () => {
-    it.each(["deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-flash", "deepseek-v4.1-flash"])(
-      "sends identical upstream JSON for original identity and aliases: %s",
-      async (requestedModel) => {
+    it.each(
+      ["deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-flash", "deepseek-v4.1-flash"].flatMap((requestedModel) =>
+        [false, true].flatMap((stream) =>
+          [false, true].map((reasoningHistory) => ({ requestedModel, stream, reasoningHistory })),
+        ),
+      ),
+    )(
+      "preserves upstream JSON for $requestedModel (stream: $stream, reasoning history: $reasoningHistory)",
+      async ({ requestedModel, stream, reasoningHistory }) => {
         const modelId = "deepseek-ai/DeepSeek-V4.1-Flash";
         const relayToken = createRelayToken();
         relayToken.channelConfigs = [relayToken.channelConfigs[0]];
@@ -3073,21 +3079,70 @@ describe("RelayProxyService failover", () => {
           allowedModels: JSON.stringify([modelId]),
           modelMapping: { "deepseek-flash": modelId, "deepseek-v4.1-flash": modelId },
         });
-        const body = { model: requestedModel, messages: [{ role: "user", content: "fixture" }], max_tokens: 32 };
+        const body = {
+          model: requestedModel,
+          stream,
+          ...(stream ? { stream_options: { include_usage: true } } : {}),
+          reasoning_effort: "high",
+          max_completion_tokens: 128000,
+          tools: [
+            {
+              type: "function",
+              function: { name: "fixture_ping", parameters: { type: "object", properties: {} } },
+            },
+          ],
+          messages: [
+            { role: "developer", content: "Fixture instructions" },
+            { role: "user", content: "Fixture question" },
+            {
+              role: "assistant",
+              content: "Fixture answer",
+              ...(reasoningHistory ? { reasoning_content: "Fixture reasoning" } : {}),
+            },
+            { role: "user", content: "Fixture follow-up" },
+          ],
+        };
         const req = createRequest({ body: Buffer.from(JSON.stringify(body, null, 2)) });
+        const expectedBody = {
+          ...body,
+          model: modelId,
+          messages: body.messages.map((message) =>
+            message.role === "assistant"
+              ? { ...message, reasoning_content: reasoningHistory ? "Fixture reasoning" : "" }
+              : message,
+          ),
+        };
         const { service, modelPricingService } = createService();
-        modelPricingService.getModelPricing.mockResolvedValue([
-          {
-            model: "DeepSeek Flash",
-            provider: modelId,
+        // Each alias also has its own pricing identity in the production catalog.
+        modelPricingService.getModelPricing.mockResolvedValue(
+          ["deepseek-flash", "deepseek-v4.1-flash", modelId].map((provider) => ({
+            model: provider,
+            provider,
             supportedFormats: "openai-chat-completions",
             pricingType: "token-based",
             inputPrice: 1000,
             outputPrice: 2000,
             cacheCreationMultiplier: 1,
             cacheReadMultiplier: 1,
-          },
-        ]);
+          })),
+        );
+        if (stream) {
+          const forwardStreamSpy = vi
+            .spyOn(service as any, "forwardStreamRequest")
+            .mockResolvedValueOnce({ handled: true, success: true, retryable: false, statusCode: 200 });
+          try {
+            const res = { headersSent: false, writableEnded: false, finished: false };
+            expect((await service.forwardRequest(relayToken, req, res)).status).toBe(200);
+            expect(forwardStreamSpy).toHaveBeenCalledOnce();
+            const params = forwardStreamSpy.mock.calls[0]![0] as any;
+            expect(params.selectedModelId).toBe(modelId);
+            expect(JSON.parse(params.bodyBuffer.toString("utf8"))).toEqual(expectedBody);
+            expect(req.body).toEqual(body);
+          } finally {
+            forwardStreamSpy.mockRestore();
+          }
+          return;
+        }
         axiosMock.mockResolvedValueOnce({
           status: 200,
           headers: { "content-type": "application/json" },
@@ -3103,7 +3158,8 @@ describe("RelayProxyService failover", () => {
           headers: Record<string, unknown>;
           url: string;
         };
-        expect(JSON.parse(upstream.data.toString("utf8"))).toEqual({ ...body, model: modelId });
+        expect(JSON.parse(upstream.data.toString("utf8"))).toEqual(expectedBody);
+        expect(req.body).toEqual(body);
         expect(upstream.headers["Content-Length"]).toBe(upstream.data.length);
         expect(upstream.url).toBe("https://primary.example.com/v1/chat/completions");
       },
