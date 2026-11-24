@@ -237,6 +237,23 @@ describe("token whitelist is evaluated against the resolved route", () => {
 });
 
 describe("channel mapping fallback and non-recursive rule tables", () => {
+  it.each(["deepseek-flash", "deepseek-v4.1-flash", "deepseek-ai/DeepSeek-V4.1-Flash"])(
+    "keeps the original model and both aliases available when requesting %s",
+    (requestedModel) => {
+      const upstreamModel = "deepseek-ai/DeepSeek-V4.1-Flash";
+      const config = { model: "DeepSeek Flash", provider: upstreamModel, supportedFormats: CHAT };
+      const result = resolve(
+        [token({ modelMappingRules: [], allowedModels: null })],
+        channel([upstreamModel], {
+          modelMapping: { "deepseek-flash": upstreamModel, "deepseek-v4.1-flash": upstreamModel },
+        }),
+        { requestedModel, modelCatalog: [config] },
+      );
+      expect(result.modelConfig).toBe(config);
+      expect(result.effectiveModel).toBe(upstreamModel);
+    },
+  );
+
   it("tries channel mapping after an unavailable token target", () => {
     const result = resolve([token()], channel(["C"], { modelMapping: { B: "C" } }));
     expect(result).toMatchObject({ effectiveModel: "C", outcome: "fallback" });

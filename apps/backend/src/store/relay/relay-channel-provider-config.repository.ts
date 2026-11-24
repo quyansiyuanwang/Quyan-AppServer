@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -107,7 +108,7 @@ export class RelayChannelProviderConfigRepository {
       ].sort(),
       userIds = [...new Set([...guard.snapshot.users.map((row) => row.id), ...recipientIds])].sort();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await tx.$queryRaw(
             Prisma.sql`SELECT id FROM users WHERE id IN (${Prisma.join(userIds)}) ORDER BY id FOR UPDATE`,
@@ -212,6 +213,7 @@ export class RelayChannelProviderConfigRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: configurationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Provider configuration context changed", undefined, { messageKey: "errors.conflict" });

@@ -3061,6 +3061,54 @@ describe("RelayProxyService failover", () => {
   });
 
   describe("RelayProxyService model mapping forwarding", () => {
+    it.each(["deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-flash", "deepseek-v4.1-flash"])(
+      "sends identical upstream JSON for original identity and aliases: %s",
+      async (requestedModel) => {
+        const modelId = "deepseek-ai/DeepSeek-V4.1-Flash";
+        const relayToken = createRelayToken();
+        relayToken.channelConfigs = [relayToken.channelConfigs[0]];
+        relayToken.failoverConfig = { enabled: false };
+        Object.assign(relayToken.channel, {
+          allowedFormats: "openai-chat-completions",
+          allowedModels: JSON.stringify([modelId]),
+          modelMapping: { "deepseek-flash": modelId, "deepseek-v4.1-flash": modelId },
+        });
+        const body = { model: requestedModel, messages: [{ role: "user", content: "fixture" }], max_tokens: 32 };
+        const req = createRequest({ body: Buffer.from(JSON.stringify(body, null, 2)) });
+        const { service, modelPricingService } = createService();
+        modelPricingService.getModelPricing.mockResolvedValue([
+          {
+            model: "DeepSeek Flash",
+            provider: modelId,
+            supportedFormats: "openai-chat-completions",
+            pricingType: "token-based",
+            inputPrice: 1000,
+            outputPrice: 2000,
+            cacheCreationMultiplier: 1,
+            cacheReadMultiplier: 1,
+          },
+        ]);
+        axiosMock.mockResolvedValueOnce({
+          status: 200,
+          headers: { "content-type": "application/json" },
+          data: {
+            choices: [{ message: { content: "ok" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          },
+        });
+        expect((await service.forwardRequest(relayToken, req)).status).toBe(200);
+        expect(axiosMock).toHaveBeenCalledOnce();
+        const upstream = axiosMock.mock.calls[0]![0] as unknown as {
+          data: Buffer;
+          headers: Record<string, unknown>;
+          url: string;
+        };
+        expect(JSON.parse(upstream.data.toString("utf8"))).toEqual({ ...body, model: modelId });
+        expect(upstream.headers["Content-Length"]).toBe(upstream.data.length);
+        expect(upstream.url).toBe("https://primary.example.com/v1/chat/completions");
+      },
+    );
+
     it.each([
       ["openai-chat-completions", "/v1/chat/completions", false],
       ["openai-responses", "/v1/responses", false],

@@ -337,6 +337,12 @@ TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 随后由 Vite 原样复制到 `dist/`。部署时必须发布同一次构建生成的整套 `dist/` 文件；不要只覆盖
 `support-knowledge.json`，否则它指向的带 hash 目录或文档分片可能尚未部署。
 
+### Relay 目录缓存
+
+后端 `.env` 的 `RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE` 默认 `false`，仅接受 `true` / `false`；修改后重启全部 worker。默认在成功写入后失效、下次读取时计算；设为 `true` 时，事务提交后等待已有有效缓存项顺序重算。预热错误只记录脱敏诊断，不改变已提交写入的结果。开启前评估写延迟及多进程数据库负载。
+
+通用 `WriteInvalidatingCache` 提供 TTL、容量限制、并发读取合并、返回值复制及写后失效。调用者负责每次读取的版本与授权校验；`write` 必须包含完整的最外层事务，禁止在未提交事务内失效或预热。Relay 仓储的 `afterRelayCatalogWrite` 在提交后清空图和路径计算缓存，shadow 写入不触发。跨进程通过新鲜 SQL 快照的版本摘要验证，不能缓存最终 IAM 决策或用户响应。
+
 ### 前端 (`.env`)
 
 ```bash

@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -48,7 +49,7 @@ export class RelayChannelHealthConfigRepository {
     const ids = targets.map((row) => row.id).sort();
     if (!ids.length || new Set(ids).size !== ids.length || (project && ids.length !== 1)) throw iamAccountDenied();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(
             tx,
@@ -169,6 +170,7 @@ export class RelayChannelHealthConfigRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028"].includes(error.code))
         throw new ConflictError("Channel health configuration authorization context changed", undefined, {

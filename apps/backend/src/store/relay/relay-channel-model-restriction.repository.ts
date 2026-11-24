@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { relayChannelChangeValidationSourceSelect } from "./relay-channel-change-request-create.repository";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
@@ -67,7 +68,7 @@ export class RelayChannelModelRestrictionRepository {
     )
       throw iamAccountDenied();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(
             tx,
@@ -154,6 +155,7 @@ export class RelayChannelModelRestrictionRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Channel model restriction context changed", undefined, {

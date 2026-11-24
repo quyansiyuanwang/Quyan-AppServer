@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { prisma } from "@/config/database";
 import { RELAY_CHANNEL_STATUS, VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { RelayChannel, Prisma } from "@prisma/client";
@@ -55,7 +56,8 @@ export class RelayChannelRepository implements RelayChannelStore {
   }
 
   async withTransaction<T>(callback: (tx: RelayChannelTransactionClient) => Promise<T>): Promise<T> {
-    return prisma.$transaction((tx) => callback(tx as RelayChannelTransactionClient));
+    const committed = prisma.$transaction((tx) => callback(tx as RelayChannelTransactionClient));
+    return afterRelayCatalogWrite(committed);
   }
 
   async findActiveByName(name: string): Promise<RelayChannel | null> {
@@ -243,10 +245,11 @@ export class RelayChannelRepository implements RelayChannelStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<RelayChannel> {
     const client = tx ?? prisma;
-    return client.relayChannel.create({
+    const committed = client.relayChannel.create({
       data,
       include: relayChannelInclude,
     });
+    return afterRelayCatalogWrite(committed, !tx);
   }
 
   async updateById(
@@ -255,23 +258,26 @@ export class RelayChannelRepository implements RelayChannelStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<RelayChannel> {
     const client = tx ?? prisma;
-    return client.relayChannel.update({
+    const committed = client.relayChannel.update({
       where: { id },
       data,
       include: relayChannelInclude,
     });
+    return afterRelayCatalogWrite(committed, !tx);
   }
 
   async updateStatusByIds(ids: string[], status: number): Promise<number> {
     if (ids.length === 0) return 0;
 
-    const result = await prisma.relayChannel.updateMany({
-      where: {
-        id: { in: ids },
-        status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },
-      },
-      data: { status },
-    });
+    const result = await afterRelayCatalogWrite(
+      prisma.relayChannel.updateMany({
+        where: {
+          id: { in: ids },
+          status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },
+        },
+        data: { status },
+      }),
+    );
 
     return result.count;
   }
@@ -300,7 +306,7 @@ export class RelayChannelRepository implements RelayChannelStore {
   }
 
   async softDeleteAndUnassignTokens(id: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    const committed = prisma.$transaction(async (tx) => {
       await tx.relayToken.updateMany({
         where: { channelId: id },
         data: { channelId: null },
@@ -331,12 +337,13 @@ export class RelayChannelRepository implements RelayChannelStore {
         data: { status: RELAY_CHANNEL_STATUS.DELETED },
       });
     });
+    await afterRelayCatalogWrite(committed);
   }
 
   async softDeleteAndUnassignTokensByIds(ids: string[]): Promise<number> {
     if (ids.length === 0) return 0;
 
-    return prisma.$transaction(async (tx) => {
+    const committed = prisma.$transaction(async (tx) => {
       await tx.relayToken.updateMany({
         where: { channelId: { in: ids } },
         data: { channelId: null },
@@ -365,6 +372,7 @@ export class RelayChannelRepository implements RelayChannelStore {
 
       return result.count;
     });
+    return afterRelayCatalogWrite(committed);
   }
 
   async replaceMembersByChannelId(
@@ -372,6 +380,10 @@ export class RelayChannelRepository implements RelayChannelStore {
     members: RelayChannelMemberInput[],
     tx?: RelayChannelTransactionClient,
   ): Promise<void> {
+    if (!tx)
+      return this.withTransaction((transaction) =>
+        this.replaceMembersByChannelId(relayChannelId, members, transaction),
+      );
     const client = tx ?? prisma;
 
     await client.relayChannelMember.deleteMany({
@@ -393,9 +405,10 @@ export class RelayChannelRepository implements RelayChannelStore {
 
   async deleteMembersByChannelId(relayChannelId: string, tx?: RelayChannelTransactionClient): Promise<void> {
     const client = tx ?? prisma;
-    await client.relayChannelMember.deleteMany({
+    const committed = client.relayChannelMember.deleteMany({
       where: { relayChannelId },
     });
+    await afterRelayCatalogWrite(committed, !tx);
   }
 
   async replaceProvidersByChannelId(
