@@ -48,6 +48,11 @@ export type RelayCatalogVisibilityTarget = {
   /** Re-prove the actor's managed-user Action and deployment ceiling before target identity reads. */
   authorize: (tx: Prisma.TransactionClient) => Promise<void>;
 };
+/** Internal inspection scope, derived from admitted token drafts rather than public pagination. */
+export type RelayCatalogReadScope = {
+  rootIds: readonly string[];
+  includeModelCatalog: boolean;
+};
 export class RelayChannelCatalogReadRepository {
   private static instance: RelayChannelCatalogReadRepository;
   static getInstance() {
@@ -73,9 +78,72 @@ export class RelayChannelCatalogReadRepository {
     recheck: () => Promise<void>,
     project?: (snapshot: RelayCatalogSnapshot) => Promise<T>,
     target?: RelayCatalogVisibilityTarget,
+    scope?: RelayCatalogReadScope,
   ): Promise<T | undefined> {
     return readIamPersonalCollection(principal, decide, recheck, async (tx, checkedDecide) => {
       const limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
+      // Only expand admitted pools. Both legacy members and strict children are needed;
+      // the existing effective-member projection still owns override/enabled semantics.
+      const scanRoots = async (authorize: boolean, admittedIds: readonly string[] = []) => {
+        const rows: Prisma.RelayChannelGetPayload<{ select: typeof metadataSelect }>[] = [],
+          admitted: string[] = [],
+          topology: Array<{ id: string; memberIds: string[] }> = [];
+        const seen = new Set<string>();
+        let frontier = [...new Set(scope!.rootIds)].sort();
+        while (frontier.length) {
+          if (seen.size + frontier.length > RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes) throw iamAccountDenied();
+          const next = new Set<string>();
+          for (let offset = 0; offset < frontier.length; offset += limit) {
+            await recheck();
+            const ids = frontier.slice(offset, offset + limit);
+            ids.forEach((id) => seen.add(id));
+            const batch = await tx.relayChannel.findMany({
+              where: { id: { in: ids }, status: RELAY_CHANNEL_STATUS.ENABLED, providerServiceEnabled: true },
+              select: metadataSelect,
+              orderBy: { id: "asc" },
+            });
+            const outcomes = authorize
+              ? await checkedDecide(batch.map((row) => relayChannelSelectionArn(principal.accountOwnerId, row.id)))
+              : batch.map((row) => (admittedIds.includes(row.id) ? "Allow" : "ImplicitDeny"));
+            const allowed = batch.filter((_, index) => outcomes[index] === "Allow").map((row) => row.id);
+            rows.push(...batch);
+            admitted.push(...allowed);
+            if (!allowed.length) continue;
+            const pools = await tx.relayChannel.findMany({
+              where: { id: { in: allowed }, channelType: { in: ["pooled", "automatic-proxy-pool"] } },
+              select: {
+                id: true,
+                poolMembers: {
+                  select: { memberChannelId: true },
+                  orderBy: { memberChannelId: "asc" },
+                  take: RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes + 1,
+                },
+                pooledChildren: {
+                  select: { id: true },
+                  orderBy: { id: "asc" },
+                  take: RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes + 1,
+                },
+              },
+              orderBy: { id: "asc" },
+            });
+            for (const pool of pools) {
+              const memberIds = [
+                ...new Set([
+                  ...pool.poolMembers.map((edge) => edge.memberChannelId),
+                  ...pool.pooledChildren.map((child) => child.id),
+                ]),
+              ].sort();
+              if (memberIds.length > RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes) throw iamAccountDenied();
+              topology.push({ id: pool.id, memberIds });
+              memberIds.forEach((id) => {
+                if (!seen.has(id)) next.add(id);
+              });
+            }
+          }
+          frontier = [...next].filter((id) => !seen.has(id)).sort();
+        }
+        return { rows: rows.sort((a, b) => a.id.localeCompare(b.id)), admitted, topology };
+      };
       const scan = async (authorize: boolean) => {
         const rows: Prisma.RelayChannelGetPayload<{ select: typeof metadataSelect }>[] = [],
           admitted: string[] = [];
@@ -108,7 +176,7 @@ export class RelayChannelCatalogReadRepository {
         }
         return { rows, admitted };
       };
-      const initial = await scan(true);
+      const initial = scope ? await scanRoots(true) : await scan(true);
       // Shadow observes admission only; it does not hydrate any labels, model graph, or prices.
       if (!project) return undefined;
       const readVisibility = async () => {
@@ -210,16 +278,20 @@ export class RelayChannelCatalogReadRepository {
           orderBy: [{ updateTime: "desc" }, { id: "desc" }],
           select: { id: true, status: true, updateTime: true, apiCatalogPoolVisibility: true },
         });
-      const models = sources.length ? await readModels() : [],
-        config = sources.length ? await readConfig() : null;
+      const includeCatalog = scope?.includeModelCatalog !== false;
+      const models = sources.length && includeCatalog ? await readModels() : [],
+        config = sources.length && includeCatalog ? await readConfig() : null;
       const poolVisibility = config?.apiCatalogPoolVisibility ?? DEFAULT_RELAY_CONFIG.apiCatalogPoolVisibility;
       if (poolVisibility !== "anonymous-range" && poolVisibility !== "hidden") throw iamAccountDenied();
       const result = await project({ sources, context: { graph, modelCatalog: models }, poolVisibility });
       if (
-        !same(initial.rows, (await scan(false)).rows) ||
+        !same(
+          initial,
+          scope ? await scanRoots(false, initial.admitted) : { ...(await scan(false)), admitted: initial.admitted },
+        ) ||
         !same(visibility, await readVisibility()) ||
         !same(sources, await readSources()) ||
-        (sources.length && (!same(models, await readModels()) || !same(config, await readConfig())))
+        (sources.length && includeCatalog && (!same(models, await readModels()) || !same(config, await readConfig())))
       )
         throw iamAccountDenied();
       return result;

@@ -269,28 +269,39 @@ export class RelayTokenModelMappingService {
         const root = this.draftRoot(draft, original, userId);
         tokens.set(root.id, root);
         validateRelayComposition([...tokens.values()]);
-        return this.channels.withRoutingSnapshot(actorUserId, userId, request, async (snapshot) => {
-          const context = await this.paths(root, tokens, snapshot);
-          const rawRules = root.modelMappingRules;
-          const scopeIds = Array.isArray(rawRules)
-            ? rawRules.flatMap((rule: unknown) =>
-                rule && typeof rule === "object" && "channelIds" in rule && Array.isArray(rule.channelIds)
-                  ? rule.channelIds
-                  : [],
+        return this.channels.withRoutingSnapshot(
+          actorUserId,
+          userId,
+          request,
+          async (snapshot) => {
+            const context = await this.paths(root, tokens, snapshot);
+            const rawRules = root.modelMappingRules;
+            const scopeIds = Array.isArray(rawRules)
+              ? rawRules.flatMap((rule: unknown) =>
+                  rule && typeof rule === "object" && "channelIds" in rule && Array.isArray(rule.channelIds)
+                    ? rule.channelIds
+                    : [],
+                )
+              : [];
+            if (scopeIds.some((id) => !context.candidates.has(id))) throw iamAccountDenied();
+            const result = await read({ ...context, root });
+            if (
+              JSON.stringify(await this.repository.tokens(userId, proofTargets)) !== before ||
+              [...tokens.values()].some(
+                (token) =>
+                  token.expiresAt && token.expiresAt.getTime() > evaluatedAt && token.expiresAt.getTime() <= Date.now(),
               )
-            : [];
-          if (scopeIds.some((id) => !context.candidates.has(id))) throw iamAccountDenied();
-          const result = await read({ ...context, root });
-          if (
-            JSON.stringify(await this.repository.tokens(userId, proofTargets)) !== before ||
-            [...tokens.values()].some(
-              (token) =>
-                token.expiresAt && token.expiresAt.getTime() > evaluatedAt && token.expiresAt.getTime() <= Date.now(),
             )
-          )
-            throw iamAccountDenied();
-          return result;
-        });
+              throw iamAccountDenied();
+            return result;
+          },
+          {
+            rootIds: [
+              ...new Set([...tokens.values()].filter((token) => token.routingMode !== "composite").flatMap(rootsFor)),
+            ].sort(),
+            includeModelCatalog: kind === "model-mapping-preview",
+          },
+        );
       },
     );
   }
