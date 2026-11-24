@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -50,7 +51,7 @@ export class PlatformRelayChannelStatusRepository {
       ? RELAY_CHANNEL_STATUS.ENABLED
       : RELAY_CHANNEL_STATUS.DISABLED;
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(
             tx,
@@ -105,6 +106,7 @@ export class PlatformRelayChannelStatusRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028"].includes(error.code))
         throw new ConflictError("Channel status authorization context changed", undefined, {

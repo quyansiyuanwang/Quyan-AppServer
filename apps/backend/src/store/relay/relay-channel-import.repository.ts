@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission } from "@quyan/shared";
@@ -68,7 +69,7 @@ export class RelayChannelImportRepository {
     audit: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           const ids = targets.map((row) => row.id),
             destinations = new Set(ids),
@@ -464,6 +465,7 @@ export class RelayChannelImportRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: importPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Channel import context changed", undefined, { messageKey: "errors.conflict" });

@@ -70,6 +70,13 @@ export interface RelayPoolResolverContext<TModel extends RelayModelCatalogEntry 
   graph: ReadonlyMap<string, RelayCapabilityGraphNode>;
   modelCatalog: readonly TModel[];
   includeDisabled?: boolean;
+  /** Only present on a freshly admitted catalog snapshot; never caches authorization. */
+  resolveCapabilityLeafCandidates?: (roots: string[]) => Promise<RelayCapabilityLeafCandidate[]>;
+}
+
+export interface RelayCapabilityLeafCandidate {
+  resolvedChannel: RelayCapabilityGraphNode;
+  routingChannelIds: string[];
 }
 
 export interface RelayPoolResolverOptions {

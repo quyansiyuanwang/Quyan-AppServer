@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -61,7 +62,7 @@ export class RelayChannelBatchUpdateRepository {
     const sortedIds = [...ids].sort(),
       candidates = RelayChannelModelRestrictionRepository.getInstance();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(
             tx,
@@ -186,6 +187,7 @@ export class RelayChannelBatchUpdateRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Channel batch update context changed", undefined, { messageKey: "errors.conflict" });

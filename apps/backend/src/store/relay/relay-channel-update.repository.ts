@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { assertRelayChannelGraph } from "@/util/relay-channel-graph";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
@@ -138,7 +139,7 @@ export class RelayChannelUpdateRepository {
     audit: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(
             tx,
@@ -550,6 +551,7 @@ export class RelayChannelUpdateRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: updatePolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Channel update context changed", undefined, { messageKey: "errors.conflict" });

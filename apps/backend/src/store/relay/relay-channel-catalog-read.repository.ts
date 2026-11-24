@@ -8,36 +8,14 @@ import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { DEFAULT_RELAY_CONFIG } from "@/constant/relay-config";
 import { relayChannelSelectionArn } from "@/iam/resources/relay-channel-selection-resources";
 import { isRelayChannelVisible } from "@/util/relay/relay-channel-visibility.util";
-import type { RelayPoolResolverContext, RelayCapabilityGraphNode } from "@/services/relay/relay-pool-resolver.service";
-import { resolveEffectiveRelayPoolMembers } from "@/services/relay/utils/relay-pool-members.util";
+import type { RelayPoolResolverContext } from "@/services/relay/relay-pool-resolver.service";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
+import { RelayCatalogGraphCache } from "./relay-catalog-graph-cache";
 import { readIamPersonalCollection } from "../users/iam-personal-collection-read";
 import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
 import { relayChannelVisibilityPrincipal, relayChannelTargetVisibility } from "./relay-channel-visibility-principal";
-const metadataSelect = { id: true, status: true, providerServiceEnabled: true, updateTime: true } as const;
-/** Consumer projection only: never URLs, credentials, provider identities, or complete configuration. */
-export const relayCatalogSourceSelect = {
-  ...metadataSelect,
-  name: true,
-  channelType: true,
-  routingStrategy: true,
-  allowedFormats: true,
-  allowedModels: true,
-  modelMapping: true,
-  routingConfig: true,
-  multiplier: true,
-  timePeriodMultipliers: true,
-  contextLengthMultipliers: true,
-  pooledParentId: true,
-  pooledPriority: true,
-  pooledWeight: true,
-  pooledMemberEnabled: true,
-  poolMembers: {
-    select: { memberChannelId: true, priority: true, weight: true, enabled: true },
-    orderBy: { memberChannelId: "asc" },
-    take: RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes + 1,
-  },
-} as const satisfies Prisma.RelayChannelSelect;
-export type RelayCatalogSource = Prisma.RelayChannelGetPayload<{ select: typeof relayCatalogSourceSelect }>;
+import { metadataSelect, relayCatalogSourceSelect, type RelayCatalogSource } from "./relay-catalog-source";
+export { relayCatalogSourceSelect, type RelayCatalogSource } from "./relay-catalog-source";
 export type RelayCatalogSnapshot = {
   sources: readonly RelayCatalogSource[];
   context: RelayPoolResolverContext;
@@ -244,23 +222,7 @@ export class RelayChannelCatalogReadRepository {
       const sources = await readSources();
       if (sources.some((row) => row.poolMembers.length > RELAY_CAPABILITY_RESOLUTION_LIMITS.channelNodes))
         throw iamAccountDenied();
-      const byId = new Map(sources.map((row) => [row.id, row]));
-      const children = new Map<string, RelayCatalogSource[]>();
-      for (const row of sources)
-        if (row.pooledParentId) {
-          const list = children.get(row.pooledParentId) ?? [];
-          list.push(row);
-          children.set(row.pooledParentId, list);
-        }
-      const graph = new Map<string, RelayCapabilityGraphNode>();
-      for (const row of sources)
-        graph.set(row.id, {
-          ...row,
-          poolMembers: resolveEffectiveRelayPoolMembers<RelayCatalogSource>({
-            ...row,
-            pooledChildren: children.get(row.id) ?? [],
-          }).filter((member) => byId.has(member.memberChannelId)),
-        });
+      const graph = await RelayCatalogGraphCache.getInstance().get(sources);
       if (
         [...graph.values()].reduce((count, row) => count + row.poolMembers.length, 0) >
         RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits
@@ -283,7 +245,18 @@ export class RelayChannelCatalogReadRepository {
         config = sources.length && includeCatalog ? await readConfig() : null;
       const poolVisibility = config?.apiCatalogPoolVisibility ?? DEFAULT_RELAY_CONFIG.apiCatalogPoolVisibility;
       if (poolVisibility !== "anonymous-range" && poolVisibility !== "hidden") throw iamAccountDenied();
-      const result = await project({ sources, context: { graph, modelCatalog: models }, poolVisibility });
+      const result = await project({
+        sources,
+        context: {
+          graph,
+          modelCatalog: models,
+          resolveCapabilityLeafCandidates: (roots) =>
+            RelayCatalogGraphCache.getInstance().resolve(sources, graph, roots, (rootIds, currentGraph) =>
+              RelayPoolResolverService.getInstance().resolveCapabilityLeafCandidates(rootIds, currentGraph),
+            ),
+        },
+        poolVisibility,
+      });
       if (
         !same(
           initial,

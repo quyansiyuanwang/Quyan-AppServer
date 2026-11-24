@@ -7,7 +7,11 @@ import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { relayChannelSelectionArn } from "@/iam/resources/relay-channel-selection-resources";
 import { RelayChannelCatalogIamService } from "@/services/relay/relay-channel-catalog-iam.service";
 import { RelayTokenModelMappingService } from "@/services/relay/relay-token-model-mapping.service";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayChannelCatalogReadRepository } from "@/store/relay/relay-channel-catalog-read.repository";
+import { RelayCatalogGraphCache } from "@/store/relay/relay-catalog-graph-cache";
+import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
+import { relayCatalogSourceSelect } from "@/store/relay/relay-catalog-source";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
 import type { TypedRequest } from "@/types/express";
 
@@ -76,6 +80,55 @@ afterEach(async () => {
 });
 
 describe("scoped model mapping channel inspection", () => {
+  it("checks permissions and visibility again after warming the graph cache", async () => {
+    expect((await options()).items).toHaveLength(1);
+    await prisma.relayChannel.update({ where: { id: standalone }, data: { visibilityMode: "hidden" } });
+    expect((await options()).items).toEqual([]);
+    await prisma.relayChannel.update({ where: { id: standalone }, data: { visibilityMode: "public" } });
+    expect((await options()).items).toHaveLength(1);
+    await prisma.user.update({
+      where: { id: owner },
+      data: { permissionRemoves: [Permission.RELAY_CHANNEL_READ, Permission.RELAY_TOKEN_READ] },
+    });
+    await expect(options()).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("rebuilds changed graph data even when the write came from another process", async () => {
+    const cache = RelayCatalogGraphCache.getInstance();
+    const sources = () =>
+      prisma.relayChannel.findMany({
+        where: { id: { in: [pool, leaf] } },
+        select: relayCatalogSourceSelect,
+        orderBy: { id: "asc" },
+      });
+    const first = await cache.get(await sources());
+    expect(first.get(pool)?.poolMembers[0]?.enabled).toBe(true);
+    first.get(pool)!.poolMembers.length = 0;
+    expect((await cache.get(await sources())).get(pool)?.poolMembers).toHaveLength(1);
+    await prisma.relayChannel.update({ where: { id: leaf }, data: { pooledMemberEnabled: false } });
+    expect((await cache.get(await sources())).get(pool)?.poolMembers[0]?.enabled).toBe(false);
+  });
+
+  it("invalidates after committed repository writes and preserves a rolled-back graph", async () => {
+    const repository = RelayChannelRepository.getInstance();
+    const derive = vi.spyOn(RelayPoolResolverService.getInstance(), "resolveCapabilityLeafCandidates");
+    expect((await options()).items[0]?.name).toBe("mapping-options-standalone");
+    expect(derive).toHaveBeenCalledOnce();
+    expect((await options()).items[0]?.name).toBe("mapping-options-standalone");
+    expect(derive).toHaveBeenCalledOnce();
+    await repository.updateById(standalone, { name: "mapping-options-renamed" });
+    expect((await options()).items[0]?.name).toBe("mapping-options-renamed");
+    expect(derive).toHaveBeenCalledTimes(2);
+    await expect(
+      repository.withTransaction(async (tx) => {
+        await repository.updateById(standalone, { name: "mapping-options-rolled-back" }, tx);
+        throw new Error("fixture rollback");
+      }),
+    ).rejects.toThrow("fixture rollback");
+    expect((await options()).items[0]?.name).toBe("mapping-options-renamed");
+    expect(derive).toHaveBeenCalledTimes(2);
+  });
+
   it("authorizes only reachable channels and leaves unrelated catalogs out of the response", async () => {
     await prisma.relayChannel.createMany({
       data: Array.from({ length: 600 }, (_, index) => ({

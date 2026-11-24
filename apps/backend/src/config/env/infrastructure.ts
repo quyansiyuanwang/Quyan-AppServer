@@ -100,7 +100,11 @@ export function buildRateLimitConfig(source: EnvSnapshot) {
 }
 
 export function buildRelayConfig(source: EnvSnapshot) {
+  const recomputeOnWrite = source.RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE ?? "false";
+  if (!["true", "false"].includes(recomputeOnWrite))
+    throw new Error("RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE must be true or false");
   return {
+    catalogCache: { recomputeOnWrite: recomputeOnWrite === "true" },
     resourceGuard: {
       jsonBodyLimitMb: buildRequestSizeLimitsConfig(source).jsonBodyLimitMb,
       downstreamIdleTimeoutMs: resourceInteger(source, "RELAY_DOWNSTREAM_IDLE_TIMEOUT_MS", 600000),

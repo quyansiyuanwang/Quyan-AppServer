@@ -420,7 +420,10 @@ export class RelayTokenModelMappingService {
             : [],
         ),
       );
-      for (const path of await this.pools.resolveCapabilityLeafCandidates(roots, snapshot.context.graph)) {
+      const channelPaths = snapshot.context.resolveCapabilityLeafCandidates
+        ? await snapshot.context.resolveCapabilityLeafCandidates(roots)
+        : await this.pools.resolveCapabilityLeafCandidates(roots, snapshot.context.graph);
+      for (const path of channelPaths) {
         if (path.routingChannelIds.some((id) => blocked.has(id))) continue;
         const visiblePath = path.routingChannelIds.map((id) => logical.get(id)).filter((row) => row !== undefined);
         const channel = visiblePath.at(-1);
