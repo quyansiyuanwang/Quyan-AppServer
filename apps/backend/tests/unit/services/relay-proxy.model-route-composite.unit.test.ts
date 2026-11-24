@@ -163,6 +163,34 @@ function setupAnthropic() {
 const textOnly = (model: string) => ({ enabled: true, unsupportedImage: true, textOnlyModelIds: [model] });
 
 describe("composite model route through actual proxy execution", () => {
+  it.each(["deepseek-flash", "deepseek-v4.1-flash", "deepseek-ai/DeepSeek-V4.1-Flash"])(
+    "forwards %s through a single token without hiding the original model identity",
+    async (requestedModel) => {
+      const { proxy, left, leftChannel, pricing, request, response } = setup();
+      Object.assign(left, {
+        allowedModels: null,
+        modelMappingRules: [],
+        modelMapping: null,
+        normalizerConfig: { enabled: false },
+      });
+      const upstreamModel = "deepseek-ai/DeepSeek-V4.1-Flash";
+      leftChannel.allowedModels = JSON.stringify([upstreamModel]);
+      Object.assign(leftChannel, {
+        modelMapping: { "deepseek-flash": upstreamModel, "deepseek-v4.1-flash": upstreamModel },
+      });
+      Object.assign(pricing[0], { provider: upstreamModel, model: "DeepSeek Flash" });
+      request.body.model = requestedModel;
+
+      expect((await proxy.forwardRequest(left, request, response)).status).toBe(200);
+      expect(proxy.forwardStreamRequest).toHaveBeenCalledOnce();
+      const forwarded = proxy.forwardStreamRequest.mock.calls[0][0];
+      expect(forwarded.selectedModelId).toBe(upstreamModel);
+      expect(forwarded.convertedBody.model).toBe(upstreamModel);
+      expect(forwarded.selectedModelName).toBe("DeepSeek Flash");
+      expect(request.body.model).toBe(requestedModel);
+    },
+  );
+
   it("forwards outer scoped B -> A then member A -> C with the original attribution path", async () => {
     const { proxy, outer, left, right, leftChannel, rightChannel, request, response } = setup();
     const before = structuredClone(request);
