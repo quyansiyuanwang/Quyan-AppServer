@@ -1,6 +1,5 @@
 import { buildRelayUpstreamHeaders } from "./utils/relay-upstream-headers.util";
 import { buildRelayUpstreamQuery } from "./utils/relay-upstream-query.util";
-import { normalizeDeepSeekReasoningHistory } from "./utils/relay-deepseek-request.util";
 import { resolveRelayModelRoute, relayModelRouteRequestCandidates } from "./utils/relay-model-route.util";
 import { projectRelayCompositionCatalog } from "./utils/relay-composition-catalog.util";
 import { projectRelayAvailableModels, relayDiscoveryAllowsModels } from "./utils/relay-model-discovery.util";
@@ -3517,8 +3516,6 @@ export class RelayProxyService {
                 normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig),
               );
             }
-
-            convertedBody = normalizeDeepSeekReasoningHistory(convertedBody, requestFormat, selectedModelId);
 
             const reuseRawRequest = Boolean(
               rawJsonBody &&

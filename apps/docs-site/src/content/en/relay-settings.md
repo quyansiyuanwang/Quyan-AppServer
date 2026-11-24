@@ -45,10 +45,6 @@ Zero input/output token prices can be saved. Although a per-request fixed price 
 
 In strict two-tier mode, the pool editor first saves the logical pool, then saves each physical member's parent, priority, weight and enabled state individually. These requests are not one transaction. A later failure may leave the pool and some members saved. Removing a member from the draft does not detach its persisted parent relationship. To move a member, select and save it in the destination pool, then check both pools.
 
-### DeepSeek tool history compatibility
-
-For DeepSeek models called through OpenAI Chat Completions with tools, forwarding adds an empty `reasoning_content` string to assistant history messages missing that field, avoiding HTTP 400 responses from some upstreams. Existing reasoning is preserved; this does not recover reasoning discarded by the client. Compatibility uses the mapped upstream model ID, so the full model ID and aliases pointing to it behave consistently without token configuration changes. Clients should still preserve reasoning history, especially when switching models within a conversation.
-
 ### Request header forwarding
 
 Open **Relay settings (`/relay/settings`) → System request-header forwarding policy** with system configuration permission. Choose a mode and edit the lists, then use the page save button. No restart is required. This section is disabled without system configuration access.
