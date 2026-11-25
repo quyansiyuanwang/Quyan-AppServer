@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { copyProbeProfileSettings } from "./relay-probe-profile-template";
 import { relayProbeHistoryTerminalStatuses } from "./relay-probe-run-history-policy";
 import { prisma } from "@/config/database";
@@ -168,7 +169,7 @@ export class RelayChannelProbeRepository {
     suggestedMultiplier: Prisma.Decimal | number;
     actorUserId: string;
   }): Promise<boolean> {
-    return prisma.$transaction(async (tx) => {
+    const committed = prisma.$transaction(async (tx) => {
       const changed = await tx.relayChannel.updateMany({
         where: { id: params.channelId, multiplier: params.expectedMultiplier },
         data: { multiplier: params.suggestedMultiplier },
@@ -185,6 +186,7 @@ export class RelayChannelProbeRepository {
       if (applied.count) return true;
       throw new Error("Probe run was already applied");
     });
+    return afterRelayCatalogWrite(committed);
   }
 
   public findClaimableRuns(now: Date, take: number): Promise<RelayChannelProbeClaimCandidate[]> {

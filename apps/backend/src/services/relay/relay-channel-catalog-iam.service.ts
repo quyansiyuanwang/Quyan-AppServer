@@ -5,7 +5,7 @@ import { platformManagementGroupSnapshot } from "@/store/users/platform-manageme
 import { platformUserArn } from "@/iam/resources/platform-user-resources";
 import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
 import { projectRelayChannelRoutingCatalog } from "./relay-channel-routing-catalog-projection";
-import type { RelayCatalogSnapshot } from "@/store/relay/relay-channel-catalog-read.repository";
+import type { RelayCatalogSnapshot, RelayCatalogReadScope } from "@/store/relay/relay-channel-catalog-read.repository";
 import { isDeepStrictEqual as same } from "node:util";
 import { Permission, iamLegacyPermissionsForAction, buildAcsResource, type IamPrincipal } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -35,6 +35,7 @@ export class RelayChannelCatalogIamService {
     targetUserId: string | undefined,
     request: TypedRequest | undefined,
     read: (snapshot: RelayCatalogSnapshot) => Promise<T>,
+    scope?: RelayCatalogReadScope,
   ): Promise<T> {
     const result = await this.readProjection(
       actorUserId,
@@ -46,6 +47,7 @@ export class RelayChannelCatalogIamService {
       async (snapshot) => [await read(snapshot)],
       targetUserId,
       true,
+      scope,
     );
     return result[0]!;
   }
@@ -114,6 +116,7 @@ export class RelayChannelCatalogIamService {
     ) => Promise<T[]>,
     targetUserId?: string,
     alwaysEnforce = false,
+    scope?: RelayCatalogReadScope,
   ) {
     const mode = alwaysEnforce ? "enforce" : env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
@@ -148,7 +151,8 @@ export class RelayChannelCatalogIamService {
           : undefined,
         managed = Boolean(target && (target.accountOwnerId || target.id) !== principal.accountOwnerId);
       const iam = IamAuthorizationService.getInstance(),
-        fingerprint = fingerprintIamPolicies(await iam.loadPolicies(principal)),
+        policies = await iam.loadPolicies(principal),
+        fingerprint = fingerprintIamPolicies(policies),
         keyId = request.accessKey?.id,
         keyRevision = await captureIamAccessKeyRevision(principal, keyId),
         oauth = request.oauthAccessToken
@@ -158,8 +162,17 @@ export class RelayChannelCatalogIamService {
         oauthRevision = await captureIamOAuthRevision(principal, oauth, scopes),
         transport = requestTransportConditionContext(request);
       const observed = new Map<string, { action: string; resource: string; decision: string }>();
+      // Scoped inspections already re-prove the policy fingerprint at every read
+      // boundary and before release. Reuse that input for decisions, while still
+      // evaluating live resource conditions, platform ceilings and request time.
+      const evaluator = scope
+        ? {
+            authorizeMany: (input: Parameters<typeof iam.authorizeMany>[0]) =>
+              iam.evaluateLoadedPolicies({ ...input, policies }),
+          }
+        : iam;
       const decide = async (checkedAction: string, resources: readonly string[]) => {
-        const outcomes = await platformCollectionDecisions(iam, {
+        const outcomes = await platformCollectionDecisions(evaluator, {
           principal,
           action: checkedAction,
           request,
@@ -252,6 +265,7 @@ export class RelayChannelCatalogIamService {
         recheck,
         hydrate ? (snapshot) => project(snapshot, decide, principal) : undefined,
         otherTarget ? { userId: targetId, authorize: admitTarget } : undefined,
+        scope,
       );
       await recheck();
       // Time-based conditions and out-of-transaction revocation must still hold at response release.

@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { Prisma } from "@prisma/client";
 import { Permission, type RelayProbeFormat } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -56,7 +57,7 @@ export class RelayProbeRunApplyRepository {
       platformRelayProbeProfileArn(channelId, profileId),
       ...(memberId ? [platformRelayChannelArn(memberId)] : []),
     ]);
-    return withLock(channelId, () =>
+    const committed = withLock(channelId, () =>
       mutatePlatformRelayProbe(Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST, principal, snapshot, recheck, async (tx) => {
         await tx.$queryRaw(Prisma.sql`SELECT id FROM relay_channels WHERE id = ${channelId} FOR UPDATE`);
         const { channel, members } = await relayProbeReadTarget(tx, channelId, memberId ?? undefined, visible);
@@ -253,5 +254,6 @@ export class RelayProbeRunApplyRepository {
         return true;
       }),
     );
+    return afterRelayCatalogWrite(committed, persist);
   }
 }

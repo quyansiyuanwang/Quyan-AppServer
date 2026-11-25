@@ -148,6 +148,18 @@ describe("model mapping draft service authorization and projections", () => {
     for (const id of ["physical", "unrelated", "hidden"])
       await expect(service.channelOptions("actor", { draft, selectedIds: [id] })).rejects.toThrow("scope denied");
   });
+  it("scopes catalog reads to draft roots and only loads models for preview", async () => {
+    await service.channelOptions("actor", { draft });
+    expect(channels.withRoutingSnapshot.mock.calls.at(-1)?.[4]).toEqual({
+      rootIds: ["logical"],
+      includeModelCatalog: false,
+    });
+    await preview();
+    expect(channels.withRoutingSnapshot.mock.calls.at(-1)?.[4]).toEqual({
+      rootIds: ["logical"],
+      includeModelCatalog: true,
+    });
+  });
   it("paginates matching logical candidates while retaining selected matches", async () => {
     const input = {
       channelConfigs: [

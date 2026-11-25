@@ -134,6 +134,14 @@ Oversized request bodies receive 413 before an upstream call and are not charged
 
 Ordinary same-protocol streams are not stopped solely because cumulative forwarded bytes exceed the retained-text capacity. Frame parsing, protocol conversion, content review and chat storage still have their own capacities. Overflow detected before response headers receives 413. Once SSE has started, its HTTP status cannot change; clients must check `error` / `response.failed` events. A server capacity failure then produces an explicit error, no successful completion marker and no user charge; any persisted partial chat message remains failed. Partial output from an upstream failure or a client-initiated stop keeps the existing settlement rules.
 
+## Relay model catalog cache (deployment setting)
+
+The backend caches calculations used by model mapping channel options. After a channel change commits, the process clears its cache and, by default, recalculates it on the next read. Every read still checks permissions and channel visibility.
+
+Deployment administrators can set `RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE=true` in the backend `.env` to recalculate existing cache entries after a successful write, reducing calculation time on later reads. The default is `false`; only `true` and `false` are accepted. Eager recalculation increases write latency and database load. A recalculation failure does not fail an already committed change; a later read recalculates the entry.
+
+Change this setting through the deployment environment and restart all backend processes. Each process has its own cache. Other processes validate cached calculations against current database data on their next read and do not reuse results from an older data revision.
+
 ## Related pages
 
 - [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)

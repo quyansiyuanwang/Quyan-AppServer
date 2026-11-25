@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
@@ -84,7 +85,7 @@ export class RelayChannelSubmissionCreateRepository {
       ...new Set([...guard.users.map((user) => user.id), ...targets.map((target) => target.user.id)]),
     ].sort();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           // Lock all referenced identities in one order, including cross-account proposed revenue recipients.
           // A proposal is owned by the submitter; it never confers authority over a recipient's IAM identity.
@@ -280,6 +281,7 @@ export class RelayChannelSubmissionCreateRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: creationPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Submission creation context changed", undefined, { messageKey: "errors.conflict" });

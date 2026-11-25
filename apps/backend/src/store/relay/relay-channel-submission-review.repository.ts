@@ -1,3 +1,4 @@
+import { afterRelayCatalogWrite } from "./relay-catalog-graph-cache";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -70,7 +71,7 @@ export class RelayChannelSubmissionReviewRepository {
       recipientIds = [...new Set([...target.providers.map((row) => row.userId), target.submittedByUserId!])].sort(),
       userIds = [...new Set([...guard.snapshot.users.map((row) => row.id), ...recipientIds])].sort();
     try {
-      return await prisma.$transaction(
+      const committed = prisma.$transaction(
         async (tx) => {
           // Proposals can pay other accounts. Lock all referenced identities once, in canonical order.
           await tx.$queryRaw(
@@ -225,6 +226,7 @@ export class RelayChannelSubmissionReviewRepository {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: reviewPolicy.timeoutMs },
       );
+      return await afterRelayCatalogWrite(committed, persist);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028", "P2002"].includes(error.code))
         throw new ConflictError("Channel review context changed", undefined, { messageKey: "errors.conflict" });

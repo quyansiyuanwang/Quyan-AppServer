@@ -7,6 +7,17 @@ import { buildRuntimeConfig } from "@/config/env/runtime";
 import { buildRelayConfig } from "@/config/env/infrastructure";
 
 describe("AI deployment budgets", () => {
+  it("defaults catalog warmup to lazy invalidation and validates the eager switch", () => {
+    expect(buildRelayConfig({}).catalogCache.recomputeOnWrite).toBe(false);
+    expect(buildRelayConfig({ RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE: "true" }).catalogCache.recomputeOnWrite).toBe(
+      true,
+    );
+    expect(buildRelayConfig({ RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE: "false" }).catalogCache.recomputeOnWrite).toBe(
+      false,
+    );
+    expect(() => buildRelayConfig({ RELAY_CATALOG_CACHE_RECOMPUTE_ON_WRITE: "yes" })).toThrow("must be true or false");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
